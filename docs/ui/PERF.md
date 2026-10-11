@@ -41,9 +41,12 @@ numbers below are therefore the new-UI baseline; UI_SPEC delta budgets
 - [ ] Lighthouse accessibility and best-practices >= 95 (U22).
 - [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release PR.
 
-## Fixes queued from this audit
+## Fixes from this audit (2026-10-11)
 
-1. `arrival_row.dart` past dimming via colour alpha (no `Opacity`).
-2. Deferred map import on web (U12 remainder).
-3. Debug-only frame-timing logger (`addTimingsCallback` p50/p95 per screen).
-4. `docs/ui/PERF.md` created (this file); before/after table fills in when device runs land.
+1. Done: `arrival_row.dart` past dimming via colour alpha (no `Opacity`).
+2. Decided: deferred map import stays eager (see DECISIONS.md D-U20).
+   Revisit with measurements if the web budget regresses.
+3. Done: debug-only frame-timing logger (`summarizeBuildRaster` plus
+   `installFrameTimingLogger`, hooked in the debug gallery).
+4. Done: `docs/ui/PERF.md` created (this file); before/after table fills
+   in when device runs land.

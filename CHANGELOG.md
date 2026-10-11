@@ -4,6 +4,19 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- UI_SPEC sections 14-18 compliance: router not-found page, web drag
+  scrolling, edge-to-edge transparent bars, tagline on About, exact
+  capacity copy, future models and seams (alert rules, reliability
+  aggregates, alerts store, live-aware and composite arrivals,
+  `localKudos` flag, optional pace factor), flagged future components
+  (Sparkline, ConfidenceMeter, AlertSheet, ReliabilityCard,
+  PredictionInfoSheet), prediction visuals (GhostMarker, PredictedPath,
+  gallery demo), the Saindo agora home feed, a debug frame-timing logger,
+  and automated guideline tests in both themes (Segmented raised to 56 dp
+  for 48 dp targets; light scheduled and warning text darkened one step
+  for badge contrast). Deferred map import stays eager per DECISIONS.md
+  D-U20. Brand vector source plus `docs/ui/PERF.md` baseline added; past
+  arrivals dim by colour alpha instead of Opacity.
 - New UI foundation (docs/ui/UI_SPEC.md): design tokens with WCAG AA
   contrast enforced by a test, Manrope variable subset at 51 KB, custom
   painted domain icons, certainty system (live, predicted, scheduled,
