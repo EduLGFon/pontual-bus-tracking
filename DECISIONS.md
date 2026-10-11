@@ -1428,3 +1428,46 @@ plus the commits in D-U19, all on branch `dev`):
 - Emulator caveats (Medium_Phone_API_37.0, x86_64, SwiftShader, no KVM):
   cold start and raster are inflated and do not count against hardware
   budgets; build times, PSS and sizes are representative.
+
+## D-U23-2026-10-11: owner-supplied app icon applied (launcher + PWA)
+
+The owner dropped `icon.png` (1254x1254 RGBA, rounded corners transparent),
+`icon.jpeg` (1003x1003, opaque, smaller) and `icon.svg` (monochrome
+auto-trace silhouette, not full colour) at the repo root and asked to apply
+the icon and put each file in its right place. The PNG is the master: it is
+the largest and the only one with alpha.
+
+Sources moved to `design/brand/`: `app-icon.png` (master),
+`app-icon.jpeg` (reference copy), `app-icon.svg` (trace copy). Root copies
+removed. `design/brand/pontual-mark.svg` (UI_SPEC 15 mint-on-pine mark)
+stays untouched; the splash, theme tokens and HTML splash keep the pine
+brand, so launcher and brand now diverge and a full rebrand is an owner
+decision for later.
+
+Generated from the master with a throwaway Dart script using package:image
+4.5.4 (cubic resampling, temp project outside the repo, no repo dependency
+added, so no ADR needed for a package):
+
+- Android legacy: `mipmap-mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi/ic_launcher.png`
+  at 48/72/96/144/192, transparency kept.
+- Android adaptive: `drawable-<dpi>/ic_launcher_foreground.png` at
+  108/162/216/324/432 canvas with the artwork inset to the 72dp safe zone
+  on a navy fill; `mipmap-anydpi-v26/ic_launcher.xml` and
+  `ic_launcher_round.xml` use `@color/pontual_icon_bg` (`#0D3971`,
+  edge-band average of the master) plus the raster foreground. The old
+  mint vector `drawable/ic_launcher_foreground.xml` is deleted and the
+  `<monochrome>` layer is removed: themed icons fall back to the standard
+  icon until someone draws a vector monochrome of the new mark.
+- Web: `icons/Icon-192.png`, `icons/Icon-512.png` (opaque on navy),
+  `icons/Icon-maskable-192.png`, `icons/Icon-maskable-512.png` (artwork at
+  80 percent on navy, bus inside the maskable safe zone), new
+  `icons/Icon-apple-touch-180.png` (180, opaque, iOS fills black on
+  transparency), `favicon.png` upgraded from 16 to 32 per UI_SPEC 15.
+  `index.html` apple-touch-icon points at the 180 file; `manifest.json`
+  names are unchanged.
+
+Verified: `file` dimensions on all 16 PNGs, visual check of the 192 web
+icon, the xxxhdpi foreground (navy surround blends with the background)
+and the 512 maskable, manifest source audit PASS. No Dart code touched;
+no Android SDK on this host, so the merged-manifest and install-launch
+check stays for the release machine (owner todo).
