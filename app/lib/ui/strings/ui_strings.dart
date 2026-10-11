@@ -634,6 +634,15 @@ class UiStrings {
   static const String paceSlower =
       'Ritmo recente deste ônibus: um pouco mais lento que o normal';
 
+  /// Prediction explanation sheet title (UI_SPEC 14).
+  static const String predictionInfoTitle = 'Como calculamos';
+
+  /// One-paragraph estimate explanation (UI_SPEC 14).
+  static const String predictionInfoBody =
+      'A previsão usa as posições mais recentes e o ritmo habitual desta '
+      'linha neste horário. Ela é uma estimativa, não uma posição ao vivo, '
+      'e pode mudar.';
+
   /// Walking prompt title.
   static const String walkingTitle = 'Você ainda está no ônibus?';
 

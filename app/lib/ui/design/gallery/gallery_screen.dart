@@ -3,11 +3,13 @@
 // is registered only in debug builds, so the gallery is never shipped.
 // See docs/ui/UI_SPEC.md 5.
 import 'package:flutter/material.dart' hide Banner, Chip;
+import 'package:pontual/ui/design/components/alert_sheet.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
 import 'package:pontual/ui/design/components/banner.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/chip.dart';
+import 'package:pontual/ui/design/components/confidence_meter.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
@@ -17,10 +19,13 @@ import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/permission_card.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
+import 'package:pontual/ui/design/components/prediction_info_sheet.dart';
+import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/search_field.dart';
 import 'package:pontual/ui/design/components/segmented.dart';
 import 'package:pontual/ui/design/components/shortcut_card.dart';
 import 'package:pontual/ui/design/components/skeleton.dart';
+import 'package:pontual/ui/design/components/sparkline.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/components/time_rail.dart';
 import 'package:pontual/ui/design/components/trip_dock.dart';
@@ -30,6 +35,7 @@ import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
+import 'package:pontual/ui/models/reliability.dart';
 import 'package:pontual/ui/models/trip_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -216,6 +222,52 @@ class _GalleryBody extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         PermissionCard(state: PermissionCardState.blocked, onRetry: () {}),
+        const SizedBox(height: 12),
+        const Text('Futuros (flagged off, demo com dados falsos)'),
+        const SizedBox(height: 8),
+        const Sparkline(bars: <double>[0.2, 0.5, 0.35, 0.8, 0.6, 0.9, 0.4]),
+        const SizedBox(height: 8),
+        const Row(
+          children: <Widget>[
+            ConfidenceMeter(level: 0),
+            SizedBox(width: 12),
+            ConfidenceMeter(level: 1),
+            SizedBox(width: 12),
+            ConfidenceMeter(level: 2),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const ReliabilityCard(
+          reliability: ReliabilityVM(
+            typicalDelayMin: 4,
+            sampleSize: 120,
+            bars: <double>[0.2, 0.5, 0.35, 0.8, 0.6, 0.9, 0.4],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Builder(
+          builder: (BuildContext context) {
+            return Wrap(
+              spacing: 8,
+              children: <Widget>[
+                SecondaryButton(
+                  label: UiStrings.alertTitle,
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (_) => AlertSheet(onSave: (_, _, _) {}),
+                  ),
+                ),
+                SecondaryButton(
+                  label: UiStrings.predictionInfoTitle,
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (_) => const PredictionInfoSheet(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
         const SizedBox(height: 20),
         GhostLink(
           label: UiStrings.seeOnMap,
