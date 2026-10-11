@@ -41,6 +41,7 @@ import 'package:pontual/ui/models/reliability.dart';
 import 'package:pontual/ui/models/trip_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/util/frame_timing.dart';
 
 /// The gallery screen.
 class GalleryScreen extends StatefulWidget {
@@ -54,6 +55,12 @@ class GalleryScreen extends StatefulWidget {
 class _GalleryScreenState extends State<GalleryScreen> {
   double _textScale = 1;
   String _segment = 'agora';
+
+  @override
+  void initState() {
+    super.initState();
+    installFrameTimingLogger('gallery');
+  }
 
   @override
   Widget build(BuildContext context) {
