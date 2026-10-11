@@ -92,7 +92,13 @@ class HomeScreen extends ConsumerWidget {
         : const SizedBox.shrink();
     final Widget liveOrEmpty = liveCapped.isNotEmpty
         ? LiveNowSection(lines: liveCapped)
-        : const NoLiveCard();
+        // The empty card carries no header of its own, so it reserves its
+        // own top spacing: otherwise it sits almost glued to the shortcut
+        // strip on first run, when only the placeholder cards exist. D-U26.
+        : const Padding(
+            padding: EdgeInsets.only(top: Space.x4),
+            child: NoLiveCard(),
+          );
     final Widget recentsSection = features.recents
         ? RecentsSection(lines: lines)
         : const SizedBox.shrink();
