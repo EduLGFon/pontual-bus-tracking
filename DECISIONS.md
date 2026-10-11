@@ -1609,7 +1609,10 @@ verification split as D-U25):
   instead of a hard clip. The timetable rail now passes minute parts
   ("40" under hour "06", the gallery contract): full strings rebuilt
   "06:06:40" values, broke the past dimming and never matched the
-  next-departure highlight.
+  next-departure highlight. The Horarios hero showed the first
+  departure of the day instead of the documented next one (the rail
+  tests only masked this through the full-time chips); the hero now
+  selects `next`.
 - Map on poor connections: bundling or prefetching OSM tiles is
   rejected (OSM tile policy forbids bulk downloading; AGENTS.md 15
   hard limit; RNF14 size budget). Poor connections keep the compliant
