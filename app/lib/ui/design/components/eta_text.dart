@@ -99,6 +99,10 @@ class EtaText extends StatelessWidget {
                 key: ValueKey<String>(primary),
                 style: primaryStyle,
                 maxLines: 1,
+                // Ellipsis instead of a hard clip: a squeezed hero reads
+                // as truncated, never as a wrong shorter time. D-U26.
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
               ),
             ),
           ),

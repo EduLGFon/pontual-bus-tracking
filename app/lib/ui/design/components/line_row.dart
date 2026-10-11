@@ -95,7 +95,15 @@ class LineRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(nextEta, style: context.text.etaLarge),
+                // Never a hard clip: on a narrow row a long clock
+                // ellipsises instead of reading as a shorter time. D-U26.
+                Text(
+                  nextEta,
+                  style: context.text.etaLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
                 Text(UiStrings.nextDeparture, style: context.text.caption),
               ],
             ),

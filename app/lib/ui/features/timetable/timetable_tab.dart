@@ -183,9 +183,17 @@ class _TimetableTabState extends State<TimetableTab> {
 
   /// Hour rail with the auto-scroll towards the next departure.
   Widget _railSection(List<String> times, String? next, int nowMinutes) {
+    // Chips carry the minute part only ("40" under hour "06"): the full
+    // "HH:mm" strings would rebuild "06:06:40" values, break the past
+    // dimming and never match the next-departure highlight. D-U26.
     final List<TimeRailHour> hours = <TimeRailHour>[
       for (final MapEntry<String, List<String>> e in groupByHour(times).entries)
-        TimeRailHour(hour: e.key, minutes: e.value),
+        TimeRailHour(
+          hour: e.key,
+          minutes: <String>[
+            for (final String t in e.value) t.split(':').last,
+          ],
+        ),
     ];
     _scrollToNext(hours, next);
     return Padding(
