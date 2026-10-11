@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
-import 'package:pontual/app/strings_pt.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/config/remote_config.dart';
@@ -38,12 +38,20 @@ Future<void> shareTrip(
   StaticLine line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
+  bool legacySheets = true,
 }) async {
   if (!line.pilot) {
     return;
   }
   try {
-    await _shareTrip(context, ref, line, gateway, ensureNotifications);
+    await _shareTrip(
+      context,
+      ref,
+      line,
+      gateway,
+      ensureNotifications,
+      legacySheets: legacySheets,
+    );
   } catch (_) {
     // Any unexpected failure (for example the flags fetch throwing
     // before the progress sheet opens) ends here with an explanation,
@@ -51,7 +59,7 @@ Future<void> shareTrip(
     if (!context.mounted) {
       return;
     }
-    _tell(context, StringsPt.shareNoConnection);
+    _tell(context, UiStrings.shareNoConnection);
   }
 }
 
@@ -61,9 +69,15 @@ Future<void> _shareTrip(
   WidgetRef ref,
   StaticLine line,
   PermissionGateway gateway,
-  Future<void> Function() ensureNotifications,
-) async {
+  Future<void> Function() ensureNotifications, {
+  bool legacySheets = true,
+}) async {
   if (!await gateway.servicesOn()) {
+    // The new UI renders its own services-off card through the caller,
+    // so the legacy sheet is skipped there but nowhere else.
+    if (!legacySheets) {
+      return;
+    }
     if (!context.mounted) {
       return;
     }
@@ -158,8 +172,10 @@ Future<void> _shareTrip(
         return;
       }
       // Best effort and non-blocking: the trip works without the banner.
+      // The notification request always runs; only its education sheet
+      // is owned by the new UI when it leads the flow.
       await ensureNotifications();
-      if (!context.mounted) {
+      if (!context.mounted || !legacySheets) {
         return;
       }
       await showModalBottomSheet<void>(
@@ -201,6 +217,12 @@ Future<void> _shareTrip(
     return;
   }
   if (reason == StartFailure.permission) {
+    // The new UI maps the denial to its own permission card; the legacy
+    // sheets below only run for the legacy flow. The controller is
+    // already disposed above, so this branch only returns.
+    if (!legacySheets) {
+      return;
+    }
     final LocationPermissionState perm = await gateway.check();
     if (!context.mounted) {
       return;
@@ -225,18 +247,18 @@ Future<void> _shareTrip(
 String _messageFor(StartFailure? reason) {
   switch (reason) {
     case StartFailure.offline:
-      return StringsPt.shareNoConnection;
+      return UiStrings.shareNoConnection;
     case StartFailure.noGps:
-      return StringsPt.shareNoGps;
+      return UiStrings.shareNoGps;
     case StartFailure.busy:
-      return StringsPt.shareBusy;
+      return UiStrings.shareBusy;
     case StartFailure.outsideArea:
-      return StringsPt.shareOutsideArea;
+      return UiStrings.shareOutsideArea;
     case StartFailure.permission:
     case StartFailure.declined:
     case StartFailure.failed:
     case null:
-      return StringsPt.shareStartFailed;
+      return UiStrings.shareStartFailed;
   }
 }
 

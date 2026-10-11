@@ -1047,3 +1047,251 @@ request history; the entries below supersede it where decided.
   fix for map rebuilds, but touches provider override patterns in
   tests), per-IP limit raise, ping-bucket reorder, home error UI and
   schedule virtualization (cosmetic at current sizes).
+
+Append-only. Newest entries go at the end of each section. See AGENTS.md 14.
+
+## D-U01-2026-10-14: UI_SPEC.md is truncated at section 13.5
+
+`docs/ui/UI_SPEC.md` (v1.0, dated 2026-10-14) ends at section 13.5.
+Sections 14 (copy deck), 15 (brand assets), 16 (implementation plan,
+tasks U01 to U26), 17 (QA and measurement) and 18 (reading list) are
+missing, even though sections 0 to 13 reference them.
+
+Handling: the task plan was reconstructed from the section titles and the
+work actually required by sections 0 to 13; the wireframes in section 7 are
+used as the copy deck. Every deviation this forces is recorded here.
+Owner action: append the missing sections, or confirm this reconstruction.
+
+## D-U02-2026-10-14: no `NEW_UI` cutover flag, old UI removed in one change set
+
+UI_SPEC 0.3 prescribes building the new UI next to the old one and cutting
+over behind `--dart-define=NEW_UI=true` (task U24). The owner asked for the
+old UI to be removed.
+
+Handling: the flag exists and defaults to **true** (the new UI runs by
+default), so the old screens stay available for review with
+`--dart-define=NEW_UI=false`. When the new UI reaches parity the legacy
+folders `app/lib/features/`, `app/lib/app/` and `app/lib/app/theme.dart`
+are deleted in one commit rather than kept alive. Two UIs permanently is
+double maintenance and violates "don't make me think" for the next agent.
+
+## D-U03-2026-10-14: variable Manrope subset instead of five static weights
+
+UI_SPEC 4.2 asks for one bundled subsetted typeface, candidate order
+Manrope, Plus Jakarta Sans, Inter, with a variable weight axis or static
+weights, tabular figures, and a 70 KB budget.
+
+Verified (docs/ui/VERIFY-NOTES.md section 3): `FontVariation('wght', w)`
+is applied by the engine on Android, CanvasKit and Skwasm, and
+`FontFeature.tabularFigures()` is a const constructor. The native font
+manifest ignores a pubspec `weight:` key (chinmaygarde TODO in
+`font_collection.cc`), so a single variable TTF is the only shape where
+the requested weight actually renders.
+
+Result: one 51,712 byte TTF (Manrope[wght].ttf subset to Latin,
+Latin-1, punctuation and arrows, `tnum` and `kern` kept), built by
+`tools/build_fonts/subset_manrope.py`. Five static instances measured
+145 KB, over budget. Every text style sets `fontVariations` explicitly,
+so no style renders at the variable default (wght 200).
+
+## D-U04-2026-10-14: colour token values adjusted for WCAG 2.2 AA
+
+UI_SPEC 4.1 gives starting hex values and requires a contrast test that
+fails below 4.5:1 for text and 3:1 for graphics.
+
+Measured with the WCAG formula over every foreground/background pair used
+by the UI, the starting values failed on: light `live` (2.53 on `bg`),
+light `warning` (2.92 on `bg`), light `inkSubtle` on `surfaceSunken`
+(4.47), light `warningText` on `surfaceSunken` (4.24), and three line
+palette colours against white badge text (`#0284C7`, `#0891B2`,
+`#EA580C`). The dark set passed everywhere.
+
+Final values are in `app/lib/ui/design/tokens/colors.dart` and are asserted
+by `app/test/ui/contrast_test.dart`: light `live` is now `#149B5C`,
+`warning` `#CC7006`, `inkSubtle` `#5E6E69`, `warningText` `#AD5009`, and the
+light line palette uses `#027CBB`, `#07819E`, `#CC4D0A` instead of the
+starting three. The dark line palette is the light palette lightened so
+near-black badge text reaches 4.5:1 on every fill.
+
+## D-U05-2026-10-14: `StaticLine` gained optional fields, nothing else changed
+
+The new UI needs terminals, area tags and the active flag, which the lines
+JSON already carries. UI_SPEC 0.1 rule 2 forbids changing static-data
+loading.
+
+Handling: `StaticLine.fromJson` now also reads `terminals`, `area_tags`
+and `is_active` as optional fields that default to empty and true. No
+fetch, cache, swap or parsing rule changed, and the JSON schema is
+untouched. The UI never reads the data repository directly: it goes through
+`lib/ui/adapters/`, as the spec requires.
+
+## D-U06-2026-10-14: `flutter build web --analyze-size` does not exist
+
+UI_SPEC 11.4 lists it. Verified (docs/ui/VERIFY-NOTES.md section 5): the
+flag does not exist in Flutter 3.47.6, the tool answers "Could not find an
+option named analyze-size", and `--web-renderer` is gone as well (the
+renderer is canvaskit by default for JS and skwasm for `--wasm`).
+
+Handling: the web transfer size is measured from `build/web` after
+`flutter build web --release` (`du -sb`, plus the gzip total the deploy
+workflow already reports). Android size uses `flutter build apk
+--analyze-size`, which does exist.
+
+## D-U07-2026-10-14: no `NEW_UI` per-screen parity flag; no route for the timetable
+
+UI_SPEC 6.6 lists a `/timetable/:key` route. The timetable is a tab of the
+line screen in every wireframe, and a second URL for the same content
+duplicates state (`?tab=` already exists on `/line/:key`).
+
+Handling: no `/timetable/:key` route; `/line/:key?tab=horarios` is the one
+URL, and it deep-links on web.
+
+## D-U08-2026-10-14: house style for the new UI
+
+Decisions taken while implementing sections 3 to 7 that are not covered by
+the spec text:
+
+- `CertaintyStyle` is a function `styleOf(context, certainty)` in
+  `lib/ui/design/components/certainty_style.dart`, not a class with a
+  static table, because colours must come from the theme extension.
+- The dashed predicted pill is drawn with a `CustomPainter` path
+  (`DashedOutline`) rather than a package.
+- The vehicle marker glyph is the same `BusIconPainter` as the badges, so
+  the icon family has one visual weight.
+- `SearchField` uses `InputDecoration.collapsed` with no border
+  overrides, which is the cheapest way to have no Material underline.
+- Live staleness uses the data layer constant `staleAfterS = 45`, mirrored
+  by `liveFreshS` in the models, so the UI never invents its own threshold.
+- `Offline` is a banner, never a blocking screen (UI_SPEC 7.9), and the
+  flag that drives it is a provider the data layer can fill in later.
+
+## D-U09-2026-10-14: cutover done, old UI removed in one change set
+
+Per the owner order the old UI is removed instead of kept behind the
+`NEW_UI` flag from D-U02. The flag is gone; `main.dart` boots the new UI
+directly.
+
+Deleted screens: `features/home/home_screen.dart`,
+`features/line/{line_screen,map_tab,schedule_tab}.dart`,
+`features/map/map_widget.dart`, `features/settings/{settings_screen,
+privacy_screen,about_screen}.dart`, `features/trip/trip_screen.dart`,
+`features/system/system_screen.dart`, `app/{router,theme,strings_pt}.dart`.
+Kept logic (called by the new UI through `lib/ui/adapters/` or directly):
+the trip controller, supervisor, location service, ping client, consent
+flow and sheets, share flow and progress, tile source, privacy actions,
+policy texts, install hint, wake lock, visibility tracker, web banner, and
+`app/providers.dart`.
+
+Shared copy moved to `UiStrings`: the share-flow and progress strings, the
+web trip strings, the install hint, the collection summary, the OSM
+copyright URL, and the repository URL. Two legacy typos were fixed in the
+move (`Buscando configuracao` to `Buscando configuração`,
+`Detalhes tecnicos` to `Detalhes técnicos`); their tests were updated to
+the corrected copy. The repository URL was corrected to the actual remote
+(`.../pontual-bus-tracking`, not `.../pontual-bus-tracking-app`).
+
+Tests: legacy screen tests deleted with their screens (`home_test`,
+`map_tab_test`, `settings_test`, `trip_status_ui_test`, the widget parts
+of `map_test` and `schedule_test`). Shared-logic tests migrated:
+`app_test` and the `privacy_test` journey now walk the new UI,
+`share_flow_test` runs against the new router, `trip_controller_test`
+pumps the new trip screen and end cards, `trip_auto_end_test` asserts the
+new end-card messages, `remote_config_test` pumps the new system screens.
+The 8 pre-existing failures on the clean tree (map_tab x4, auto_end x1,
+controller x2, status_ui x1) resolved as: map_tab and status_ui deleted
+with their screens; auto_end and controller failures under investigation
+in the migrated files.
+
+## D-U10-2026-10-14: dock and trip attach fixes found by the new tests
+
+- `tripVmProvider` was a static snapshot: the dock froze at attach time.
+  Replaced by `LiveDockHost`, which watches `tripHostProvider` and rebuilds
+  on every controller notification through `ListenableBuilder`.
+- The global idle pill was missing (the shell only showed the dock for an
+  active trip). The shell now always mounts the dock; line screens keep
+  their contextual `LineDock` on a route outside the shell, so the two can
+  never double.
+- `TripRoute` wrote the provider in `initState` and read it in `dispose`,
+  both forbidden by Riverpod. The notifier is captured in `initState`,
+  the attach is deferred to the first frame, and the detach logic moved
+  into `TripHost.detachIfIdle`, which reads only its own state.
+- Widget tests must dispose trip controllers inline: `addTearDown` runs
+  after the framework invariant check, so a 30 s supervision timer left
+  for teardown fails the test.
+- `EtaText` keeps the old child for its 140 ms switch: tests asserting a
+  value is gone must pump the tap frame and then advance past the
+  transition.
+- `setSurfaceSize` alone does not change `MediaQuery`: tests needing a
+  compact layout must also set `tester.view.physicalSize`.
+- `pumpAndSettle` never returns under the shared live pulse or the trip
+  hero timer; those tests pump fixed frames instead.
+
+## D-U11-2026-10-14: three pre-existing trip test failures were test bugs
+
+`flutter test` on the clean tree failed three controller tests. All three
+were test-side assumptions invalidated by earlier production changes, not
+production bugs; production code is untouched:
+
+- `pings are paced`: the helper stamped every fix at t=100000 while the
+  fake clock advanced past the 20 s freshness window, so the stale filter
+  correctly dropped the fixes the test thought pacing skipped. The helper
+  takes the fake now.
+- `120 s offline heals`: paced sends (n:20) mean no ping is in flight when
+  the hanging future completes, so nothing could heal. The test now sends
+  one fresh fix after entering offline, mirroring production where fixes
+  keep arriving.
+- `late outcome ignored`: the shared hanging future also answered the
+  second trip's own immediate ping, which legitimately ended it. The mock
+  answers the second start with n:3600, so only the stale outcome arrives
+  and the generation guard is actually isolated.
+- Shared rig helper `pos()` accepts an optional timestamp for the same
+  reason.
+
+## D-U12-2026-10-14: stack-switch rewrite of AGENTS.md/PLAN.md reverted
+
+During the UI build, uncommitted working-tree modifications appeared in
+`AGENTS.md` and `PLAN.md` switching the client from Flutter to TypeScript
+(Preact + Vite + Capacitor, PLAN v1.2). No TypeScript scaffold exists in
+the tree. Per the owner order, both files were restored to the committed
+Flutter versions (`git checkout HEAD -- AGENTS.md PLAN.md`) and the
+Flutter UI work continues under UI_SPEC.md.
+
+## D-U13-2026-10-14: the new consent sheet discloses, the existing flow records
+
+The first version of `ConsentBody._accept` opened the legacy `ConsentSheet`
+for show and popped with its choice, but the legacy sheet only returns a
+choice: the record is written by `ensureConsent` inside the share flow.
+The result was the legacy sheet opening twice (once for show, once for
+record). `ConsentBody` now only discloses and pops true; the existing flow
+records exactly once through its own consent call, per UI_SPEC 0.1 rule 2.
+
+## D-U14-2026-10-14: legacy share flow suppresses its sheets for the new UI
+
+`shareTrip` gained `legacySheets = true`. The new flow passes false, which
+skips the location-off, education, denied and blocked sheets; the new flow
+maps every outcome to `PermissionCard` per the UI_SPEC 7.7 matrix instead.
+The notification permission request always runs. Defaults preserve the
+legacy behavior byte for byte, and the legacy share-flow tests are
+unchanged. The new flow also threads an injectable `ensureNotifications`
+seam (mirroring `shareTrip`), because the real channel call hangs in
+widget tests.
+
+## D-U15-2026-10-14: no second dispose on the suppressed denial path
+
+The suppressed branch disposed the controller even though the shared path
+above already had. The double dispose surfaced a post-dispose notification
+plus a spurious "no connection" snackbar next to the permission card. The
+branch now only returns.
+
+## D-U16-2026-10-14: release R8 needs a dontwarn for Play Core
+
+`flutter build appbundle --release --obfuscate` (CI's exact command)
+failed in `minifyReleaseWithR8` on missing
+`com.google.android.play.core.*` classes, referenced only by the Flutter
+engine's deferred-components manager. The failure is pre-existing and
+environmental: no app change could cause it (no dependencies, Java, or
+manifest entries were touched), and the app uses no deferred imports, so
+those code paths are dead. `proguard-rules.pro` gains
+`-dontwarn com.google.android.play.core.**` with the reason inline. The
+AAB builds after it: 52.3 MB (arm64-v8a, armeabi-v7a, x86_64), the new
+size baseline; the UI_SPEC delta budgets apply from here.

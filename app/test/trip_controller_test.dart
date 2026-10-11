@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,9 @@ import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
-import 'package:pontual/features/trip/trip_screen.dart';
+import 'package:pontual/ui/design/theme/theme.dart';
+import 'package:pontual/ui/features/trip/trip_end_card.dart';
+import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeGateway implements PermissionGateway {
@@ -49,11 +52,11 @@ class _DeniedGateway implements PermissionGateway {
   Future<void> openSettings() async {}
 }
 
-Position pos(double lat, double lng) {
+Position pos(double lat, double lng, {int timestampMs = 100000}) {
   return Position(
     latitude: lat,
     longitude: lng,
-    timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+    timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
     accuracy: 10,
     altitude: 0,
     heading: 90,
@@ -299,7 +302,11 @@ void main() {
           )
           .then((bool v) => started = v),
     );
-    await tester.pumpWidget(MaterialApp(home: TripScreen(controller: c)));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(home: TripScreen(controller: c)),
+      ),
+    );
     for (int i = 0; i < 30 && started == null; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
@@ -381,21 +388,21 @@ void main() {
     expect(started, isTrue);
     // Start (n:20) arms the next slot 20 s out: an immediate fix is
     // tracked for health but sends nothing.
-    positions.add(pos(-18.72, -39.85));
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
     await flush();
     expect(pings, 0);
     // At the slot the latest fix goes out exactly once.
     clock.advance(20000);
-    positions.add(pos(-18.72, -39.85));
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
     await flush();
     expect(pings, 1);
     // The ping answer (n:15) re-arms the slot; early fixes wait.
     clock.advance(14000);
-    positions.add(pos(-18.72, -39.85));
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
     await flush();
     expect(pings, 1);
     clock.advance(1000);
-    positions.add(pos(-18.72, -39.85));
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
     await flush();
     expect(pings, 2);
     c.dispose();
@@ -409,6 +416,7 @@ void main() {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
+    int starts = 0;
     final MockClient client = MockClient((http.Request req) async {
       final String path = req.url.path;
       if (path == '/v1/devices') {
@@ -421,7 +429,15 @@ void main() {
         if (req.method == 'DELETE') {
           return http.Response('', 204);
         }
-        return http.Response('{"r":"W","n":0}', 201);
+        starts += 1;
+        // The first trip sends immediately (n:0) so its ping hangs in
+        // flight; the second trip is paced (n:3600) so it sends nothing
+        // and only the stale outcome arrives. That isolates the
+        // generation guard: any end must come from the stale outcome.
+        return http.Response(
+          starts == 1 ? '{"r":"W","n":0}' : '{"r":"W","n":3600}',
+          201,
+        );
       }
       if (path == '/v1/trip/ping') {
         return hanging.future;
@@ -491,21 +507,26 @@ void main() {
   });
 
   testWidgets('end cards carry each reason', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: EndCard(kind: TripEndKind.automatic, detail: 'idle'),
-      ),
-    );
+    Future<void> pumpCard(TripEndKind kind, String? detail) {
+      return tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: pontualLightTheme(),
+            home: Scaffold(
+              body: TripEndCard(kind: kind, detail: detail),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpCard(TripEndKind.automatic, 'idle');
     expect(find.textContaining('parado por 10 minutos'), findsOneWidget);
 
-    await tester.pumpWidget(
-      const MaterialApp(home: EndCard(kind: TripEndKind.abuse)),
-    );
+    await pumpCard(TripEndKind.abuse, null);
     expect(find.textContaining('inconsistentes'), findsOneWidget);
 
-    await tester.pumpWidget(
-      const MaterialApp(home: EndCard(kind: TripEndKind.user)),
-    );
+    await pumpCard(TripEndKind.user, null);
     expect(find.text('Voltar às linhas'), findsOneWidget);
   });
 }

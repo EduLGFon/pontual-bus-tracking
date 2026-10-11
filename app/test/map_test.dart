@@ -1,11 +1,7 @@
-// T26 tests: tile source compliance and the map widget surface.
-import 'package:flutter/material.dart';
+// Tile source compliance: the OSM identifier and the capped cache live
+// behind this seam so the map can be replaced without touching widgets.
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:pontual/features/map/map_widget.dart';
 import 'package:pontual/features/map/tile_source.dart';
 
 void main() {
@@ -19,25 +15,5 @@ void main() {
     expect(layer.urlTemplate, contains('tile.openstreetmap.org'));
     expect(layer.minZoom, mapMinZoom);
     expect(layer.maxZoom, mapMaxZoom);
-  });
-
-  testWidgets('map shows tappable OSM attribution', (
-    WidgetTester tester,
-  ) async {
-    final MockClient tiles = MockClient((_) async => http.Response('', 404));
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: PontualMap(
-            center: const LatLng(-18.72, -39.85),
-            tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            httpClient: tiles,
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(find.byType(RichAttributionWidget), findsOneWidget);
-    expect(find.textContaining('OpenStreetMap'), findsWidgets);
   });
 }

@@ -8,3 +8,8 @@
 -keep class io.flutter.view.** { *; }
 -keep class io.flutter.embedding.** { *; }
 -keep class com.spotnik.pontual.** { *; }
+# The Flutter engine references Play Core split-install classes for
+# deferred components, which this app does not use (no deferred imports
+# anywhere). Silence R8 about the unreferenced-at-runtime paths instead
+# of shipping the Play Core dependency for dead code.
+-dontwarn com.google.android.play.core.**

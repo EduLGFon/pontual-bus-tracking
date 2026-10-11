@@ -212,7 +212,7 @@ void main() {
     expect(find.text('Tentar de novo'), findsOneWidget);
     expect(find.text('Fechar'), findsOneWidget);
     // Details carry codes only, never coordinates or tokens.
-    await tester.tap(find.text('Detalhes tecnicos'));
+    await tester.tap(find.text('Detalhes técnicos'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.textContaining('gps-timeout'), findsOneWidget);
     expect(find.textContaining('linha: 60'), findsOneWidget);

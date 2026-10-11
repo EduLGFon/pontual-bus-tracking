@@ -2,7 +2,7 @@
 // page is open and unlocked, so the banner never dismisses. See PLAN
 // 8.12.
 import 'package:flutter/material.dart';
-import 'package:pontual/app/strings_pt.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Banner shown during every web trip.
 class WebTripBanner extends StatelessWidget {
@@ -23,7 +23,7 @@ class WebTripBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: StringsPt.webKeepOpen,
+      label: UiStrings.webKeepOpen,
       liveRegion: true,
       child: Card(
         child: Padding(
@@ -36,18 +36,18 @@ class WebTripBanner extends StatelessWidget {
                 children: <Widget>[
                   Icon(Icons.stay_current_portrait),
                   SizedBox(width: 8),
-                  Expanded(child: Text(StringsPt.webKeepOpen)),
+                  Expanded(child: Text(UiStrings.webKeepOpen)),
                 ],
               ),
               const SizedBox(height: 4),
-              const Text(StringsPt.webWakeNote),
+              const Text(UiStrings.webWakeNote),
               if (wakeUnsupported) ...<Widget>[
                 const SizedBox(height: 4),
-                const Text(StringsPt.webWakeUnsupported),
+                const Text(UiStrings.webWakeUnsupported),
               ],
               if (paused) ...<Widget>[
                 const SizedBox(height: 4),
-                const Text(StringsPt.webHiddenPaused),
+                const Text(UiStrings.webHiddenPaused),
               ],
             ],
           ),

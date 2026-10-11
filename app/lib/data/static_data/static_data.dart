@@ -44,6 +44,9 @@ class StaticLine {
     required this.name,
     required this.pilot,
     required this.schedules,
+    this.terminals = const <String>[],
+    this.areaTags = const <String>[],
+    this.isActive = true,
   });
 
   /// Stable numeric id.
@@ -64,6 +67,15 @@ class StaticLine {
   /// Raw schedule entries.
   final List<Map<String, dynamic>> schedules;
 
+  /// Endpoint names, empty when the data has none.
+  final List<String> terminals;
+
+  /// Neighbourhood tags used by the search index.
+  final List<String> areaTags;
+
+  /// False hides the line from the UI without reusing the id.
+  final bool isActive;
+
   /// Parses a line object. Throws [FormatException] on bad shapes.
   factory StaticLine.fromJson(Map<String, dynamic> json) {
     return StaticLine(
@@ -77,8 +89,19 @@ class StaticLine {
             (dynamic e) => (e as Map<dynamic, dynamic>).cast<String, dynamic>(),
           )
           .toList(),
+      terminals: _stringsOf(json['terminals']),
+      areaTags: _stringsOf(json['area_tags']),
+      isActive: json['is_active'] as bool? ?? true,
     );
   }
+}
+
+/// Reads a list of strings, dropping unknown value types.
+List<String> _stringsOf(Object? raw) {
+  if (raw is! List<dynamic>) {
+    return const <String>[];
+  }
+  return raw.whereType<String>().toList(growable: false);
 }
 
 /// Repository for lines and timetables with offline-first semantics.

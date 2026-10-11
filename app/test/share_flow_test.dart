@@ -7,11 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/testing.dart';
 import 'package:pontual/app/providers.dart';
-import 'package:pontual/app/router.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/trip/share_flow.dart';
-import 'package:pontual/features/trip/trip_screen.dart';
+import 'package:pontual/ui/features/system/system_screen.dart';
+import 'package:pontual/ui/features/trip/trip_screen.dart';
+import 'package:pontual/ui/router/app_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'trip_rig.dart';
@@ -148,7 +149,7 @@ void main() {
     }
     expect(find.text('Iniciando viagem'), findsWidgets);
     expect(find.text('Tentar de novo'), findsOneWidget);
-    expect(find.text('Detalhes tecnicos'), findsOneWidget);
+    expect(find.text('Detalhes técnicos'), findsOneWidget);
   });
 
   testWidgets('/trip with a controller shows the trip', (
@@ -156,7 +157,7 @@ void main() {
   ) async {
     final Rig r = rig(happy());
     await start(r);
-    final GoRouter router = buildRouter();
+    final GoRouter router = buildUiRouter();
     await tester.pumpWidget(
       ProviderScope(child: MaterialApp.router(routerConfig: router)),
     );
@@ -165,20 +166,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.textContaining('Compartilhando'), findsWidgets);
     // TripRoute owns the controller and disposes it with the tree.
+    r.controller.dispose();
     await r.positions.close();
   });
 
   testWidgets('/trip without a controller shows the fallback', (
     WidgetTester tester,
   ) async {
-    final GoRouter router = buildRouter();
+    final GoRouter router = buildUiRouter();
     await tester.pumpWidget(
       ProviderScope(child: MaterialApp.router(routerConfig: router)),
     );
     router.go('/trip');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(TripPlaceholder), findsOneWidget);
+    expect(find.byType(SystemScreen), findsWidgets);
     expect(find.byType(TripScreen), findsNothing);
   });
 }

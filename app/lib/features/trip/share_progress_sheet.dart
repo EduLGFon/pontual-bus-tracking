@@ -7,7 +7,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:pontual/app/strings_pt.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/domain/trip/share_phases.dart';
 import 'package:pontual/features/trip/share_progress_tracker.dart';
 
@@ -83,7 +83,7 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
                       ? 'Falha ao iniciar viagem'
                       : 'Iniciando viagem',
                   child: Text(
-                    StringsPt.shareProgressTitle,
+                    UiStrings.shareProgressTitle,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -105,7 +105,7 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
                 if (!failed)
                   TextButton(
                     onPressed: widget.onCancel,
-                    child: const Text(StringsPt.shareProgressCancel),
+                    child: const Text(UiStrings.shareProgressCancel),
                   )
                 else
                   Row(
@@ -113,12 +113,12 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
                     children: <Widget>[
                       TextButton(
                         onPressed: widget.onClose,
-                        child: const Text(StringsPt.shareProgressClose),
+                        child: const Text(UiStrings.shareProgressClose),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
                         onPressed: widget.onRetry,
-                        child: const Text(StringsPt.shareProgressRetry),
+                        child: const Text(UiStrings.shareProgressRetry),
                       ),
                     ],
                   ),
@@ -161,8 +161,8 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
     if (phase == SharePhase.gps && status == SharePhaseStatus.active) {
       final int? left = tracker.gpsSecsLeft;
       sub = left == null
-          ? StringsPt.shareGpsTip
-          : '${left}s - ${StringsPt.shareGpsTip}';
+          ? UiStrings.shareGpsTip
+          : '${left}s - ${UiStrings.shareGpsTip}';
     }
     return Semantics(
       label: '$label: ${status.name}',
@@ -191,19 +191,19 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
   String _labelFor(SharePhase phase) {
     switch (phase) {
       case SharePhase.services:
-        return StringsPt.sharePhaseServices;
+        return UiStrings.sharePhaseServices;
       case SharePhase.config:
-        return StringsPt.sharePhaseConfig;
+        return UiStrings.sharePhaseConfig;
       case SharePhase.consent:
-        return StringsPt.sharePhaseConsent;
+        return UiStrings.sharePhaseConsent;
       case SharePhase.permission:
-        return StringsPt.sharePhasePermission;
+        return UiStrings.sharePhasePermission;
       case SharePhase.register:
-        return StringsPt.sharePhaseRegister;
+        return UiStrings.sharePhaseRegister;
       case SharePhase.gps:
-        return StringsPt.sharePhaseGps;
+        return UiStrings.sharePhaseGps;
       case SharePhase.start:
-        return StringsPt.sharePhaseStart;
+        return UiStrings.sharePhaseStart;
     }
   }
 
@@ -215,27 +215,27 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
     );
     switch (failed) {
       case SharePhase.gps:
-        return StringsPt.shareNoGps;
+        return UiStrings.shareNoGps;
       case SharePhase.register:
       case SharePhase.start:
       case SharePhase.config:
         if (tracker.errorCode == 'offline') {
-          return StringsPt.shareNoConnection;
+          return UiStrings.shareNoConnection;
         }
         if (tracker.errorCode == 'area') {
-          return StringsPt.shareOutsideArea;
+          return UiStrings.shareOutsideArea;
         }
         if (tracker.errorCode == 'quota' ||
             tracker.errorCode == 'capacity' ||
             tracker.errorCode == 'rate' ||
             tracker.errorCode == 'maint') {
-          return StringsPt.shareBusy;
+          return UiStrings.shareBusy;
         }
-        return StringsPt.shareStartFailed;
+        return UiStrings.shareStartFailed;
       case SharePhase.services:
       case SharePhase.consent:
       case SharePhase.permission:
-        return StringsPt.shareStartFailed;
+        return UiStrings.shareStartFailed;
     }
   }
 
@@ -254,7 +254,7 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
       rows.writeln('gps: aguardando (${left}s)');
     }
     return ExpansionTile(
-      title: const Text(StringsPt.shareProgressDetails),
+      title: const Text(UiStrings.shareProgressDetails),
       children: <Widget>[
         Align(
           alignment: Alignment.centerLeft,

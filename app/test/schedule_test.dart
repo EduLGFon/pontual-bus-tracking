@@ -1,9 +1,7 @@
 // T25 tests: schedule logic for all day types plus the timetable tab.
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
-import 'package:pontual/features/line/schedule_tab.dart';
 
 const StaticLine demo = StaticLine(
   id: 60,
@@ -56,59 +54,6 @@ void main() {
         '05': <String>['05:30', '05:45'],
         '06': <String>['06:10'],
       },
-    );
-  });
-
-  testWidgets('tab shows next departure and disclaimer', (
-    WidgetTester tester,
-  ) async {
-    // Monday 2026-10-05 14:23 São Mateus time ~= 17:23 UTC.
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ScheduleTab(line: demo, now: DateTime.utc(2026, 10, 5, 17, 23)),
-        ),
-      ),
-    );
-    expect(find.text('Próximo: 14:35 (em 12 min)'), findsOneWidget);
-    expect(find.textContaining('não oficiais'), findsOneWidget);
-  });
-
-  testWidgets('origin selector switches times', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ScheduleTab(line: demo, now: DateTime.utc(2026, 10, 5, 8)),
-        ),
-      ),
-    );
-    expect(find.text('05:30'), findsOneWidget);
-    await tester.tap(find.text('A'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('B').last);
-    await tester.pumpAndSettle();
-    expect(find.text('06:00'), findsOneWidget);
-  });
-
-  testWidgets('empty day shows the empty state', (WidgetTester tester) async {
-    const StaticLine empty = StaticLine(
-      id: 10,
-      code: 'empty',
-      short: '10',
-      name: 'Empty',
-      pilot: false,
-      schedules: <Map<String, dynamic>>[],
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ScheduleTab(line: empty, now: DateTime.utc(2026, 10, 5, 8)),
-        ),
-      ),
-    );
-    expect(
-      find.text('Sem horários cadastrados para este dia.'),
-      findsOneWidget,
     );
   });
 }
