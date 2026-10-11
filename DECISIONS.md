@@ -1458,11 +1458,14 @@ added, so no ADR needed for a package):
   mint vector `drawable/ic_launcher_foreground.xml` is deleted and the
   `<monochrome>` layer is removed: themed icons fall back to the standard
   icon until someone draws a vector monochrome of the new mark.
-- Web: `icons/Icon-192.png`, `icons/Icon-512.png` (opaque on navy),
+- Web: `icons/Icon-192.png`, `icons/Icon-512.png` (rounded corners with
+  transparency kept, as in the master; first generated opaque on navy,
+  then redone rounded per owner order),
   `icons/Icon-maskable-192.png`, `icons/Icon-maskable-512.png` (artwork at
   80 percent on navy, bus inside the maskable safe zone), new
   `icons/Icon-apple-touch-180.png` (180, opaque, iOS fills black on
-  transparency), `favicon.png` upgraded from 16 to 32 per UI_SPEC 15.
+  transparency), `favicon.png` upgraded from 16 to 32 per UI_SPEC 15
+  (rounded with transparency, like the master).
   `index.html` apple-touch-icon points at the 180 file; `manifest.json`
   names are unchanged.
 
