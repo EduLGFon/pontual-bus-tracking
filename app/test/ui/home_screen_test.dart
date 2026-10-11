@@ -93,7 +93,7 @@ void main() {
 
     expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
     expect(find.text(UiStrings.homeAllLines), findsOneWidget);
-    // First-run placeholder cards prove the shortcuts section painted.
+    // First run offers the Casa and Trabalho placeholders.
     expect(find.text('Casa'), findsOneWidget);
     expect(find.text('Trabalho'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -172,7 +172,7 @@ void main() {
     await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
     await tester.pumpAndSettle();
 
-    // First run offers the four kind placeholders.
+    // First run offers the Casa and Trabalho placeholders.
     expect(find.text('Casa'), findsOneWidget);
 
     await tester.tap(find.text('Casa'));

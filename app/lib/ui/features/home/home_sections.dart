@@ -24,12 +24,12 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/shortcut_sheet.dart';
 
-/// Kinds offered as first-run placeholder cards.
+/// Kinds offered as first-run placeholder cards. Only Casa and Trabalho:
+/// the rider adds any other kind later through the add sheet, which still
+/// offers every kind. D-U26.
 const List<ShortcutKind> _firstRunKinds = <ShortcutKind>[
   ShortcutKind.home,
   ShortcutKind.work,
-  ShortcutKind.school,
-  ShortcutKind.university,
 ];
 
 /// A shortcut bound to the views it renders with.
