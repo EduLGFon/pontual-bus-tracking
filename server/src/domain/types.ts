@@ -46,6 +46,10 @@ export interface Vehicle {
   lng: number;
   heading: number | null;
   speedMps: number;
+  // PRIVACY: smoothed live speed of this vehicle only (EWMA over accepted
+  // fixes). Reset at vehicle creation, dropped with the vehicle. No driver
+  // or device identity, no cross-trip linkage. See DECISIONS.md#D30.
+  paceMps: number;
   fixAtMs: number;
   leaderDeviceId: string | null;
   nextLeaderDeviceId: string | null;
@@ -82,6 +86,8 @@ export interface EngineConfig {
   minPingIntervalS: number;
   tickPeriodS: number;
   maxActiveTrips: number;
+  /** EWMA weight for vehicle pace smoothing (0-1). Higher adapts faster. */
+  paceAlpha: number;
 }
 
 export function defaultEngineConfig(): EngineConfig {
@@ -113,6 +119,7 @@ export function defaultEngineConfig(): EngineConfig {
     minPingIntervalS: 4,
     tickPeriodS: 5,
     maxActiveTrips: 300,
+    paceAlpha: 0.3,
   };
 }
 

@@ -565,8 +565,8 @@ Deno.test("21: snapshot shape is compact", () => {
     cfg.publishTtlS,
   );
   const bytes = new TextEncoder().encode(JSON.stringify(snap)).length;
-  assert(snap.v.length === 1 && snap.v[0].length === 7);
-  assert(bytes < 450, `snapshot too large: ${bytes}`);
+  assert(snap.v.length === 1 && snap.v[0].length === 8);
+  assert(bytes < 480, `snapshot too large: ${bytes}`);
 });
 
 // 22. Coordinates rounded to 5 decimals.
@@ -685,4 +685,46 @@ Deno.test("26: spaced invalid pings still end abuse", () => {
   }
   assert(!isGone(last));
   if (!isGone(last)) assertEquals(last.end, "abuse");
+});
+
+// 27. D30 pace starts at the creation fix speed.
+Deno.test("27: vehicle pace starts at creation speed", () => {
+  const store = createStore();
+  const events: EngineEvent[] = [];
+  movingTrip(store, events, "a", 0);
+  const v = store.vehicles.get(vehicleId(store))!;
+  assertEquals(v.paceMps, 8);
+});
+
+// 28. D30 pace follows speed changes without keeping history.
+Deno.test("28: vehicle pace adapts toward new speed", () => {
+  const store = createStore();
+  const events: EngineEvent[] = [];
+  movingTrip(store, events, "a", 0);
+  const id = vehicleId(store);
+  // Slow driver takes over: repeated slow fixes drag pace down fast.
+  for (let i = 3; i <= 8; i++) {
+    applyPing(
+      store,
+      events,
+      "a",
+      null,
+      fix({ seq: i, speedMps: 2, lat: BUS.lat + 0.0001 * i }),
+      10000 + (i - 2) * 15000,
+      cfg,
+      0,
+    );
+  }
+  const v = store.vehicles.get(id)!;
+  assert(v.paceMps < 8 && v.paceMps >= 2, `pace=${v.paceMps}`);
+  // Snapshot carries paceKmh as the additive 8th field.
+  const snap = buildSnapshot(
+    [...store.vehicles.values()],
+    new Map([[id, membersOf(store, id, 200000, cfg.memberAliveS)]]),
+    7,
+    200000,
+    cfg.publishTtlS,
+  );
+  assertEquals(snap.v[0].length, 8);
+  assertEquals(snap.v[0][7], Math.round(v.paceMps * 3.6 * 10) / 10);
 });

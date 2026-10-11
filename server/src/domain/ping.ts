@@ -208,6 +208,7 @@ export function applyPing(
         lng: trip.lng,
         heading: trip.heading,
         speedMps: trip.speedMps,
+        paceMps: trip.speedMps,
         fixAtMs: nowMs,
         leaderDeviceId: trip.deviceId,
         nextLeaderDeviceId: null,
@@ -246,6 +247,13 @@ export function applyPing(
     v.lng = trip.lng;
     v.heading = trip.heading;
     v.speedMps = trip.speedMps;
+    // D30 pace: EWMA toward the newest accepted fix. Adapts within about
+    // a minute at leader cadence, so an hourly driver change is picked up
+    // without keeping any history beyond this scalar.
+    v.paceMps = Math.max(
+      0,
+      v.paceMps + cfg.paceAlpha * (trip.speedMps - v.paceMps),
+    );
     v.fixAtMs = nowMs;
     v.updatedAtMs = nowMs;
     events.push({ kind: "vehicleUpdated", lineId: trip.lineId });
