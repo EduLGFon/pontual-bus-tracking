@@ -55,66 +55,72 @@ class ArrivalRow extends StatelessWidget {
     final bool past =
         arrival.certainty == Certainty.scheduled && arrival.isPast(now);
     final String title = headline ?? line.name;
-    return Opacity(
-      opacity: past ? 0.55 : 1,
-      child: SurfaceCard(
-        onTap: onTap,
-        semanticLabel: format.a11y,
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.x4,
-          vertical: Space.x3,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 72),
-          child: Row(
-            children: <Widget>[
-              SizedBox(
-                width: large ? 128 : 112,
-                child: EtaText(
-                  primary: format.primary,
-                  secondary: format.secondary,
-                  hero: large,
-                  semanticLabel: format.a11y,
-                ),
+    final Color titleColor = dimmedColor(context, past, context.text.headline);
+    final Color subtitleColor = dimmedColor(
+      context,
+      past,
+      context.text.caption,
+    );
+    return SurfaceCard(
+      onTap: onTap,
+      semanticLabel: format.a11y,
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.x4,
+        vertical: Space.x3,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 72),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: large ? 128 : 112,
+              child: EtaText(
+                primary: format.primary,
+                secondary: format.secondary,
+                hero: large,
+                dimmed: past,
+                semanticLabel: format.a11y,
               ),
-              const SizedBox(width: Space.x3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        LineBadge.ofLine(line, size: BadgeSize.m),
-                        const SizedBox(width: Space.x2),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: context.text.headline,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      LineBadge.ofLine(line, size: BadgeSize.m, dimmed: past),
+                      const SizedBox(width: Space.x2),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: context.text.headline.copyWith(
+                            color: titleColor,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: Space.x1),
-                    Text(
-                      _subtitle(),
-                      style: context.text.caption,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: Space.x2),
-                    CertaintyBadge(certainty: arrival.certainty),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.x1),
+                  Text(
+                    _subtitle(),
+                    style: context.text.caption.copyWith(color: subtitleColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: Space.x2),
+                  CertaintyBadge(certainty: arrival.certainty, dimmed: past),
+                ],
               ),
-              if (trailing != null) ...<Widget>[
-                const SizedBox(width: Space.x2),
-                trailing!,
-              ],
+            ),
+            if (trailing != null) ...<Widget>[
+              const SizedBox(width: Space.x2),
+              trailing!,
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -127,4 +133,11 @@ class ArrivalRow extends StatelessWidget {
     ];
     return parts.isEmpty ? '' : parts.join(' · ');
   }
+}
+
+/// Resolves [style] to its colour, dimmed by alpha when [past] is true.
+/// Past content dims by colour alpha per UI_SPEC 7.6, never with Opacity.
+Color dimmedColor(BuildContext context, bool past, TextStyle style) {
+  final Color base = style.color ?? context.colors.ink;
+  return past ? base.withValues(alpha: 0.55) : base;
 }

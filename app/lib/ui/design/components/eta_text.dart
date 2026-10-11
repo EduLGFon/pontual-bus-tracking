@@ -15,6 +15,7 @@ class EtaText extends StatelessWidget {
     required this.primary,
     this.secondary,
     this.hero = false,
+    this.dimmed = false,
     this.semanticLabel,
     super.key,
   });
@@ -24,6 +25,7 @@ class EtaText extends StatelessWidget {
     ArrivalVM arrival,
     DateTime now, {
     bool hero = false,
+    bool dimmed = false,
     String? semanticLabel,
   }) {
     final EtaFormat format = formatEta(arrival, now);
@@ -31,6 +33,7 @@ class EtaText extends StatelessWidget {
       primary: format.primary,
       secondary: format.secondary,
       hero: hero,
+      dimmed: dimmed,
       semanticLabel: semanticLabel ?? format.a11y,
     );
   }
@@ -44,15 +47,22 @@ class EtaText extends StatelessWidget {
   /// Uses the 56 dp hero size instead of 34 dp.
   final bool hero;
 
+  /// Dims the text by colour alpha instead of an Opacity layer, used for
+  /// past scheduled arrivals. See docs/ui/UI_SPEC.md 7.6 and 11.2.
+  final bool dimmed;
+
   /// Screen-reader sentence.
   final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle primaryStyle = hero
-        ? context.text.etaHero
-        : context.text.etaLarge;
-    final TextStyle secondaryStyle = context.text.caption;
+    final TextStyle primaryStyle =
+        (hero ? context.text.etaHero : context.text.etaLarge).copyWith(
+          color: dimmed ? context.colors.ink.withValues(alpha: 0.55) : null,
+        );
+    final TextStyle secondaryStyle = context.text.caption.copyWith(
+      color: dimmed ? context.colors.inkSubtle.withValues(alpha: 0.55) : null,
+    );
     return Semantics(
       label: semanticLabel,
       excludeSemantics: true,

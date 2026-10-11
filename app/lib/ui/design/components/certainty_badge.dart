@@ -16,6 +16,7 @@ class CertaintyBadge extends StatelessWidget {
     required this.certainty,
     this.compact = false,
     this.onInfo,
+    this.dimmed = false,
     super.key,
   });
 
@@ -28,16 +29,24 @@ class CertaintyBadge extends StatelessWidget {
   /// Optional info affordance opening "Como calculamos isso?".
   final VoidCallback? onInfo;
 
+  /// Dims the pill by colour alpha for past content.
+  final bool dimmed;
+
   @override
   Widget build(BuildContext context) {
     final CertaintyStyle style = styleOf(context, certainty);
-    final Color labelColor = style.text;
+    final Color labelColor = dimmed
+        ? style.text.withValues(alpha: 0.55)
+        : style.text;
+    final Color graphic = dimmed
+        ? style.graphic.withValues(alpha: 0.55)
+        : style.graphic;
     final Widget content = compact
-        ? Icon(style.icon, size: 14, color: style.graphic)
+        ? Icon(style.icon, size: 14, color: graphic)
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(style.icon, size: 14, color: style.graphic),
+              Icon(style.icon, size: 14, color: graphic),
               const SizedBox(width: Space.x1),
               Flexible(
                 child: Text(
