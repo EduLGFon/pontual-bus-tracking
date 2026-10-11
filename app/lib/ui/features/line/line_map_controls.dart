@@ -1,6 +1,9 @@
 // Controls drawn over the line map: the back button, the recenter button
 // and the always visible OSM attribution chip. Kept apart from the map layer
-// so both stay small. See docs/ui/UI_SPEC.md 7.5.
+// so both stay small. Every control owns its own Positioned with explicit
+// edges: the circle button never positions itself, so the recenter control
+// cannot end up stacked over the back button.
+// See docs/ui/UI_SPEC.md 7.5.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -19,12 +22,19 @@ class MapBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return MapCircleButton(
-      icon: Icons.arrow_back_rounded,
-      semanticLabel: UiStrings.back,
-      fill: colors.surface,
-      border: colors.line,
-      onTap: () => Navigator.of(context).maybePop(),
+    // The compact map draws full-bleed under the status bar, so the top
+    // edge clears the system inset on top of the usual margin.
+    final double top = Space.x3 + MediaQuery.paddingOf(context).top;
+    return Positioned(
+      top: top,
+      left: Space.x3,
+      child: MapCircleButton(
+        icon: Icons.arrow_back_rounded,
+        semanticLabel: UiStrings.back,
+        fill: colors.surface,
+        border: colors.line,
+        onTap: () => Navigator.of(context).maybePop(),
+      ),
     );
   }
 }
@@ -37,8 +47,9 @@ class MapAttributionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final double top = Space.x3 + MediaQuery.paddingOf(context).top;
     return Positioned(
-      top: Space.x3,
+      top: top,
       right: Space.x3,
       child: Semantics(
         link: true,
@@ -76,20 +87,28 @@ class MapAttributionChip extends StatelessWidget {
   }
 }
 
-/// Recenter control, shown only after the user pans away.
+/// Recenter control, shown only after the user pans away. Anchored above
+/// the bottom sheet through [bottomPadding], so the sheet never hides it.
 class MapRecenterButton extends StatelessWidget {
   /// Creates the button.
-  const MapRecenterButton({required this.onTap, super.key});
+  const MapRecenterButton({
+    required this.onTap,
+    this.bottomPadding = Space.x3,
+    super.key,
+  });
 
   /// Called when the control is tapped.
   final VoidCallback onTap;
+
+  /// Distance from the bottom of the map, clearing the sheet or the dock.
+  final double bottomPadding;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Positioned(
       right: Space.x3,
-      bottom: Space.x3,
+      bottom: bottomPadding,
       child: MapCircleButton(
         icon: Icons.my_location_rounded,
         semanticLabel: UiStrings.recenter,
@@ -102,7 +121,9 @@ class MapRecenterButton extends StatelessWidget {
   }
 }
 
-/// Circular map control with a hairline border and a token fill.
+/// Circular map control with a hairline border and a token fill. Never
+/// positions itself: the caller places it, so two controls can never share
+/// one corner by accident.
 class MapCircleButton extends StatelessWidget {
   /// Creates the button.
   const MapCircleButton({
@@ -135,28 +156,24 @@ class MapCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: Space.x3,
-      left: Space.x3,
-      child: Tooltip(
-        message: semanticLabel,
-        child: Semantics(
-          label: semanticLabel,
-          button: true,
-          child: GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: fill,
-                shape: BoxShape.circle,
-                border: Border.all(color: border),
-              ),
-              child: Icon(icon, size: iconSize, color: context.colors.ink),
+    return Tooltip(
+      message: semanticLabel,
+      child: Semantics(
+        label: semanticLabel,
+        button: true,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: fill,
+              shape: BoxShape.circle,
+              border: Border.all(color: border),
             ),
+            child: Icon(icon, size: iconSize, color: context.colors.ink),
           ),
         ),
       ),

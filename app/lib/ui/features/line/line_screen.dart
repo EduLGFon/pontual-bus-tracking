@@ -116,7 +116,13 @@ class _LineScreenState extends ConsumerState<LineScreen> {
         Positioned.fill(
           // The map sits outside the sheet rebuild path.
           child: RepaintBoundary(
-            child: map ? _mapLayer(vehicles) : const SizedBox(),
+            child: map
+                ? _mapLayer(
+                    vehicles,
+                    controlsBottomPadding:
+                        sheetPixels(_screenHeight, _peek) + Space.x3,
+                  )
+                : const SizedBox(),
           ),
         ),
         DraggableScrollableSheet(
@@ -188,8 +194,12 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     );
   }
 
-  /// The map layer, shared by both layouts.
-  Widget _mapLayer(List<VehicleVM> vehicles) {
+  /// The map layer, shared by both layouts. [controlsBottomPadding] keeps
+  /// the recenter control above the sheet or the dock.
+  Widget _mapLayer(
+    List<VehicleVM> vehicles, {
+    double controlsBottomPadding = Space.x3,
+  }) {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
     return LineMap(
       // Global key so the parent can command the camera without rebuilding
@@ -200,6 +210,7 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       tileUrlTemplate: tileUrl,
       panned: _panned,
       selectedKey: _selectedKey,
+      controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
       onRecenter: () {
         setState(() => _panned = false);

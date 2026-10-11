@@ -12,6 +12,7 @@ import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
+import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_map_controls.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 
@@ -43,6 +44,7 @@ class LineMap extends StatefulWidget {
     this.selectedKey,
     this.onVehicleTap,
     this.panned = false,
+    this.controlsBottomPadding = Space.x3,
     super.key,
   });
 
@@ -72,6 +74,10 @@ class LineMap extends StatefulWidget {
 
   /// True once the user has panned away from the automatic camera.
   final bool panned;
+
+  /// Distance of the recenter control from the bottom of the map, so the
+  /// sheet or the dock never hides it.
+  final double controlsBottomPadding;
 
   /// Called when the user drags the map.
   final VoidCallback onPan;
@@ -193,6 +199,7 @@ class LineMapState extends State<LineMap> {
         const MapAttributionChip(),
         if (widget.panned)
           MapRecenterButton(
+            bottomPadding: widget.controlsBottomPadding,
             onTap: () {
               widget.onRecenter();
               fitToContent();
