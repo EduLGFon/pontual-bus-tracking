@@ -1,13 +1,16 @@
 {
-    "name": "Pontual",
+    "name": "Pontual - ônibus ao vivo em São Mateus",
     "short_name": "Pontual",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0B6E4F",
-    "theme_color": "#0B6E4F",
-    "description": "Pontual independent crowd-sourced bus tracker for Sao Mateus, ES, Brazil.",
+    "background_color": "#F6F5F1",
+    "theme_color": "#0B3D36",
+    "description": "Veja onde o ônibus está em São Mateus. Quem está dentro compartilha a posição, de forma anônima. Sem cadastro, sem anúncios.",
+    "lang": "pt-BR",
+    "dir": "ltr",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "categories": ["travel", "navigation"],
     "icons": [
         {
             "src": "icons/Icon-192.png",

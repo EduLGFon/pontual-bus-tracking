@@ -3,7 +3,7 @@
 // See PLAN.md 8.12 and T39.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:pontual/app/strings_pt.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Prefs key recording that the install hint was dismissed.
@@ -47,7 +47,7 @@ class InstallHintCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: StringsPt.installHintTitle,
+      label: UiStrings.installHintTitle,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -59,17 +59,17 @@ class InstallHintCard extends StatelessWidget {
                 children: <Widget>[
                   Icon(Icons.add_to_home_screen),
                   SizedBox(width: 8),
-                  Expanded(child: Text(StringsPt.installHintTitle)),
+                  Expanded(child: Text(UiStrings.installHintTitle)),
                 ],
               ),
               const SizedBox(height: 4),
-              const Text(StringsPt.installHintBody),
+              const Text(UiStrings.installHintBody),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: onDismiss,
-                  child: const Text(StringsPt.installHintDismiss),
+                  child: const Text(UiStrings.installHintDismiss),
                 ),
               ),
             ],

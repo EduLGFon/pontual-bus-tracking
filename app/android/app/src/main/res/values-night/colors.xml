@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand colours used by the launch splash and the adaptive icon. -->
+<resources>
+    <color name="pontual_brand">#0B3D36</color>
+    <color name="pontual_splash_dark">#0A1110</color>
+</resources>
