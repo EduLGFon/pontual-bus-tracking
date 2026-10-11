@@ -180,46 +180,47 @@ String wsBaseUrlOf(String api) {
 
 /// Vehicle stream per line. Leaving the screen stops the stream and
 /// frees the repository.
-final vehicleRepoProvider =
-    Provider.autoDispose.family<VehicleRepository, int>((Ref ref, int lineId) {
-  final BusApi api = ref.watch(busApiProvider);
-  final VehicleRepository repo = VehicleRepository(
-    fetchSnapshot: (int id) async {
-      final Result<VehiclesSnapshot> res = await api.getVehicles(id);
-      if (res is Err<VehiclesSnapshot>) {
-        throw StateError('snapshot failed');
-      }
-      final VehiclesSnapshot snap = (res as Ok<VehiclesSnapshot>).value;
-      return snap.vehicles
-          .map(
-            (List<num?> row) => ClientVehicle(
-              id: (row[0] as num).toInt(),
-              lat: (row[1] as num).toDouble(),
-              lng: (row[2] as num).toDouble(),
-              heading: row[3]?.toDouble(),
-              kmh: (row[4] as num).toDouble(),
-              members: (row[5] as num).toInt(),
-              ageS: (row[6] as num).toInt(),
-            ),
-          )
-          .toList();
-    },
-    openChannel: (Uri url) {
-      final WebSocketChannel channel = WebSocketChannel.connect(url);
-      // A failed connect completes `ready` with an error in addition to
-      // the stream error the repository already handles. Without this the
-      // `ready` future escapes to the zone as an uncaught error on web.
-      unawaited(channel.ready.then<void>((_) {}, onError: (_) {}));
-      return Future<WebSocketChannel>.value(channel);
-    },
-    wsBaseUrl: () => wsBaseUrlOf(apiBaseUrl),
-    clock: SystemClock(),
-    launch: (Future<void> task) {
-      unawaited(task);
-    },
-  );
-  ref.onDispose(() {
-    unawaited(repo.stop());
-  });
-  return repo;
-});
+final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
+  (Ref ref, int lineId) {
+    final BusApi api = ref.watch(busApiProvider);
+    final VehicleRepository repo = VehicleRepository(
+      fetchSnapshot: (int id) async {
+        final Result<VehiclesSnapshot> res = await api.getVehicles(id);
+        if (res is Err<VehiclesSnapshot>) {
+          throw StateError('snapshot failed');
+        }
+        final VehiclesSnapshot snap = (res as Ok<VehiclesSnapshot>).value;
+        return snap.vehicles
+            .map(
+              (List<num?> row) => ClientVehicle(
+                id: (row[0] as num).toInt(),
+                lat: (row[1] as num).toDouble(),
+                lng: (row[2] as num).toDouble(),
+                heading: row[3]?.toDouble(),
+                kmh: (row[4] as num).toDouble(),
+                members: (row[5] as num).toInt(),
+                ageS: (row[6] as num).toInt(),
+              ),
+            )
+            .toList();
+      },
+      openChannel: (Uri url) {
+        final WebSocketChannel channel = WebSocketChannel.connect(url);
+        // A failed connect completes `ready` with an error in addition to
+        // the stream error the repository already handles. Without this the
+        // `ready` future escapes to the zone as an uncaught error on web.
+        unawaited(channel.ready.then<void>((_) {}, onError: (_) {}));
+        return Future<WebSocketChannel>.value(channel);
+      },
+      wsBaseUrl: () => wsBaseUrlOf(apiBaseUrl),
+      clock: SystemClock(),
+      launch: (Future<void> task) {
+        unawaited(task);
+      },
+    );
+    ref.onDispose(() {
+      unawaited(repo.stop());
+    });
+    return repo;
+  },
+);

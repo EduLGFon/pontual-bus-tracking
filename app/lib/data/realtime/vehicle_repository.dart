@@ -340,7 +340,8 @@ class VehicleRepository {
     final int? frameAt = _lastFrameAtMs;
     // A fresh frame (snapshot or heartbeat) proves the socket is alive,
     // so quiet-but-connected lines (e.g. no buses) do not resync.
-    final bool socketProven = _channel != null &&
+    final bool socketProven =
+        _channel != null &&
         frameAt != null &&
         now - frameAt <= watchdogResyncS * 1000;
     if (!socketProven &&
