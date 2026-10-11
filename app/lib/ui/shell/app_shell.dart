@@ -27,6 +27,11 @@ class AppShell extends ConsumerWidget {
       MediaQuery.sizeOf(context).width,
     );
     final bool rail = breakpoint != Breakpoint.compact;
+    // A modal bottom sheet (shortcut editor, line chooser, consent,
+    // permission) sits in the overlay above this shell. While it is the
+    // current route the global pill would float over its action buttons,
+    // so the dock hides and the sheet owns the bottom of the screen.
+    final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -57,11 +62,13 @@ class AppShell extends ConsumerWidget {
                           controller: ref.watch(toastControllerProvider),
                         ),
                         // The idle pill is the global trip entry point, so
-                        // it stays mounted even with no trip running.
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: Space.x3),
-                          child: LiveDockHost(),
-                        ),
+                        // it stays mounted even with no trip running, but
+                        // never above a modal sheet.
+                        if (!modalOpen)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: Space.x3),
+                            child: LiveDockHost(),
+                          ),
                       ],
                     ),
                   ),

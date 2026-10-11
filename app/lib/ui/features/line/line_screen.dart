@@ -145,7 +145,22 @@ class _LineScreenState extends ConsumerState<LineScreen> {
             right: 0,
             left: 0,
             bottom: sheetPixels(_screenHeight, _peek) + Space.x3,
-            child: LineDock(line: staticLine),
+            // The pill floats above the peek sheet only. Once the sheet
+            // drags past peek it would cover the Agora and Horarios rows,
+            // so it fades out and stops hitting tests.
+            child: ListenableBuilder(
+              listenable: _sheet,
+              builder: (BuildContext context, Widget? child) {
+                final bool expanded =
+                    _sheet.isAttached && _sheet.size > _peek + 0.05;
+                return AnimatedOpacity(
+                  opacity: expanded ? 0 : 1,
+                  duration: const Duration(milliseconds: 160),
+                  child: IgnorePointer(ignoring: expanded, child: child),
+                );
+              },
+              child: LineDock(line: staticLine),
+            ),
           ),
       ],
     );
