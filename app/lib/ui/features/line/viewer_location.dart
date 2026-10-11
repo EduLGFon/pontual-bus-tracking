@@ -6,7 +6,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
@@ -41,8 +40,8 @@ final FutureProvider<LatLng?> viewerLocationProvider =
           return null;
         }
         final LatLng point = LatLng(
-          round5(position.latitude),
-          round5(position.longitude),
+          position.latitude,
+          position.longitude,
         );
         if (!mapBounds.contains(point)) {
           return null;
