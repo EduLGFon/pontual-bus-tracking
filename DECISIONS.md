@@ -1474,3 +1474,26 @@ icon, the xxxhdpi foreground (navy surround blends with the background)
 and the 512 maskable, manifest source audit PASS. No Dart code touched;
 no Android SDK on this host, so the merged-manifest and install-launch
 check stays for the release machine (owner todo).
+
+## D-U24-2026-10-11: Android web banner downloads the release APK
+
+Owner order: on Android, the web PWA is viewer-only; sharing needs the
+native app (screen-off trips). A one-time card on Android web
+(`AndroidAppDownloadSlot` on Home after welcome plus Settings) pitches
+the native app; tap downloads the latest release APK from GitHub
+releases (`.../releases/latest/download/app-release.apk`).
+
+Implementation: new `app/lib/platform/web/android_app_download.dart`
+(gating pure function, prefs-backed once-only store, card, slot) plus
+three pt-BR strings; no new dependency (`url_launcher` externalApplication
+is already allow-listed for links). `release-android.yml` now also builds
+a universal APK with the same dart-defines and uploads `app-release.apk`
+alongside the AAB, with a 25 MB size gate per PLAN 10.1. Display detection
+uses `kIsWeb` plus `defaultTargetPlatform == android`, same pattern as the
+iOS hint.
+
+Accepted limits: sideload needs "install unknown apps" for the browser
+and, on certified devices in Brazil, a verified developer (PLAN 3.1);
+first tagged release proves the asset name. Verified: analyze clean,
+targeted tests green (android download, install hint, home, settings).
+Full suite timed out on this host, not run to completion.

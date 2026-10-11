@@ -1,6 +1,7 @@
-# Release Android AAB on tags (T45). Builds the release bundle with
-# Dart obfuscation, audits the merged manifest, enforces the size
-# gate, creates the GitHub release if needed, and attaches the AAB.
+# Release Android AAB + APK on tags (T45). Builds the release bundle
+# with Dart obfuscation, audits the merged manifest, enforces the size
+# gates, creates the GitHub release if needed, and attaches the AAB
+# (Play) plus a universal APK (direct download from the web PWA banner).
 #
 # Owner-blocked before the first tag: upload-signing keystore as
 # encrypted secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEY_ALIAS,
@@ -48,6 +49,13 @@ jobs:
           --split-debug-info=build/debug-info
           --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }}
           --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
+      - name: Build release APK (universal, for direct download)
+        working-directory: app
+        run: >
+          flutter build apk --release --obfuscate
+          --split-debug-info=build/debug-info
+          --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }}
+          --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
       - name: Merged manifest audit
         working-directory: app
         run: |
@@ -68,9 +76,16 @@ jobs:
           SIZE=$(stat -c%s "$AAB")
           echo "AAB $AAB size $SIZE bytes"
           test "$SIZE" -le 15728640
-      - name: Attach AAB to release
+      - name: Size gate (universal APK <= 25 MB)
+        working-directory: app
+        run: |
+          APK=$(find build/app/outputs/flutter-apk -name "app-release.apk" | head -1)
+          SIZE=$(stat -c%s "$APK")
+          echo "APK $APK size $SIZE bytes"
+          test "$SIZE" -le 26214400
+      - name: Attach AAB + APK to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view "${{ github.ref_name }}" || gh release create "${{ github.ref_name }}" --generate-notes
-          gh release upload "${{ github.ref_name }}" app/build/app/outputs/bundle/release/*.aab --clobber
+          gh release upload "${{ github.ref_name }}" app/build/app/outputs/bundle/release/*.aab app/build/app/outputs/flutter-apk/app-release.apk --clobber

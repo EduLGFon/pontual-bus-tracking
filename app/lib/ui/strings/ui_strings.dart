@@ -540,6 +540,17 @@ class UiStrings {
   /// iOS install hint dismiss button.
   static const String installHintDismiss = 'Entendi';
 
+  /// Android app download title.
+  static const String androidAppTitle = 'Use o app Android';
+
+  /// Android app download body.
+  static const String androidAppBody =
+      'Para compartilhar com a tela desligada e economizar bateria, '
+      'baixe o app direto do GitHub. O mapa continua aqui no navegador.';
+
+  /// Android app download action.
+  static const String androidAppDownload = 'Baixar app';
+
   /// Web keep open banner.
   static const String webKeepOpen =
       'Mantenha esta tela aberta e o celular desbloqueado.';

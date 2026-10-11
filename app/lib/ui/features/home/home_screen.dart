@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/home_sections.dart';
 import 'package:pontual/ui/features/home/home_lists.dart';
 import 'package:pontual/ui/features/home/welcome_state.dart';
+import 'package:pontual/platform/web/android_app_download.dart';
 
 /// Maximum live lines shown in the live section.
 const int _liveSectionMax = 5;
@@ -102,7 +103,10 @@ class HomeScreen extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         welcome,
+        if (!onboarding.welcomeSeen) const SizedBox(height: Space.x4),
+        const AndroidAppDownloadSlot(),
         header,
+        const SizedBox(height: Space.x2),
         if (expanded)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

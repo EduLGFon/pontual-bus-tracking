@@ -84,6 +84,7 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 - T36 web build done (Pontual PWA manifest, self-hosted assets, wasm dual build, first load inside 3 MB budget).
 - T38 web sharing done (Screen Wake Lock via wakelock_plus, foreground banner, 60 s hidden pause; JS path inside size budget, wasm path 3 percent over).
 - T39 iOS install hint done (one-time Safari share-sheet card on iOS web).
+- Android web download hint done (one-time native-app card on Android web, Baixar app downloads the latest release APK; release workflow also builds and uploads the universal APK).
 - T40 settings and about done (theme with persistence, help, timetable date, sources, OSM attribution, licences, repo link; contact hidden until INFRA-23).
 - T41 privacy center done (bundled policy/terms, 6-line summary, delete-my-data end-to-end AC13, revoke consent; support code cut per cut order).
 - T42 privacy docs done (policy and terms drafts pt-BR, RIPD-lite, data inventory; lawyer review and contact still owner-blocked).
