@@ -145,6 +145,9 @@ Future<void> _shareTrip(
                 line,
                 gateway: gateway,
                 ensureNotifications: ensureNotifications,
+                // The retry belongs to the flow that opened this sheet:
+                // dropping the flag would fall back to the legacy sheets.
+                legacySheets: legacySheets,
               ),
             );
           },

@@ -105,9 +105,14 @@ Future<LineVM?> _chooseLine(BuildContext context) async {
   final LineVM? chosen = await showModalBottomSheet<LineVM>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    builder: (BuildContext context) => const LineChooserSheet(),
+    builder: (BuildContext context) => Padding(
+      // The chooser has a search field: keep the list above the keyboard.
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: const LineChooserSheet(),
+    ),
   );
   return chosen;
 }
@@ -119,6 +124,7 @@ Future<bool> _consentStep(BuildContext context) async {
   final bool? accepted = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) => const ConsentBody(),
@@ -178,6 +184,7 @@ Future<bool> _prePromptStep(BuildContext context) async {
   final bool? keepGoing = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) => const PermissionPromptBody(),
@@ -194,6 +201,8 @@ Future<bool> _failureStep(
 ) async {
   final bool? retry = await showModalBottomSheet<bool>(
     context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext sheetContext) => PontualSheet(

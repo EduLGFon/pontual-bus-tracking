@@ -157,6 +157,7 @@ class SettingsScreen extends ConsumerWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
       builder: (BuildContext context) => PontualSheet(

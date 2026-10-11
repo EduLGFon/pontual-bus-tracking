@@ -357,7 +357,10 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: Space.x3),
-          SizedBox(height: 240, child: _lineList(lines)),
+          // The list grows with its content inside the outer sheet scroll:
+          // a fixed-height box clipped at large text scales, and a nested
+          // scrollable fought the sheet drag for gestures.
+          _lineList(lines),
           _originSection(statics, lines, now),
           const SizedBox(height: Space.x4),
           PrimaryButton(
@@ -404,6 +407,8 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
       return Center(child: Text(_editorNoLines, style: context.text.body));
     }
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: lines.length,
       itemBuilder: (BuildContext context, int index) {
         final LineVM line = lines[index];

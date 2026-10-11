@@ -121,6 +121,10 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     required bool map,
   }) {
     final bool shareable = staticLine.pilot;
+    // A modal sheet (chooser, consent, permission, progress) sits above
+    // this route while it is current: the contextual pill hides with it,
+    // so the sheet owns every action button. Same rule as the shell dock.
+    final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
 
     return Stack(
       children: <Widget>[
@@ -157,7 +161,7 @@ class _LineScreenState extends ConsumerState<LineScreen> {
             );
           },
         ),
-        if (shareable)
+        if (shareable && !modalOpen)
           Positioned(
             right: 0,
             left: 0,
@@ -189,9 +193,10 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     required List<VehicleVM> vehicles,
     required bool map,
   }) {
+    final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
     return LineExpanded(
       map: map ? _mapLayer(vehicles) : const SizedBox(),
-      dock: staticLine.pilot ? LineDock(line: staticLine) : null,
+      dock: staticLine.pilot && !modalOpen ? LineDock(line: staticLine) : null,
       panel: LineSheet(
         line: lineVmOf(staticLine),
         staticLine: staticLine,
