@@ -79,14 +79,25 @@ def unlock():
     )
 
 
-def cold_start_once():
+def cold_start_once(timeout_s=300):
+    # am start -W never settles on software-emulated GPUs, so read the
+    # system's own Displayed timing from logcat instead.
     run(ADB, "shell", "am", "force-stop", APP_ID, capture=False)
     time.sleep(2)
-    out = run(ADB, "shell", "am", "start", "-W", "-n", PACKAGE)
-    m = re.search(r"TotalTime:\s*(\d+)", out)
-    if not m:
-        raise RuntimeError("no TotalTime in: " + out[-500:])
-    return int(m.group(1))
+    run(ADB, "logcat", "-c", capture=False)
+    run(ADB, "shell", "am", "start", "-n", PACKAGE, capture=False)
+    pat = re.compile(
+        r"Displayed com\.spotnik\.pontual/\.MainActivity[^:]*: \+"
+        r"(?:(\d+)s)?(\d+)ms"
+    )
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        out = run(ADB, "logcat", "-d")
+        m = pat.search(out)
+        if m:
+            return int(m.group(1) or 0) * 1000 + int(m.group(2))
+        time.sleep(3)
+    raise RuntimeError("no Displayed line in logcat")
 
 
 def pss_kb():
