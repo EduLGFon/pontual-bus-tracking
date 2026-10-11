@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/prefs/theme_store.dart';
@@ -49,6 +50,9 @@ class _PontualAppState extends ConsumerState<PontualApp> {
   /// Runs the deferred work that must not block the first frame.
   void _afterFirstFrame() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Edge-to-edge drawing under transparent system bars (UI_SPEC 8).
+      // SafeArea in every screen keeps content clear of notches and bars.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Static data stays bundled: lines render from the asset bundle and
       // the remote check is handled by the data layer itself.
       ref.read(linesProvider);
