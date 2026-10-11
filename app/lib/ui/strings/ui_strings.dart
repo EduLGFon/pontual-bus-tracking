@@ -587,6 +587,53 @@ class UiStrings {
   /// Local kudos counter suffix.
   static const String kudosSuffix = 'viagens';
 
+  // Future features (flagged off, UI_SPEC 13-14).
+
+  /// Alerts sheet title.
+  static const String alertTitle = 'Avisar quando faltar';
+
+  /// Alerts sheet save action.
+  static const String alertSave = 'Salvar';
+
+  /// Line history tab.
+  static const String tabHistory = 'Histórico';
+
+  /// Reliability card text for a typical delay in minutes.
+  static String typicalDelayOf(int minutes) =>
+      'Costuma atrasar cerca de $minutes min neste horário';
+
+  /// Prediction confidence levels.
+  static const String confLow = 'Confiança baixa';
+
+  /// Prediction confidence levels.
+  static const String confMid = 'Confiança média';
+
+  /// Prediction confidence levels.
+  static const String confHigh = 'Confiança alta';
+
+  /// Returns the confidence label for [level] 0 to 2.
+  static String confidenceLabel(int level) {
+    if (level <= 0) {
+      return confLow;
+    }
+    if (level == 1) {
+      return confMid;
+    }
+    return confHigh;
+  }
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceFaster =
+      'Ritmo recente deste ônibus: um pouco mais rápido que o normal';
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceNormal =
+      'Ritmo recente deste ônibus: dentro do normal';
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceSlower =
+      'Ritmo recente deste ônibus: um pouco mais lento que o normal';
+
   /// Walking prompt title.
   static const String walkingTitle = 'Você ainda está no ônibus?';
 
