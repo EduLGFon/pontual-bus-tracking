@@ -82,15 +82,22 @@ void main() {
   });
 
   test('Features parses localKudos and ignores unknown keys', () {
+    // D30: momentum flags default on; unknown or wrong-typed values
+    // still fall back to the default instead of breaking.
     const Features base = Features();
-    expect(base.localKudos, isFalse);
+    expect(base.localKudos, isTrue);
+    expect(base.eta, isTrue);
     final Features on = Features.fromJson(<String, dynamic>{
       'local_kudos': true,
       'other': true,
       'eta': 'x',
     });
     expect(on.localKudos, isTrue);
-    expect(on.eta, isFalse);
+    expect(on.eta, isTrue);
+    final Features off = Features.fromJson(<String, dynamic>{
+      'eta': false,
+    });
+    expect(off.eta, isFalse);
   });
 
   test('confidence and pace copy matches UI_SPEC 14', () {
