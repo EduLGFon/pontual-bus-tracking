@@ -47,3 +47,6 @@ dist/
 *.iml
 .DS_Store
 Thumbs.db
+
+# On-device perf captures (device-specific, never commit)
+tools/perf/results/
