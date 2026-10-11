@@ -20,6 +20,9 @@ class UiStrings {
   /// App wordmark shown on Início.
   static const String wordmark = 'pontual';
 
+  /// App tagline (UI_SPEC 14), shown on Sobre.
+  static const String tagline = 'Seu ônibus, na hora.';
+
   /// Offline banner.
   static const String offlineBanner = 'Sem conexão. Mostrando dados salvos.';
 
@@ -459,6 +462,10 @@ class UiStrings {
   /// Share start failed: server rate or capacity limits.
   static const String shareBusy =
       'Muita gente tentando agora. Aguarde um pouco e tente de novo.';
+
+  /// Share start failed: too many people sharing at once (UI_SPEC 14).
+  static const String capacity =
+      'Muitas pessoas compartilhando agora. Tente em instantes.';
 
   /// Share start failed: fix outside the served area.
   static const String shareOutsideArea =

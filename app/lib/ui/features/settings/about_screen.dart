@@ -30,6 +30,7 @@ class AboutScreen extends ConsumerWidget {
           ),
           children: <Widget>[
             Text(UiStrings.about, style: context.text.display),
+            Text(UiStrings.tagline, style: context.text.body),
             const SizedBox(height: Space.x4),
             Text(UiStrings.aboutDisclaimer, style: context.text.body),
             const SectionHeader(title: UiStrings.aboutSourcesTitle),
