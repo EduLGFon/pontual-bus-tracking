@@ -1,9 +1,40 @@
 # PERF.md - UI performance baseline (U21)
 
 Date: 2026-10-11. Spec: `docs/ui/UI_SPEC.md` 2.1, 11, 17.4.
-Method: same device, same build mode, three runs, median. This host has no
-attached Android device, so device rows are TODO for the capable machine.
-Commands are listed so the next run reproduces them.
+Method: same device, same build mode, three runs, median. Device runs use
+`tools/perf/device_run.py` (cold start via the system's Displayed timing,
+profile soak driven by `app/integration_test/perf_app.dart`, PSS plus
+screenshots on logcat markers). Results JSON stays gitignored under
+`tools/perf/results/`; the method and medians live here.
+
+## Device runs (2026-10-11)
+
+Device: `sdk_gphone64_x86_64` emulator (Medium_Phone_API_37.0,
+1080x2400), SwiftShader software GL, no KVM, profile mode. Software
+emulation inflates CPU-bound numbers (cold start, raster); build times,
+PSS and transfer sizes are representative. Hardware re-measurement is
+still wanted for raster p95, battery and field latency.
+
+| Metric (UI_SPEC 2.1 / 17.4) | Budget | Measured | Verdict |
+| --- | --- | --- | --- |
+| Cold start to first frame | <= baseline +10 % (PLAN <= 2 s mid-range) | 2852, 2833, 2911 ms, median 2852 ms (Displayed, force-stop between) | emulator-only; no old-UI baseline exists, so the delta budget has nothing to compare against yet |
+| Home idle frames | ~0 %, no ticker | 4 frames in 25 s | PASS by construction (nothing animates without live data) |
+| Build p50/p95, line settle (213 frames) | p95 < 8 ms | p50 0.2 ms, p95 7.5 ms | PASS |
+| Build p50/p95, line soak with pans (946 frames) | p95 < 8 ms, >= 55 fps >= 90 % frames | p50 0.2 ms, p95 6.8 ms | PASS on build; fps framing needs hardware (see raster note) |
+| Raster p50/p95 | p95 < 8 ms | p50 ~130-139 ms, p95 184-813 ms | SwiftShader artifact, not counted; must re-run on hardware |
+| Memory after ~2 min on Linha | <= baseline +15 MB (PLAN <= 150 MB map) | 146,672 KB PSS (143.3 MB) | PASS against PLAN; no old-UI baseline for the delta |
+| Memory on Home | none set | 124,427 KB PSS (121.5 MB) | recorded as the new baseline |
+| arm64 APK | delta <= +400 KB (PLAN universal APK <= 25 MB) | 20,395,264 bytes (19.5 MB); libflutter.so 11.75 MB, libapp.so 7.21 MB, classes.dex 1.49 MB, Manrope 51 KB, line data 8 KB | inside PLAN; delta vs an older AAB below |
+| Per-ABI APKs | BigDelta | armeabi-v7a 17.9 MB, arm64-v8a 20.4 MB, x86_64 21.9 MB | recorded |
+| Universal AAB | PLAN arm64 <= 15 MB (Play strips per ABI) | 56.1 MB plain release; 52.3 MB baseline used CI flags (`--obfuscate --split-debug-info`), so the honest delta waits for the CI-flags rebuild | see note below |
+| Web `main.dart.js` (gz) | delta <= +120 KB (PLAN first load <= 3 MB) | 973,863 bytes gz (951 KB) | new baseline |
+| Web first load, Chrome path (gz) | PLAN <= 3 MB | ~3.10 MB (main.dart.js 971 KB + chromium/canvaskit.wasm 2.06 MB + js/fonts/html) | ~3 % over; canvaskit.wasm dominates, same class as the documented wasm overage |
+| Screenshots | 17.2 matrix, light/dark x 1.0/2.0 | web desktop/narrow/dark plus device lines/line shots in `tools/perf/results/` | partial; full matrix still wants a phone |
+
+AAB delta note: the 52.3 MB baseline (D-U16) was built with the CI
+release flags. A same-flags rebuild is running to produce the comparable
+number; this table is updated with it when it lands. If the delta exceeds
++400 KB, it gets an ADR like any other budget miss.
 
 ## Baselines
 
@@ -33,13 +64,17 @@ numbers below are therefore the new-UI baseline; UI_SPEC delta budgets
 - Lists: `SliverList.builder` on search and lines; route polyline off (`Features.routeLine` false, manifest `routes` empty).
 - Deferred map import on web: missing (AUDIT gap 11). Tracked below.
 
-## TODO for the capable machine (spec 17.4 protocol)
+## TODO for hardware and field runs (spec 17.4 protocol)
 
-- [ ] Cold start, Home paint, Linha map-visible medians (three runs each).
-- [ ] Map pan p50/p95 + memory after 2 min on Linha.
-- [ ] Per-ABI AAB/APK sizes + web transfer sizes.
-- [ ] Lighthouse accessibility and best-practices >= 95 (U22).
-- [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release PR.
+- [ ] Raster p95 + map fps on a real GPU (emulator SwiftShader numbers do
+  not count).
+- [ ] Cold start on a mid-range and a low-end phone (emulator: 2852 ms).
+- [ ] Battery: leader extra drain <= ~4 %/h, follower <= ~2 %/h (T47).
+- [ ] Fix-to-map p95 latency <= 10 s on real phones with riders.
+- [ ] Lighthouse accessibility and best-practices >= 95 (no node toolchain
+  on this host).
+- [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release
+  PR; device lines/line plus web desktop/narrow/dark shots exist.
 
 ## Fixes from this audit (2026-10-11)
 

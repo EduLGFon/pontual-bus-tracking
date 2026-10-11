@@ -1406,3 +1406,25 @@ plus the commits in D-U19, all on branch `dev`):
   tag. Pushing `dev` to `master` without the var would only produce a
   red run, so no push was attempted. Owner actions: set `API_ORIGIN`
   (and optional `STATIC_ORIGIN`), enable Pages, merge to `master`.
+
+## D-U22-2026-10-11: device perf method and SDK test dependency
+
+- `integration_test` (Flutter SDK, dev-only) added to `app/pubspec.yaml`
+  for the on-device run. Reason: scripted profile measurements need the
+  SDK test harness. Size impact: none, dev dependencies never ship in the
+  release APK/AAB (verified: split and bundle builds succeed with it
+  present). Maintainer: Flutter team, BSD-3-Clause like the SDK. New
+  permissions: none. A transient `flutter build apk --analyze-size`
+  failure naming its plugin happened once while a wasm compile saturated
+  the machine; the retry on the identical tree was green.
+- Method: `app/integration_test/perf_app.dart` (measurement-only
+  entrypoint, never referenced by release builds) drives Home, Lines and
+  line 60 on fixed timings; `tools/perf/device_run.py` installs the
+  release APK, reads cold start from the system's Displayed line (am
+  start -W never settles under SwiftShader), runs the profile app,
+  captures PSS and screenshots on logcat markers, and swipes the map
+  during the soak. Results JSON and shots stay gitignored; medians live
+  in `docs/ui/PERF.md`.
+- Emulator caveats (Medium_Phone_API_37.0, x86_64, SwiftShader, no KVM):
+  cold start and raster are inflated and do not count against hardware
+  budgets; build times, PSS and sizes are representative.
