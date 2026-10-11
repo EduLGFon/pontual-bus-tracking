@@ -181,6 +181,8 @@ class ShortcutsSection extends ConsumerWidget {
         // hide content from the users who need it most.
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          padding: const EdgeInsets.only(right: Space.x1, bottom: Space.x1),
           physics: const _SnapScrollPhysics(
             itemExtent: Sizes.shortcutWidth + Space.x3,
           ),
@@ -258,6 +260,7 @@ class SaindoAgoraSection extends ConsumerWidget {
               onTap: () => context.push('/line/${row.line.key}'),
             ),
           ),
+        const SizedBox(height: Space.x2),
       ],
     );
   }

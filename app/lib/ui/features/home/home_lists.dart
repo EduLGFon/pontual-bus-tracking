@@ -45,6 +45,7 @@ class LiveNowSection extends StatelessWidget {
               onTap: () => context.push('/line/${line.key}'),
             ),
           ),
+        const SizedBox(height: Space.x2),
       ],
     );
   }
@@ -89,6 +90,7 @@ class RecentsSection extends ConsumerWidget {
               ),
           ],
         ),
+        const SizedBox(height: Space.x4),
       ],
     );
   }
@@ -173,23 +175,26 @@ class AllLinesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard(
-      onTap: () => context.push('/lines'),
-      semanticLabel: '${UiStrings.homeAllLines}. ${UiStrings.homeAllLinesGo}',
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.directions_bus_rounded, color: context.colors.primary),
-          const SizedBox(width: Space.x3),
-          Expanded(
-            child: Text(UiStrings.homeAllLines, style: context.text.headline),
-          ),
-          const SizedBox(width: Space.x2),
-          Text(
-            UiStrings.homeAllLinesGo,
-            style: context.text.label.copyWith(color: context.colors.primary),
-          ),
-          Icon(Icons.chevron_right_rounded, color: context.colors.primary),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x2, bottom: Space.x2),
+      child: SurfaceCard(
+        onTap: () => context.push('/lines'),
+        semanticLabel: '${UiStrings.homeAllLines}. ${UiStrings.homeAllLinesGo}',
+        child: Row(
+          children: <Widget>[
+            Icon(Icons.directions_bus_rounded, color: context.colors.primary),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Text(UiStrings.homeAllLines, style: context.text.headline),
+            ),
+            const SizedBox(width: Space.x2),
+            Text(
+              UiStrings.homeAllLinesGo,
+              style: context.text.label.copyWith(color: context.colors.primary),
+            ),
+            Icon(Icons.chevron_right_rounded, color: context.colors.primary),
+          ],
+        ),
       ),
     );
   }

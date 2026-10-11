@@ -150,10 +150,10 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Space.x5,
+      padding: EdgeInsets.fromLTRB(
+        marginFor(context),
         Space.x6,
-        Space.x5,
+        marginFor(context),
         Space.x2,
       ),
       child: Column(
@@ -178,7 +178,12 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x5, Space.x3),
+      padding: EdgeInsets.fromLTRB(
+        marginFor(context),
+        0,
+        marginFor(context),
+        Space.x3,
+      ),
       child: Row(
         children: <Widget>[
           for (final LinesFilter value in LinesFilter.values) ...<Widget>[
