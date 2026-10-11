@@ -12,6 +12,7 @@ import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/confidence_meter.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
+import 'package:pontual/ui/design/components/ghost_marker.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
@@ -19,6 +20,7 @@ import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/permission_card.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
+import 'package:pontual/ui/design/components/predicted_path.dart';
 import 'package:pontual/ui/design/components/prediction_info_sheet.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/search_field.dart';
@@ -268,6 +270,10 @@ class _GalleryBody extends StatelessWidget {
             );
           },
         ),
+        const SizedBox(height: 12),
+        const Text('Previsão (flagged off, demo com dados falsos)'),
+        const SizedBox(height: 8),
+        const _PredictionDemo(),
         const SizedBox(height: 20),
         GhostLink(
           label: UiStrings.seeOnMap,
@@ -288,6 +294,102 @@ class _GalleryBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Demo of the 13.1 prediction rules with fake data: the solid marker is
+/// the last real fix with its age, the dashed ghost is the estimate with
+/// the `~` chip, the dashed path joins them, and Simular fix flips the
+/// ghost to live. Flagged off; shipped screens never mount this.
+class _PredictionDemo extends StatefulWidget {
+  /// Creates the demo.
+  const _PredictionDemo();
+
+  @override
+  State<_PredictionDemo> createState() => _PredictionDemoState();
+}
+
+class _PredictionDemoState extends State<_PredictionDemo> {
+  bool _fixed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const VehicleVM real = VehicleVM(
+      key: 1,
+      lineKey: '60-litoraneo-aviacao',
+      lat: -18.72,
+      lng: -39.85,
+      ageSeconds: 25,
+      certainty: Certainty.live,
+      ordinal: 1,
+    );
+    const VehicleVM ghost = VehicleVM(
+      key: 1,
+      lineKey: '60-litoraneo-aviacao',
+      lat: -18.721,
+      lng: -39.849,
+      ageSeconds: 25,
+      certainty: Certainty.predicted,
+      ordinal: 1,
+      paceFactor: 1.1,
+    );
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text('~4 min', style: context.text.etaLarge),
+          Text(
+            _fixed
+                ? 'Chegou posição nova: virou ao vivo.'
+                : UiStrings.predictionInfoBody,
+            style: context.text.caption,
+          ),
+          const SizedBox(height: 8),
+          const PredictedPath(
+            points: <Offset>[
+              Offset(24, 60),
+              Offset(90, 44),
+              Offset(160, 40),
+              Offset(230, 22),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              VehicleMarker(vehicle: real, lineKey: real.lineKey),
+              const SizedBox(width: 16),
+              _fixed
+                  ? VehicleMarker(vehicle: real, lineKey: real.lineKey)
+                  : GhostMarker(vehicle: ghost, lineKey: ghost.lineKey),
+              const SizedBox(width: 16),
+              const ConfidenceMeter(level: 1),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(UiStrings.paceNormal, style: context.text.caption),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: <Widget>[
+              SecondaryButton(
+                label: _fixed ? 'Reiniciar demo' : 'Simular fix',
+                onPressed: () => setState(() => _fixed = !_fixed),
+              ),
+              SecondaryButton(
+                label: UiStrings.predictionInfoTitle,
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => const PredictionInfoSheet(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

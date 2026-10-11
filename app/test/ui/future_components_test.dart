@@ -6,11 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/components/alert_sheet.dart';
 import 'package:pontual/ui/design/components/confidence_meter.dart';
+import 'package:pontual/ui/design/components/certainty_badge.dart';
+import 'package:pontual/ui/design/components/ghost_marker.dart';
+import 'package:pontual/ui/design/components/predicted_path.dart';
+import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/components/prediction_info_sheet.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/sparkline.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
+import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/reliability.dart';
+import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Wraps [child] with the light tokens.
@@ -92,5 +98,39 @@ void main() {
     await tester.pumpWidget(harness(const PredictionInfoSheet()));
     expect(find.text(UiStrings.predictionInfoTitle), findsOneWidget);
     expect(find.text(UiStrings.predictionInfoBody), findsOneWidget);
+  });
+
+  testWidgets('GhostMarker never pulses and announces a prediction', (
+    WidgetTester tester,
+  ) async {
+    const VehicleVM ghost = VehicleVM(
+      key: 1,
+      lineKey: 'x',
+      lat: 0,
+      lng: 0,
+      ageSeconds: 25,
+      certainty: Certainty.predicted,
+    );
+    await tester.pumpWidget(
+      harness(const GhostMarker(vehicle: ghost, lineKey: 'x')),
+    );
+    expect(find.byType(GhostMarker), findsOneWidget);
+    expect(find.byType(CertaintyBadge), findsOneWidget);
+    expect(find.byType(VehicleMarker), findsOneWidget);
+  });
+
+  testWidgets('PredictedPath hides with fewer than two points', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(const PredictedPath(points: <Offset>[Offset(10, 10)])),
+    );
+    expect(find.bySemanticsLabel('Trajeto previsto'), findsNothing);
+    await tester.pumpWidget(
+      harness(
+        const PredictedPath(points: <Offset>[Offset(10, 50), Offset(200, 10)]),
+      ),
+    );
+    expect(find.bySemanticsLabel('Trajeto previsto'), findsOneWidget);
   });
 }
