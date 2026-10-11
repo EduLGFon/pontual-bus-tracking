@@ -37,12 +37,14 @@ class MutableGateway implements PermissionGateway {
   Future<void> openSettings() async {}
 }
 
-/// One raw position at [speed] m/s inside the accepted area.
-Position pos(double speed) {
+/// One raw position at [speed] m/s inside the accepted area. Pass the
+/// fake [timestampMs] when the test advances its clock past the 20 s
+/// freshness window, or the stale filter correctly drops the fix.
+Position pos(double speed, {int timestampMs = 100000}) {
   return Position(
     latitude: -18.72,
     longitude: -39.85,
-    timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+    timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
     accuracy: 10,
     altitude: 0,
     heading: 90,

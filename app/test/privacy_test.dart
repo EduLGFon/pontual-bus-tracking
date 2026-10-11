@@ -10,9 +10,10 @@ import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/prefs/consent_store.dart';
 import 'package:pontual/data/prefs/theme_store.dart';
 import 'package:pontual/data/prefs/token_store.dart';
+import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/settings/privacy_actions.dart';
-import 'package:pontual/features/settings/privacy_screen.dart';
 import 'package:pontual/main.dart';
+import 'package:pontual/ui/shell/bottom_nav.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// API double answering delete and trip-end calls.
@@ -92,68 +93,76 @@ void main() {
     });
   });
 
-  group('PrivacyScreen', () {
-    testWidgets('shows summary, rows, and policy text', (
-      WidgetTester tester,
-    ) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      await tester.pumpWidget(
-        const ProviderScope(child: MaterialApp(home: PrivacyScreen())),
-      );
-      expect(find.text('Política de Privacidade'), findsOneWidget);
-      expect(find.text('Termos de Uso'), findsOneWidget);
-      expect(find.text('O que coletamos'), findsOneWidget);
-      expect(find.textContaining('Sem histórico'), findsOneWidget);
-      expect(find.text('Apagar meus dados'), findsOneWidget);
-      expect(find.text('Revogar consentimento'), findsOneWidget);
+  testWidgets('delete end-to-end returns home with data cleared', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      tokenPrefsKey: 'bm1_x',
     });
-
-    testWidgets('cancel keeps the token', (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        tokenPrefsKey: 'bm1_x',
-      });
-      await tester.pumpWidget(
-        const ProviderScope(child: MaterialApp(home: PrivacyScreen())),
-      );
-      await tester.tap(find.text('Apagar meus dados'));
-      await tester.pumpAndSettle();
-      expect(find.text('Apagar meus dados?'), findsOneWidget);
-      await tester.tap(find.text('Cancelar'));
-      await tester.pumpAndSettle();
-      expect(await const TokenStore().read(), 'bm1_x');
+    // Phone-realistic viewport: the shell breakpoints and the dock
+    // geometry follow the view size, not the MediaQuery wrapper.
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
-
-    testWidgets('delete end-to-end returns to welcome', (
-      WidgetTester tester,
-    ) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        tokenPrefsKey: 'bm1_x',
-      });
-      final BusApi api = apiFor((http.Request req) async {
-        if (req.url.path == '/v1/me') {
-          return http.Response('', 204);
-        }
-        return http.Response('{}', 404);
-      });
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [busApiProvider.overrideWithValue(api)],
-          child: const PontualApp(),
+    final MockClient httpClient = MockClient((http.Request req) async {
+      if (req.url.path == '/v1/me') {
+        return http.Response('', 204);
+      }
+      return http.Response('[]', 200);
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          httpClientProvider.overrideWithValue(httpClient),
+          linesProvider.overrideWith(
+            (Ref ref) async => StaticDataRepository(
+              client: httpClient,
+              staticBaseUrl: () => 'https://x.example',
+              bundleManifestJson: '{}',
+              bundleLinesJson: '[]',
+              prefs: SharedPreferences.getInstance,
+              nowMs: () => 0,
+            ).lines(),
+          ),
+          busApiProvider.overrideWith(
+            (Ref ref) => BusApi(
+              client: httpClient,
+              baseUrl: () => 'http://127.0.0.1:8080',
+              readToken: const TokenStore().read,
+              writeToken: const TokenStore().write,
+            ),
+          ),
+        ],
+        child: const MediaQuery(
+          data: MediaQueryData(size: Size(390, 844)),
+          child: PontualApp(),
         ),
-      );
+      ),
+    );
+    await tester.pumpAndSettle();
+    // Dismiss the first-run card so the tab bar is reachable.
+    if (find.text('Entendi').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Entendi'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Começar'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.settings));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Privacidade e dados'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Apagar meus dados'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Apagar'));
-      await tester.pumpAndSettle();
-      expect(find.text('Acompanhe o ônibus ao vivo'), findsOneWidget);
-      expect(await const TokenStore().read(), isNull);
-    });
+    }
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomNav),
+        matching: find.text('Ajustes'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Privacidade e dados'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Apagar meus dados'), 200);
+    await tester.tap(find.text('Apagar meus dados'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apagar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Para onde vamos?'), findsOneWidget);
+    expect(await const TokenStore().read(), isNull);
   });
 }

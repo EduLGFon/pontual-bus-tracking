@@ -10,7 +10,7 @@ import 'package:pontual/domain/trip/auto_end.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
-import 'package:pontual/features/trip/trip_screen.dart';
+import 'package:pontual/ui/features/trip/trip_end_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'trip_rig.dart';
@@ -43,7 +43,7 @@ void main() {
     expect(r.controller.endKind, TripEndKind.automatic);
     expect(r.controller.endDetail, 'walking');
     expect(
-      const EndCard(kind: TripEndKind.automatic, detail: 'walking').message(),
+      const TripEndCard(kind: TripEndKind.automatic, detail: 'walking').message,
       contains('parecia que'),
     );
     r.controller.dispose();
@@ -79,7 +79,7 @@ void main() {
     expect(r.controller.endKind, TripEndKind.permission);
     expect(r.controller.endDetail, 'gps');
     expect(
-      const EndCard(kind: TripEndKind.permission, detail: 'gps').message(),
+      const TripEndCard(kind: TripEndKind.permission, detail: 'gps').message,
       contains('desligada'),
     );
     r.controller.dispose();
@@ -142,6 +142,9 @@ void main() {
     expect(r.controller.isOffline, isTrue);
     expect(activeRole(r.controller.state), TripRole.offlineSaver);
     hanging.complete(http.Response('{"r":"F","n":90}', 200));
+    // Paced sends mean no ping is in flight: the next fresh fix sends
+    // (its slot is long past) and that success heals the trip.
+    r.positions.add(pos(8, timestampMs: r.clock.nowMs()));
     for (int i = 0; i < 50 && r.controller.isOffline; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }

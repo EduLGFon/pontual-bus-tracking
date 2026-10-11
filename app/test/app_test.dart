@@ -1,26 +1,32 @@
-// T18 router and scale tests. Screens are navigable and survive 200
-// percent text scale on a narrow screen without clipping errors.
+// App boot and scale tests for the new UI. The app opens on Início with
+// the first-run welcome card, every tab is reachable, and the tree
+// survives 200 percent text scale on a narrow screen.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pontual/app/providers.dart';
-import 'package:pontual/app/strings_pt.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/main.dart';
+import 'package:pontual/ui/shell/bottom_nav.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Pumps the app with a scope, mirroring main.dart.
-Future<void> pumpApp(WidgetTester tester, Widget child) {
-  return tester.pumpWidget(ProviderScope(child: child));
+/// Finds a bottom-navigation item by its label, not a screen title that
+/// happens to read the same.
+Finder _navItem(String label) {
+  return find.descendant(
+    of: find.byType(BottomNav),
+    matching: find.text(label),
+  );
 }
 
 /// Pumps the full app with deterministic line data. Widget tests must not
 /// depend on rootBundle or the network: asset loads answer once per file
 /// and remote fetches are blocked by CORS on `flutter test --platform
 /// chrome`, so navigation targets would stay empty there.
-Future<void> pumpAppWithLines(WidgetTester tester) {
+Future<void> pumpAppWithLines(WidgetTester tester, {double textScale = 1}) {
   final MockClient httpClient = MockClient((http.Request req) async {
     return http.Response('[]', 200);
   });
@@ -41,7 +47,10 @@ Future<void> pumpAppWithLines(WidgetTester tester) {
           ).lines(),
         ),
       ],
-      child: const PontualApp(),
+      child: MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: const PontualApp(),
+      ),
     ),
   );
 }
@@ -51,33 +60,43 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('boots on welcome with pt-BR copy', (WidgetTester tester) async {
-    await pumpApp(tester, const PontualApp());
-    await tester.pumpAndSettle();
-    expect(find.text(StringsPt.welcomeTitle), findsOneWidget);
-    expect(find.text(StringsPt.start), findsOneWidget);
-  });
-
-  testWidgets('welcome navigates home', (WidgetTester tester) async {
+  testWidgets('boots on home with pt-BR copy', (WidgetTester tester) async {
     await pumpAppWithLines(tester);
     await tester.pumpAndSettle();
-    await tester.tap(find.text(StringsPt.start));
+    expect(find.text(UiStrings.wordmark), findsOneWidget);
+    expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
+    expect(find.text(UiStrings.navHome), findsOneWidget);
+    expect(find.text(UiStrings.navLines), findsOneWidget);
+    expect(find.text(UiStrings.navSettings), findsOneWidget);
+  });
+
+  testWidgets('first run shows the welcome card', (WidgetTester tester) async {
+    await pumpAppWithLines(tester);
     await tester.pumpAndSettle();
-    expect(find.text(StringsPt.homeAllLines), findsOneWidget);
+    expect(find.text(UiStrings.welcomeTitle), findsOneWidget);
+    await tester.tap(find.text(UiStrings.ok));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.welcomeTitle), findsNothing);
+  });
+
+  testWidgets('bottom navigation reaches every tab', (
+    WidgetTester tester,
+  ) async {
+    await pumpAppWithLines(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(_navItem(UiStrings.navLines));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.filterAll), findsOneWidget);
+    await tester.tap(_navItem(UiStrings.navSettings));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.sectionAppearance), findsOneWidget);
+    await tester.tap(_navItem(UiStrings.navHome));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
   });
 
   testWidgets('survives 200 percent text scale', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MediaQuery(
-          data: MediaQueryData(
-            textScaler: TextScaler.linear(2),
-            size: Size(360, 640),
-          ),
-          child: PontualApp(),
-        ),
-      ),
-    );
+    await pumpAppWithLines(tester, textScale: 2);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

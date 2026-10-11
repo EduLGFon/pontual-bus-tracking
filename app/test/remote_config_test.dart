@@ -1,11 +1,14 @@
 // T23 tests: remote flags parsing, refresh rules, system screens.
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Banner;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/config/remote_config.dart';
-import 'package:pontual/features/system/system_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pontual/ui/design/components/banner.dart';
+import 'package:pontual/ui/design/theme/theme.dart';
+import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const String bundle =
@@ -74,22 +77,39 @@ void main() {
   ) async {
     for (final SystemKind kind in SystemKind.values) {
       await tester.pumpWidget(
-        MaterialApp(
-          home: SystemScreen(kind: kind, message: 'Oi'),
+        ProviderScope(
+          child: MaterialApp(
+            theme: pontualLightTheme(),
+            home: SystemScreen(kind: kind, message: 'Oi'),
+          ),
         ),
       );
+      await tester.pump();
       expect(find.text('Oi'), findsOneWidget);
     }
     await tester.pumpWidget(
-      const MaterialApp(home: SystemScreen(kind: SystemKind.maintenance)),
+      ProviderScope(
+        child: MaterialApp(
+          theme: pontualLightTheme(),
+          home: const SystemScreen(kind: SystemKind.maintenance),
+        ),
+      ),
     );
-    expect(find.text('Em manutenção'), findsOneWidget);
+    await tester.pump();
+    expect(find.text('Serviço em manutenção'), findsOneWidget);
   });
 
   testWidgets('offline banner announces saved data', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: OfflineBanner()));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: pontualLightTheme(),
+          home: const Banner(message: 'Sem conexão. Mostrando dados salvos.'),
+        ),
+      ),
+    );
     expect(find.text('Sem conexão. Mostrando dados salvos.'), findsOneWidget);
   });
 }
