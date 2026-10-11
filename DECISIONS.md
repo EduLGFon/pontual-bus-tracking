@@ -1295,3 +1295,34 @@ those code paths are dead. `proguard-rules.pro` gains
 `-dontwarn com.google.android.play.core.**` with the reason inline. The
 AAB builds after it: 52.3 MB (arm64-v8a, armeabi-v7a, x86_64), the new
 size baseline; the UI_SPEC delta budgets apply from here.
+
+## D-U17-2026-10-11: UI_SPEC sections 14-18 arrived, D-U01 reconstruction retired
+
+`docs/ui/UI_SPEC.md` now has 1746 lines with sections 14 (copy deck),
+15 (brand assets), 16 (tasks U01-U26), 17 (QA and measurement) and 18
+(reading list). D-U01 recorded the file as truncated at 13.5; that entry
+stays as history, but the reconstruction handling is superseded: the
+missing sections are now the source of truth.
+
+Compliance pass 2026-10-11 found: copy-deck key names differ from
+`UiStrings` field names (text matches under different keys, accepted, no
+rename); brand web/Android assets exist except the vector source;
+`docs/ui/PERF.md` was absent; one `Opacity` in `arrival_row.dart`
+violated 11.2; U25/U26 future scaffolding (alerts, reliability,
+predictions, ghost markers, composite sources, `localKudos`, `Saindo
+agora`) is entirely absent and stays pending behind flags-off.
+
+## D-U18-2026-10-11: brand source, perf baseline, alpha dimming by colour
+
+- `design/brand/pontual-mark.svg` added byte-for-byte from UI_SPEC 15.
+  Android adaptive + monochrome layers and web splash/manifest already
+  existed; the SVG was the only missing source.
+- `docs/ui/PERF.md` added (U21): new-UI baseline (web `main.dart.js`
+  950 KB gz, Manrope 50.5 KB, CanvasKit 36.1 MB uncompressed, universal
+  AAB 52.3 MB) with the old-UI baseline recorded as absent per AUDIT
+  4.1. Device rows (cold start, frames, memory, per-ABI sizes,
+  Lighthouse) stay TODO for the capable machine under the 17.4 protocol.
+- `arrival_row.dart` past dimming no longer uses `Opacity` (banned by
+  11.2, forces a saveLayer). `EtaText`, `LineBadge` and `CertaintyBadge`
+  gained `dimmed` flags that apply 0.55 alpha to colours only, matching
+  the 7.6 rule that past minutes dim by colour alpha.
