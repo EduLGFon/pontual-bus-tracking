@@ -9,6 +9,7 @@ import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/vehicle_vm.dart';
 
 /// What the UI asks for.
 class ArrivalQuery {
@@ -146,6 +147,48 @@ class LiveAwareArrivalsSource implements ArrivalsSource {
 
   @override
   Stream<List<ArrivalVM>> watch(ArrivalQuery query) => base.watch(query);
+}
+
+/// Live hero for a line screen: the freshest live vehicle wins as
+/// "now", else the freshest labeled prediction. Null when nothing is
+/// live or predicted. Lets the Agora hero lead with realtime while the
+/// timetable stays below. Pure, D30.
+ArrivalVM? liveHeroOf(
+  String lineKey,
+  List<VehicleVM> vehicles,
+  DateTime now,
+) {
+  VehicleVM? live;
+  for (final VehicleVM v in vehicles) {
+    if (v.certainty == Certainty.live &&
+        (live == null || v.ageSeconds < live.ageSeconds)) {
+      live = v;
+    }
+  }
+  if (live != null) {
+    return ArrivalVM(
+      lineKey: lineKey,
+      at: now,
+      certainty: Certainty.live,
+      asOf: now.subtract(Duration(seconds: live.ageSeconds)),
+    );
+  }
+  VehicleVM? predicted;
+  for (final VehicleVM v in vehicles) {
+    if (v.certainty == Certainty.predicted &&
+        (predicted == null || v.ageSeconds < predicted.ageSeconds)) {
+      predicted = v;
+    }
+  }
+  if (predicted != null) {
+    return ArrivalVM(
+      lineKey: lineKey,
+      at: now,
+      certainty: Certainty.predicted,
+      asOf: now.subtract(Duration(seconds: predicted.ageSeconds)),
+    );
+  }
+  return null;
 }
 
 /// Merges sources with live winning over predicted over scheduled.

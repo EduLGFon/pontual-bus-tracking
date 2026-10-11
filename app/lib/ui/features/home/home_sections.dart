@@ -17,6 +17,7 @@ import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/shortcut_card.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
+import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/shortcut_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -104,6 +105,11 @@ class ShortcutsSection extends ConsumerWidget {
       );
     }
     entries.sort((_ShortcutEntry a, _ShortcutEntry b) {
+      // Live lines first: a bus on the route now beats any timetable
+      // time. Inside each group, earliest next arrival wins. D30.
+      if (a.line.isLive != b.line.isLive) {
+        return a.line.isLive ? -1 : 1;
+      }
       final DateTime? pa = a.arrival?.at;
       final DateTime? pb = b.arrival?.at;
       if (pa == null && pb == null) {
@@ -203,8 +209,8 @@ class ShortcutsSection extends ConsumerWidget {
 
 /// Next-buses feed of Início (UI_SPEC 13.3): the next arrival of every
 /// shortcut target, sorted ascending by time. Empty until at least one
-/// shortcut has an upcoming departure. When ETA data exists the rows
-/// silently upgrade certainty with no layout change.
+/// shortcut has an upcoming departure. Lines with a live bus lead as
+/// live "now" rows; the rest stay timetable. No layout change.
 class SaindoAgoraSection extends ConsumerWidget {
   /// Creates the section.
   const SaindoAgoraSection({super.key});
@@ -225,6 +231,19 @@ class SaindoAgoraSection extends ConsumerWidget {
       final LineVM? line = lineByKey(lines, shortcut.lineKey);
       final StaticLine? static = _staticOf(statics, shortcut.lineKey);
       if (line == null || static == null) {
+        continue;
+      }
+      if (line.isLive) {
+        rows.add((
+          arrival: ArrivalVM(
+            lineKey: static.code,
+            at: now,
+            certainty: Certainty.live,
+            asOf: now,
+            originLabel: shortcut.originLabel,
+          ),
+          line: line,
+        ));
         continue;
       }
       final ArrivalVM? arrival = _nextArrival(
