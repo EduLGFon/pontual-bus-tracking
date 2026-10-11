@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
@@ -50,7 +51,9 @@ class TimetableArrivalsSource implements ArrivalsSource {
     ]);
   }
 
-  /// Next departures for [query], in order.
+  /// Next departures for [query], in order. Only the day type of [now]
+  /// is considered: a Sunday query over weekday-only data returns empty
+  /// instead of surfacing a weekday time on the wrong day. D-U26.
   List<ArrivalVM> departures(ArrivalQuery query) {
     final List<String> times = _timesFor(query.originLabel);
     final List<ArrivalVM> all = <ArrivalVM>[];
@@ -103,15 +106,20 @@ class TimetableArrivalsSource implements ArrivalsSource {
   }
 
   List<String> _timesFor(String? origin) {
+    final String dayKey = _dayTypeKey(dayTypeFor(now));
     if (origin == null) {
       final Set<String> merged = <String>{};
       for (final Map<String, dynamic> s in line.schedules) {
+        final String type = s['day_type'] as String? ?? '';
+        if (type != dayKey) {
+          continue;
+        }
         final List<dynamic> times = s['times'] as List<dynamic>? ?? <dynamic>[];
         merged.addAll(times.whereType<String>());
       }
       return merged.toList()..sort();
     }
-    return timesFor('', origin);
+    return timesFor(dayKey, origin);
   }
 
   DateTime _atOf(String hhmm) {
@@ -124,6 +132,16 @@ class TimetableArrivalsSource implements ArrivalsSource {
       int.parse(parts[1]),
     );
   }
+}
+
+/// Static-data key of a day type. [now] is already the São Mateus wall
+/// clock from [currentNowProvider], so no extra conversion applies here.
+String _dayTypeKey(DayType type) {
+  return switch (type) {
+    DayType.weekday => 'weekday',
+    DayType.saturday => 'saturday',
+    DayType.sundayHoliday => 'sunday_holiday',
+  };
 }
 
 /// Provides the arrivals source for one line, refreshed with the clock.
