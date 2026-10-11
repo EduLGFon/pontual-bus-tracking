@@ -3,12 +3,14 @@
 // from the sheet body so both stay small and focused.
 // See docs/ui/UI_SPEC.md 7.5.
 import 'package:flutter/material.dart';
-import 'package:pontual/ui/adapters/local_stores.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
@@ -142,8 +144,9 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// Favourite toggle backed by the local store.
-class LineStarButton extends StatefulWidget {
+/// Favourite toggle backed by the shared favourites provider, so the header,
+/// the lines list and the filter always agree.
+class LineStarButton extends ConsumerWidget {
   /// Creates the toggle.
   const LineStarButton({required this.lineKey, super.key});
 
@@ -151,50 +154,19 @@ class LineStarButton extends StatefulWidget {
   final String lineKey;
 
   @override
-  State<LineStarButton> createState() => _LineStarButtonState();
-}
-
-class _LineStarButtonState extends State<LineStarButton> {
-  bool _favorite = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _read();
-  }
-
-  @override
-  void didUpdateWidget(LineStarButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.lineKey != oldWidget.lineKey) {
-      _read();
-    }
-  }
-
-  Future<void> _read() async {
-    if (widget.lineKey.isEmpty) {
-      return;
-    }
-    final Set<String> set = await const FavoritesStore().read();
-    if (mounted) {
-      setState(() => _favorite = set.contains(widget.lineKey));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.lineKey.isEmpty) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (lineKey.isEmpty) {
       return const SizedBox.shrink();
     }
+    final bool favorite = ref.watch(favoritesProvider).contains(lineKey);
     return IconBtn(
-      icon: _favorite ? Icons.star_rounded : Icons.star_border_rounded,
-      semanticLabel: _favorite ? UiStrings.unfavorite : UiStrings.favorite,
-      selected: _favorite,
+      icon: favorite ? Icons.star_rounded : Icons.star_border_rounded,
+      semanticLabel: favorite ? UiStrings.unfavorite : UiStrings.favorite,
+      selected: favorite,
       iconSize: 22,
       onTap: () {
-        final bool next = !_favorite;
-        setState(() => _favorite = next);
-        const FavoritesStore().toggle(widget.lineKey);
+        HapticFeedback.selectionClick();
+        ref.read(favoritesProvider.notifier).toggle(lineKey);
       },
     );
   }

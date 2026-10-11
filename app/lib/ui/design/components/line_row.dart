@@ -20,6 +20,7 @@ class LineRow extends StatelessWidget {
     this.onTap,
     this.nextEta = '',
     this.onToggleFavorite,
+    this.isFavorite = false,
     this.semanticLabel,
     super.key,
   });
@@ -35,6 +36,9 @@ class LineRow extends StatelessWidget {
 
   /// Star toggle, when the favorites feature is on.
   final VoidCallback? onToggleFavorite;
+
+  /// True when the line is starred. Only read when [onToggleFavorite] is set.
+  final bool isFavorite;
 
   /// Screen-reader sentence for the row.
   final String? semanticLabel;
@@ -111,8 +115,11 @@ class LineRow extends StatelessWidget {
           if (onToggleFavorite != null) ...<Widget>[
             const SizedBox(width: Space.x1),
             IconBtn(
-              icon: Icons.star_border_rounded,
-              semanticLabel: UiStrings.favorite,
+              icon: isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+              semanticLabel: isFavorite
+                  ? UiStrings.unfavorite
+                  : UiStrings.favorite,
+              selected: isFavorite,
               onTap: onToggleFavorite,
               size: 40,
               iconSize: 20,
