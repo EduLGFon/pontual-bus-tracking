@@ -94,3 +94,29 @@ class LatLng {
   /// Longitude in degrees.
   final double lng;
 }
+
+/// Dead reckoning for stale vehicles (mirrors server geo.predict).
+/// Heading is degrees clockwise from north. Null heading, no speed or
+/// no age keeps the last fix. Pure, anonymous, no history.
+LatLng predictPosition(
+  double lat,
+  double lng,
+  double? headingDeg,
+  double speedMps,
+  int ageS,
+) {
+  if (headingDeg == null || speedMps <= 0 || ageS <= 0) {
+    return LatLng(lat, lng);
+  }
+  const double degPerM = 1 / 111320;
+  final double headingRad = headingDeg * math.pi / 180;
+  final double d = speedMps * ageS;
+  final double lat2 = lat + d * math.cos(headingRad) * degPerM;
+  final double lng2 =
+      lng +
+      d *
+          math.sin(headingRad) *
+          degPerM /
+          math.cos(lat * math.pi / 180);
+  return LatLng(lat2, lng2);
+}

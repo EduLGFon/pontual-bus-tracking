@@ -1,11 +1,22 @@
 // Vehicle adapter: maps the live stream onto VehicleVM with display
 // ordinals by recency. The data layer keeps its lifecycle and its signals;
 // this file only shapes what the UI draws. See docs/ui/UI_SPEC.md 6.2.
+// D30: stale-but-moving vehicles with a known pace become predicted
+// (extrapolated, dashed) instead of plain stale, always labeled.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
+import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+
+/// Last age in seconds that still renders a moving prediction.
+/// Beyond this the vehicle reads stale at its last fix.
+const int predictedWhileS = 120;
+
+/// Minimum effective pace in km/h for a prediction. Stopped buses
+/// never predict forward.
+const double predictedMinKmh = 5;
 
 /// Converts a repository vehicle into its view-model.
 VehicleVM vehicleVmOf(
@@ -13,6 +24,45 @@ VehicleVM vehicleVmOf(
   required String lineKey,
   int? ordinal,
 }) {
+  final int ageS = vehicle.ageS;
+  if (ageS <= liveFreshS) {
+    return VehicleVM(
+      key: vehicle.id,
+      lineKey: lineKey,
+      lat: vehicle.lat,
+      lng: vehicle.lng,
+      headingDeg: vehicle.heading,
+      speedKmh: vehicle.kmh,
+      ageSeconds: ageS,
+      certainty: Certainty.live,
+      ordinal: ordinal,
+      paceKmh: vehicle.paceKmh,
+    );
+  }
+  final double paceKmh = vehicle.paceKmh ?? vehicle.kmh;
+  if (ageS <= predictedWhileS &&
+      vehicle.heading != null &&
+      paceKmh >= predictedMinKmh) {
+    final LatLng predicted = predictPosition(
+      vehicle.lat,
+      vehicle.lng,
+      vehicle.heading,
+      paceKmh / 3.6,
+      ageS,
+    );
+    return VehicleVM(
+      key: vehicle.id,
+      lineKey: lineKey,
+      lat: predicted.lat,
+      lng: predicted.lng,
+      headingDeg: vehicle.heading,
+      speedKmh: vehicle.kmh,
+      ageSeconds: ageS,
+      certainty: Certainty.predicted,
+      ordinal: ordinal,
+      paceKmh: vehicle.paceKmh,
+    );
+  }
   return VehicleVM(
     key: vehicle.id,
     lineKey: lineKey,
@@ -20,9 +70,10 @@ VehicleVM vehicleVmOf(
     lng: vehicle.lng,
     headingDeg: vehicle.heading,
     speedKmh: vehicle.kmh,
-    ageSeconds: vehicle.ageS,
-    certainty: certaintyForAge(vehicle.ageS),
+    ageSeconds: ageS,
+    certainty: Certainty.stale,
     ordinal: ordinal,
+    paceKmh: vehicle.paceKmh,
   );
 }
 
