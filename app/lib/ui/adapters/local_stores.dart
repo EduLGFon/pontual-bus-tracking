@@ -24,6 +24,37 @@ const String dataSaverKey = 'ui_data_saver_v1';
 /// Storage key for the reduce animations setting.
 const String reduceMotionKey = 'ui_reduce_motion_v1';
 
+/// Storage key for the device-only helped-trips counter.
+const String kudosKey = 'ui_kudos_v1';
+
+/// Reads and writes the device-only helped-trips counter. Local only,
+/// never sent anywhere. Shown on the trip end card (D30 extra).
+class KudosStore {
+  /// Creates the store.
+  const KudosStore();
+
+  /// Reads the counter, defaulting to zero.
+  Future<int> read() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(kudosKey) ?? 0;
+  }
+
+  /// Adds one helped trip.
+  Future<void> addOne() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(kudosKey, (prefs.getInt(kudosKey) ?? 0) + 1);
+  }
+}
+
+/// Provides the helped-trips count.
+final FutureProvider<int> kudosProvider = FutureProvider<int>((Ref ref) async {
+  try {
+    return await const KudosStore().read();
+  } on Object {
+    return 0;
+  }
+});
+
 /// Reads and writes the shortcut list.
 class ShortcutsStore {
   /// Creates the store.
