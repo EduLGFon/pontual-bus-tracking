@@ -134,6 +134,36 @@ def screencap(path):
         )
 
 
+def device_serial():
+    out = run(ADB, "devices")
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) == 2 and parts[1] == "device":
+            return parts[0]
+    raise RuntimeError("no online device")
+
+
+def swipe_map(serial):
+    # Four pans across the soak, 30 s apart. Coordinates fit a 1080x2400
+    # phone; the map fills most of the line screen.
+    for _ in range(4):
+        run(
+            ADB,
+            "-s",
+            serial,
+            "shell",
+            "input",
+            "swipe",
+            "800",
+            "1000",
+            "300",
+            "1000",
+            "400",
+            capture=False,
+        )
+        time.sleep(30)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apk", required=True)
@@ -177,6 +207,12 @@ def main():
                 screencap(shot)
                 shots["home"] = shot
                 print(f"home PSS {mem['home_pss_kb']} KB", flush=True)
+            elif "PERF_MARK LINE_SOAK" in line:
+                sw = threading.Thread(
+                    target=swipe_map, args=(serial,), daemon=True
+                )
+                sw.start()
+                print("soak started, swiping", flush=True)
             elif "PERF_MARK LINE_MEM" in line:
                 mem["line_pss_kb"] = pss_kb()
                 shot = os.path.join(out_dir, "line.png")
@@ -190,24 +226,43 @@ def main():
         p.terminate()
 
     t = threading.Thread(target=watch, daemon=True)
+    serial = device_serial()
     t.start()
-    print("running profile integration test...", flush=True)
-    test = subprocess.run(
-        [FLUTTER, "test", "--profile", "integration_test/perf_test.dart"],
-        cwd=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "app"),
-        capture_output=True,
-        text=True,
-        timeout=1200,
-    )
+    print(f"running profile app on {serial}...", flush=True)
+    stdout_path = os.path.join(out_dir, "flutter-run.log")
+    with open(stdout_path, "w") as log:
+        proc = subprocess.Popen(
+            [
+                FLUTTER,
+                "run",
+                "--profile",
+                "-t",
+                "integration_test/perf_app.dart",
+                "-d",
+                serial,
+            ],
+            cwd=os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "..", "..", "app"
+            ),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        # The watcher breaks the loop on DONE; give it a bounded wait.
+        t.join(timeout=1500)
+        proc.terminate()
+        try:
+            proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    run(ADB, "shell", "am", "force-stop", APP_ID, capture=False)
     stop.set()
-    t.join(timeout=30)
-    print(test.stdout[-2000:], flush=True)
-    if test.returncode != 0:
-        print(test.stderr[-2000:], flush=True)
-        raise RuntimeError("integration test failed")
+    with open(stdout_path) as log:
+        test_output = log.read()
+    print(test_output[-2000:], flush=True)
 
     timings = {}
-    for m in re.finditer(r"PERF_TIMINGS (\w+) frames=(\d+) (.*)", test.stdout):
+    for m in re.finditer(r"PERF_TIMINGS (\w+) frames=(\d+) (.*)", test_output):
         timings[m.group(1)] = {"frames": int(m.group(2)), "rest": m.group(3)}
 
     def median(xs):
