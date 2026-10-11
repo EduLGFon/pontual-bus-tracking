@@ -79,11 +79,20 @@ def unlock():
     )
 
 
-def wait_stopped(timeout_s=120):
+def wait_stopped(timeout_s=180):
+    # pidof exits 1 with empty output when nothing runs. An adb error
+    # also yields empty output, so only trust a clean exit-1 with no
+    # stderr; anything else keeps waiting.
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        out = run(ADB, "shell", "pidof", APP_ID)
-        if not out.strip():
+        p = subprocess.run(
+            [ADB, "shell", "pidof", APP_ID],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if p.returncode != 0 and not p.stderr.strip():
+            time.sleep(5)
             return
         time.sleep(3)
     raise RuntimeError("app would not stop")
