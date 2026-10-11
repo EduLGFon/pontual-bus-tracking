@@ -226,9 +226,11 @@ class _LineCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final String next = ref.watch(nextDepartureProvider(line.key));
+    final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
     return LineRow(
       line: line,
       nextEta: next,
+      isFavorite: isFavorite,
       onToggleFavorite: () => _toggleFavorite(ref),
       onTap: () => context.push('/line/${line.key}'),
     );

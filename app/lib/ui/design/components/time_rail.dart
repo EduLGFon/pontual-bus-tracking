@@ -18,7 +18,9 @@ class TimeRailHour {
   /// Hour label, for example "05".
   final String hour;
 
-  /// Minutes present in the data for this hour.
+  /// Minute parts of this hour, for example "40" for 06:40. The chip
+  /// rebuilds the full value as "$hour:$minute", so full "HH:mm" strings
+  /// must never be passed here. D-U26.
   final List<String> minutes;
 }
 

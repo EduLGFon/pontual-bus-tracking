@@ -5,9 +5,14 @@
 // See docs/ui/UI_SPEC.md 7.5.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/adapters/arrivals_adapter.dart';
+import 'package:pontual/ui/adapters/alerts_store.dart';
+import 'package:pontual/ui/design/components/reliability_card.dart';
+import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
@@ -20,6 +25,9 @@ import 'package:pontual/ui/features/line/line_sheet_header.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
+import 'package:pontual/ui/models/alert_rule.dart';
+import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/reliability.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -167,10 +175,55 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   }
 
   /// Body of the Agora tab: hero, live vehicles, next departures.
+  /// The hero leads with realtime (live, else labeled prediction) when
+  /// vehicles are present; the timetable stays below either way.
   List<Widget> _nowBody(DateTime now) {
-    final List<ArrivalVM> departures = _upcoming(now, limit: 4);
+    final ArrivalVM? hero = liveHeroOf(
+      widget.staticLine.code,
+      widget.vehicles,
+      now,
+    );
+    final List<ArrivalVM> departures = _upcoming(
+      now,
+      limit: hero == null ? 4 : 3,
+    );
     final List<Widget> out = <Widget>[];
-    if (departures.isNotEmpty) {
+    // D30 in-app alert: a saved rule for this line fires while a live
+    // bus is on the route. Local only, no push, no server call.
+    final List<AlertRuleVM> rules = ref.watch(alertsProvider);
+    final List<AlertRuleVM> fired = triggeredAlerts(
+      rules: rules,
+      liveLineKeys: <String>{
+        if (widget.vehicles.any((VehicleVM v) => v.certainty == Certainty.live))
+          widget.staticLine.code,
+      },
+      now: now,
+    );
+    if (fired.isNotEmpty) {
+      out.add(
+        SurfaceCard(
+          semanticLabel: UiStrings.alertFiring,
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.notifications_active_rounded),
+              const SizedBox(width: Space.x2),
+              Expanded(
+                child: Text(
+                  UiStrings.alertFiring,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      out.add(const SizedBox(height: Space.x4));
+    }
+    if (hero != null) {
+      out.add(
+        ArrivalRow(arrival: hero, now: now, line: widget.line, large: true),
+      );
+    } else if (departures.isNotEmpty) {
       out.add(
         ArrivalRow(
           arrival: departures.first,
@@ -212,15 +265,34 @@ class _LineSheetState extends ConsumerState<LineSheet> {
           ),
       ]);
     }
-    if (departures.length > 1) {
+    // D30 history: de-identified recent headways vs the timetable.
+    // The card hides itself when fewer than 2 sightings exist.
+    final DateTime local = saoMateusTime(now);
+    final double? scheduledHeadway = scheduledHeadwayOf(
+      timetableTimesOf(widget.staticLine, dayTypeFor(local), null),
+    );
+    final arrivals = ref.watch(arrivalsProvider(widget.staticLine.id)).value;
+    final ReliabilityVM? reliability = reliabilityOf(
+      passages: arrivals?.passages ?? const <int>[],
+      headwayMin: arrivals?.headwayMin,
+      scheduledHeadwayMin: scheduledHeadway,
+    );
+    if (reliability != null) {
+      out.add(ReliabilityCard(reliability: reliability));
+      out.add(const SizedBox(height: Space.x4));
+    }
+    if (departures.length > (hero == null ? 1 : 0)) {
       out.add(
         const SectionHeader(
           title: UiStrings.nextDepartures,
           topSpacing: Space.x6,
         ),
       );
+      final Iterable<ArrivalVM> rest = hero == null
+          ? departures.skip(1).take(3)
+          : departures.take(3);
       out.addAll(<Widget>[
-        for (final ArrivalVM a in departures.skip(1).take(3))
+        for (final ArrivalVM a in rest)
           Padding(
             padding: const EdgeInsets.only(bottom: Space.x2),
             child: ArrivalRow(arrival: a, now: now, line: widget.line),

@@ -609,6 +609,11 @@ class UiStrings {
   /// Alerts sheet save action.
   static const String alertSave = 'Salvar';
 
+  /// In-app banner when a saved alert rule fires for this line (D30).
+  /// Local only: the bus is live on this line right now.
+  static const String alertFiring =
+      'Alerta: tem ônibus desta linha agora na rota.';
+
   /// Line history tab.
   static const String tabHistory = 'Histórico';
 

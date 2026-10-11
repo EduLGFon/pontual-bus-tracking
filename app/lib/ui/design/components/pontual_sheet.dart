@@ -79,8 +79,10 @@ class PontualSheet extends StatelessWidget {
               ),
               if (title != null) ...<Widget>[
                 const SizedBox(height: Space.x3),
+                // The title keeps the same side margin as the body below:
+                // at 4 dp it sat almost glued to the sheet edge. D-U26.
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x1),
+                  padding: const EdgeInsets.symmetric(horizontal: Space.x6),
                   child: Row(
                     children: <Widget>[
                       Expanded(child: Text(title!, style: context.text.title)),

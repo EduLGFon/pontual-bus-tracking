@@ -1533,3 +1533,96 @@ machine (same as the three kept commits). Every change was
 review-checked against the covering widget tests (home, lines,
 search, line screen, trip flow, design system, a11y) and keeps
 their asserted copy and behavior.
+
+## D30-2026-10-11: anonymous momentum for ETA and prediction (owner-approved)
+
+Owner order 2026-10-11: implement ETA, arrival alerts, recents,
+shortcut ordering, history/delay and predicted movement under strict
+anonymity. Drivers change daily and several times a day, pace swings
+hour to hour, so nothing may identify a driver or link trips.
+
+Accepted design (amends D02 narrowly, keeps D20 intent):
+
+- Per-vehicle pace only: one smoothed speed scalar on the Vehicle,
+  reset at vehicle creation, updated from accepted fixes, dropped
+  with the vehicle. No driver id, no device id, no cross-trip state.
+- Per-line recent passages only: in-memory ring of vehicle-sighting
+  epoch seconds per line (cap 32, TTL 4 h), no positions, no ids.
+  Source for headway, history/delay and reliability cards.
+- Snapshot stays backward compatible: pace appended as an optional
+  row field, old clients ignore it. New arrivals endpoint is additive.
+- Nothing with coordinates reaches PostgreSQL, disk, logs or
+  metrics. Existing `no_location_at_rest` and AC17 log audits extend
+  to the new code.
+- Recents, shortcuts (home/work/school/university), saved stops and
+  alert rules stay in `shared_preferences` only, never sent.
+- Predictions are always labeled `predicted` vs `live` in the UI.
+- Still required before any pilot: consent-text bump, RIPD and
+  inventory update, lawyer review (D20 gate recorded, not skipped).
+
+## D30-followup-2026-10-11: PLAN deltas shipped in this change set
+
+- RF20 (stops/ETA) partial: live hero, live-first ordering and
+  headway history ship with no stop coordinates. Per-stop ETA waits
+  for the stops file and route geometry.
+- RF22 (notifications, favourites, history, delay) partial:
+  favourites already existed; history/delay ship as 4 h memory-only
+  aggregates; alerts ship in-app only, no push channel (hard limit:
+  no background location, no FCM).
+- D02 amended narrowly by D30 (pace scalar plus timestamp ring, both
+  memory-only with TTL). Everything else in D02 stands: no tracks,
+  no coordinates at rest.
+- Verification split: server pure suites green here (engine 28,
+  arrivals 5, no_location_at_rest, config); DB-backed suites
+  (read/trip/security/ws/jobs) and every Flutter check stay for the
+  owner machine and CI (no Flutter toolchain on this host).
+
+## D-U26-2026-10-11: owner UI issue sweep (8 items)
+
+Owner-reported UI issues, fixed in one change set (flutter checks
+stay for the owner machine per the standing instruction, same
+verification split as D-U25):
+
+- No-live margin: the empty card had no header and no top spacing,
+  so it sat almost glued to the first-run shortcut strip. It now
+  reserves Space.x4 above itself on Inicio only.
+- Shortcut card layout: badge plus Spacer plus Flexible squeezed the
+  34 sp clock until "18:00" clipped to "17". The badge shares the
+  label row now and the ETA keeps the full card width.
+- First-run placeholders: 4 kinds (Casa, Trabalho, Escola,
+  Faculdade) down to Casa and Trabalho. The add sheet still offers
+  every kind, so the rider adds others later.
+- Pill over sheets: every production sheet now opens with
+  useRootNavigator, so it slides above the shell dock pill (the pill
+  lives above the branch navigators; a branch-level sheet slid under
+  it). The isCurrent hiding stays as a fallback. Root cause of the
+  D-U25 recurrence, which hid without rebuilding.
+- Sheet titles: PontualSheet titles used 4 dp side margins against
+  24 dp in the body. Titles now use Space.x6 like the body, which
+  fixes "Adicionar atalho", "Em qual linha você está?" and every
+  other PontualSheet title at once (alert, prediction, consent,
+  settings info, shortcut actions).
+- Clipped times: the Agora hero box was 128 dp while a 56 sp clock
+  ("06:40") needs about 141, so the last digit clipped to "06:4".
+  The box is 160 dp now with scale-down (never up) for longer values
+  and large text scales; EtaText and LineRow fall back to ellipsis
+  instead of a hard clip. The timetable rail now passes minute parts
+  ("40" under hour "06", the gallery contract): full strings rebuilt
+  "06:06:40" values, broke the past dimming and never matched the
+  next-departure highlight. The Horarios hero showed the first
+  departure of the day instead of the documented next one (the rail
+  tests only masked this through the full-time chips); the hero now
+  selects `next`.
+- Map on poor connections: bundling or prefetching OSM tiles is
+  rejected (OSM tile policy forbids bulk downloading; AGENTS.md 15
+  hard limit; RNF14 size budget). Poor connections keep the compliant
+  path: the 50 MB organic tile cache seeded on good networks, the
+  data-saver list-first mode, offline-first timetables, and
+  markers plus sheet content that never need tiles. Self-hosted
+  vector tiles stay a future owner decision with its own ADR.
+- Day-aware arrivals: TimetableArrivalsSource merged every day type,
+  so on Sunday a weekday-only line (e.g. 66) showed a weekday 18:00
+  as "next". Departures now filter to the day type of now, matching
+  the lines list rule from D-U25. A day with no schedules returns
+  empty (card shows "--", Saindo agora skips) instead of a wrong
+  time.

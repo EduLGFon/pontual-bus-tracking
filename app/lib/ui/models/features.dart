@@ -6,19 +6,19 @@ import 'package:flutter/foundation.dart';
 /// Flags gating parts of the new UI.
 @immutable
 class Features {
-  /// Creates the flag set. Defaults are the alpha configuration.
+  /// Creates the flag set. D30 defaults: momentum features are on.
   const Features({
     this.shortcuts = true,
     this.recents = true,
     this.favorites = true,
     this.dataSaver = true,
-    this.predictions = false,
-    this.eta = false,
-    this.arrivalAlerts = false,
-    this.reliability = false,
+    this.predictions = true,
+    this.eta = true,
+    this.arrivalAlerts = true,
+    this.reliability = true,
     this.followVehicle = true,
     this.routeLine = false,
-    this.localKudos = false,
+    this.localKudos = true,
   });
 
   /// Home shortcut cards.

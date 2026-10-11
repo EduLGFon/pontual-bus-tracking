@@ -19,37 +19,35 @@ const double viewerAccuracyMaxM = 200;
 /// not move the camera: permission not already granted (never prompted
 /// here), data saver on (the power-saving mode), lookup failure or timeout,
 /// a coarse fix, and a fix outside the served area.
-final FutureProvider<LatLng?> viewerLocationProvider =
-    FutureProvider<LatLng?>((Ref ref) async {
-      if (ref.watch(settingsProvider).dataSaver) {
-        return null;
-      }
-      try {
-        final LocationPermissionState state =
-            await const GeolocatorPermissionGateway().check();
-        if (state != LocationPermissionState.granted) {
-          return null;
-        }
-        final Position position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 8),
-          ),
-        ).timeout(const Duration(seconds: 10));
-        if (position.accuracy > viewerAccuracyMaxM) {
-          return null;
-        }
-        final LatLng point = LatLng(
-          position.latitude,
-          position.longitude,
-        );
-        if (!mapBounds.contains(point)) {
-          return null;
-        }
-        return point;
-      } on Object {
-        // No position, no prompt, no error surface: the map stands on the
-        // city center instead.
-        return null;
-      }
-    });
+final FutureProvider<LatLng?> viewerLocationProvider = FutureProvider<LatLng?>((
+  Ref ref,
+) async {
+  if (ref.watch(settingsProvider).dataSaver) {
+    return null;
+  }
+  try {
+    final LocationPermissionState state =
+        await const GeolocatorPermissionGateway().check();
+    if (state != LocationPermissionState.granted) {
+      return null;
+    }
+    final Position position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.low,
+        timeLimit: Duration(seconds: 8),
+      ),
+    ).timeout(const Duration(seconds: 10));
+    if (position.accuracy > viewerAccuracyMaxM) {
+      return null;
+    }
+    final LatLng point = LatLng(position.latitude, position.longitude);
+    if (!mapBounds.contains(point)) {
+      return null;
+    }
+    return point;
+  } on Object {
+    // No position, no prompt, no error surface: the map stands on the
+    // city center instead.
+    return null;
+  }
+});

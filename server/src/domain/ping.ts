@@ -3,6 +3,7 @@
 // Engine checks line validity, bbox, plausibility, and capacity.
 // See PLAN.md 6.6 steps for startTrip, applyPing, endTrip.
 import { isCoherent, nearestVehicle } from "./attach.ts";
+import { recordPassage } from "./arrivals.ts";
 import { distM, distToPolylineM } from "./geo.ts";
 import { impliedSpeedMps, validateFix } from "./validate.ts";
 import type { Store } from "../state/store.ts";
@@ -208,6 +209,7 @@ export function applyPing(
         lng: trip.lng,
         heading: trip.heading,
         speedMps: trip.speedMps,
+        paceMps: trip.speedMps,
         fixAtMs: nowMs,
         leaderDeviceId: trip.deviceId,
         nextLeaderDeviceId: null,
@@ -216,6 +218,7 @@ export function applyPing(
       });
       trip.vehicleId = id;
       trip.role = "L";
+      recordPassage(store, trip.lineId, nowMs);
       return { role: "L", intervalS: cfg.leaderIntervalMovingS };
     } else {
       return { role: "W", intervalS: cfg.waitingIntervalS };
@@ -246,6 +249,13 @@ export function applyPing(
     v.lng = trip.lng;
     v.heading = trip.heading;
     v.speedMps = trip.speedMps;
+    // D30 pace: EWMA toward the newest accepted fix. Adapts within about
+    // a minute at leader cadence, so an hourly driver change is picked up
+    // without keeping any history beyond this scalar.
+    v.paceMps = Math.max(
+      0,
+      v.paceMps + cfg.paceAlpha * (trip.speedMps - v.paceMps),
+    );
     v.fixAtMs = nowMs;
     v.updatedAtMs = nowMs;
     events.push({ kind: "vehicleUpdated", lineId: trip.lineId });

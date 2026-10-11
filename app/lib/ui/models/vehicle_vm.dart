@@ -19,6 +19,7 @@ class VehicleVM {
     required this.certainty,
     this.ordinal,
     this.paceFactor,
+    this.paceKmh,
   });
 
   /// Internal id. Never displayed.
@@ -52,6 +53,9 @@ class VehicleVM {
   /// for the life of the vehicle only (UI_SPEC 13.1). Null when unknown.
   final double? paceFactor;
 
+  /// Smoothed live pace in km/h from the server (D30). Null when unknown.
+  final double? paceKmh;
+
   /// True when the heading triangle should be drawn.
   bool get showsHeading =>
       certainty == Certainty.live &&
@@ -71,6 +75,7 @@ class VehicleVM {
       certainty: certainty,
       ordinal: value,
       paceFactor: paceFactor,
+      paceKmh: paceKmh,
     );
   }
 }

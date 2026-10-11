@@ -11,6 +11,7 @@ import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/web/visibility.dart';
 import 'package:pontual/platform/web/wake_lock.dart';
+import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -97,6 +98,8 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   bool _promptOpen = false;
   bool _minimising = false;
   bool _wakeUnsupported = false;
+  bool _kudosCounted = false;
+  int? _helpedTrips;
   final WebVisibilityTracker _visibility = WebVisibilityTracker();
 
   @override
@@ -210,11 +213,37 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
       builder: (BuildContext context, Widget? child) {
         final TripController c = widget.controller;
         if (c.endKind != null && c.state is TripIdle) {
-          return TripEndCard(kind: c.endKind!, detail: c.endDetail);
+          _countKudosOnce();
+          return TripEndCard(
+            kind: c.endKind!,
+            detail: c.endDetail,
+            helpedTrips: _helpedTrips,
+          );
         }
         return _body(context, c);
       },
     );
+  }
+
+  /// Device-only helped-trips counter (D30 extra). Counts once per
+  /// screen: the post-frame write keeps it off the build path, and a
+  /// rebuild before the read lands never double-counts.
+  void _countKudosOnce() {
+    if (_kudosCounted) {
+      return;
+    }
+    _kudosCounted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await const KudosStore().addOne();
+        final int n = await const KudosStore().read();
+        if (mounted) {
+          setState(() => _helpedTrips = n);
+        }
+      } on Object {
+        // The end card stands without the counter when prefs fail.
+      }
+    });
   }
 
   Widget _body(BuildContext context, TripController c) {

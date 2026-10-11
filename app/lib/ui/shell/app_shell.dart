@@ -27,10 +27,10 @@ class AppShell extends ConsumerWidget {
       MediaQuery.sizeOf(context).width,
     );
     final bool rail = breakpoint != Breakpoint.compact;
-    // A modal bottom sheet (shortcut editor, line chooser, consent,
-    // permission) sits in the overlay above this shell. While it is the
-    // current route the global pill would float over its action buttons,
-    // so the dock hides and the sheet owns the bottom of the screen.
+    // Sheets open with useRootNavigator above this shell, so the overlay
+    // already covers the pill. As a fallback (branch-level sheets, e.g.
+    // dev gallery entries), the dock still hides while this route is not
+    // current, so a sheet owns the bottom of the screen either way.
     final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
     return Scaffold(
       body: Column(

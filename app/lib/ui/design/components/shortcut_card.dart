@@ -77,6 +77,10 @@ class ShortcutCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.l),
           border: Border.all(color: context.colors.line),
         ),
+        // The ETA keeps the full card width: beside the badge a 34 sp
+        // clock ("18:00") no longer fits and clips to "17". The badge
+        // shares the label row instead, where short labels leave room.
+        // D-U26.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -93,17 +97,12 @@ class ShortcutCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: Space.x3),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
+                const SizedBox(width: Space.x2),
                 LineBadge.ofLine(line, size: BadgeSize.s),
-                const Spacer(),
-                Flexible(child: _eta(context)),
               ],
             ),
+            const SizedBox(height: Space.x2),
+            _eta(context),
           ],
         ),
       ),

@@ -20,6 +20,7 @@ class ClientVehicle {
     required this.kmh,
     required this.members,
     required this.ageS,
+    this.paceKmh,
   });
 
   /// Vehicle id from the snapshot row.
@@ -43,7 +44,11 @@ class ClientVehicle {
   /// Snapshot age in seconds.
   final int ageS;
 
-  /// Parses a snapshot row [id, lat, lng, hdg, kmh, n, age].
+  /// Smoothed live pace in km/h (D30). Null on old servers or 7-field rows.
+  final double? paceKmh;
+
+  /// Parses a snapshot row [id, lat, lng, hdg, kmh, n, age, paceKmh?].
+  /// The 8th field is additive: 7-field rows still parse.
   factory ClientVehicle.fromRow(List<dynamic> row) {
     return ClientVehicle(
       id: row[0] as int,
@@ -53,6 +58,7 @@ class ClientVehicle {
       kmh: (row[4] as num).toDouble(),
       members: row[5] as int,
       ageS: row[6] as int,
+      paceKmh: row.length > 7 ? (row[7] as num?)?.toDouble() : null,
     );
   }
 }

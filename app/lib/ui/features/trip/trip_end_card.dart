@@ -15,13 +15,21 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 /// End card shown after a trip ends, with the reason for automatic ends.
 class TripEndCard extends StatelessWidget {
   /// Creates the end card.
-  const TripEndCard({required this.kind, this.detail, super.key});
+  const TripEndCard({
+    required this.kind,
+    this.detail,
+    this.helpedTrips,
+    super.key,
+  });
 
   /// How the trip ended.
   final TripEndKind kind;
 
   /// Server detail for automatic ends, for example "idle".
   final String? detail;
+
+  /// Device-only helped-trips count (D30 extra). Null hides the line.
+  final int? helpedTrips;
 
   /// Reason line in pt-BR, taken only from the strings file.
   String get message {
@@ -62,6 +70,14 @@ class TripEndCard extends StatelessWidget {
                 style: context.text.title,
                 textAlign: TextAlign.center,
               ),
+              if (helpedTrips != null && helpedTrips! > 0) ...<Widget>[
+                const SizedBox(height: Space.x3),
+                Text(
+                  '${UiStrings.kudosPrefix} ${helpedTrips!} ${UiStrings.kudosSuffix}',
+                  style: context.text.body,
+                  textAlign: TextAlign.center,
+                ),
+              ],
               const SizedBox(height: Space.x8),
               PrimaryButton(
                 label: UiStrings.endBack,

@@ -77,11 +77,10 @@ class _TimetableTabState extends State<TimetableTab> {
       widget.line.code,
       times,
       local,
-      limit: next == null ? 0 : 1,
       originLabel: _origin.isEmpty ? null : _origin,
     );
     final List<Widget> sections = <Widget>[
-      _hero(arrivals.isEmpty ? null : arrivals.first),
+      _hero(_heroOf(arrivals, times, next)),
       const SizedBox(height: Space.x4),
       _daySelector(),
       _originSelector(),
@@ -101,6 +100,24 @@ class _TimetableTabState extends State<TimetableTab> {
       padding: const EdgeInsets.only(bottom: Space.x8),
       children: sections,
     );
+  }
+
+  /// Hero arrival: the `next` departure, never the first time of the day
+  /// (which is usually already gone). Null when nothing is left today.
+  /// D-U26.
+  ArrivalVM? _heroOf(
+    List<ArrivalVM> arrivals,
+    List<String> times,
+    String? next,
+  ) {
+    if (next == null) {
+      return null;
+    }
+    final int index = times.indexOf(next);
+    if (index < 0 || index >= arrivals.length) {
+      return null;
+    }
+    return arrivals[index];
   }
 
   /// Hero row for the next scheduled departure.
@@ -183,9 +200,15 @@ class _TimetableTabState extends State<TimetableTab> {
 
   /// Hour rail with the auto-scroll towards the next departure.
   Widget _railSection(List<String> times, String? next, int nowMinutes) {
+    // Chips carry the minute part only ("40" under hour "06"): the full
+    // "HH:mm" strings would rebuild "06:06:40" values, break the past
+    // dimming and never match the next-departure highlight. D-U26.
     final List<TimeRailHour> hours = <TimeRailHour>[
       for (final MapEntry<String, List<String>> e in groupByHour(times).entries)
-        TimeRailHour(hour: e.key, minutes: e.value),
+        TimeRailHour(
+          hour: e.key,
+          minutes: <String>[for (final String t in e.value) t.split(':').last],
+        ),
     ];
     _scrollToNext(hours, next);
     return Padding(

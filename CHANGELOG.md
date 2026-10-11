@@ -4,6 +4,15 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- D30 momentum anônimo (ordem do dono): ritmo por veículo (um número
+  suavizado, sem motorista nem histórico) no snapshot, passagens
+  recentes por linha (só instantes, anel de 32, 4 h) com
+  `GET /v1/lines/{id}/arrivals`, hero ao vivo na ficha da linha,
+  atalhos casa/trabalho/escola ordenados pelo ao vivo, Saindo agora
+  com linhas ao vivo primeiro, previsão tracejada e rotulada no mapa,
+  cartão de histórico/atraso, alertas locais no app (sem push) e
+  contador no aparelho. Recentes e atalhos ficam no aparelho; nada
+  novo vai ao servidor além do ritmo e dos instantes em memória.
 - UI fix sweep: home links switch to the Linhas tab so the bottom bar
   follows, every screen uses the breakpoint gutter, all sheets share
   the transparent safe-area chrome with keyboard insets where they own

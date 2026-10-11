@@ -72,14 +72,22 @@ class ArrivalRow extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 72),
         child: Row(
           children: <Widget>[
+            // A 56 sp hero clock ("06:40") is wider than the old 128 dp
+            // box, so the last digit clipped to "06:4". The box fits the
+            // clock now, and scale-down (never up) absorbs longer values
+            // and large text scales instead of clipping them. D-U26.
             SizedBox(
-              width: large ? 128 : 112,
-              child: EtaText(
-                primary: format.primary,
-                secondary: format.secondary,
-                hero: large,
-                dimmed: past,
-                semanticLabel: format.a11y,
+              width: large ? 160 : 112,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: EtaText(
+                  primary: format.primary,
+                  secondary: format.secondary,
+                  hero: large,
+                  dimmed: past,
+                  semanticLabel: format.a11y,
+                ),
               ),
             ),
             const SizedBox(width: Space.x3),
