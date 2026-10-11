@@ -35,7 +35,10 @@ class LiveNowSection extends StatelessWidget {
         SectionHeader(
           title: UiStrings.homeLiveNow,
           actionLabel: UiStrings.homeLiveAll,
-          onAction: () => context.push('/lines?filter=live'),
+          // The Linhas tab owns its branch: go switches the bottom bar to
+          // it, while push would stack it over Início and leave Início
+          // highlighted.
+          onAction: () => context.go('/lines?filter=live'),
         ),
         for (final LineVM line in lines)
           Padding(
@@ -159,7 +162,9 @@ class NoLiveCard extends StatelessWidget {
             child: GhostButton(
               label: UiStrings.seeTimetable,
               icon: Icons.schedule_rounded,
-              onPressed: () => context.push('/lines'),
+              // Same branch switch as above: the button leaves Início for
+              // the Linhas tab, so the bottom bar must follow.
+              onPressed: () => context.go('/lines'),
             ),
           ),
         ],
@@ -178,7 +183,8 @@ class AllLinesRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: Space.x2, bottom: Space.x2),
       child: SurfaceCard(
-        onTap: () => context.push('/lines'),
+        // Branch switch, not a push: Início and Linhas are sibling tabs.
+        onTap: () => context.go('/lines'),
         semanticLabel: '${UiStrings.homeAllLines}. ${UiStrings.homeAllLinesGo}',
         child: Row(
           children: <Widget>[
