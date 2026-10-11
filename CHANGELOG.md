@@ -4,6 +4,36 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- New UI foundation (docs/ui/UI_SPEC.md): design tokens with WCAG AA
+  contrast enforced by a test, Manrope variable subset at 51 KB, custom
+  painted domain icons, certainty system (live, predicted, scheduled,
+  stale) with a single style table, and 29 design-system components.
+- UI architecture: view-models, data seams (ArrivalsSource, SearchProvider),
+  feature flags, local stores for shortcuts, recents and favourites, and
+  adapters that read the existing data layer without changing it.
+- App shell: adaptive layout with bottom navigation and rail, global trip
+  dock, banner and toast slots, debug component gallery (release-stripped).
+- Router and web shell: new routes, fade-through transitions, inline HTML
+  splash, pt-BR meta tags, updated PWA manifest.
+- StaticLine now also exposes terminals, area tags and is_active;
+  static-data loading is unchanged.
+- New UI screens: home (Início) with shortcuts, live section and recents, local
+  search, lines list with URL filters and favourites, the line screen with
+  map plus draggable sheet plus timetable tab, the trip flow with chooser,
+  consent, permission cards and trip screen with end card, settings with
+  theme, data saver and reduced motion, privacy center reusing the existing
+  delete and revoke actions, about, system states, and the global trip dock
+  that stays live through controller notifications.
+- Cutover: every legacy screen deleted with its tests; shared copy moved to
+  the new strings file (two accent typos fixed, repository URL corrected to
+  the actual remote); journey, share-flow, controller, auto-end and remote
+  config tests migrated to the new UI; three pre-existing controller test
+  failures fixed on the test side (frozen timestamps, pacing assumptions).
+- Nine UI defects found by the new tests and fixed: stale dock snapshots,
+  missing global idle pill, provider writes in widget life-cycles, ref reads
+  in dispose, scroll clearance under the floating dock, AnimatedSwitcher
+  timing, MediaQuery versus view size in tests, lazy sheet rows, and the
+  consent double-sheet.
 - T01 repo skeleton done (README, CHANGELOG, gitignore, SECURITY, templates, env examples). Restored `app/` directory.
 - T02 Flutter shell done (Flutter 3.47.6, applicationId `com.spotnik.pontual`, strict analyzer, empty ProviderScope app, smoke test).
 - T03 CI done (pinned actions, analyze plus format plus test, manifest audit, web size report, gitleaks; deno job lands in T06).
