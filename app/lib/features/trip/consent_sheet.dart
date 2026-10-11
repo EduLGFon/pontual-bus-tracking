@@ -23,6 +23,8 @@ class ConsentSheet extends StatelessWidget {
     final bool? accepted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // Root navigator so the sheet slides above the shell dock pill. D-U26.
+      useRootNavigator: true,
       builder: (BuildContext context) => const ConsentSheet(),
     );
     return accepted == true ? ConsentChoice.accepted : ConsentChoice.declined;

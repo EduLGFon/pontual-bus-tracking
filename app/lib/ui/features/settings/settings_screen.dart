@@ -158,6 +158,8 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      // Root navigator so the sheet slides above the shell dock pill. D-U26.
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
       builder: (BuildContext context) => PontualSheet(

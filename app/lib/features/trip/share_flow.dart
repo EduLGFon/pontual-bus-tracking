@@ -83,6 +83,8 @@ Future<void> _shareTrip(
     }
     await showModalBottomSheet<void>(
       context: context,
+      // Root navigator so the sheet slides above the shell dock pill. D-U26.
+      useRootNavigator: true,
       builder: (BuildContext context) => const LocationOffSheet(),
     );
     return;
@@ -124,6 +126,8 @@ Future<void> _shareTrip(
         context: context,
         enableDrag: false,
         isDismissible: false,
+        // Root navigator so the sheet slides above the shell dock pill. D-U26.
+        useRootNavigator: true,
         builder: (BuildContext context) => ShareProgressSheet(
           tracker: tracker,
           lineLabel: line.name,
@@ -183,6 +187,8 @@ Future<void> _shareTrip(
       }
       await showModalBottomSheet<void>(
         context: context,
+        // Root navigator so the sheet slides above the shell dock pill. D-U26.
+        useRootNavigator: true,
         builder: (BuildContext context) => const PermissionInfoSheet(),
       );
     },
@@ -233,11 +239,15 @@ Future<void> _shareTrip(
     if (perm == LocationPermissionState.permanentlyDenied) {
       await showModalBottomSheet<void>(
         context: context,
+        // Root navigator so the sheet slides above the shell dock pill. D-U26.
+        useRootNavigator: true,
         builder: (BuildContext context) => const PermissionBlockedSheet(),
       );
     } else if (perm == LocationPermissionState.denied) {
       await showModalBottomSheet<void>(
         context: context,
+        // Root navigator so the sheet slides above the shell dock pill. D-U26.
+        useRootNavigator: true,
         builder: (BuildContext context) => const PermissionDeniedSheet(),
       );
     }

@@ -106,6 +106,8 @@ Future<LineVM?> _chooseLine(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Root navigator so the sheet slides above the shell dock pill. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) => Padding(
@@ -125,6 +127,8 @@ Future<bool> _consentStep(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Root navigator so the sheet slides above the shell dock pill. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) => const ConsentBody(),
@@ -185,6 +189,8 @@ Future<bool> _prePromptStep(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Root navigator so the sheet slides above the shell dock pill. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) => const PermissionPromptBody(),
@@ -203,6 +209,8 @@ Future<bool> _failureStep(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Root navigator so the sheet slides above the shell dock pill. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext sheetContext) => PontualSheet(

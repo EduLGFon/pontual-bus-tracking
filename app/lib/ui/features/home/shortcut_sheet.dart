@@ -156,6 +156,10 @@ Future<void> showShortcutEditor(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // Root navigator: the global "Estou no ônibus" pill lives in the app
+    // shell above the branch navigators, so a branch-level sheet would
+    // slide under it. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext sheetContext) {
@@ -181,6 +185,8 @@ Future<void> showShortcutActions(
   return showModalBottomSheet<void>(
     context: hostContext,
     useSafeArea: true,
+    // Same root-navigator rule as the editor above. D-U26.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext sheetContext) {
