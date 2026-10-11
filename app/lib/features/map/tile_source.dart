@@ -1,6 +1,9 @@
 // Tile source abstraction. OSM raster tiles with the built-in cache
 // capped at 50 MB live behind this seam so a self-hosted backend can
 // replace the URL without touching widgets. See PLAN.md D12 and S3.
+// Poor connections are served by the organic cache (tiles persist once
+// viewed); programmatic prefetch or bundling of OSM tiles stays
+// forbidden by the OSM tile policy and AGENTS.md 15. See DECISIONS.md D-U26.
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
