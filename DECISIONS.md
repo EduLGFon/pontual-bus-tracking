@@ -1497,3 +1497,39 @@ and, on certified devices in Brazil, a verified developer (PLAN 3.1);
 first tagged release proves the asset name. Verified: analyze clean,
 targeted tests green (android download, install hint, home, settings).
 Full suite timed out on this host, not run to completion.
+
+## D-U25-2026-10-11: home, sheet, dock and map fix sweep (10 items)
+
+Owner-reported UI issues, fixed on branch `dev` in one commit each
+(the first three were already in the tree, verified and kept):
+
+- Home margins (`c945305` kept, plus `7159d67`): search, settings,
+  about, privacy, trip, system and line-not-found now use
+  `marginFor`; the Android download card uses Space tokens.
+- Pill over sheets (`2aebdf0`, `eecb8db` kept, plus `182dac6`):
+  the line pill also hides under modal sheets in both layouts, and
+  every new-flow sheet uses the transparent safe-area chrome.
+- Shortcut sheet (`182dac6`): the line list grows with its content
+  in the outer sheet scroll instead of a fixed 240 dp box with a
+  nested scrollable; the chooser keeps its list above the keyboard.
+- Branch navigation (`ce36162`): the three home links to Linhas use
+  `go`, so the bottom bar follows; line detail stays a push.
+- Map controls (`409f3e3`): the circle button no longer positions
+  itself, so recenter anchors bottom-right above the sheet peek and
+  never covers the back button; top controls clear the status inset.
+- Viewer position plus city framing (`09681b0`): first-frame fit of
+  the service area above the peek sheet; one-shot low-power viewer
+  dot only when permission is already granted and data saver is off,
+  drawn only, never prompted, logged or sent.
+- Pill size (`6f824ef`): the row hugs content with a Flexible label;
+  height, margins and semantics unchanged.
+- Lines scroll (`ba179ff`): the per-row FutureProvider is a
+  synchronous family reading today only, so rows build once; also
+  drops other-day times the merged scan could surface.
+
+Verification: no Flutter toolchain on this host, so `flutter
+analyze`, `dart format` and `flutter test` stay for the owner
+machine (same as the three kept commits). Every change was
+review-checked against the covering widget tests (home, lines,
+search, line screen, trip flow, design system, a11y) and keeps
+their asserted copy and behavior.
