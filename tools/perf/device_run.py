@@ -79,11 +79,21 @@ def unlock():
     )
 
 
+def wait_stopped(timeout_s=120):
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        out = run(ADB, "shell", "pidof", APP_ID)
+        if not out.strip():
+            return
+        time.sleep(3)
+    raise RuntimeError("app would not stop")
+
+
 def cold_start_once(timeout_s=300):
     # am start -W never settles on software-emulated GPUs, so read the
     # system's own Displayed timing from logcat instead.
     run(ADB, "shell", "am", "force-stop", APP_ID, capture=False)
-    time.sleep(2)
+    wait_stopped()
     run(ADB, "logcat", "-c", capture=False)
     run(ADB, "shell", "am", "start", "-n", PACKAGE, capture=False)
     pat = re.compile(
