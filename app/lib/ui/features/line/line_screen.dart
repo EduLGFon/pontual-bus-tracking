@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
+import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 
 /// Fallback tile URL template, the same one the data layer uses.
@@ -58,6 +59,16 @@ class _LineScreenState extends ConsumerState<LineScreen> {
   void initState() {
     super.initState();
     _sheet.addListener(_onSheetChanged);
+    // The map opens on the raw area centre before any fit, with the peek
+    // sheet covering the lower part: frame the city in the visible area on
+    // the first frame so it never loads shifted to one side.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapKey.currentState?.fitToContent(
+          padding: EdgeInsets.only(bottom: sheetPixels(_screenHeight, _peek)),
+        );
+      }
+    });
   }
 
   @override
@@ -210,6 +221,7 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       tileUrlTemplate: tileUrl,
       panned: _panned,
       selectedKey: _selectedKey,
+      viewerPosition: ref.watch(viewerLocationProvider).value,
       controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
       onRecenter: () {
