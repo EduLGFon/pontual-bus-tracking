@@ -229,8 +229,7 @@ class BusApi {
   }
 
   /// Fetches the live-lines indicator.
-  Future<Result<LiveLines>> getLive() async {
-    try {
+  Future<Result<LiveLines>> getLive() async {    try {
       final http.Response res = await client
           .get(Uri.parse('${baseUrl()}/v1/live'))
           .timeout(requestTimeout);
@@ -252,6 +251,29 @@ class BusApi {
       return const Err<LiveLines>(NetworkFailure('live timed out'));
     } on http.ClientException catch (e) {
       return Err<LiveLines>(NetworkFailure(e.message));
+    }
+  }
+
+  /// Fetches anonymous recent arrivals for [lineId] (D30). Timestamps
+  /// only, no positions and no ids. Returns an empty payload on any
+  /// shape mismatch so history cards hide instead of breaking.
+  Future<Result<ArrivalsPayload>> getArrivals(int lineId) async {
+    try {
+      final http.Response res = await client
+          .get(Uri.parse('${baseUrl()}/v1/lines/$lineId/arrivals'))
+          .timeout(requestTimeout);
+      if (res.statusCode != 200) {
+        return Err<ArrivalsPayload>(_failure(res));
+      }
+      final Map<String, dynamic> body =
+          jsonDecode(res.body) as Map<String, dynamic>;
+      return Ok<ArrivalsPayload>(ArrivalsPayload.fromJson(body));
+    } on TimeoutException {
+      return const Err<ArrivalsPayload>(
+        NetworkFailure('arrivals timed out'),
+      );
+    } on http.ClientException catch (e) {
+      return Err<ArrivalsPayload>(NetworkFailure(e.message));
     }
   }
 

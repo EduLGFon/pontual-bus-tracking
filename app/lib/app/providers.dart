@@ -200,6 +200,7 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
                 kmh: (row[4] as num).toDouble(),
                 members: (row[5] as num).toInt(),
                 ageS: (row[6] as num).toInt(),
+                paceKmh: row.length > 7 ? row[7]?.toDouble() : null,
               ),
             )
             .toList();
