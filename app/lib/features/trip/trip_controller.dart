@@ -448,8 +448,7 @@ class TripController extends ChangeNotifier {
     _startedAtMs = _deps.clock.nowMs();
     _supervisor?.begin(_startedAtMs!);
     _set(tripReduce(_state, TripEvent.startConfirmed));
-    final int firstIntervalS =
-        (started as Ok<TripInstruction>).value.intervalS;
+    final int firstIntervalS = (started as Ok<TripInstruction>).value.intervalS;
     _runLoop(token, stream, firstIntervalS);
     return true;
   }
@@ -501,14 +500,11 @@ class TripController extends ChangeNotifier {
         return;
       }
       final int gen = _tripGen;
-      _ping?.queue(
-        _fixBody(fix),
-        (PingOutcome o) {
-          if (gen == _tripGen) {
-            _onOutcome(token, o);
-          }
-        },
-      );
+      _ping?.queue(_fixBody(fix), (PingOutcome o) {
+        if (gen == _tripGen) {
+          _onOutcome(token, o);
+        }
+      });
     });
     // Supervision cadence: thresholds are minutes-scale (5 min GPS-off,
     // 3-poll permission debounce), so 30 s keeps every guarantee while

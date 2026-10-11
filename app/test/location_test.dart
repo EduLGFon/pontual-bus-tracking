@@ -200,20 +200,22 @@ void main() {
       charging: () async => false,
       nowMs: () => 100000,
     );
-    final Stream<TripFix> stream =
-        service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.waiting,
+      lineLabel: 't',
+    );
     Position atMs(int ms) => Position(
-          latitude: -18.72,
-          longitude: -39.85,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(ms),
-          accuracy: 10,
-          altitude: 0,
-          heading: 90,
-          speed: 0,
-          speedAccuracy: 1,
-          altitudeAccuracy: 1,
-          headingAccuracy: 1,
-        );
+      latitude: -18.72,
+      longitude: -39.85,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(ms),
+      accuracy: 10,
+      altitude: 0,
+      heading: 90,
+      speed: 0,
+      speedAccuracy: 1,
+      altitudeAccuracy: 1,
+      headingAccuracy: 1,
+    );
     final Future<List<TripFix>> two = stream.take(2).toList();
     positions.add(atMs(100000));
     positions.add(atMs(100000));
