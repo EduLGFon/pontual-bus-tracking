@@ -155,6 +155,9 @@ Future<void> showShortcutEditor(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    elevation: 0,
     builder: (BuildContext sheetContext) {
       return Padding(
         padding: EdgeInsets.only(
@@ -177,6 +180,9 @@ Future<void> showShortcutActions(
 ) {
   return showModalBottomSheet<void>(
     context: hostContext,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    elevation: 0,
     builder: (BuildContext sheetContext) {
       return PontualSheet(
         title: shortcut.label,
