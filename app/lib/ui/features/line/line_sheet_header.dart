@@ -15,8 +15,9 @@ import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Certainty shown by the header chip: live when a fresh position exists,
-/// stale when every position is old, and scheduled for a timetable-only
-/// line. Never mixes two certainties in one number.
+/// predicted when the newest value is a labeled estimate, stale when
+/// every position is old, and scheduled for a timetable-only line.
+/// Never mixes two certainties in one number.
 Certainty statusCertaintyOf(List<VehicleVM> vehicles) {
   if (vehicles.isEmpty) {
     return Certainty.scheduled;
@@ -24,6 +25,11 @@ Certainty statusCertaintyOf(List<VehicleVM> vehicles) {
   for (final VehicleVM v in vehicles) {
     if (v.certainty == Certainty.live) {
       return Certainty.live;
+    }
+  }
+  for (final VehicleVM v in vehicles) {
+    if (v.certainty == Certainty.predicted) {
+      return Certainty.predicted;
     }
   }
   return Certainty.stale;

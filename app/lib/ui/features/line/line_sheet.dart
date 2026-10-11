@@ -183,7 +183,8 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       widget.vehicles,
       now,
     );
-    final List<ArrivalVM> departures = _upcoming(now, limit: hero == null ? 4 : 3);
+    final List<ArrivalVM> departures =
+        _upcoming(now, limit: hero == null ? 4 : 3);
     final List<Widget> out = <Widget>[];
     // D30 in-app alert: a saved rule for this line fires while a live
     // bus is on the route. Local only, no push, no server call.
@@ -287,7 +288,8 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       );
       out.add(const SizedBox(height: Space.x4));
     }
-    if (departures.length > (hero == null ? 1 : 0)) {      out.add(
+    if (departures.length > (hero == null ? 1 : 0)) {
+      out.add(
         const SectionHeader(
           title: UiStrings.nextDepartures,
           topSpacing: Space.x6,

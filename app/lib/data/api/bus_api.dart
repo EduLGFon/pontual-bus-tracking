@@ -229,7 +229,8 @@ class BusApi {
   }
 
   /// Fetches the live-lines indicator.
-  Future<Result<LiveLines>> getLive() async {    try {
+  Future<Result<LiveLines>> getLive() async {
+    try {
       final http.Response res = await client
           .get(Uri.parse('${baseUrl()}/v1/live'))
           .timeout(requestTimeout);
