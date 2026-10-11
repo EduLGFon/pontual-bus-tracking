@@ -24,8 +24,8 @@ class AboutScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.x5,
+          padding: EdgeInsets.symmetric(
+            horizontal: marginFor(context),
             vertical: Space.x4,
           ),
           children: <Widget>[

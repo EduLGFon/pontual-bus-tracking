@@ -359,7 +359,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       }
       slivers.add(
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.x5),
+          padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
           sliver: SliverList.builder(
             itemCount: section.hits.length,
             itemBuilder: (BuildContext context, int index) {
@@ -388,10 +388,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _noResults() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(Space.x6),
-        child: EmptyState(
+        padding: EdgeInsets.all(marginFor(context)),
+        child: const EmptyState(
           art: EmptyArt.search,
           title: UiStrings.searchEmptyTitle,
           message: UiStrings.searchEmptyTip,
@@ -402,7 +402,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _header(_Section section) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.x5),
+      padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
       child: SectionHeader(
         title: section.label,
         actionLabel: section.actionLabel,
@@ -460,10 +460,10 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
+        marginFor(context),
         Space.x2,
-        Space.x2,
-        Space.x5,
+        marginFor(context),
         Space.x2,
       ),
       child: Row(

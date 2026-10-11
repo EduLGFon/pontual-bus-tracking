@@ -233,7 +233,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
         backgroundColor: context.colors.bg,
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.x5),
+            padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[

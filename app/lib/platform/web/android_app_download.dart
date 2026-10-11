@@ -4,6 +4,7 @@
 // See PLAN.md 8.12 and T48.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -75,7 +76,7 @@ class AndroidAppDownloadCard extends StatelessWidget {
       label: UiStrings.androidAppTitle,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(Space.x3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -83,13 +84,13 @@ class AndroidAppDownloadCard extends StatelessWidget {
               const Row(
                 children: <Widget>[
                   Icon(Icons.android_rounded),
-                  SizedBox(width: 8),
+                  SizedBox(width: Space.x2),
                   Expanded(child: Text(UiStrings.androidAppTitle)),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: Space.x1),
               const Text(UiStrings.androidAppBody),
-              const SizedBox(height: 8),
+              const SizedBox(height: Space.x2),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: <Widget>[
@@ -97,7 +98,7 @@ class AndroidAppDownloadCard extends StatelessWidget {
                     onPressed: onDismiss,
                     child: const Text(UiStrings.installHintDismiss),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: Space.x2),
                   FilledButton(
                     onPressed: download,
                     child: const Text(UiStrings.androidAppDownload),

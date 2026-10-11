@@ -34,10 +34,10 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            Space.x5,
+          padding: EdgeInsets.fromLTRB(
+            marginFor(context),
             Space.x4,
-            Space.x5,
+            marginFor(context),
             dockClearance,
           ),
           children: <Widget>[
