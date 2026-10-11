@@ -133,6 +133,41 @@ Deno.test("live lists only lines with vehicles", async () => {
   }
 });
 
+Deno.test("D30 arrivals carry timestamps only, 404 on unknown line", async () => {
+  const { sql, hono, store } = app();
+  try {
+    assertEquals((await hono.request("/v1/lines/999/arrivals")).status, 404);
+    const empty = await hono.request("/v1/lines/7/arrivals");
+    assertEquals(empty.status, 200);
+    assertEquals(
+      empty.headers.get("cache-control"),
+      "public, max-age=10",
+    );
+    const none = await empty.json() as {
+      t: number;
+      line: number;
+      passages: number[];
+      headwayMin: number | null;
+      sampleSize: number;
+    };
+    assertEquals(none.sampleSize, 0);
+    assertEquals(none.passages, []);
+
+    seedVehicle(store, Date.now() - 10000);
+    const res = await hono.request("/v1/lines/7/arrivals");
+    assertEquals(res.status, 200);
+    const body = await res.json() as typeof none;
+    assertEquals(body.line, 7);
+    assertEquals(body.sampleSize, 1);
+    assertEquals(body.passages.length, 1);
+    const text = JSON.stringify(body);
+    assert(!text.includes("device"));
+    assert(!text.includes("lat") && !text.includes("lng"));
+  } finally {
+    await sql.end();
+  }
+});
+
 Deno.test("AC08: snapshot IP flood is rate limited", async () => {
   const { sql, hono } = app();
   try {
