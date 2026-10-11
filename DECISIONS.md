@@ -1533,3 +1533,29 @@ machine (same as the three kept commits). Every change was
 review-checked against the covering widget tests (home, lines,
 search, line screen, trip flow, design system, a11y) and keeps
 their asserted copy and behavior.
+
+## D30-2026-10-11: anonymous momentum for ETA and prediction (owner-approved)
+
+Owner order 2026-10-11: implement ETA, arrival alerts, recents,
+shortcut ordering, history/delay and predicted movement under strict
+anonymity. Drivers change daily and several times a day, pace swings
+hour to hour, so nothing may identify a driver or link trips.
+
+Accepted design (amends D02 narrowly, keeps D20 intent):
+
+- Per-vehicle pace only: one smoothed speed scalar on the Vehicle,
+  reset at vehicle creation, updated from accepted fixes, dropped
+  with the vehicle. No driver id, no device id, no cross-trip state.
+- Per-line recent passages only: in-memory ring of vehicle-sighting
+  epoch seconds per line (cap 32, TTL 4 h), no positions, no ids.
+  Source for headway, history/delay and reliability cards.
+- Snapshot stays backward compatible: pace appended as an optional
+  row field, old clients ignore it. New arrivals endpoint is additive.
+- Nothing with coordinates reaches PostgreSQL, disk, logs or
+  metrics. Existing `no_location_at_rest` and AC17 log audits extend
+  to the new code.
+- Recents, shortcuts (home/work/school/university), saved stops and
+  alert rules stay in `shared_preferences` only, never sent.
+- Predictions are always labeled `predicted` vs `live` in the UI.
+- Still required before any pilot: consent-text bump, RIPD and
+  inventory update, lawyer review (D20 gate recorded, not skipped).
