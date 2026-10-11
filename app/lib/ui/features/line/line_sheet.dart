@@ -183,8 +183,10 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       widget.vehicles,
       now,
     );
-    final List<ArrivalVM> departures =
-        _upcoming(now, limit: hero == null ? 4 : 3);
+    final List<ArrivalVM> departures = _upcoming(
+      now,
+      limit: hero == null ? 4 : 3,
+    );
     final List<Widget> out = <Widget>[];
     // D30 in-app alert: a saved rule for this line fires while a live
     // bus is on the route. Local only, no push, no server call.
@@ -192,9 +194,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     final List<AlertRuleVM> fired = triggeredAlerts(
       rules: rules,
       liveLineKeys: <String>{
-        if (widget.vehicles.any(
-          (VehicleVM v) => v.certainty == Certainty.live,
-        ))
+        if (widget.vehicles.any((VehicleVM v) => v.certainty == Certainty.live))
           widget.staticLine.code,
       },
       now: now,
@@ -221,12 +221,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     }
     if (hero != null) {
       out.add(
-        ArrivalRow(
-          arrival: hero,
-          now: now,
-          line: widget.line,
-          large: true,
-        ),
+        ArrivalRow(arrival: hero, now: now, line: widget.line, large: true),
       );
     } else if (departures.isNotEmpty) {
       out.add(
@@ -283,9 +278,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       scheduledHeadwayMin: scheduledHeadway,
     );
     if (reliability != null) {
-      out.add(
-        ReliabilityCard(reliability: reliability),
-      );
+      out.add(ReliabilityCard(reliability: reliability));
       out.add(const SizedBox(height: Space.x4));
     }
     if (departures.length > (hero == null ? 1 : 0)) {
@@ -295,8 +288,9 @@ class _LineSheetState extends ConsumerState<LineSheet> {
           topSpacing: Space.x6,
         ),
       );
-      final Iterable<ArrivalVM> rest =
-          hero == null ? departures.skip(1).take(3) : departures.take(3);
+      final Iterable<ArrivalVM> rest = hero == null
+          ? departures.skip(1).take(3)
+          : departures.take(3);
       out.addAll(<Widget>[
         for (final ArrivalVM a in rest)
           Padding(

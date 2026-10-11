@@ -26,22 +26,19 @@ VehicleVM vehicle(int ageS, Certainty certainty) {
 
 void main() {
   test('live hero prefers the freshest live vehicle', () {
-    final ArrivalVM? hero = liveHeroOf(
-      '60',
-      <VehicleVM>[vehicle(30, Certainty.live), vehicle(4, Certainty.live)],
-      now,
-    );
+    final ArrivalVM? hero = liveHeroOf('60', <VehicleVM>[
+      vehicle(30, Certainty.live),
+      vehicle(4, Certainty.live),
+    ], now);
     expect(hero, isNotNull);
     expect(hero!.certainty, Certainty.live);
     expect(hero.at, now);
   });
 
   test('predicted hero applies when nothing is live', () {
-    final ArrivalVM? hero = liveHeroOf(
-      '60',
-      <VehicleVM>[vehicle(90, Certainty.predicted)],
-      now,
-    );
+    final ArrivalVM? hero = liveHeroOf('60', <VehicleVM>[
+      vehicle(90, Certainty.predicted),
+    ], now);
     expect(hero, isNotNull);
     expect(hero!.certainty, Certainty.predicted);
   });
@@ -119,10 +116,7 @@ void main() {
   });
 
   test('scheduled headway is the median timetable gap', () {
-    expect(
-      scheduledHeadwayOf(const <String>['05:30', '06:00', '06:30']),
-      30,
-    );
+    expect(scheduledHeadwayOf(const <String>['05:30', '06:00', '06:30']), 30);
     expect(scheduledHeadwayOf(const <String>['05:30']), isNull);
   });
 }

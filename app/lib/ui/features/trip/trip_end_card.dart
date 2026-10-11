@@ -15,7 +15,12 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 /// End card shown after a trip ends, with the reason for automatic ends.
 class TripEndCard extends StatelessWidget {
   /// Creates the end card.
-  const TripEndCard({required this.kind, this.detail, this.helpedTrips, super.key});
+  const TripEndCard({
+    required this.kind,
+    this.detail,
+    this.helpedTrips,
+    super.key,
+  });
 
   /// How the trip ended.
   final TripEndKind kind;

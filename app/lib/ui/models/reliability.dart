@@ -88,9 +88,7 @@ ReliabilityVM? reliabilityOf({
   return ReliabilityVM(
     typicalDelayMin: delay,
     sampleSize: passages.length,
-    bars: <double>[
-      for (final double g in recent) (g / peak).clamp(0.0, 1.0),
-    ],
+    bars: <double>[for (final double g in recent) (g / peak).clamp(0.0, 1.0)],
   );
 }
 
@@ -100,9 +98,8 @@ double? scheduledHeadwayOf(List<String> times) {
   if (times.length < 2) {
     return null;
   }
-  final List<int> minutes = <int>[
-    for (final String t in times) _minutesOf(t),
-  ]..sort();
+  final List<int> minutes = <int>[for (final String t in times) _minutesOf(t)]
+    ..sort();
   final List<int> gaps = <int>[
     for (int i = 1; i < minutes.length; i++) minutes[i] - minutes[i - 1],
   ]..sort();

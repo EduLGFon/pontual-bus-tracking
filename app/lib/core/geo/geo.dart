@@ -113,10 +113,6 @@ LatLng predictPosition(
   final double d = speedMps * ageS;
   final double lat2 = lat + d * math.cos(headingRad) * degPerM;
   final double lng2 =
-      lng +
-      d *
-          math.sin(headingRad) *
-          degPerM /
-          math.cos(lat * math.pi / 180);
+      lng + d * math.sin(headingRad) * degPerM / math.cos(lat * math.pi / 180);
   return LatLng(lat2, lng2);
 }

@@ -144,11 +144,8 @@ final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
 
 /// Anonymous recent arrivals per line (D30). Null while loading or on
 /// any failure: history cards hide instead of breaking.
-final arrivalsProvider =
-    FutureProvider.autoDispose.family<ArrivalsPayload?, int>((
-      Ref ref,
-      int lineId,
-    ) async {
+final arrivalsProvider = FutureProvider.autoDispose
+    .family<ArrivalsPayload?, int>((Ref ref, int lineId) async {
       final BusApi api = ref.watch(busApiProvider);
       final Result<ArrivalsPayload> result = await api.getArrivals(lineId);
       if (result is Ok<ArrivalsPayload>) {

@@ -94,9 +94,7 @@ void main() {
     });
     expect(on.localKudos, isTrue);
     expect(on.eta, isTrue);
-    final Features off = Features.fromJson(<String, dynamic>{
-      'eta': false,
-    });
+    final Features off = Features.fromJson(<String, dynamic>{'eta': false});
     expect(off.eta, isFalse);
   });
 

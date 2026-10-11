@@ -9,24 +9,44 @@ import 'package:pontual/ui/models/certainty.dart';
 
 void main() {
   test('7-field rows parse with null pace', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 29.0, 1, 4],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      29.0,
+      1,
+      4,
+    ]);
     expect(v.paceKmh, isNull);
     expect(v.kmh, 29.0);
   });
 
   test('8-field rows parse the pace', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 29.0, 1, 4, 25.5],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      29.0,
+      1,
+      4,
+      25.5,
+    ]);
     expect(v.paceKmh, 25.5);
   });
 
   test('fresh vehicles stay live at the real fix', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 29.0, 1, 4, 25.5],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      29.0,
+      1,
+      4,
+      25.5,
+    ]);
     final vm = vehicleVmOf(v, lineKey: '60');
     expect(vm.certainty, Certainty.live);
     expect(vm.lat, -18.72);
@@ -34,9 +54,16 @@ void main() {
   });
 
   test('stale moving vehicles predict forward and are labeled', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 29.0, 1, 90, 28.8],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      29.0,
+      1,
+      90,
+      28.8,
+    ]);
     final vm = vehicleVmOf(v, lineKey: '60');
     expect(vm.certainty, Certainty.predicted);
     // Eastward heading moves longitude forward, latitude stays.
@@ -45,18 +72,32 @@ void main() {
   });
 
   test('stopped buses never predict', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 0.0, 1, 90, 0.0],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      0.0,
+      1,
+      90,
+      0.0,
+    ]);
     final vm = vehicleVmOf(v, lineKey: '60');
     expect(vm.certainty, Certainty.stale);
     expect(vm.lat, -18.72);
   });
 
   test('very old vehicles go stale, not predicted', () {
-    final ClientVehicle v = ClientVehicle.fromRow(
-      <dynamic>[3, -18.72, -39.85, 90, 29.0, 1, 400, 28.8],
-    );
+    final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+      3,
+      -18.72,
+      -39.85,
+      90,
+      29.0,
+      1,
+      400,
+      28.8,
+    ]);
     final vm = vehicleVmOf(v, lineKey: '60');
     expect(vm.certainty, Certainty.stale);
   });

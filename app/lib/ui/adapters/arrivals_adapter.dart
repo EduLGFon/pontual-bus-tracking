@@ -171,11 +171,7 @@ class LiveAwareArrivalsSource implements ArrivalsSource {
 /// "now", else the freshest labeled prediction. Null when nothing is
 /// live or predicted. Lets the Agora hero lead with realtime while the
 /// timetable stays below. Pure, D30.
-ArrivalVM? liveHeroOf(
-  String lineKey,
-  List<VehicleVM> vehicles,
-  DateTime now,
-) {
+ArrivalVM? liveHeroOf(String lineKey, List<VehicleVM> vehicles, DateTime now) {
   VehicleVM? live;
   for (final VehicleVM v in vehicles) {
     if (v.certainty == Certainty.live &&

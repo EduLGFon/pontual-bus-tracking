@@ -190,9 +190,7 @@ class _TimetableTabState extends State<TimetableTab> {
       for (final MapEntry<String, List<String>> e in groupByHour(times).entries)
         TimeRailHour(
           hour: e.key,
-          minutes: <String>[
-            for (final String t in e.value) t.split(':').last,
-          ],
+          minutes: <String>[for (final String t in e.value) t.split(':').last],
         ),
     ];
     _scrollToNext(hours, next);

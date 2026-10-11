@@ -270,9 +270,7 @@ class BusApi {
           jsonDecode(res.body) as Map<String, dynamic>;
       return Ok<ArrivalsPayload>(ArrivalsPayload.fromJson(body));
     } on TimeoutException {
-      return const Err<ArrivalsPayload>(
-        NetworkFailure('arrivals timed out'),
-      );
+      return const Err<ArrivalsPayload>(NetworkFailure('arrivals timed out'));
     } on http.ClientException catch (e) {
       return Err<ArrivalsPayload>(NetworkFailure(e.message));
     }
