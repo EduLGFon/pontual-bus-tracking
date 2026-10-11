@@ -1,7 +1,7 @@
 # Inventário de dados do Pontual
 
 Fonte: PLAN.md 13.2. Manter atualizado a cada mudança no tratamento.
-Última revisão: 2026-10-03.
+Última revisão: 2026-10-11 (D30).
 
 | Dado | Finalidade | Onde | Retenção | Dado pessoal? |
 | ---- | ---------- | ---- | -------- | ------------- |
@@ -11,10 +11,13 @@ Fonte: PLAN.md 13.2. Manter atualizado a cada mudança no tratamento.
 | Última posição: lat, lng, velocidade, direção, precisão | posicionar o ônibus | memória do servidor | até o fim da viagem | Sim (localização) |
 | Bateria (faixas de 5%) + carregando | eleger líder | memória do servidor | até o fim da viagem | Sim (estado do aparelho) |
 | Posição do veículo (junção) | mostrar o ônibus | memória do servidor | some após 120 s sem sinal | Pode revelar passageiro sozinho (KL2) |
+| Ritmo do veículo (velocidade suavizada, um número) | ETA e previsão | memória do servidor, no veículo | com o veículo; zera a cada ônibus novo | Não identifica motorista; sem histórico |
+| Passagens recentes (só instantes por linha) | frequência, histórico, atrasos | memória do servidor | anel de 32, 4 h | Sem posição, sem identidade |
 | Limites por IP/aparelho | controle de abuso | memória do servidor | minutos; sem registro | Sim (IP), efêmero |
 | Registros de infra (IP, agente) | segurança/operação | Cloudflare, OSM, provedor VPS; próprios desligados ou sem IP | por provedor (curto) | Sim (IP), no provedor |
 | Backups cifrados das tabelas | recuperação | fora do servidor | 30 dias | Sim (pseudônimo), cifrado |
 | Preferências locais (tema, consentimento, token) | uso do app | aparelho | até desinstalar ou apagar dados | Token é credencial, sem PII |
+| Recentes, atalhos casa/trabalho/escola, paradas, alertas, contador | atalhos e avisos | aparelho (`shared_preferences`) | até limpar ou apagar dados | Só no aparelho; nada vai ao servidor |
 
 Nunca coletado: nome, e-mail, telefone, contatos, IMEI,
 identificadores de publicidade, apps instalados, fotos,

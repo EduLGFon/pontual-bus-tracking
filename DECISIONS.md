@@ -1559,3 +1559,20 @@ Accepted design (amends D02 narrowly, keeps D20 intent):
 - Predictions are always labeled `predicted` vs `live` in the UI.
 - Still required before any pilot: consent-text bump, RIPD and
   inventory update, lawyer review (D20 gate recorded, not skipped).
+
+## D30-followup-2026-10-11: PLAN deltas shipped in this change set
+
+- RF20 (stops/ETA) partial: live hero, live-first ordering and
+  headway history ship with no stop coordinates. Per-stop ETA waits
+  for the stops file and route geometry.
+- RF22 (notifications, favourites, history, delay) partial:
+  favourites already existed; history/delay ship as 4 h memory-only
+  aggregates; alerts ship in-app only, no push channel (hard limit:
+  no background location, no FCM).
+- D02 amended narrowly by D30 (pace scalar plus timestamp ring, both
+  memory-only with TTL). Everything else in D02 stands: no tracks,
+  no coordinates at rest.
+- Verification split: server pure suites green here (engine 28,
+  arrivals 5, no_location_at_rest, config); DB-backed suites
+  (read/trip/security/ws/jobs) and every Flutter check stay for the
+  owner machine and CI (no Flutter toolchain on this host).
