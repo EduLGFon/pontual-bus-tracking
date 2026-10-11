@@ -86,6 +86,9 @@ class HomeScreen extends ConsumerWidget {
     final Widget shortcutsSection = features.shortcuts
         ? const ShortcutsSection()
         : const SizedBox.shrink();
+    final Widget saindoAgora = features.shortcuts
+        ? const SaindoAgoraSection()
+        : const SizedBox.shrink();
     final Widget liveOrEmpty = liveCapped.isNotEmpty
         ? LiveNowSection(lines: liveCapped)
         : const NoLiveCard();
@@ -108,7 +111,11 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[shortcutsSection, liveOrEmpty],
+                  children: <Widget>[
+                    shortcutsSection,
+                    saindoAgora,
+                    liveOrEmpty,
+                  ],
                 ),
               ),
               const SizedBox(width: Space.x6),
@@ -127,6 +134,7 @@ class HomeScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               shortcutsSection,
+              saindoAgora,
               liveOrEmpty,
               recentsSection,
               allLines,

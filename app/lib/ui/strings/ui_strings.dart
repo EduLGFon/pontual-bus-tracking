@@ -93,6 +93,9 @@ class UiStrings {
   /// Shortcuts section header.
   static const String homeShortcuts = 'Seus atalhos';
 
+  /// Next-buses feed header (UI_SPEC 13.3).
+  static const String saindoAgora = 'Saindo agora';
+
   /// Add shortcut card label.
   static const String addShortcut = 'Adicionar';
 

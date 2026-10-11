@@ -12,6 +12,7 @@ import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/design/components/arrival_row.dart';
 import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/shortcut_card.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -193,6 +194,70 @@ class ShortcutsSection extends ConsumerWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Next-buses feed of Início (UI_SPEC 13.3): the next arrival of every
+/// shortcut target, sorted ascending by time. Empty until at least one
+/// shortcut has an upcoming departure. When ETA data exists the rows
+/// silently upgrade certainty with no layout change.
+class SaindoAgoraSection extends ConsumerWidget {
+  /// Creates the section.
+  const SaindoAgoraSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<ShortcutVM> shortcuts = ref.watch(shortcutsProvider);
+    if (shortcuts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final List<StaticLine> statics =
+        ref.watch(linesProvider).asData?.value ?? const <StaticLine>[];
+    final List<LineVM> lines = ref.watch(linesVmProvider);
+    final DateTime now = ref.watch(currentNowProvider);
+    final List<({ArrivalVM arrival, LineVM line})> rows =
+        <({ArrivalVM arrival, LineVM line})>[];
+    for (final ShortcutVM shortcut in shortcuts) {
+      final LineVM? line = lineByKey(lines, shortcut.lineKey);
+      final StaticLine? static = _staticOf(statics, shortcut.lineKey);
+      if (line == null || static == null) {
+        continue;
+      }
+      final ArrivalVM? arrival = _nextArrival(
+        static,
+        shortcut.originLabel,
+        now,
+      );
+      if (arrival != null) {
+        rows.add((arrival: arrival, line: line));
+      }
+    }
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    rows.sort(
+      (
+        ({ArrivalVM arrival, LineVM line}) a,
+        ({ArrivalVM arrival, LineVM line}) b,
+      ) => a.arrival.at.compareTo(b.arrival.at),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const SectionHeader(title: UiStrings.saindoAgora),
+        for (final ({ArrivalVM arrival, LineVM line}) row in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: Space.x2),
+            child: ArrivalRow(
+              arrival: row.arrival,
+              now: now,
+              line: row.line,
+              onTap: () => context.push('/line/${row.line.key}'),
+            ),
+          ),
       ],
     );
   }
