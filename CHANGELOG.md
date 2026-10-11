@@ -4,6 +4,14 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- UI fix sweep: home links switch to the Linhas tab so the bottom bar
+  follows, every screen uses the breakpoint gutter, all sheets share
+  the transparent safe-area chrome with keyboard insets where they own
+  a field, the trip pill hugs its content and hides under modal sheets
+  in both layouts, map controls anchor without overlap, the map frames
+  the city on entry and draws a viewer dot from a one-shot lookup
+  (already-granted permission only, off in data saver, never sent),
+  and lines rows build synchronously for stutter-free scrolling.
 - UI_SPEC sections 14-18 compliance: router not-found page, web drag
   scrolling, edge-to-edge transparent bars, tagline on About, exact
   capacity copy, future models and seams (alert rules, reliability
