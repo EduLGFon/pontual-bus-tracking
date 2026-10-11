@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
+import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 
 /// Fallback tile URL template, the same one the data layer uses.
@@ -58,6 +59,16 @@ class _LineScreenState extends ConsumerState<LineScreen> {
   void initState() {
     super.initState();
     _sheet.addListener(_onSheetChanged);
+    // The map opens on the raw area centre before any fit, with the peek
+    // sheet covering the lower part: frame the city in the visible area on
+    // the first frame so it never loads shifted to one side.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapKey.currentState?.fitToContent(
+          padding: EdgeInsets.only(bottom: sheetPixels(_screenHeight, _peek)),
+        );
+      }
+    });
   }
 
   @override
@@ -110,13 +121,23 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     required bool map,
   }) {
     final bool shareable = staticLine.pilot;
+    // A modal sheet (chooser, consent, permission, progress) sits above
+    // this route while it is current: the contextual pill hides with it,
+    // so the sheet owns every action button. Same rule as the shell dock.
+    final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
 
     return Stack(
       children: <Widget>[
         Positioned.fill(
           // The map sits outside the sheet rebuild path.
           child: RepaintBoundary(
-            child: map ? _mapLayer(vehicles) : const SizedBox(),
+            child: map
+                ? _mapLayer(
+                    vehicles,
+                    controlsBottomPadding:
+                        sheetPixels(_screenHeight, _peek) + Space.x3,
+                  )
+                : const SizedBox(),
           ),
         ),
         DraggableScrollableSheet(
@@ -140,12 +161,27 @@ class _LineScreenState extends ConsumerState<LineScreen> {
             );
           },
         ),
-        if (shareable)
+        if (shareable && !modalOpen)
           Positioned(
             right: 0,
             left: 0,
             bottom: sheetPixels(_screenHeight, _peek) + Space.x3,
-            child: LineDock(line: staticLine),
+            // The pill floats above the peek sheet only. Once the sheet
+            // drags past peek it would cover the Agora and Horarios rows,
+            // so it fades out and stops hitting tests.
+            child: ListenableBuilder(
+              listenable: _sheet,
+              builder: (BuildContext context, Widget? child) {
+                final bool expanded =
+                    _sheet.isAttached && _sheet.size > _peek + 0.05;
+                return AnimatedOpacity(
+                  opacity: expanded ? 0 : 1,
+                  duration: const Duration(milliseconds: 160),
+                  child: IgnorePointer(ignoring: expanded, child: child),
+                );
+              },
+              child: LineDock(line: staticLine),
+            ),
           ),
       ],
     );
@@ -157,9 +193,10 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     required List<VehicleVM> vehicles,
     required bool map,
   }) {
+    final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
     return LineExpanded(
       map: map ? _mapLayer(vehicles) : const SizedBox(),
-      dock: staticLine.pilot ? LineDock(line: staticLine) : null,
+      dock: staticLine.pilot && !modalOpen ? LineDock(line: staticLine) : null,
       panel: LineSheet(
         line: lineVmOf(staticLine),
         staticLine: staticLine,
@@ -173,8 +210,12 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     );
   }
 
-  /// The map layer, shared by both layouts.
-  Widget _mapLayer(List<VehicleVM> vehicles) {
+  /// The map layer, shared by both layouts. [controlsBottomPadding] keeps
+  /// the recenter control above the sheet or the dock.
+  Widget _mapLayer(
+    List<VehicleVM> vehicles, {
+    double controlsBottomPadding = Space.x3,
+  }) {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
     return LineMap(
       // Global key so the parent can command the camera without rebuilding
@@ -185,6 +226,8 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       tileUrlTemplate: tileUrl,
       panned: _panned,
       selectedKey: _selectedKey,
+      viewerPosition: ref.watch(viewerLocationProvider).value,
+      controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
       onRecenter: () {
         setState(() => _panned = false);

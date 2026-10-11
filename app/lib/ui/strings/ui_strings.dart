@@ -20,6 +20,9 @@ class UiStrings {
   /// App wordmark shown on Início.
   static const String wordmark = 'pontual';
 
+  /// App tagline (UI_SPEC 14), shown on Sobre.
+  static const String tagline = 'Seu ônibus, na hora.';
+
   /// Offline banner.
   static const String offlineBanner = 'Sem conexão. Mostrando dados salvos.';
 
@@ -89,6 +92,9 @@ class UiStrings {
 
   /// Shortcuts section header.
   static const String homeShortcuts = 'Seus atalhos';
+
+  /// Next-buses feed header (UI_SPEC 13.3).
+  static const String saindoAgora = 'Saindo agora';
 
   /// Add shortcut card label.
   static const String addShortcut = 'Adicionar';
@@ -460,6 +466,10 @@ class UiStrings {
   static const String shareBusy =
       'Muita gente tentando agora. Aguarde um pouco e tente de novo.';
 
+  /// Share start failed: too many people sharing at once (UI_SPEC 14).
+  static const String capacity =
+      'Muitas pessoas compartilhando agora. Tente em instantes.';
+
   /// Share start failed: fix outside the served area.
   static const String shareOutsideArea =
       'Você está fora da área atendida pelo Pontual.';
@@ -530,6 +540,17 @@ class UiStrings {
   /// iOS install hint dismiss button.
   static const String installHintDismiss = 'Entendi';
 
+  /// Android app download title.
+  static const String androidAppTitle = 'Use o app Android';
+
+  /// Android app download body.
+  static const String androidAppBody =
+      'Para compartilhar com a tela desligada e economizar bateria, '
+      'baixe o app direto do GitHub. O mapa continua aqui no navegador.';
+
+  /// Android app download action.
+  static const String androidAppDownload = 'Baixar app';
+
   /// Web keep open banner.
   static const String webKeepOpen =
       'Mantenha esta tela aberta e o celular desbloqueado.';
@@ -579,6 +600,62 @@ class UiStrings {
 
   /// Local kudos counter suffix.
   static const String kudosSuffix = 'viagens';
+
+  // Future features (flagged off, UI_SPEC 13-14).
+
+  /// Alerts sheet title.
+  static const String alertTitle = 'Avisar quando faltar';
+
+  /// Alerts sheet save action.
+  static const String alertSave = 'Salvar';
+
+  /// Line history tab.
+  static const String tabHistory = 'Histórico';
+
+  /// Reliability card text for a typical delay in minutes.
+  static String typicalDelayOf(int minutes) =>
+      'Costuma atrasar cerca de $minutes min neste horário';
+
+  /// Prediction confidence levels.
+  static const String confLow = 'Confiança baixa';
+
+  /// Prediction confidence levels.
+  static const String confMid = 'Confiança média';
+
+  /// Prediction confidence levels.
+  static const String confHigh = 'Confiança alta';
+
+  /// Returns the confidence label for [level] 0 to 2.
+  static String confidenceLabel(int level) {
+    if (level <= 0) {
+      return confLow;
+    }
+    if (level == 1) {
+      return confMid;
+    }
+    return confHigh;
+  }
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceFaster =
+      'Ritmo recente deste ônibus: um pouco mais rápido que o normal';
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceNormal =
+      'Ritmo recente deste ônibus: dentro do normal';
+
+  /// Recent pace phrases shown next to the confidence meter (UI_SPEC 14).
+  static const String paceSlower =
+      'Ritmo recente deste ônibus: um pouco mais lento que o normal';
+
+  /// Prediction explanation sheet title (UI_SPEC 14).
+  static const String predictionInfoTitle = 'Como calculamos';
+
+  /// One-paragraph estimate explanation (UI_SPEC 14).
+  static const String predictionInfoBody =
+      'A previsão usa as posições mais recentes e o ritmo habitual desta '
+      'linha neste horário. Ela é uma estimativa, não uma posição ao vivo, '
+      'e pode mudar.';
 
   /// Walking prompt title.
   static const String walkingTitle = 'Você ainda está no ônibus?';

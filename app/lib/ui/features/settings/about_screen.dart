@@ -24,12 +24,13 @@ class AboutScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.x5,
+          padding: EdgeInsets.symmetric(
+            horizontal: marginFor(context),
             vertical: Space.x4,
           ),
           children: <Widget>[
             Text(UiStrings.about, style: context.text.display),
+            Text(UiStrings.tagline, style: context.text.body),
             const SizedBox(height: Space.x4),
             Text(UiStrings.aboutDisclaimer, style: context.text.body),
             const SectionHeader(title: UiStrings.aboutSourcesTitle),

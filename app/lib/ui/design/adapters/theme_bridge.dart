@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/data/prefs/theme_store.dart';
 import 'package:pontual/ui/design/tokens/colors.dart';
+import 'package:pontual/ui/shell/scroll_behavior.dart';
 
 /// Builds the app widget with the new theme.
 Widget pontualApp({required ThemeMode mode, required GoRouter router}) {
@@ -17,6 +18,7 @@ Widget pontualApp({required ThemeMode mode, required GoRouter router}) {
     theme: _light(),
     darkTheme: _dark(),
     routerConfig: router,
+    scrollBehavior: const PontualScrollBehavior(),
   );
 }
 
@@ -28,28 +30,26 @@ ThemeData _dark() {
   return _applyOverlays(pontualDarkTheme(), Brightness.dark);
 }
 
-/// Sets transparent system bars with the right icon brightness.
+/// Sets edge-to-edge transparent system bars with the right icon brightness.
 ThemeData _applyOverlays(ThemeData theme, Brightness brightness) {
-  final PontualColors colors = brightness == Brightness.dark
-      ? PontualColors.dark
-      : PontualColors.light;
   return theme.copyWith(
     extensions: <ThemeExtension<Object?>>[
       brightness == Brightness.dark ? PontualColors.dark : PontualColors.light,
     ],
     appBarTheme: theme.appBarTheme.copyWith(
       systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: colors.bg,
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
         statusBarBrightness: brightness == Brightness.dark
             ? Brightness.dark
             : Brightness.light,
-        systemNavigationBarColor: colors.surface,
+        systemNavigationBarColor: Colors.transparent,
         systemNavigationBarIconBrightness: brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
       ),
     ),
   );

@@ -66,13 +66,18 @@ class TripDock extends StatelessWidget {
                     ? Border.all(color: accent)
                     : Border.all(color: colors.bg),
               ),
+              // The pill hugs its content: icon plus label plus chevron
+              // with the horizontal margins only. Flexible (never Expanded)
+              // still ellipsises a long active label on narrow screens.
               child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
                   if (active) ...<Widget>[
                     const LiveDot(certainty: Certainty.live, size: 8),
                     const SizedBox(width: Space.x2),
                   ],
-                  Expanded(
+                  Flexible(
                     child: Text(
                       active ? _activeLabel() : idleLabel,
                       style: PontualText.label.copyWith(color: labelColor),

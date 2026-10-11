@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/home_sections.dart';
 import 'package:pontual/ui/features/home/home_lists.dart';
 import 'package:pontual/ui/features/home/welcome_state.dart';
+import 'package:pontual/platform/web/android_app_download.dart';
 
 /// Maximum live lines shown in the live section.
 const int _liveSectionMax = 5;
@@ -86,6 +87,9 @@ class HomeScreen extends ConsumerWidget {
     final Widget shortcutsSection = features.shortcuts
         ? const ShortcutsSection()
         : const SizedBox.shrink();
+    final Widget saindoAgora = features.shortcuts
+        ? const SaindoAgoraSection()
+        : const SizedBox.shrink();
     final Widget liveOrEmpty = liveCapped.isNotEmpty
         ? LiveNowSection(lines: liveCapped)
         : const NoLiveCard();
@@ -99,7 +103,10 @@ class HomeScreen extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         welcome,
+        if (!onboarding.welcomeSeen) const SizedBox(height: Space.x4),
+        const AndroidAppDownloadSlot(),
         header,
+        const SizedBox(height: Space.x2),
         if (expanded)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +115,11 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[shortcutsSection, liveOrEmpty],
+                  children: <Widget>[
+                    shortcutsSection,
+                    saindoAgora,
+                    liveOrEmpty,
+                  ],
                 ),
               ),
               const SizedBox(width: Space.x6),
@@ -127,6 +138,7 @@ class HomeScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               shortcutsSection,
+              saindoAgora,
               liveOrEmpty,
               recentsSection,
               allLines,

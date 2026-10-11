@@ -54,7 +54,7 @@ class Segmented extends StatelessWidget {
     final int count = segments.length;
     final double align = count <= 1 ? 0 : -1 + 2 / (count - 1) * selected;
     return Container(
-      height: 40,
+      height: 56,
       decoration: BoxDecoration(
         color: colors.surfaceSunken,
         borderRadius: BorderRadius.circular(Radii.pill),

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/platform/web/install_hint.dart';
+import 'package:pontual/platform/web/android_app_download.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
@@ -33,10 +34,10 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            Space.x5,
+          padding: EdgeInsets.fromLTRB(
+            marginFor(context),
             Space.x4,
-            Space.x5,
+            marginFor(context),
             dockClearance,
           ),
           children: <Widget>[
@@ -112,6 +113,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/about'),
             ),
             const InstallHintSlot(),
+            const AndroidAppDownloadSlot(),
             const SizedBox(height: Space.x4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Space.x1),
@@ -155,6 +157,7 @@ class SettingsScreen extends ConsumerWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
       builder: (BuildContext context) => PontualSheet(

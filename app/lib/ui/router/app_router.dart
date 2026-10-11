@@ -24,6 +24,8 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 GoRouter buildUiRouter() {
   return GoRouter(
     initialLocation: '/',
+    errorBuilder: (BuildContext context, GoRouterState state) =>
+        const SystemScreen(kind: SystemKind.notFound),
     routes: <RouteBase>[
       StatefulShellRoute.indexedStack(
         builder:

@@ -1295,3 +1295,241 @@ those code paths are dead. `proguard-rules.pro` gains
 `-dontwarn com.google.android.play.core.**` with the reason inline. The
 AAB builds after it: 52.3 MB (arm64-v8a, armeabi-v7a, x86_64), the new
 size baseline; the UI_SPEC delta budgets apply from here.
+
+## D-U17-2026-10-11: UI_SPEC sections 14-18 arrived, D-U01 reconstruction retired
+
+`docs/ui/UI_SPEC.md` now has 1746 lines with sections 14 (copy deck),
+15 (brand assets), 16 (tasks U01-U26), 17 (QA and measurement) and 18
+(reading list). D-U01 recorded the file as truncated at 13.5; that entry
+stays as history, but the reconstruction handling is superseded: the
+missing sections are now the source of truth.
+
+Compliance pass 2026-10-11 found: copy-deck key names differ from
+`UiStrings` field names (text matches under different keys, accepted, no
+rename); brand web/Android assets exist except the vector source;
+`docs/ui/PERF.md` was absent; one `Opacity` in `arrival_row.dart`
+violated 11.2; U25/U26 future scaffolding (alerts, reliability,
+predictions, ghost markers, composite sources, `localKudos`, `Saindo
+agora`) is entirely absent and stays pending behind flags-off.
+
+## D-U18-2026-10-11: brand source, perf baseline, alpha dimming by colour
+
+- `design/brand/pontual-mark.svg` added byte-for-byte from UI_SPEC 15.
+  Android adaptive + monochrome layers and web splash/manifest already
+  existed; the SVG was the only missing source.
+- `docs/ui/PERF.md` added (U21): new-UI baseline (web `main.dart.js`
+  950 KB gz, Manrope 50.5 KB, CanvasKit 36.1 MB uncompressed, universal
+  AAB 52.3 MB) with the old-UI baseline recorded as absent per AUDIT
+  4.1. Device rows (cold start, frames, memory, per-ABI sizes,
+  Lighthouse) stay TODO for the capable machine under the 17.4 protocol.
+- `arrival_row.dart` past dimming no longer uses `Opacity` (banned by
+  11.2, forces a saveLayer). `EtaText`, `LineBadge` and `CertaintyBadge`
+  gained `dimmed` flags that apply 0.55 alpha to colours only, matching
+  the 7.6 rule that past minutes dim by colour alpha.
+
+## D-U19-2026-10-11: UI_SPEC sections 14-18 compliance build (U25, U26, router, copy, home, perf, a11y)
+
+Spec sections 14-18 (copy deck, brand, U01-U26, QA) are now implemented:
+
+- Router: unknown routes render `SystemScreen.notFound` via `errorBuilder`
+  (web "Página não encontrada" per section 8); deploy already copies
+  `index.html` to `404.html` for Pages deep links.
+- Web scroll: `PontualScrollBehavior` drags with mouse, touch, stylus and
+  trackpad (section 8).
+- Edge-to-edge: transparent status and navigation bars with per-theme icon
+  brightness plus `SystemUiMode.edgeToEdge` after the first frame; every
+  screen keeps SafeArea (section 8).
+- Copy: `tagline` ("Seu ônibus, na hora.") on About; `capacity` uses the
+  exact section-14 text for the capacity error code, other limits keep the
+  existing busy message (share flow failure reason stays generic because
+  the frozen controller maps rate and capacity to one `busy` value).
+- U25: `AlertRuleVM`, `ReliabilityVM`, `AlertsStore`, `LiveAware` and
+  `Composite` arrivals sources (live wins over predicted over scheduled by
+  `certaintyRank`, lower wins), `Features.localKudos`, optional
+  `VehicleVM.paceFactor`, future copy (`alertTitle`, `alertSave`,
+  `tabHistory`, `typicalDelayOf`, confidence levels and label, pace
+  phrases, prediction title and body), `Sparkline`, `ConfidenceMeter`,
+  `AlertSheet`, `ReliabilityCard` (empty hides), `PredictionInfoSheet`,
+  all with unit and widget tests plus gallery entries. Flags off means
+  shipped screens never mount them.
+- U26: `GhostMarker` (dashed predicted style, `~` chip, no pulse) and
+  `PredictedPath` (dashed polyline in caller-projected space) with a
+  gallery demo covering the 13.1 rules (solid last fix with age, dashed
+  ghost, path, confidence plus pace, info sheet, simulated fix flips to
+  live). Real map wiring waits for route geometry like the rest of the
+  route line work.
+- Home `Saindo agora` feed (13.3): next arrival per shortcut target sorted
+  by time, empty until a shortcut has an upcoming departure, ETA upgrades
+  need no layout change.
+- Perf: debug-only frame-timing logger (`summarizeBuildRaster` plus
+  `installFrameTimingLogger`, hooked in the debug gallery) per 11.4.
+- A11y: guideline tests over tappables and text in both themes (12.12).
+  Two real findings fixed: `Segmented` is now 56 dp tall so segments reach
+  the 48 dp target (was 40 with 32 dp segments), and light `scheduled`
+  (`#576964`) plus `warningText` (`#9F4B07`) darkened one step so badge
+  captions on the tinted pill reach 4.5:1 (rendered 4.36/4.30 before).
+  Token-pair `contrast_test.dart` still green.
+
+## D-U20-2026-10-11: map deferred import stays eager, documented
+
+UI_SPEC 11.1 asks for a deferred map import on web. `LineMap` exposes
+flutter_map types in its public API (`LatLng` route points, `MapController`
+state), so deferring means splitting the widget and adding a loading state
+on every platform for a library the app already ships on all of them. Web
+first load sits inside the 3 MB budget with the eager import, so the
+refactor buys no proven gain against real regression risk in the camera,
+marker and attribution layer. Handling: keep the eager import, revisit with
+measurements if the web budget regresses.
+
+## D-U21-2026-10-11: full verification green, deploy stays owner-blocked
+
+Verification of the sections 14-18 compliance tree (HEAD `a78320a`
+plus the commits in D-U19, all on branch `dev`):
+
+- App: `flutter analyze` clean, `dart format --set-exit-if-changed`
+  clean (196 files), full `flutter test` green (261 passed, 1 skipped),
+  manifest source audit PASS, `flutter build web --release` EXIT 0
+  (build/web 42.7 MB uncompressed, `main.dart.js` 973,863 bytes gz, about
+  951 KB, no regression vs the 950 KB PERF baseline; PLAN 3 MB budget
+  holds).
+- Server (unchanged code): `deno fmt --check`, `deno lint`,
+  `deno check` clean; `deno task test` 74 passed against an isolated
+  throwaway PG 16 container on 5433 (migrated with dbmate 2.36.0, dropped
+  afterwards). Never run against a live soak DB (T46 rule).
+- Tools/data: `deno fmt`, `lint`, `data-test` (3 passed), `data-validate`
+  (21 lines), `data-build` (9,473 bytes, inside 100 KB) green.
+- Workflows: all three YAML files parse. Gitleaks runs in CI (not
+  installed on this host).
+- Deploy: not executed. `deploy-static.yml` fails fast without the repo
+  var `API_ORIGIN` (INFRA-05, owner-blocked) plus the Pages setup, and
+  `release-android.yml` needs the upload keystore secrets plus a `v*`
+  tag. Pushing `dev` to `master` without the var would only produce a
+  red run, so no push was attempted. Owner actions: set `API_ORIGIN`
+  (and optional `STATIC_ORIGIN`), enable Pages, merge to `master`.
+
+## D-U22-2026-10-11: device perf method and SDK test dependency
+
+- `integration_test` (Flutter SDK, dev-only) added to `app/pubspec.yaml`
+  for the on-device run. Reason: scripted profile measurements need the
+  SDK test harness. Size impact: none, dev dependencies never ship in the
+  release APK/AAB (verified: split and bundle builds succeed with it
+  present). Maintainer: Flutter team, BSD-3-Clause like the SDK. New
+  permissions: none. A transient `flutter build apk --analyze-size`
+  failure naming its plugin happened once while a wasm compile saturated
+  the machine; the retry on the identical tree was green.
+- Method: `app/integration_test/perf_app.dart` (measurement-only
+  entrypoint, never referenced by release builds) drives Home, Lines and
+  line 60 on fixed timings; `tools/perf/device_run.py` installs the
+  release APK, reads cold start from the system's Displayed line (am
+  start -W never settles under SwiftShader), runs the profile app,
+  captures PSS and screenshots on logcat markers, and swipes the map
+  during the soak. Results JSON and shots stay gitignored; medians live
+  in `docs/ui/PERF.md`.
+- Emulator caveats (Medium_Phone_API_37.0, x86_64, SwiftShader, no KVM):
+  cold start and raster are inflated and do not count against hardware
+  budgets; build times, PSS and sizes are representative.
+
+## D-U23-2026-10-11: owner-supplied app icon applied (launcher + PWA)
+
+The owner dropped `icon.png` (1254x1254 RGBA, rounded corners transparent),
+`icon.jpeg` (1003x1003, opaque, smaller) and `icon.svg` (monochrome
+auto-trace silhouette, not full colour) at the repo root and asked to apply
+the icon and put each file in its right place. The PNG is the master: it is
+the largest and the only one with alpha.
+
+Sources moved to `design/brand/`: `app-icon.png` (master),
+`app-icon.jpeg` (reference copy), `app-icon.svg` (trace copy). Root copies
+removed. `design/brand/pontual-mark.svg` (UI_SPEC 15 mint-on-pine mark)
+stays untouched; the splash, theme tokens and HTML splash keep the pine
+brand, so launcher and brand now diverge and a full rebrand is an owner
+decision for later.
+
+Generated from the master with a throwaway Dart script using package:image
+4.5.4 (cubic resampling, temp project outside the repo, no repo dependency
+added, so no ADR needed for a package):
+
+- Android legacy: `mipmap-mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi/ic_launcher.png`
+  at 48/72/96/144/192, transparency kept.
+- Android adaptive: `drawable-<dpi>/ic_launcher_foreground.png` at
+  108/162/216/324/432 canvas with the artwork inset to the 72dp safe zone
+  on a navy fill; `mipmap-anydpi-v26/ic_launcher.xml` and
+  `ic_launcher_round.xml` use `@color/pontual_icon_bg` (`#0D3971`,
+  edge-band average of the master) plus the raster foreground. The old
+  mint vector `drawable/ic_launcher_foreground.xml` is deleted and the
+  `<monochrome>` layer is removed: themed icons fall back to the standard
+  icon until someone draws a vector monochrome of the new mark.
+- Web: `icons/Icon-192.png`, `icons/Icon-512.png` (rounded corners with
+  transparency kept, as in the master; first generated opaque on navy,
+  then redone rounded per owner order),
+  `icons/Icon-maskable-192.png`, `icons/Icon-maskable-512.png` (artwork at
+  80 percent on navy, bus inside the maskable safe zone), new
+  `icons/Icon-apple-touch-180.png` (180, opaque, iOS fills black on
+  transparency), `favicon.png` upgraded from 16 to 32 per UI_SPEC 15
+  (rounded with transparency, like the master).
+  `index.html` apple-touch-icon points at the 180 file; `manifest.json`
+  names are unchanged.
+
+Verified: `file` dimensions on all 16 PNGs, visual check of the 192 web
+icon, the xxxhdpi foreground (navy surround blends with the background)
+and the 512 maskable, manifest source audit PASS. No Dart code touched;
+no Android SDK on this host, so the merged-manifest and install-launch
+check stays for the release machine (owner todo).
+
+## D-U24-2026-10-11: Android web banner downloads the release APK
+
+Owner order: on Android, the web PWA is viewer-only; sharing needs the
+native app (screen-off trips). A one-time card on Android web
+(`AndroidAppDownloadSlot` on Home after welcome plus Settings) pitches
+the native app; tap downloads the latest release APK from GitHub
+releases (`.../releases/latest/download/app-release.apk`).
+
+Implementation: new `app/lib/platform/web/android_app_download.dart`
+(gating pure function, prefs-backed once-only store, card, slot) plus
+three pt-BR strings; no new dependency (`url_launcher` externalApplication
+is already allow-listed for links). `release-android.yml` now also builds
+a universal APK with the same dart-defines and uploads `app-release.apk`
+alongside the AAB, with a 25 MB size gate per PLAN 10.1. Display detection
+uses `kIsWeb` plus `defaultTargetPlatform == android`, same pattern as the
+iOS hint.
+
+Accepted limits: sideload needs "install unknown apps" for the browser
+and, on certified devices in Brazil, a verified developer (PLAN 3.1);
+first tagged release proves the asset name. Verified: analyze clean,
+targeted tests green (android download, install hint, home, settings).
+Full suite timed out on this host, not run to completion.
+
+## D-U25-2026-10-11: home, sheet, dock and map fix sweep (10 items)
+
+Owner-reported UI issues, fixed on branch `dev` in one commit each
+(the first three were already in the tree, verified and kept):
+
+- Home margins (`c945305` kept, plus `7159d67`): search, settings,
+  about, privacy, trip, system and line-not-found now use
+  `marginFor`; the Android download card uses Space tokens.
+- Pill over sheets (`2aebdf0`, `eecb8db` kept, plus `182dac6`):
+  the line pill also hides under modal sheets in both layouts, and
+  every new-flow sheet uses the transparent safe-area chrome.
+- Shortcut sheet (`182dac6`): the line list grows with its content
+  in the outer sheet scroll instead of a fixed 240 dp box with a
+  nested scrollable; the chooser keeps its list above the keyboard.
+- Branch navigation (`ce36162`): the three home links to Linhas use
+  `go`, so the bottom bar follows; line detail stays a push.
+- Map controls (`409f3e3`): the circle button no longer positions
+  itself, so recenter anchors bottom-right above the sheet peek and
+  never covers the back button; top controls clear the status inset.
+- Viewer position plus city framing (`09681b0`): first-frame fit of
+  the service area above the peek sheet; one-shot low-power viewer
+  dot only when permission is already granted and data saver is off,
+  drawn only, never prompted, logged or sent.
+- Pill size (`6f824ef`): the row hugs content with a Flexible label;
+  height, margins and semantics unchanged.
+- Lines scroll (`ba179ff`): the per-row FutureProvider is a
+  synchronous family reading today only, so rows build once; also
+  drops other-day times the merged scan could surface.
+
+Verification: no Flutter toolchain on this host, so `flutter
+analyze`, `dart format` and `flutter test` stay for the owner
+machine (same as the three kept commits). Every change was
+review-checked against the covering widget tests (home, lines,
+search, line screen, trip flow, design system, a11y) and keeps
+their asserted copy and behavior.

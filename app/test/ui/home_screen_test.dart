@@ -213,4 +213,32 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('saindo agora lists the next departure per shortcut', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      ...onboardingDone,
+      shortcutsKey:
+          '[{"kind":"home","label":"Casa","lineKey":"60-litoraneo-aviacao",'
+          '"originLabel":null}]',
+    });
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.saindoAgora), findsOneWidget);
+    expect(find.text('10:20'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saindo agora hides with no shortcuts', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.saindoAgora), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

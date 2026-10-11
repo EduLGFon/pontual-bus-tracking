@@ -1,7 +1,7 @@
 // Line map layer for the line screen: full-bleed flutter_map with the
-// vehicle markers, the optional route polyline, the OSM attribution chip
-// and the camera controls. The viewer's own location is never drawn:
-// only viewers without location access see this map.
+// vehicle markers, the viewer dot, the optional route polyline, the OSM
+// attribution chip and the camera controls. The viewer dot comes from an
+// on-device one-shot lookup and is drawn only, never sent anywhere.
 // See docs/ui/UI_SPEC.md 7.5.
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -12,6 +12,7 @@ import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
+import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_map_controls.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 
@@ -42,7 +43,9 @@ class LineMap extends StatefulWidget {
     this.dashedRoute = false,
     this.selectedKey,
     this.onVehicleTap,
+    this.viewerPosition,
     this.panned = false,
+    this.controlsBottomPadding = Space.x3,
     super.key,
   });
 
@@ -67,11 +70,19 @@ class LineMap extends StatefulWidget {
   /// Internal id of the selected vehicle, never shown to users.
   final int? selectedKey;
 
+  /// Viewer position from the on-device one-shot lookup, null when
+  /// unknown. Drawn only, never sent anywhere.
+  final LatLng? viewerPosition;
+
   /// Called when a marker is tapped.
   final ValueChanged<VehicleVM>? onVehicleTap;
 
   /// True once the user has panned away from the automatic camera.
   final bool panned;
+
+  /// Distance of the recenter control from the bottom of the map, so the
+  /// sheet or the dock never hides it.
+  final double controlsBottomPadding;
 
   /// Called when the user drags the map.
   final VoidCallback onPan;
@@ -86,11 +97,34 @@ class LineMap extends StatefulWidget {
 /// State of the line map. Exposes the camera commands the screen needs.
 class LineMapState extends State<LineMap> {
   final MapController _map = MapController();
+  bool _viewerFitted = false;
 
   @override
   void dispose() {
     _map.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant LineMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The viewer lookup resolves after the first frame. Frame it once when
+    // it lands, unless the rider already took the camera or live vehicles
+    // own the view. Deferred past the frame: moving the camera rebuilds
+    // the map, which is illegal mid-build.
+    final LatLng? viewer = widget.viewerPosition;
+    if (!_viewerFitted &&
+        viewer != null &&
+        oldWidget.viewerPosition == null &&
+        !widget.panned &&
+        widget.vehicles.isEmpty) {
+      _viewerFitted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.panned) {
+          _map.move(viewer, 15);
+        }
+      });
+    }
   }
 
   /// Fits the camera to the live vehicles, else to the service-area bounds.
@@ -183,6 +217,13 @@ class LineMapState extends State<LineMap> {
                               : () => widget.onVehicleTap!(v),
                         ),
                       ),
+                    if (widget.viewerPosition != null)
+                      Marker(
+                        point: widget.viewerPosition!,
+                        width: markerHitDp,
+                        height: markerHitDp,
+                        child: _ViewerDot(),
+                      ),
                   ],
                 ),
               ],
@@ -193,6 +234,7 @@ class LineMapState extends State<LineMap> {
         const MapAttributionChip(),
         if (widget.panned)
           MapRecenterButton(
+            bottomPadding: widget.controlsBottomPadding,
             onTap: () {
               widget.onRecenter();
               fitToContent();
@@ -202,9 +244,13 @@ class LineMapState extends State<LineMap> {
     );
   }
 
-  /// Centre used before the first camera fit: the live vehicles first, else
-  /// the service-area centre at zoom 13.
+  /// Centre used before the first camera fit: the viewer first, then the
+  /// live vehicles, else the service-area centre at zoom 13.
   LatLng _initialCenter() {
+    final LatLng? viewer = widget.viewerPosition;
+    if (viewer != null) {
+      return viewer;
+    }
     if (widget.vehicles.isNotEmpty) {
       final VehicleVM first = widget.vehicles.first;
       return LatLng(first.lat, first.lng);
@@ -237,6 +283,40 @@ class LineMapState extends State<LineMap> {
               : const StrokePattern.solid(),
         ),
       ],
+    );
+  }
+}
+
+/// Viewer dot: ink core, surface ring, primary halo. Token colours only,
+// no new palette: the shape (small dot, never a bus glyph) tells it apart
+// from vehicle markers, and the halo is decorative, never the only cue.
+class _ViewerDot extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      label: 'Sua posição',
+      child: Center(
+        child: Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: 0.25),
+            shape: BoxShape.circle,
+          ),
+          child: Container(
+            width: 14,
+            height: 14,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.ink,
+              shape: BoxShape.circle,
+              border: Border.all(color: colors.surface, width: 2.5),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

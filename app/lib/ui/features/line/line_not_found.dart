@@ -20,7 +20,7 @@ class LineNotFound extends StatelessWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(Space.x6),
+          padding: EdgeInsets.all(marginFor(context)),
           child: Column(
             children: <Widget>[
               Align(

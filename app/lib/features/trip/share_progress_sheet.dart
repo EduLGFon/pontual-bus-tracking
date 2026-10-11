@@ -225,8 +225,10 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
         if (tracker.errorCode == 'area') {
           return UiStrings.shareOutsideArea;
         }
+        if (tracker.errorCode == 'capacity') {
+          return UiStrings.capacity;
+        }
         if (tracker.errorCode == 'quota' ||
-            tracker.errorCode == 'capacity' ||
             tracker.errorCode == 'rate' ||
             tracker.errorCode == 'maint') {
           return UiStrings.shareBusy;

@@ -18,6 +18,7 @@ class VehicleVM {
     required this.ageSeconds,
     required this.certainty,
     this.ordinal,
+    this.paceFactor,
   });
 
   /// Internal id. Never displayed.
@@ -47,6 +48,10 @@ class VehicleVM {
   /// Display position: 1, 2, 3 by recency. Null before assignment.
   final int? ordinal;
 
+  /// Recent pace along the route divided by the usual pace, kept in memory
+  /// for the life of the vehicle only (UI_SPEC 13.1). Null when unknown.
+  final double? paceFactor;
+
   /// True when the heading triangle should be drawn.
   bool get showsHeading =>
       certainty == Certainty.live &&
@@ -65,6 +70,7 @@ class VehicleVM {
       ageSeconds: ageSeconds,
       certainty: certainty,
       ordinal: value,
+      paceFactor: paceFactor,
     );
   }
 }

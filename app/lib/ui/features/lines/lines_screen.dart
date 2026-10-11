@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
-import 'package:pontual/ui/adapters/arrivals_adapter.dart';
+import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/design/components/chip.dart';
@@ -18,7 +18,9 @@ import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
+import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
+import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/format_eta.dart';
@@ -58,29 +60,41 @@ final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
           );
     });
 
-/// Hero text of the next departure of a line key, empty when nothing is left
-/// today. Reads through the arrivals seam, so a live or predicted source
-/// replaces the timetable without any change here.
-final nextDepartureProvider = FutureProvider.family<String, String>((
+/// Next departure of a line key, empty when nothing is left today. Reads
+/// the static data of today only and formats the first upcoming time, so
+/// rows build synchronously: no per-row future, no staggered rebuild while
+/// scrolling. Also drops times of other day types, which the old merged
+/// scan could surface on the wrong day.
+final nextDepartureProvider = Provider.family<String, String>((
   Ref ref,
   String key,
-) async {
+) {
   final StaticLine? line = ref.watch(staticLinesByKeyProvider)[key];
   if (line == null) {
     return '';
   }
-  final ArrivalsSource source = ref.watch(arrivalsSourceProvider(line));
-  final DateTime now = ref.watch(currentNowProvider);
-  // Limit 0 asks for every departure, so the first one still to leave wins
-  // instead of the first of a truncated list.
-  final List<ArrivalVM> all = await source
-      .watch(ArrivalQuery(lineKey: key, limit: 0))
-      .first;
-  // The first departure that has not left yet is the one the row shows.
-  for (final ArrivalVM arrival in all) {
-    if (!arrival.isPast(now)) {
-      return formatEta(arrival, now).primary;
+  final DateTime local = saoMateusTime(ref.watch(currentNowProvider));
+  final int nowMinutes = local.hour * 60 + local.minute;
+  for (final String time in timetableTimesOf(line, dayTypeFor(local), null)) {
+    final int? minutes = parseMinutesOf(time);
+    if (minutes == null || minutes <= nowMinutes) {
+      continue;
     }
+    return formatEta(
+      ArrivalVM(
+        lineKey: key,
+        at: DateTime.utc(
+          local.year,
+          local.month,
+          local.day,
+          minutes ~/ 60,
+          minutes % 60,
+        ),
+        certainty: Certainty.scheduled,
+        asOf: local,
+      ),
+      local,
+    ).primary;
   }
   return '';
 });
@@ -150,10 +164,10 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Space.x5,
+      padding: EdgeInsets.fromLTRB(
+        marginFor(context),
         Space.x6,
-        Space.x5,
+        marginFor(context),
         Space.x2,
       ),
       child: Column(
@@ -178,7 +192,12 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x5, Space.x3),
+      padding: EdgeInsets.fromLTRB(
+        marginFor(context),
+        0,
+        marginFor(context),
+        Space.x3,
+      ),
       child: Row(
         children: <Widget>[
           for (final LinesFilter value in LinesFilter.values) ...<Widget>[
@@ -206,10 +225,10 @@ class _LineCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<String> next = ref.watch(nextDepartureProvider(line.key));
+    final String next = ref.watch(nextDepartureProvider(line.key));
     return LineRow(
       line: line,
-      nextEta: next.value ?? '',
+      nextEta: next,
       onToggleFavorite: () => _toggleFavorite(ref),
       onTap: () => context.push('/line/${line.key}'),
     );

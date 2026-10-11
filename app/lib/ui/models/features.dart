@@ -18,6 +18,7 @@ class Features {
     this.reliability = false,
     this.followVehicle = true,
     this.routeLine = false,
+    this.localKudos = false,
   });
 
   /// Home shortcut cards.
@@ -50,6 +51,9 @@ class Features {
   /// Route polyline on the line map. Off until route data exists.
   final bool routeLine;
 
+  /// Device-only "you helped N trips" counter on the end card.
+  final bool localKudos;
+
   /// Returns a copy with overrides applied. Unknown JSON keys are ignored.
   Features copyWith({
     bool? shortcuts,
@@ -62,6 +66,7 @@ class Features {
     bool? reliability,
     bool? followVehicle,
     bool? routeLine,
+    bool? localKudos,
   }) {
     return Features(
       shortcuts: shortcuts ?? this.shortcuts,
@@ -74,6 +79,7 @@ class Features {
       reliability: reliability ?? this.reliability,
       followVehicle: followVehicle ?? this.followVehicle,
       routeLine: routeLine ?? this.routeLine,
+      localKudos: localKudos ?? this.localKudos,
     );
   }
 
@@ -92,6 +98,7 @@ class Features {
       reliability: _flag(json, 'reliability') ?? base.reliability,
       followVehicle: _flag(json, 'follow_vehicle') ?? base.followVehicle,
       routeLine: _flag(json, 'route_line') ?? base.routeLine,
+      localKudos: _flag(json, 'local_kudos') ?? base.localKudos,
     );
   }
 

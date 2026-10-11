@@ -4,6 +4,27 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- UI fix sweep: home links switch to the Linhas tab so the bottom bar
+  follows, every screen uses the breakpoint gutter, all sheets share
+  the transparent safe-area chrome with keyboard insets where they own
+  a field, the trip pill hugs its content and hides under modal sheets
+  in both layouts, map controls anchor without overlap, the map frames
+  the city on entry and draws a viewer dot from a one-shot lookup
+  (already-granted permission only, off in data saver, never sent),
+  and lines rows build synchronously for stutter-free scrolling.
+- UI_SPEC sections 14-18 compliance: router not-found page, web drag
+  scrolling, edge-to-edge transparent bars, tagline on About, exact
+  capacity copy, future models and seams (alert rules, reliability
+  aggregates, alerts store, live-aware and composite arrivals,
+  `localKudos` flag, optional pace factor), flagged future components
+  (Sparkline, ConfidenceMeter, AlertSheet, ReliabilityCard,
+  PredictionInfoSheet), prediction visuals (GhostMarker, PredictedPath,
+  gallery demo), the Saindo agora home feed, a debug frame-timing logger,
+  and automated guideline tests in both themes (Segmented raised to 56 dp
+  for 48 dp targets; light scheduled and warning text darkened one step
+  for badge contrast). Deferred map import stays eager per DECISIONS.md
+  D-U20. Brand vector source plus `docs/ui/PERF.md` baseline added; past
+  arrivals dim by colour alpha instead of Opacity.
 - New UI foundation (docs/ui/UI_SPEC.md): design tokens with WCAG AA
   contrast enforced by a test, Manrope variable subset at 51 KB, custom
   painted domain icons, certainty system (live, predicted, scheduled,
@@ -71,6 +92,7 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 - T36 web build done (Pontual PWA manifest, self-hosted assets, wasm dual build, first load inside 3 MB budget).
 - T38 web sharing done (Screen Wake Lock via wakelock_plus, foreground banner, 60 s hidden pause; JS path inside size budget, wasm path 3 percent over).
 - T39 iOS install hint done (one-time Safari share-sheet card on iOS web).
+- Android web download hint done (one-time native-app card on Android web, Baixar app downloads the latest release APK; release workflow also builds and uploads the universal APK).
 - T40 settings and about done (theme with persistence, help, timetable date, sources, OSM attribution, licences, repo link; contact hidden until INFRA-23).
 - T41 privacy center done (bundled policy/terms, 6-line summary, delete-my-data end-to-end AC13, revoke consent; support code cut per cut order).
 - T42 privacy docs done (policy and terms drafts pt-BR, RIPD-lite, data inventory; lawyer review and contact still owner-blocked).

@@ -30,6 +30,7 @@ class LineBadge extends StatelessWidget {
     this.size = BadgeSize.m,
     this.color,
     this.heroTag,
+    this.dimmed = false,
     super.key,
   });
 
@@ -38,6 +39,7 @@ class LineBadge extends StatelessWidget {
     LineVM line, {
     BadgeSize size = BadgeSize.m,
     String? heroTag,
+    bool dimmed = false,
   }) {
     return LineBadge(
       lineKey: line.key,
@@ -45,6 +47,7 @@ class LineBadge extends StatelessWidget {
       size: size,
       color: line.color,
       heroTag: heroTag,
+      dimmed: dimmed,
     );
   }
 
@@ -63,14 +66,19 @@ class LineBadge extends StatelessWidget {
   /// Optional Hero tag. Never used with the map.
   final String? heroTag;
 
+  /// Dims the fill and glyph by colour alpha for past content.
+  final bool dimmed;
+
   @override
   Widget build(BuildContext context) {
-    final Color fill = lineColorOf(
+    final Color resolved = lineColorOf(
       lineKey,
       brightness: Theme.of(context).brightness,
       colorValue: color,
     );
-    final Color onFill = lineBadgeTextOf(fill);
+    final Color fill = dimmed ? resolved.withValues(alpha: 0.55) : resolved;
+    final Color onFill = lineBadgeTextOf(resolved)
+        .withValues(alpha: dimmed ? 0.55 : 1);
     final double height = switch (size) {
       BadgeSize.s => Sizes.badgeS,
       BadgeSize.m => Sizes.badgeM,

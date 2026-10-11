@@ -133,3 +133,49 @@ final arrivalsSourceProvider = Provider.family<ArrivalsSource, StaticLine>((
   final DateTime now = ref.watch(currentNowProvider);
   return TimetableArrivalsSource(line: line, now: now);
 });
+
+/// Live-aware source. Overlays live and predicted arrivals when the
+/// backend provides ETA; until then it answers the timetable base with
+/// no layout change. Flagged by `Features.eta`.
+class LiveAwareArrivalsSource implements ArrivalsSource {
+  /// Creates the source over the timetable [base].
+  const LiveAwareArrivalsSource({required this.base});
+
+  /// Timetable source underneath.
+  final ArrivalsSource base;
+
+  @override
+  Stream<List<ArrivalVM>> watch(ArrivalQuery query) => base.watch(query);
+}
+
+/// Merges sources with live winning over predicted over scheduled.
+/// Flagged by `Features.eta`; today it holds one source.
+class CompositeArrivalsSource implements ArrivalsSource {
+  /// Creates the merge over [sources], highest priority first.
+  const CompositeArrivalsSource({required this.sources});
+
+  /// Sources in priority order.
+  final List<ArrivalsSource> sources;
+
+  @override
+  Stream<List<ArrivalVM>> watch(ArrivalQuery query) {
+    if (sources.isEmpty) {
+      return Stream<List<ArrivalVM>>.value(const <ArrivalVM>[]);
+    }
+    return sources.first.watch(query);
+  }
+
+  /// Picks the winning arrival per line key by certainty rank (lower wins:
+  /// live over predicted over scheduled; stale never wins anything).
+  static List<ArrivalVM> mergeByRank(List<ArrivalVM> arrivals) {
+    final Map<String, ArrivalVM> best = <String, ArrivalVM>{};
+    for (final ArrivalVM a in arrivals) {
+      final ArrivalVM? current = best[a.lineKey];
+      if (current == null ||
+          certaintyRank(a.certainty) < certaintyRank(current.certainty)) {
+        best[a.lineKey] = a;
+      }
+    }
+    return best.values.toList();
+  }
+}
