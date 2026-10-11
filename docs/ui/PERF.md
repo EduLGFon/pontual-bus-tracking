@@ -26,15 +26,16 @@ still wanted for raster p95, battery and field latency.
 | Memory on Home | none set | 124,427 KB PSS (121.5 MB) | recorded as the new baseline |
 | arm64 APK | delta <= +400 KB (PLAN universal APK <= 25 MB) | 20,395,264 bytes (19.5 MB); libflutter.so 11.75 MB, libapp.so 7.21 MB, classes.dex 1.49 MB, Manrope 51 KB, line data 8 KB | inside PLAN; delta vs an older AAB below |
 | Per-ABI APKs | BigDelta | armeabi-v7a 17.9 MB, arm64-v8a 20.4 MB, x86_64 21.9 MB | recorded |
-| Universal AAB | PLAN arm64 <= 15 MB (Play strips per ABI) | 56.1 MB plain release; 52.3 MB baseline used CI flags (`--obfuscate --split-debug-info`), so the honest delta waits for the CI-flags rebuild | see note below |
+| Universal AAB | PLAN arm64 <= 15 MB (Play strips per ABI) | 52,337,359 bytes (52.3 MB) with the exact CI flags (`--obfuscate --split-debug-info`); identical to the 52.3 MB D-U16 baseline | delta inside the +400 KB budget |
 | Web `main.dart.js` (gz) | delta <= +120 KB (PLAN first load <= 3 MB) | 973,863 bytes gz (951 KB) | new baseline |
 | Web first load, Chrome path (gz) | PLAN <= 3 MB | ~3.10 MB (main.dart.js 971 KB + chromium/canvaskit.wasm 2.06 MB + js/fonts/html) | ~3 % over; canvaskit.wasm dominates, same class as the documented wasm overage |
 | Screenshots | 17.2 matrix, light/dark x 1.0/2.0 | web desktop/narrow/dark plus device lines/line shots in `tools/perf/results/` | partial; full matrix still wants a phone |
 
 AAB delta note: the 52.3 MB baseline (D-U16) was built with the CI
-release flags. A same-flags rebuild is running to produce the comparable
-number; this table is updated with it when it lands. If the delta exceeds
-+400 KB, it gets an ADR like any other budget miss.
+release flags, and the same-flags rebuild of this tree is 52,337,359
+bytes (52.3 MB). Delta is inside the +400 KB budget. (A plain release
+without `--split-debug-info` is 56.1 MB; the debug info is what the flag
+strips.)
 
 ## Baselines
 
