@@ -1380,3 +1380,29 @@ first load sits inside the 3 MB budget with the eager import, so the
 refactor buys no proven gain against real regression risk in the camera,
 marker and attribution layer. Handling: keep the eager import, revisit with
 measurements if the web budget regresses.
+
+## D-U21-2026-10-11: full verification green, deploy stays owner-blocked
+
+Verification of the sections 14-18 compliance tree (HEAD `a78320a`
+plus the commits in D-U19, all on branch `dev`):
+
+- App: `flutter analyze` clean, `dart format --set-exit-if-changed`
+  clean (196 files), full `flutter test` green (261 passed, 1 skipped),
+  manifest source audit PASS, `flutter build web --release` EXIT 0
+  (build/web 42.7 MB uncompressed, `main.dart.js` 973,863 bytes gz, about
+  951 KB, no regression vs the 950 KB PERF baseline; PLAN 3 MB budget
+  holds).
+- Server (unchanged code): `deno fmt --check`, `deno lint`,
+  `deno check` clean; `deno task test` 74 passed against an isolated
+  throwaway PG 16 container on 5433 (migrated with dbmate 2.36.0, dropped
+  afterwards). Never run against a live soak DB (T46 rule).
+- Tools/data: `deno fmt`, `lint`, `data-test` (3 passed), `data-validate`
+  (21 lines), `data-build` (9,473 bytes, inside 100 KB) green.
+- Workflows: all three YAML files parse. Gitleaks runs in CI (not
+  installed on this host).
+- Deploy: not executed. `deploy-static.yml` fails fast without the repo
+  var `API_ORIGIN` (INFRA-05, owner-blocked) plus the Pages setup, and
+  `release-android.yml` needs the upload keystore secrets plus a `v*`
+  tag. Pushing `dev` to `master` without the var would only produce a
+  red run, so no push was attempted. Owner actions: set `API_ORIGIN`
+  (and optional `STATIC_ORIGIN`), enable Pages, merge to `master`.
