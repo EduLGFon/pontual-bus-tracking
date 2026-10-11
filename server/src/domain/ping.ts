@@ -3,6 +3,7 @@
 // Engine checks line validity, bbox, plausibility, and capacity.
 // See PLAN.md 6.6 steps for startTrip, applyPing, endTrip.
 import { isCoherent, nearestVehicle } from "./attach.ts";
+import { recordPassage } from "./arrivals.ts";
 import { distM, distToPolylineM } from "./geo.ts";
 import { impliedSpeedMps, validateFix } from "./validate.ts";
 import type { Store } from "../state/store.ts";
@@ -217,6 +218,7 @@ export function applyPing(
       });
       trip.vehicleId = id;
       trip.role = "L";
+      recordPassage(store, trip.lineId, nowMs);
       return { role: "L", intervalS: cfg.leaderIntervalMovingS };
     } else {
       return { role: "W", intervalS: cfg.waitingIntervalS };

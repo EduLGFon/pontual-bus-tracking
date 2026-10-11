@@ -2,6 +2,7 @@
 // leaders, and marks changed lines for snapshot emit. Pure; time is a
 // parameter. Overlap guard lives in jobs/ (T11). See PLAN.md 6.6.
 import { bestMember } from "./election.ts";
+import { prunePassages } from "./arrivals.ts";
 import { endTrip } from "./ping.ts";
 import { membersOf, removeVehicle, vehiclesOfLine } from "../state/store.ts";
 import type { Store } from "../state/store.ts";
@@ -23,6 +24,7 @@ export function tick(
   cfg: EngineConfig,
 ): TickResult {
   if (store.trips.size === 0 && store.vehicles.size === 0) {
+    prunePassages(store, nowMs);
     return { changedLines: [] };
   }
   const changed = new Set<number>();
@@ -86,5 +88,6 @@ export function tick(
     }
   }
 
+  prunePassages(store, nowMs);
   return { changedLines: [...changed] };
 }

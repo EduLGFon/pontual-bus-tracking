@@ -8,6 +8,8 @@ export interface Store {
   vehicles: Map<number, Vehicle>;
   byLine: Map<number, Set<number>>;
   nextVehicleId: number;
+  /** D30: anonymous vehicle-sighting millis per line (no positions/ids). */
+  passages: Map<number, number[]>;
 }
 
 export function createStore(): Store {
@@ -16,6 +18,7 @@ export function createStore(): Store {
     vehicles: new Map(),
     byLine: new Map(),
     nextVehicleId: 1,
+    passages: new Map(),
   };
 }
 

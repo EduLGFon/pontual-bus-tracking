@@ -2,6 +2,7 @@
 // public by design; reads need no login. See PLAN.md 6.5 and 6.8.
 import { Hono } from "@hono/hono";
 import type { LineResolver } from "../data/lines.ts";
+import { arrivalsPayload } from "../domain/arrivals.ts";
 import { defaultEngineConfig } from "../domain/types.ts";
 import {
   recordHttp403,
@@ -76,6 +77,22 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     const { body } = livePayload(deps.store, Date.now(), cfg.publishTtlS);
     c.header("Cache-Control", "public, max-age=10");
     return c.body(body, 200, { "content-type": "application/json" });
+  });
+
+  // D30: anonymous recent passages for one line. Timestamps only, no
+  // positions and no ids. Additive; timetables stay the fallback.
+  app.get("/v1/lines/:id/arrivals", (c) => {
+    if (!vehiclesPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      recordHttp429();
+      return c.json({ e: "rate" }, 429);
+    }
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
+    const line = deps.lines(id);
+    if (!line || !line.isActive) return c.json({ e: "line" }, 404);
+    c.header("Cache-Control", "public, max-age=10");
+    return c.json(arrivalsPayload(deps.store, id, Date.now()));
   });
 
   app.get("/v1/stream", (c) => {
