@@ -1774,7 +1774,7 @@ Verified: `flutter analyze` clean on both files,
 `flutter test test/ui/line_screen_test.dart` 4 passed. Full suite not
 run to green (timed out locally).
 
-## D-U29-2026-10-12: test suite slimmed for speed, 46 files to 28
+## D-U30-2026-10-12: test suite slimmed for speed, 46 files to 28
 
 Request: `flutter test` too big and slow; remove the unimportant parts
 and make the rest faster.
