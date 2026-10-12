@@ -44,6 +44,12 @@ class RecentsNotifier extends Notifier<List<String>> {
     state = const <String>[];
     unawaited(const RecentsStore().clear());
   }
+
+  /// Restores a previous list, used by the undo action after clearing.
+  void restore(List<String> keys) {
+    state = keys.toList();
+    unawaited(const RecentsStore().write(keys));
+  }
 }
 
 /// Provides the recent line keys of Início.

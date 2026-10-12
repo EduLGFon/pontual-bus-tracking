@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
@@ -13,8 +12,12 @@ import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/models/line_vm.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/features/home/home_providers.dart';
+
+/// Maximum recent lines shown on Início. The store keeps more.
+const int _recentsShownMax = 4;
 
 /// Characters of a line name shown on a recent chip.
 const int _recentNameMax = 14;
@@ -64,8 +67,9 @@ class RecentsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final List<String> keys = ref.watch(homeRecentsProvider);
     final List<LineVM> items = <LineVM>[];
-    for (final String key in ref.watch(homeRecentsProvider)) {
+    for (final String key in keys.take(_recentsShownMax)) {
       final LineVM? line = lineByKey(lines, key);
       if (line != null) {
         items.add(line);
@@ -80,7 +84,21 @@ class RecentsSection extends ConsumerWidget {
         SectionHeader(
           title: UiStrings.homeRecents,
           actionLabel: UiStrings.homeRecentsClear,
-          onAction: () => ref.read(homeRecentsProvider.notifier).clear(),
+          // Single tap clears with an undo toast instead of a confirm
+          // dialog. The toast action restores the previous list.
+          onAction: () {
+            final List<String> previous = ref.read(homeRecentsProvider);
+            ref.read(homeRecentsProvider.notifier).clear();
+            ref
+                .read(toastControllerProvider.notifier)
+                .show(
+                  UiStrings.homeRecentsCleared,
+                  actionLabel: UiStrings.undo,
+                  onAction: () => ref
+                      .read(homeRecentsProvider.notifier)
+                      .restore(previous),
+                );
+          },
         ),
         Wrap(
           spacing: Space.x2,
@@ -138,7 +156,8 @@ class _RecentLineChip extends StatelessWidget {
   }
 }
 
-/// Compact card shown when no line is sharing a live position.
+/// Compact card shown when no line is sharing a live position. No
+/// timetable link: the `Todas as linhas` row below already covers that.
 class NoLiveCard extends StatelessWidget {
   /// Creates the no-live empty card.
   const NoLiveCard({super.key});
@@ -151,21 +170,24 @@ class NoLiveCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(UiStrings.homeNoLive, style: context.text.headline),
-          const SizedBox(height: Space.x2),
+          const SizedBox(height: Space.x1),
           Text(
             UiStrings.homeNoLiveHint,
             style: context.text.body.copyWith(color: context.colors.inkMuted),
           ),
           const SizedBox(height: Space.x2),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GhostButton(
-              label: UiStrings.seeTimetable,
-              icon: Icons.schedule_rounded,
-              // Same branch switch as above: the button leaves Início for
-              // the Linhas tab, so the bottom bar must follow.
-              onPressed: () => context.go('/lines'),
-            ),
+          Row(
+            children: <Widget>[
+              Icon(
+                Icons.privacy_tip_outlined,
+                size: 16,
+                color: context.colors.inkMuted,
+              ),
+              const SizedBox(width: Space.x2),
+              Expanded(
+                child: Text(UiStrings.homeTrust, style: context.text.caption),
+              ),
+            ],
           ),
         ],
       ),

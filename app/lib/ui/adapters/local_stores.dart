@@ -127,6 +127,18 @@ class RecentsStore {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(recentsKey);
   }
+
+  /// Overwrites the list, newest first, trimmed to [maxRecents].
+  Future<void> write(List<String> keys) async {
+    final List<String> trimmed = keys
+        .where((String key) => key.isNotEmpty)
+        .toList();
+    if (trimmed.length > maxRecents) {
+      trimmed.removeRange(maxRecents, trimmed.length);
+    }
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(recentsKey, trimmed);
+  }
 }
 
 /// Maximum number of recent lines kept.
