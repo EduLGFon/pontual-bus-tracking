@@ -9,6 +9,7 @@ import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/home/home_logic.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
@@ -135,11 +136,12 @@ class ArrivalRow extends StatelessWidget {
   }
 
   String _subtitle() {
-    final List<String> parts = <String>[
-      if (line.terminalsText.isNotEmpty) line.terminalsText,
-      if (arrival.originLabel != null) arrival.originLabel!,
-    ];
-    return parts.isEmpty ? '' : parts.join(' · ');
+    // A terminals text of `Litorâneo · Aviação` plus an origin of
+    // `Aviação` must render once, never tripled. Pure and unit tested.
+    return joinSubtitle(<String>[
+      line.terminalsText,
+      arrival.originLabel ?? '',
+    ]);
   }
 }
 
