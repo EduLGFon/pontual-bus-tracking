@@ -43,7 +43,7 @@ void main() {
       expect(find.text(UiStrings.tripHero), findsOneWidget);
       expect(find.text(UiStrings.connection), findsOneWidget);
       expect(find.text(UiStrings.gps), findsOneWidget);
-      expect(find.text(UiStrings.endTrip), findsOneWidget);
+      expect(find.text(UiStrings.tripStop), findsOneWidget);
       expect(tester.takeException(), isNull);
       // Inline teardown: the invariant check runs before addTearDown, so
       // the controller and its timers must stop inside the test body.
@@ -58,7 +58,7 @@ void main() {
       await rig.start(r);
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
-      expect(find.textContaining(RegExp(r'\d\d:\d\d:\d\d')), findsWidgets);
+      expect(find.textContaining('há '), findsWidgets);
       r.controller.dispose();
       await r.positions.close();
     });
@@ -70,11 +70,15 @@ void main() {
       await rig.start(r);
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
-      await tester.tap(find.text(UiStrings.endTrip));
-      await tester.pumpAndSettle();
+      await tester.tap(find.text(UiStrings.tripStop));
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(find.text(UiStrings.endTitle), findsOneWidget);
-      expect(find.text(UiStrings.endBack), findsOneWidget);
+      expect(find.text(UiStrings.endDone), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // Unmount to cancel the end-card auto-dismiss timer, then stop.
+      await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
     });

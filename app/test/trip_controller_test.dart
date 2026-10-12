@@ -17,6 +17,7 @@ import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/trip/trip_end_card.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeGateway implements PermissionGateway {
@@ -527,6 +528,8 @@ void main() {
     expect(find.textContaining('inconsistentes'), findsOneWidget);
 
     await pumpCard(TripEndKind.user, null);
-    expect(find.text('Voltar às linhas'), findsOneWidget);
+    expect(find.text(UiStrings.endDone), findsOneWidget);
+    // Unmount to cancel the auto-dismiss timer before teardown.
+    await tester.pumpWidget(Container());
   });
 }
