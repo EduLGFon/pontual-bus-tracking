@@ -1,8 +1,9 @@
 // LineBadge: rounded 999 pill with the line short code, filled from the
-// deterministic line palette and with a text colour computed for contrast.
+// business category palette and with a text colour computed for contrast.
 // Optional Hero tag for the line screen transition.
-// See docs/ui/UI_SPEC.md 5.
+// See docs/ui/UI_SPEC.md 5 and docs/ui/lines-redesign.md.
 import 'package:flutter/material.dart';
+import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/design/icons/bus_icon.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -29,12 +30,14 @@ class LineBadge extends StatelessWidget {
     required this.text,
     this.size = BadgeSize.m,
     this.color,
+    this.category,
     this.heroTag,
     this.dimmed = false,
     super.key,
   });
 
-  /// Builds a badge from a line view-model.
+  /// Builds a badge from a line view-model, resolving the business
+  /// category from the line itself so every badge shares one source.
   factory LineBadge.ofLine(
     LineVM line, {
     BadgeSize size = BadgeSize.m,
@@ -46,12 +49,18 @@ class LineBadge extends StatelessWidget {
       text: line.badgeText,
       size: size,
       color: line.color,
+      category: categoryFor(
+        short: line.short ?? '',
+        name: line.name,
+        terminals: line.terminals,
+        areaTags: line.areaTags,
+      ),
       heroTag: heroTag,
       dimmed: dimmed,
     );
   }
 
-  /// Stable line key used to hash the colour.
+  /// Stable line key used to hash the colour when no category applies.
   final String lineKey;
 
   /// Badge text. Empty shows a bus icon instead.
@@ -63,6 +72,9 @@ class LineBadge extends StatelessWidget {
   /// Optional colour from data, validated before use.
   final Color? color;
 
+  /// Business category, resolved by the factory. Null keeps the hash fallback.
+  final LineCategory? category;
+
   /// Optional Hero tag. Never used with the map.
   final String? heroTag;
 
@@ -71,10 +83,14 @@ class LineBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Brightness brightness = Theme.of(context).brightness;
+    final Color? categoryFill = category == null
+        ? null
+        : categoryColorOf(category!, brightness: brightness);
     final Color resolved = lineColorOf(
       lineKey,
-      brightness: Theme.of(context).brightness,
-      colorValue: color,
+      brightness: brightness,
+      colorValue: color ?? categoryFill,
     );
     final Color fill = dimmed ? resolved.withValues(alpha: 0.55) : resolved;
     final Color onFill = lineBadgeTextOf(resolved)

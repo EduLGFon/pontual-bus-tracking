@@ -2,6 +2,7 @@
 // WCAG 2.2 AA: 4.5:1 for text, 3:1 for graphics. See UI_SPEC 4.1 and 12.6.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/design/tokens/colors.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/util/contrast.dart';
@@ -118,6 +119,25 @@ void main() {
         greaterThanOrEqualTo(4.5),
         reason: 'badge text on $fill is ${ratio.toStringAsFixed(2)}',
       );
+    }
+  });
+
+  test('category badge text reaches 4.5:1 in both themes', () {
+    for (final Map<LineCategory, Color> palette in <Map<LineCategory, Color>>[
+      lineCategoryLight,
+      lineCategoryDark,
+    ]) {
+      for (final MapEntry<LineCategory, Color> entry in palette.entries) {
+        final Color text = lineBadgeTextOf(entry.value);
+        final double ratio = contrastRatio(entry.value, text);
+        expect(
+          ratio,
+          greaterThanOrEqualTo(4.5),
+          reason:
+              'category ${entry.key} text on ${entry.value} '
+              'is ${ratio.toStringAsFixed(2)}',
+        );
+      }
     }
   });
 
