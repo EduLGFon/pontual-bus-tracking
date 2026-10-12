@@ -11,6 +11,7 @@ import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -48,6 +49,7 @@ class LiveNowSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: Space.x2),
             child: LineRow(
               line: line,
+              status: const LineStatus.live(),
               onTap: () => context.push('/line/${line.key}'),
             ),
           ),

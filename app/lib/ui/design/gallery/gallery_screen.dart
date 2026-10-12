@@ -36,6 +36,7 @@ import 'package:pontual/ui/design/components/vehicle_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/reliability.dart';
 import 'package:pontual/ui/models/trip_vm.dart';
@@ -165,7 +166,7 @@ class _GalleryBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        LineRow(line: line, onTap: () {}),
+        LineRow(line: line, status: const LineStatus.live(), onTap: () {}),
         const SizedBox(height: 12),
         ArrivalRow(
           arrival: _arrival,

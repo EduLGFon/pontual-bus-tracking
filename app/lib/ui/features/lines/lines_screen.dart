@@ -10,9 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/line_category.dart';
-import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
-import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
@@ -22,11 +20,9 @@ import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
-import 'package:pontual/ui/models/arrival_vm.dart';
-import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
-import 'package:pontual/ui/util/format_eta.dart';
 
 /// Filters offered by the chips row.
 enum LinesFilter {
@@ -49,7 +45,7 @@ enum LinesFilter {
   const LinesFilter(this.value, this.label);
 }
 
-/// Static lines keyed by code, so each row can reach its arrivals source.
+/// Static lines keyed by code, so the header can count timetabled lines.
 final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
     Provider<Map<String, StaticLine>>((Ref ref) {
       return ref
@@ -61,53 +57,6 @@ final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
             orElse: () => const <String, StaticLine>{},
           );
     });
-
-/// Next departure of a line key. Today wins at or after now; otherwise the
-/// first departure of the next service day wins as `Amanhã HH:mm`; empty
-/// when the line has no timetable at all. Uses the shared minute rule from
-/// domain/schedule so Home and Linhas agree. `currentNowProvider` already
-/// holds São Mateus wall clock, so no extra conversion applies here.
-final nextDepartureProvider = Provider.family<String, String>((
-  Ref ref,
-  String key,
-) {
-  final StaticLine? line = ref.watch(staticLinesByKeyProvider)[key];
-  if (line == null) {
-    return '';
-  }
-  final DateTime now = ref.watch(currentNowProvider);
-  final int nowMinutes = nowMinutesOf(now);
-  final List<String> today = timetableTimesOf(line, dayTypeFor(now), null);
-  final DayType tomorrowType = dayTypeFor(now.add(const Duration(days: 1)));
-  final List<String> tomorrow = timetableTimesOf(line, tomorrowType, null);
-  final NextDeparture? next = resolveNextDeparture(
-    todayTimes: today,
-    tomorrowTimes: tomorrow,
-    nowMinutes: nowMinutes,
-  );
-  if (next == null) {
-    return '';
-  }
-  if (next.isTomorrow) {
-    return UiStrings.homeTomorrowAt(next.time);
-  }
-  final int minutes = minutesOf(next.time);
-  return formatEta(
-    ArrivalVM(
-      lineKey: key,
-      at: DateTime.utc(
-        now.year,
-        now.month,
-        now.day,
-        minutes ~/ 60,
-        minutes % 60,
-      ),
-      certainty: Certainty.scheduled,
-      asOf: now,
-    ),
-    now,
-  ).primary;
-});
 
 /// The Linhas screen.
 class LinesScreen extends ConsumerWidget {
@@ -289,7 +238,9 @@ class _FilterRow extends StatelessWidget {
   }
 }
 
-/// One row of the list, with its star toggle and its next departure.
+/// One row of the list, with its star toggle and its live status.
+/// The status comes from the shared adapter provider, so only the small
+/// status text rebuilds on tick, not the list order.
 class _LineCard extends ConsumerWidget {
   /// Creates the row for [line].
   const _LineCard({required this.line});
@@ -299,15 +250,12 @@ class _LineCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String next = ref.watch(nextDepartureProvider(line.key));
+    final LineStatus status = ref.watch(lineStatusProvider(line.key));
     final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
-    final StaticLine? staticLine = ref.watch(staticLinesByKeyProvider)[line.key];
-    final bool timed = staticLine != null && hasTimetable(staticLine);
     return LineRow(
       line: line,
-      nextEta: next,
+      status: status,
       isFavorite: isFavorite,
-      hasTimetable: timed,
       onToggleFavorite: () => _toggleFavorite(ref),
       onTap: () => context.push('/line/${line.key}'),
     );

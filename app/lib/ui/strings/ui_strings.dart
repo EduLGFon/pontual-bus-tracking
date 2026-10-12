@@ -243,6 +243,13 @@ class UiStrings {
   /// Star remove action label.
   static const String unfavorite = 'Remover dos favoritos';
 
+  /// Per-line favorite action, for example "Favoritar linha 13".
+  static String favoriteLine(String short) => 'Favoritar linha $short';
+
+  /// Per-line unfavorite action, for example "Remover linha 13 dos favoritos".
+  static String unfavoriteLine(String short) =>
+      'Remover linha $short dos favoritos';
+
   /// Row action opening a line.
   static const String openLine = 'Abrir linha';
 

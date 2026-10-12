@@ -109,7 +109,7 @@ void main() {
 
     expect(find.text(UiStrings.homeLiveNow), findsOneWidget);
     expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-    expect(find.text('2 ${UiStrings.oneLive}'), findsWidgets);
+    expect(find.textContaining(UiStrings.certaintyLive), findsWidgets);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 

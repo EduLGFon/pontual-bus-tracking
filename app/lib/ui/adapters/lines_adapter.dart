@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/api/dto.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/schedule.dart';
+import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/features/timetable/timetable_data.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/util/search_index.dart';
 
@@ -97,3 +101,52 @@ int? lineIdOfKey(List<StaticLine> lines, String key) {
   }
   return null;
 }
+
+/// Status of one line key for the row status line. Watches the clock, so
+/// only the status text rebuilds on tick, not the list order. Shared by
+/// Linhas, Início live rows and Busca browse rows: one source, no second
+/// implementation of the same rule.
+final lineStatusProvider = Provider.family<LineStatus, String>((
+  Ref ref,
+  String key,
+) {
+  LineVM? vm;
+  for (final LineVM line in ref.watch(linesVmProvider)) {
+    if (line.key == key) {
+      vm = line;
+      break;
+    }
+  }
+  if (vm == null) {
+    return const LineStatus.noTimetable();
+  }
+  final List<StaticLine> statics =
+      ref.watch(linesProvider).asData?.value ?? const <StaticLine>[];
+  StaticLine? found;
+  for (final StaticLine s in statics) {
+    if (s.code == key) {
+      found = s;
+      break;
+    }
+  }
+  final bool timed = found != null && hasTimetable(found);
+  final DateTime now = ref.watch(currentNowProvider);
+  final int nowMinutes = nowMinutesOf(now);
+  NextDeparture? next;
+  if (timed && found != null) {
+    final List<String> today = timetableTimesOf(found, dayTypeFor(now), null);
+    final DayType tomorrowType = dayTypeFor(now.add(const Duration(days: 1)));
+    final List<String> tomorrow = timetableTimesOf(found, tomorrowType, null);
+    next = resolveNextDeparture(
+      todayTimes: today,
+      tomorrowTimes: tomorrow,
+      nowMinutes: nowMinutes,
+    );
+  }
+  return resolveLineStatus(
+    isLive: vm.isLive,
+    hasTimetable: timed,
+    next: next,
+    nowMinutes: nowMinutes,
+  );
+});
