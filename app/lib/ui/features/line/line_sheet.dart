@@ -11,6 +11,7 @@ import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/alerts_store.dart';
+import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
@@ -109,6 +110,12 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   Widget build(BuildContext context) {
     final DateTime now = ref.watch(currentNowProvider);
     final colors = context.colors;
+    final status = ref.watch(lineStatusProvider(widget.line.key));
+    void openTimetable() {
+      setState(() => _tab = SheetTab.timetable);
+      widget.onTabChanged?.call(SheetTab.timetable);
+    }
+
     return RepaintBoundary(
       child: Container(
         decoration: BoxDecoration(
@@ -145,7 +152,12 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               ),
             ),
             const SizedBox(height: Space.x3),
-            LineSheetHeader(line: widget.line, vehicles: widget.vehicles),
+            LineSheetHeader(
+              line: widget.line,
+              vehicles: widget.vehicles,
+              status: status,
+              onOpenTimetable: openTimetable,
+            ),
             const SizedBox(height: Space.x3),
             _tabs(),
             const SizedBox(height: Space.x4),

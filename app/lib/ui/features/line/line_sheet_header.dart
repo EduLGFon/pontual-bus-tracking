@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
+import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -19,6 +20,7 @@ import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/util/format_eta.dart';
 
 /// Certainty shown by the header chip: live when a fresh position exists,
 /// predicted when the newest value is a labeled estimate, stale when
@@ -57,6 +59,8 @@ class LineSheetHeader extends StatelessWidget {
   const LineSheetHeader({
     required this.line,
     required this.vehicles,
+    required this.status,
+    this.onOpenTimetable,
     super.key,
   });
 
@@ -65,6 +69,12 @@ class LineSheetHeader extends StatelessWidget {
 
   /// Vehicles of the line, for the status chip.
   final List<VehicleVM> vehicles;
+
+  /// Shared timetable status driving the next-departure row.
+  final LineStatus status;
+
+  /// Called when the next-departure row is tapped.
+  final VoidCallback? onOpenTimetable;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +106,8 @@ class LineSheetHeader extends StatelessWidget {
               ],
               const SizedBox(height: Space.x2),
               _StatusChip(line: line, vehicles: vehicles),
+              const SizedBox(height: Space.x1),
+              _NextRow(status: status, onOpenTimetable: onOpenTimetable),
               if (!line.supportsSharing) ...<Widget>[
                 const SizedBox(height: Space.x1),
                 Text(
@@ -146,6 +158,73 @@ class _StatusChip extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Next-departure row: the shared status as a tappable chip when a time
+/// is known, muted text otherwise. Tapping opens Horários (the timetable
+/// tab auto-scrolls to the next departure itself).
+class _NextRow extends StatelessWidget {
+  /// Creates the row.
+  const _NextRow({required this.status, this.onOpenTimetable});
+
+  /// Shared timetable status.
+  final LineStatus status;
+
+  /// Called when a known departure is tapped.
+  final VoidCallback? onOpenTimetable;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? label = _labelOf(status);
+    if (label == null) {
+      return const SizedBox.shrink();
+    }
+    if (_tappable(status) && onOpenTimetable != null) {
+      return GhostLink(label: label, onTap: onOpenTimetable);
+    }
+    return Text(
+      label,
+      style: context.text.caption.copyWith(color: context.colors.inkMuted),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  /// True when the status carries a time worth opening the timetable for.
+  bool _tappable(LineStatus value) {
+    return switch (value.kind) {
+      LineStatusKind.now ||
+      LineStatusKind.imminent ||
+      LineStatusKind.upcoming ||
+      LineStatusKind.tomorrow => true,
+      LineStatusKind.noneToday || LineStatusKind.noTimetable => false,
+    };
+  }
+
+  /// Visible label of the status, null when nothing should render.
+  String? _labelOf(LineStatus value) {
+    switch (value.kind) {
+      case LineStatusKind.live:
+        return null;
+      case LineStatusKind.now:
+        return '${UiStrings.nextDeparture} ${value.time} · agora';
+      case LineStatusKind.imminent:
+        return '${UiStrings.nextDeparture} ${value.time} · '
+            'em ${value.minutes} min';
+      case LineStatusKind.upcoming:
+        final int minutes = value.minutes ?? 0;
+        final String countdown = minutes < 60
+            ? 'em $minutes min'
+            : 'em ${formatHours(minutes)}';
+        return '${UiStrings.nextDeparture} ${value.time} · $countdown';
+      case LineStatusKind.tomorrow:
+        return UiStrings.homeTomorrowAt(value.time ?? '');
+      case LineStatusKind.noneToday:
+        return UiStrings.homeNoMoreToday;
+      case LineStatusKind.noTimetable:
+        return UiStrings.linesNoTimetable;
+    }
   }
 }
 
