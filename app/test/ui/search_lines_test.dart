@@ -11,10 +11,12 @@ import 'package:http/testing.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/design/components/toast.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/lines/lines_screen.dart';
 import 'package:pontual/ui/features/search/search_screen.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -249,9 +251,15 @@ void main() {
         find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
       );
       await tester.pumpAndSettle();
-      expect(find.text(UiStrings.linesFavAdded), findsOneWidget);
-      expect(find.text(UiStrings.undo), findsOneWidget);
-      await tester.tap(find.text(UiStrings.undo));
+      expect(
+        container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
+        isTrue,
+      );
+      // No shell toast slot in this harness, so assert the controller state.
+      final ToastData? toast = container.read(toastControllerProvider).current;
+      expect(toast?.message, UiStrings.linesFavAdded);
+      expect(toast?.actionLabel, UiStrings.undo);
+      toast?.onAction?.call();
       await tester.pumpAndSettle();
       expect(container.read(favoritesProvider), isEmpty);
     });
