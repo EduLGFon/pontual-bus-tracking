@@ -96,9 +96,8 @@ class RecentsSection extends ConsumerWidget {
                 .show(
                   UiStrings.homeRecentsCleared,
                   actionLabel: UiStrings.undo,
-                  onAction: () => ref
-                      .read(homeRecentsProvider.notifier)
-                      .restore(previous),
+                  onAction: () =>
+                      ref.read(homeRecentsProvider.notifier).restore(previous),
                 );
           },
         ),

@@ -243,9 +243,7 @@ void main() {
           '[{"kind":"home","label":"Casa","lineKey":"60-litoraneo-aviacao",'
           '"originLabel":null}]',
     });
-    await tester.pumpWidget(
-      wrapHome(tester, homeApp(), liveBody: '[[60,2]]'),
-    );
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[[60,2]]'));
     await tester.pumpAndSettle();
 
     // The card shows the live badge instead of a time, so the live row is

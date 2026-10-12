@@ -163,8 +163,12 @@ class ShortcutsSection extends ConsumerWidget {
         );
       }
     } else {
-      for (final _ShortcutEntry entry
-          in _shortcutEntries(shortcuts, lines, statics, now)) {
+      for (final _ShortcutEntry entry in _shortcutEntries(
+        shortcuts,
+        lines,
+        statics,
+        now,
+      )) {
         final String tag =
             '${entry.shortcut.kind.name}-${entry.shortcut.lineKey}'
             '-${entry.shortcut.originLabel ?? ''}';
@@ -293,11 +297,7 @@ class SaindoAgoraSection extends ConsumerWidget {
         rows.add((
           arrival: arrival,
           line: entry.line,
-          key: departureKey(
-            entry.line.key,
-            arrival.originLabel,
-            arrival.at,
-          ),
+          key: departureKey(entry.line.key, arrival.originLabel, arrival.at),
         ));
       }
     }

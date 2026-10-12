@@ -140,9 +140,8 @@ List<Override> overridesFor(
     // surfaces its snapshot on the 5 s tick, so a finite tick burst can
     // elapse before the async start lands and the sheet stays empty.
     for (final MapEntry<int, List<ClientVehicle>> e in vehicles.entries)
-      vehiclesVmProvider(e.key).overrideWithValue(
-        orderVehicles(e.value, e.key.toString()),
-      ),
+      vehiclesVmProvider(e.key)
+          .overrideWithValue(orderVehicles(e.value, e.key.toString())),
   ];
 }
 

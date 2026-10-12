@@ -172,9 +172,7 @@ String? firstDepartureTomorrow(
     ArrivalQuery(lineKey: line.code, originLabel: originLabel, limit: 1),
   );
   if (departures.isEmpty && originLabel != null) {
-    departures = source.departures(
-      ArrivalQuery(lineKey: line.code, limit: 1),
-    );
+    departures = source.departures(ArrivalQuery(lineKey: line.code, limit: 1));
   }
   if (departures.isEmpty) {
     return null;

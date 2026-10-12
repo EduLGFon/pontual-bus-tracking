@@ -87,16 +87,11 @@ void main() {
       departureKey('a', null, first),
       departureKey('b', 'Aviação', second),
     ];
-    final List<String> fresh = dropShownDepartures(
-      rows,
-      <String>{departureKey('a', null, first)},
-      (String row) => row,
-    );
+    final List<String> fresh = dropShownDepartures(rows, <String>{
+      departureKey('a', null, first),
+    }, (String row) => row);
     expect(fresh, <String>[departureKey('b', 'Aviação', second)]);
-    expect(
-      liveKey('a', null) == departureKey('a', null, first),
-      isFalse,
-    );
+    expect(liveKey('a', null) == departureKey('a', null, first), isFalse);
   });
 
   test('shortcut state resolves live first', () {

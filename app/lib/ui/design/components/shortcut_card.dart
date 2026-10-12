@@ -248,8 +248,9 @@ class ShortcutCard extends StatelessWidget {
 
   String _semanticLabel(ShortcutCardState state, EtaFormat? format) {
     final String? short = line.short;
-    final String linePart =
-        short != null && short.isNotEmpty ? 'Linha $short' : line.name;
+    final String linePart = short != null && short.isNotEmpty
+        ? 'Linha $short'
+        : line.name;
     final String? dir = direction;
     final String head = dir == null || dir.isEmpty
         ? '$linePart, $label'
