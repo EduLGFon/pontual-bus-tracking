@@ -181,7 +181,10 @@ void main() {
       await tester.pumpWidget(wrapRouter('/lines'));
       await tester.pumpAndSettle();
       expect(find.text(UiStrings.linesTitle), findsOneWidget);
-      expect(find.textContaining('2 ${UiStrings.linesCount}'), findsOneWidget);
+      expect(
+        find.text('2 ${UiStrings.linesCount} · 1 ${UiStrings.linesWithTimes}'),
+        findsOneWidget,
+      );
       expect(
         find.textContaining(UiStrings.linesWithTimes),
         findsOneWidget,
@@ -240,6 +243,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);
+      // Flush the favorites toast timer before teardown.
+      await tester.pump(const Duration(seconds: 4));
     });
 
     testWidgets('star toggle offers undo', (WidgetTester tester) async {
@@ -262,6 +267,8 @@ void main() {
       toast?.onAction?.call();
       await tester.pumpAndSettle();
       expect(container.read(favoritesProvider), isEmpty);
+      // Flush the favorites toast timer before teardown.
+      await tester.pump(const Duration(seconds: 4));
     });
 
     testWidgets('todas groups rows under the category header', (
