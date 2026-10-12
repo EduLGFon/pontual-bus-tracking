@@ -3,7 +3,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/domain/trip/auto_end.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';
+import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
+import 'package:pontual/ui/features/trip/trip_status.dart';
 
 void main() {
   test('full happy path to idle', () {
@@ -176,5 +178,19 @@ void main() {
       AutoEndReason.walkingTimeout,
     );
     expect(autoEndReason(base(0), tripMaxMs + 1), AutoEndReason.maxDuration);
+  });
+
+  test('issue debouncer holds a new issue for two seconds', () {
+    final IssueDebouncer debouncer = IssueDebouncer();
+    expect(debouncer.update(SharingIssue.offline, 0), SharingIssue.none);
+    expect(debouncer.update(SharingIssue.offline, 1999), SharingIssue.none);
+    expect(debouncer.update(SharingIssue.offline, 2000), SharingIssue.offline);
+  });
+
+  test('issue debouncer clearing the issue resets the hold', () {
+    final IssueDebouncer debouncer = IssueDebouncer();
+    debouncer.update(SharingIssue.offline, 0);
+    expect(debouncer.update(SharingIssue.none, 500), SharingIssue.none);
+    expect(debouncer.update(SharingIssue.offline, 600), SharingIssue.none);
   });
 }
