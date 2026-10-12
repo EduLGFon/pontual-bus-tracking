@@ -1709,3 +1709,24 @@ deno fmt/lint/check plus map tests green, `flutter analyze` clean, 6 new
 client tests pass. Not verified here: Pages range-request check (needs
 deploy), glyph generation, renderer integration, device/network
 measurements (no Android SDK or phone on this host).
+
+## D-U27-2026-10-12: single consent sheet in the new share flow
+
+Owner report: accepting consent and location never started the trip and
+recorded nothing. Root cause was the double consent: the new flow showed
+the ConsentBody disclosure (writes nothing per D-U13 and UI_SPEC 0.1
+rule 2), then shareTrip showed the legacy ConsentSheet again with the
+same title and button. Riders accepted once, met the identical sheet a
+second time, dismissed it as stuck, and the decline path ends silently
+with nothing recorded.
+
+Fix: shareTrip takes an optional consentAnswer override. The new flow
+passes `() async => true` after its disclosure (or when none was
+needed), so ensureConsent still writes the store and posts to the
+server exactly once, but no second sheet appears. Legacy default
+(null) is byte-for-byte unchanged. Permission path untouched: one
+pre-prompt plus the OS dialog, then the progress sheet.
+
+Verified: flutter analyze clean, full flutter test green (320 passed),
+targeted trip_flow plus share_flow tests updated (the denial test now
+asserts no second consent sheet before the permission card).

@@ -208,12 +208,9 @@ void main() {
     expect(find.text(UiStrings.permissionPrompt), findsOneWidget);
     await tester.tap(find.text(UiStrings.permissionContinue));
     await tester.pumpAndSettle();
-    // The existing share flow records the choice through its own consent
-    // sheet before reaching the OS prompt; accept there too.
-    final Finder recordAccept = find.text(UiStrings.consentAccept);
-    expect(recordAccept, findsOneWidget);
-    await tester.tap(recordAccept);
-    await tester.pumpAndSettle();
+    // Single consent: the disclosure above already accepted, and the
+    // share flow records through ensureConsent without a second sheet.
+    expect(find.text(UiStrings.consentAccept), findsNothing);
     expect(find.byType(PermissionCard), findsOneWidget);
     // Title row and body share the denial copy.
     expect(find.text(UiStrings.permissionDenied), findsWidgets);

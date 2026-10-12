@@ -161,6 +161,10 @@ Future<void> _permissionStep(
     gateway: recorder,
     ensureNotifications: ensureNotifications,
     legacySheets: false,
+    // Disclosure already accepted above (or not needed): record without
+    // a second consent sheet. The flow still writes the store and posts
+    // to the server through ensureConsent exactly once.
+    consentAnswer: () async => true,
   );
   if (!context.mounted) {
     return;

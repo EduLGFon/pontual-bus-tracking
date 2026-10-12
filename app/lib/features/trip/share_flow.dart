@@ -39,6 +39,11 @@ Future<void> shareTrip(
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
   bool legacySheets = true,
+  // When the caller already disclosed consent (the new UI ConsentBody),
+  // it passes an answer here so the flow records without showing the
+  // legacy sheet a second time. Null keeps the legacy behavior byte
+  // for byte: the consent sheet is shown inside the start.
+  Future<bool> Function()? consentAnswer,
 }) async {
   if (!line.pilot) {
     return;
@@ -51,6 +56,7 @@ Future<void> shareTrip(
       gateway,
       ensureNotifications,
       legacySheets: legacySheets,
+      consentAnswer: consentAnswer,
     );
   } catch (_) {
     // Any unexpected failure (for example the flags fetch throwing
@@ -71,6 +77,7 @@ Future<void> _shareTrip(
   PermissionGateway gateway,
   Future<void> Function() ensureNotifications, {
   bool legacySheets = true,
+  Future<bool> Function()? consentAnswer,
 }) async {
   if (!await gateway.servicesOn()) {
     // The new UI renders its own services-off card through the caller,
@@ -169,6 +176,12 @@ Future<void> _shareTrip(
     lineId: line.id,
     lineLabel: line.name,
     showConsent: () async {
+      // The new UI already disclosed and accepted above; record without
+      // showing the legacy sheet a second time. Double consent sheets
+      // stalled the flow: riders accepted once and never saw progress.
+      if (consentAnswer != null) {
+        return consentAnswer();
+      }
       if (!context.mounted) {
         return false;
       }
