@@ -340,6 +340,18 @@ class UiStrings {
   static const String timetableEmpty =
       'Sem horários cadastrados para este dia.';
 
+  /// Small mark on the day tab for today.
+  static const String todayMark = 'hoje';
+
+  /// First departure label of the summary line.
+  static const String timetableFirst = 'Primeira';
+
+  /// Last departure label of the summary line.
+  static const String timetableLast = 'Última';
+
+  /// Empty day action switching to a day with data.
+  static const String timetableSeeData = 'Ver dias úteis';
+
   /// Timetable footnote.
   static const String timetableFootnote =
       'Horários não oficiais. Atualizado em ';

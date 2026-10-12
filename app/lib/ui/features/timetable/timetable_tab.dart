@@ -71,8 +71,11 @@ class _TimetableTabState extends State<TimetableTab> {
   Widget build(BuildContext context) {
     final List<String> times = _times;
     final DateTime local = saoMateusTime(widget.now);
+    final DayType today = dayTypeFor(local);
     final int nowMinutes = local.hour * 60 + local.minute;
-    final String? next = nextDeparture(times, nowMinutes);
+    // The next highlight only applies to today. Past dimming in the rail
+    // uses the same minute rule, so other days never dim or highlight.
+    final String? next = _day == today ? nextDeparture(times, nowMinutes) : null;
     final List<ArrivalVM> arrivals = arrivalsOf(
       widget.line.code,
       times,
@@ -80,14 +83,17 @@ class _TimetableTabState extends State<TimetableTab> {
       originLabel: _origin.isEmpty ? null : _origin,
     );
     final List<Widget> sections = <Widget>[
-      _hero(_heroOf(arrivals, times, next)),
+      _hero(_day == today ? _heroOf(arrivals, times, next) : null),
       const SizedBox(height: Space.x4),
-      _daySelector(),
+      _daySelector(today),
       _originSelector(),
       if (times.isEmpty)
-        const _EmptyTimetable()
-      else
-        _railSection(times, next, nowMinutes),
+        _EmptyTimetable(onSeeData: _firstDayWithData() == null ? null : _seeData)
+      else ...<Widget>[
+        _summary(times),
+        if (_day == today) _tomorrowBanner(next, local),
+        _railSection(times, _day == today ? next : null, nowMinutes),
+      ],
       _footnote(),
     ];
     if (!widget.scrollable) {
@@ -133,14 +139,20 @@ class _TimetableTabState extends State<TimetableTab> {
     );
   }
 
-  /// Day-type segments. Holidays are not auto-detected.
-  Widget _daySelector() {
+  /// Day-type segments with the `hoje` mark on today. Holidays are not
+  /// auto-detected: today is the weekday of the São Mateus date.
+  Widget _daySelector(DayType today) {
     return Padding(
       padding: const EdgeInsets.only(top: Space.x4),
       child: Segmented(
         segments: <Segment>[
           for (final DayType d in dayTypes)
-            Segment(value: dayTypeKeyOf(d), label: dayTypeLabelOf(d)),
+            Segment(
+              value: dayTypeKeyOf(d),
+              label: d == today
+                  ? '${dayTypeLabelOf(d)} · ${UiStrings.todayMark}'
+                  : dayTypeLabelOf(d),
+            ),
         ],
         value: dayTypeKeyOf(_day),
         onChanged: (String value) {
@@ -159,13 +171,45 @@ class _TimetableTabState extends State<TimetableTab> {
     );
   }
 
-  /// Origin chips, hidden when the line has a single origin.
+  /// Origin selector, hidden when the line has a single origin. Two
+  /// origins use the shared segmented control so the selected state
+  /// matches the main tabs; more use chips.
   Widget _originSelector() {
     final List<String> origins = timetableOriginsOf(widget.line, _day);
     if (origins.length < 2) {
       return const SizedBox.shrink();
     }
     final String selected = origins.contains(_origin) ? _origin : origins.first;
+    void select(String origin) {
+      if (origin == _origin) {
+        return;
+      }
+      setState(() {
+        _origin = origin;
+        _scrolledToNext = false;
+      });
+    }
+
+    if (origins.length == 2) {
+      return Padding(
+        padding: const EdgeInsets.only(top: Space.x4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(UiStrings.originLabel, style: context.text.caption),
+            const SizedBox(height: Space.x2),
+            Segmented(
+              segments: <Segment>[
+                for (final String origin in origins)
+                  Segment(value: origin, label: origin),
+              ],
+              value: selected,
+              onChanged: select,
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(top: Space.x4),
       child: Column(
@@ -181,21 +225,78 @@ class _TimetableTabState extends State<TimetableTab> {
                 Chip(
                   label: origin,
                   selected: origin == selected,
-                  onTap: () {
-                    if (origin == _origin) {
-                      return;
-                    }
-                    setState(() {
-                      _origin = origin;
-                      _scrolledToNext = false;
-                    });
-                  },
+                  onTap: () => select(origin),
                 ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// One-line summary derived from data, for example
+  /// `Primeira 06:40 · Última 22:10`.
+  Widget _summary(List<String> times) {
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x4),
+      child: Text(
+        '${UiStrings.timetableFirst} ${times.first} · '
+        '${UiStrings.timetableLast} ${times.last}',
+        style: context.text.caption,
+      ),
+    );
+  }
+
+  /// Banner when nothing is left today but tomorrow has departures.
+  /// Only rendered for today; other days show their rail as-is.
+  Widget _tomorrowBanner(String? next, DateTime local) {
+    if (next != null) {
+      return const SizedBox.shrink();
+    }
+    final DayType tomorrowType = dayTypeFor(
+      local.add(const Duration(days: 1)),
+    );
+    final List<String> tomorrow = timetableTimesOf(
+      widget.line,
+      tomorrowType,
+      _origin.isEmpty ? null : _origin,
+    );
+    final String? first = earliestTime(tomorrow);
+    if (first == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x4),
+      child: Text(
+        '${UiStrings.homeNoMoreToday}. '
+        '${UiStrings.homeTomorrowAt(first)}.',
+        style: context.text.body,
+      ),
+    );
+  }
+
+  /// First day type with any timetable data, null when the line has none.
+  DayType? _firstDayWithData() {
+    for (final DayType day in dayTypes) {
+      if (timetableTimesOf(widget.line, day, null).isNotEmpty) {
+        return day;
+      }
+    }
+    return null;
+  }
+
+  /// Switches to the first day type with data.
+  void _seeData() {
+    final DayType? day = _firstDayWithData();
+    if (day == null || day == _day) {
+      return;
+    }
+    setState(() {
+      _day = day;
+      final List<String> origins = timetableOriginsOf(widget.line, day);
+      _origin = origins.isEmpty ? '' : origins.first;
+      _scrolledToNext = false;
+    });
   }
 
   /// Hour rail with the auto-scroll towards the next departure.
@@ -281,18 +382,25 @@ class _TimetableTabState extends State<TimetableTab> {
   }
 }
 
-/// Empty state of a day with no schedules.
+/// Empty state of a day with no schedules, with a jump to the first day
+/// that has data when one exists.
 class _EmptyTimetable extends StatelessWidget {
-  const _EmptyTimetable();
+  /// Creates the empty state.
+  const _EmptyTimetable({this.onSeeData});
+
+  /// Called by the jump action, null when the line has no data at all.
+  final VoidCallback? onSeeData;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: Space.x6, bottom: Space.x4),
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x6, bottom: Space.x4),
       child: EmptyState(
         title: UiStrings.timetableEmpty,
         message: UiStrings.aboutSourceLines,
         art: EmptyArt.search,
+        actionLabel: onSeeData == null ? null : UiStrings.timetableSeeData,
+        onAction: onSeeData,
       ),
     );
   }
