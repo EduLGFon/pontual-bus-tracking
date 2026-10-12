@@ -133,7 +133,7 @@ final lineStatusProvider = Provider.family<LineStatus, String>((
   final DateTime now = ref.watch(currentNowProvider);
   final int nowMinutes = nowMinutesOf(now);
   NextDeparture? next;
-  if (timed && found != null) {
+  if (timed) {
     final List<String> today = timetableTimesOf(found, dayTypeFor(now), null);
     final DayType tomorrowType = dayTypeFor(now.add(const Duration(days: 1)));
     final List<String> tomorrow = timetableTimesOf(found, tomorrowType, null);

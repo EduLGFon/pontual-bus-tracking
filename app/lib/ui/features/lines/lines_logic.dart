@@ -88,7 +88,7 @@ List<LinesListItem> groupedLines(List<LineVM> lines) {
   List<LineVM> bucket = <LineVM>[];
   void flush() {
     if (current != null && bucket.isNotEmpty) {
-      out.add(LinesHeaderItem(category: current!, count: bucket.length));
+      out.add(LinesHeaderItem(category: current, count: bucket.length));
       for (final LineVM line in bucket) {
         out.add(LinesLineItem(line));
       }
