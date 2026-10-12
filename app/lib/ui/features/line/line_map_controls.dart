@@ -141,42 +141,6 @@ class MapLocateControls extends StatelessWidget {
   }
 }
 
-/// Recenter control, shown only after the user pans away. Anchored above
-/// the bottom sheet through [bottomPadding], so the sheet never hides it.
-/// Deprecated: replaced by [MapLocateControls]; removed once the map uses
-/// the two-button controls.
-class MapRecenterButton extends StatelessWidget {
-  /// Creates the button.
-  const MapRecenterButton({
-    required this.onTap,
-    this.bottomPadding = Space.x3,
-    super.key,
-  });
-
-  /// Called when the control is tapped.
-  final VoidCallback onTap;
-
-  /// Distance from the bottom of the map, clearing the sheet or the dock.
-  final double bottomPadding;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Positioned(
-      right: Space.x3,
-      bottom: bottomPadding,
-      child: MapCircleButton(
-        icon: Icons.my_location_rounded,
-        semanticLabel: UiStrings.recenter,
-        fill: colors.surface,
-        border: colors.line,
-        onTap: onTap,
-        iconSize: 20,
-      ),
-    );
-  }
-}
-
 /// Circular map control with a hairline border and a token fill. Never
 /// positions itself: the caller places it, so two controls can never share
 /// one corner by accident.

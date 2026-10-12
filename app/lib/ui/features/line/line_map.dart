@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
@@ -29,6 +30,9 @@ const double cityZoom = 13;
 /// to see the whole neighbourhood around the viewer dot.
 const double neighbourhoodZoom = 14;
 
+/// Zoom used when focusing one bus: street detail around the marker.
+const double vehicleFocusZoom = 15;
+
 /// Route polyline casing width in dp, drawn under the coloured stroke.
 const double routeCasingDp = 8;
 
@@ -46,7 +50,8 @@ class LineMap extends StatefulWidget {
     required this.vehicles,
     required this.tileUrlTemplate,
     required this.onPan,
-    required this.onRecenter,
+    required this.onLocateViewer,
+    required this.onLocateBus,
     this.httpClient,
     this.routePoints = const <LatLng>[],
     this.dashedRoute = false,
@@ -96,9 +101,13 @@ class LineMap extends StatefulWidget {
   /// Called when the user drags the map.
   final VoidCallback onPan;
 
-  /// Called by the recenter control. The screen centres the camera on the
-  /// viewer (city centre fallback) through [LineMapState.centerOnViewer].
-  final VoidCallback onRecenter;
+  /// Called by the viewer locate button. The screen centres the camera on
+  /// the viewer (city centre fallback) through [LineMapState.centerOnViewer].
+  final VoidCallback onLocateViewer;
+
+  /// Called by the nearest-bus button. The screen centres the closest bus
+  /// through [LineMapState.centerOnClosestBus].
+  final VoidCallback onLocateBus;
 
   @override
   State<LineMap> createState() => LineMapState();
@@ -185,6 +194,38 @@ class LineMapState extends State<LineMap> {
     _map.move(mapBounds.center, cityZoom);
   }
 
+  /// Centres the bus closest to the viewer at street zoom. Without a
+  /// viewer position the camera centre is the reference instead. With no
+  /// live vehicles it falls back to the city centre, like every other
+  /// focus without a better position. Called by the bus button only.
+  void centerOnClosestBus() {
+    if (widget.vehicles.isEmpty) {
+      _map.move(mapBounds.center, cityZoom);
+      return;
+    }
+    final LatLng reference = widget.viewerPosition ?? _map.camera.center;
+    VehicleVM closest = widget.vehicles.first;
+    double closestM = geo.distM(
+      reference.latitude,
+      reference.longitude,
+      closest.lat,
+      closest.lng,
+    );
+    for (final VehicleVM vehicle in widget.vehicles.skip(1)) {
+      final double distanceM = geo.distM(
+        reference.latitude,
+        reference.longitude,
+        vehicle.lat,
+        vehicle.lng,
+      );
+      if (distanceM < closestM) {
+        closestM = distanceM;
+        closest = vehicle;
+      }
+    }
+    _map.move(LatLng(closest.lat, closest.lng), vehicleFocusZoom);
+  }
+
   /// Fits the camera to the live vehicles, else to the service-area bounds
   /// (city centre). Called on enter and when the map is first revealed,
   /// never when the sheet moves: expanding the line details must not move
@@ -205,7 +246,7 @@ class LineMapState extends State<LineMap> {
       return;
     }
     if (points.length == 1) {
-      _map.move(points.first, 15);
+      _map.move(points.first, vehicleFocusZoom);
       return;
     }
     _map.fitCamera(
@@ -295,9 +336,10 @@ class LineMapState extends State<LineMap> {
         const MapBackButton(),
         const MapAttributionChip(),
         if (widget.panned)
-          MapRecenterButton(
+          MapLocateControls(
             bottomPadding: widget.controlsBottomPadding,
-            onTap: widget.onRecenter,
+            onLocateViewer: widget.onLocateViewer,
+            onLocateBus: widget.onLocateBus,
           ),
       ],
     );

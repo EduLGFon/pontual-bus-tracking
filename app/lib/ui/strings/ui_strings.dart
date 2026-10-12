@@ -310,9 +310,6 @@ class UiStrings {
   /// Stop following vehicle.
   static const String stopFollowing = 'Parar de seguir';
 
-  /// Recenter action.
-  static const String recenter = 'Recentralizar';
-
   /// Locate-me action: centres the viewer dot at neighbourhood zoom.
   static const String myLocation = 'Minha localização';
 

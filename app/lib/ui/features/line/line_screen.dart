@@ -245,9 +245,13 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       viewerPosition: ref.watch(viewerLocationProvider).value,
       controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
-      onRecenter: () {
+      onLocateViewer: () {
         setState(() => _panned = false);
         _mapKey.currentState?.centerOnViewer();
+      },
+      onLocateBus: () {
+        setState(() => _panned = false);
+        _mapKey.currentState?.centerOnClosestBus();
       },
       onVehicleTap: (VehicleVM v) => _focus(v, true),
     );
