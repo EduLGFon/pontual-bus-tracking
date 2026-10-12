@@ -111,6 +111,8 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     final DateTime now = ref.watch(currentNowProvider);
     final colors = context.colors;
     final status = ref.watch(lineStatusProvider(widget.line.key));
+    final String timetableDate =
+        ref.watch(timetableDateProvider).value ?? '';
     void openTimetable() {
       setState(() => _tab = SheetTab.timetable);
       widget.onTabChanged?.call(SheetTab.timetable);
@@ -162,7 +164,12 @@ class _LineSheetState extends ConsumerState<LineSheet> {
             _tabs(),
             const SizedBox(height: Space.x4),
             if (_tab == SheetTab.timetable)
-              TimetableTab(line: widget.staticLine, now: now, scrollable: false)
+              TimetableTab(
+                line: widget.staticLine,
+                now: now,
+                scrollable: false,
+                timetableDate: timetableDate,
+              )
             else ...<Widget>[..._nowBody(now), _actionRow()],
           ],
         ),

@@ -3,9 +3,7 @@
 // holidays are not auto-detected and the user switches manually.
 // See docs/ui/UI_SPEC.md 7.6.
 import 'package:flutter/material.dart' hide Chip;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
@@ -22,12 +20,13 @@ import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// The Horários tab of the line screen.
-class TimetableTab extends ConsumerStatefulWidget {
+class TimetableTab extends StatefulWidget {
   /// Creates the tab.
   const TimetableTab({
     required this.line,
     required this.now,
     this.scrollable = true,
+    this.timetableDate = '',
     super.key,
   });
 
@@ -41,11 +40,16 @@ class TimetableTab extends ConsumerStatefulWidget {
   /// the line sheet, where a nested scrollable would fight the sheet drag.
   final bool scrollable;
 
+  /// Bundle timetable date (dd/MM/yyyy) from the manifest. Empty while
+  /// loading or when unknown; the parent watches the date provider so this
+  /// widget stays testable without a ProviderScope.
+  final String timetableDate;
+
   @override
-  ConsumerState<TimetableTab> createState() => _TimetableTabState();
+  State<TimetableTab> createState() => _TimetableTabState();
 }
 
-class _TimetableTabState extends ConsumerState<TimetableTab> {
+class _TimetableTabState extends State<TimetableTab> {
   late DayType _day;
   late String _origin;
   final ScrollController _rail = ScrollController();
@@ -94,7 +98,11 @@ class _TimetableTabState extends ConsumerState<TimetableTab> {
       else ...<Widget>[
         _summary(times),
         if (_day == today) _tomorrowBanner(next, local),
-        _railSection(times, _day == today ? next : null, nowMinutes),
+        _railSection(
+          times,
+          _day == today ? next : null,
+          _day == today ? nowMinutes : null,
+        ),
       ],
       _footnote(),
     ];
@@ -302,7 +310,7 @@ class _TimetableTabState extends ConsumerState<TimetableTab> {
   }
 
   /// Hour rail with the auto-scroll towards the next departure.
-  Widget _railSection(List<String> times, String? next, int nowMinutes) {
+  Widget _railSection(List<String> times, String? next, int? nowMinutes) {
     // Chips carry the minute part only ("40" under hour "06"): the full
     // "HH:mm" strings would rebuild "06:06:40" values, break the past
     // dimming and never match the next-departure highlight. D-U26.
@@ -363,16 +371,15 @@ class _TimetableTabState extends ConsumerState<TimetableTab> {
   }
 
   /// Footnote with the bundle timetable date and the sources link. The date
-  /// comes from the manifest, never from the clock.
+  /// comes from the manifest via the parent, never from the clock.
   Widget _footnote() {
-    final String date = ref.watch(timetableDateProvider).value ?? '';
     return Padding(
       padding: const EdgeInsets.only(top: Space.x6, bottom: Space.x4),
       child: Row(
         children: <Widget>[
           Expanded(
             child: Text(
-              '${UiStrings.timetableFootnote}$date',
+              '${UiStrings.timetableFootnote}${widget.timetableDate}',
               style: context.text.caption,
             ),
           ),
