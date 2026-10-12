@@ -207,7 +207,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(UiStrings.filterLive));
       await tester.pumpAndSettle();
-      expect(find.text(UiStrings.linesNoLive), findsOneWidget);
+      expect(find.text(UiStrings.homeNoLive), findsOneWidget);
+      expect(find.text(UiStrings.linesNoLiveBody), findsOneWidget);
+    });
+
+    testWidgets('live chip shows its count', (WidgetTester tester) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      expect(find.text('${UiStrings.filterLive} (1)'), findsOneWidget);
     });
 
     testWidgets('star toggle persists the favourite', (
@@ -219,13 +226,15 @@ void main() {
       final ProviderContainer container = ProviderScope.containerOf(context);
       expect(container.read(favoritesProvider), isEmpty);
       // Rows sort by category then number, so the first star is Litorâneo.
-      await tester.tap(find.bySemanticsLabel(UiStrings.favorite).first);
+      await tester.tap(
+        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
+      );
       await tester.pumpAndSettle();
       expect(
         container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
         isTrue,
       );
-      await tester.tap(find.text(UiStrings.filterFavorites));
+      await tester.tap(find.textContaining(UiStrings.filterFavorites));
       await tester.pumpAndSettle();
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);

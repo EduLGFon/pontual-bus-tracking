@@ -208,6 +208,14 @@ class UiStrings {
   /// Muted status of a line without timetable data.
   static const String linesNoTimetable = 'Sem horários ainda';
 
+  /// Empty live state body when nothing is sharing.
+  static const String linesNoLiveBody =
+      'Quem estiver no ônibus pode tocar em Estou no ônibus.';
+
+  /// Empty live state when offline: status unknown, timetables still work.
+  static const String linesLiveOffline =
+      'Sem conexão. Os horários continuam disponíveis.';
+
   /// Friendly detail for a line without timetable data.
   static const String linesNoTimetableBody =
       'Ainda não temos os horários desta linha. Se você estiver nesse '

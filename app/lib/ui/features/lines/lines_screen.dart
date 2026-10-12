@@ -22,6 +22,7 @@ import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
+import 'package:pontual/ui/shell/offline_bridge.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Filters offered by the chips row.
@@ -67,21 +68,23 @@ class LinesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final LinesFilter filter = _filterOf(context);
     final List<LineVM> all = ref.watch(linesVmProvider);
+    final Set<String> favorites = ref.watch(favoritesProvider);
+    final bool offline = ref.watch(offlineFlagProvider);
     final Map<String, StaticLine> statics = ref.watch(
       staticLinesByKeyProvider,
     );
     int withTimes = 0;
+    int liveLines = 0;
     for (final LineVM vm in all) {
       final StaticLine? s = statics[vm.key];
       if (s != null && hasTimetable(s)) {
         withTimes++;
       }
+      if (vm.isLive) {
+        liveLines++;
+      }
     }
-    final List<LineVM> filtered = _filtered(
-      all,
-      filter,
-      ref.watch(favoritesProvider),
-    );
+    final List<LineVM> filtered = _filtered(all, filter, favorites);
     final List<LinesListItem> items = filter == LinesFilter.all
         ? groupedLines(filtered)
         : sortedByCategory(filtered).map(LinesLineItem.new).toList();
@@ -93,14 +96,20 @@ class LinesScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: _Header(total: all.length, withTimes: withTimes),
             ),
-            const SliverToBoxAdapter(child: _FilterRow()),
+            SliverToBoxAdapter(
+              child: _FilterRow(
+                liveCount: liveLines,
+                favoriteCount: favorites.length,
+                offline: offline,
+              ),
+            ),
             if (items.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Padding(
                     padding: EdgeInsets.all(marginFor(context)),
-                    child: _EmptyState(filter: filter),
+                    child: _EmptyState(filter: filter, offline: offline),
                   ),
                 ),
               )
@@ -208,12 +217,41 @@ class _Header extends StatelessWidget {
 }
 
 /// The chips row. Tapping a chip writes the filter to the URL.
+/// Counts are cheap and derived: live lines and favourites. When offline
+/// the live count is unknown, so the chip shows no count.
 class _FilterRow extends StatelessWidget {
   /// Creates the chips row.
-  const _FilterRow();
+  const _FilterRow({
+    required this.liveCount,
+    required this.favoriteCount,
+    required this.offline,
+  });
+
+  /// Lines currently sharing. Unknown when [offline] is true.
+  final int liveCount;
+
+  /// Favourite lines.
+  final int favoriteCount;
+
+  /// True while the app is offline.
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
+    final LinesFilter current = _filterOf(context);
+    String liveLabel = UiStrings.filterLive;
+    if (!offline && liveCount > 0) {
+      liveLabel = '${UiStrings.filterLive} ($liveCount)';
+    }
+    String favLabel = UiStrings.filterFavorites;
+    if (favoriteCount > 0) {
+      favLabel = '${UiStrings.filterFavorites} ($favoriteCount)';
+    }
+    final Map<LinesFilter, String> labels = <LinesFilter, String>{
+      LinesFilter.all: UiStrings.filterAll,
+      LinesFilter.live: liveLabel,
+      LinesFilter.favorites: favLabel,
+    };
     return Padding(
       padding: EdgeInsets.fromLTRB(
         marginFor(context),
@@ -225,8 +263,8 @@ class _FilterRow extends StatelessWidget {
         children: <Widget>[
           for (final LinesFilter value in LinesFilter.values) ...<Widget>[
             Chip(
-              label: value.label,
-              selected: value == _filterOf(context),
+              label: labels[value]!,
+              selected: value == current,
               onTap: () => _select(context, value),
             ),
             if (value != LinesFilter.values.last)
@@ -268,21 +306,39 @@ class _LineCard extends ConsumerWidget {
 }
 
 /// Empty state per filter, always with a way back to the other filters.
+/// Offline live is unknown, not zero: the empty state says timetables
+/// still work instead of claiming nothing is sharing.
 class _EmptyState extends StatelessWidget {
   /// Creates the empty state for [filter].
-  const _EmptyState({required this.filter});
+  const _EmptyState({required this.filter, required this.offline});
 
   /// Filter that produced no lines.
   final LinesFilter filter;
 
+  /// True while the app is offline.
+  final bool offline;
+
   @override
   Widget build(BuildContext context) {
     final bool noData = filter == LinesFilter.all;
+    if (filter == LinesFilter.live && offline) {
+      return EmptyState(
+        art: EmptyArt.cloud,
+        title: UiStrings.filterLive,
+        message: UiStrings.linesLiveOffline,
+        actionLabel: UiStrings.filterAll,
+        onAction: () => _select(context, LinesFilter.all),
+      );
+    }
     return EmptyState(
       art: filter == LinesFilter.live ? EmptyArt.bus : EmptyArt.search,
-      title: filter == LinesFilter.live ? UiStrings.linesNoLive : filter.label,
+      title: switch (filter) {
+        LinesFilter.live => UiStrings.homeNoLive,
+        LinesFilter.favorites => UiStrings.filterFavorites,
+        LinesFilter.all => filter.label,
+      },
       message: switch (filter) {
-        LinesFilter.live => UiStrings.homeNoLiveHint,
+        LinesFilter.live => UiStrings.linesNoLiveBody,
         LinesFilter.favorites => UiStrings.linesNoFavorites,
         LinesFilter.all => _noLinesMessage,
       },
