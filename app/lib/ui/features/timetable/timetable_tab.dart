@@ -3,7 +3,9 @@
 // holidays are not auto-detected and the user switches manually.
 // See docs/ui/UI_SPEC.md 7.6.
 import 'package:flutter/material.dart' hide Chip;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
@@ -20,7 +22,7 @@ import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// The Horários tab of the line screen.
-class TimetableTab extends StatefulWidget {
+class TimetableTab extends ConsumerStatefulWidget {
   /// Creates the tab.
   const TimetableTab({
     required this.line,
@@ -40,10 +42,10 @@ class TimetableTab extends StatefulWidget {
   final bool scrollable;
 
   @override
-  State<TimetableTab> createState() => _TimetableTabState();
+  ConsumerState<TimetableTab> createState() => _TimetableTabState();
 }
 
-class _TimetableTabState extends State<TimetableTab> {
+class _TimetableTabState extends ConsumerState<TimetableTab> {
   late DayType _day;
   late String _origin;
   final ScrollController _rail = ScrollController();
@@ -360,15 +362,17 @@ class _TimetableTabState extends State<TimetableTab> {
     });
   }
 
-  /// Footnote with the timetable date and the sources link.
+  /// Footnote with the bundle timetable date and the sources link. The date
+  /// comes from the manifest, never from the clock.
   Widget _footnote() {
+    final String date = ref.watch(timetableDateProvider).value ?? '';
     return Padding(
       padding: const EdgeInsets.only(top: Space.x6, bottom: Space.x4),
       child: Row(
         children: <Widget>[
           Expanded(
             child: Text(
-              '${UiStrings.timetableFootnote}${formatDateLabel(widget.now)}',
+              '${UiStrings.timetableFootnote}$date',
               style: context.text.caption,
             ),
           ),
