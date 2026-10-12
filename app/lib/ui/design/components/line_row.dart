@@ -153,9 +153,8 @@ class LineRow extends StatelessWidget {
       case LineStatusKind.now:
         return Text(
           '${UiStrings.nextDeparture} ${current.time} · agora',
-          style: _tabular(context.text.label).copyWith(
-            color: context.colors.primary,
-          ),
+          style: _tabular(context.text.label)
+              .copyWith(color: context.colors.primary),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         );
@@ -163,9 +162,8 @@ class LineRow extends StatelessWidget {
         return Text(
           '${UiStrings.nextDeparture} ${current.time} · '
           'em ${current.minutes} min',
-          style: _tabular(context.text.label).copyWith(
-            color: context.colors.primary,
-          ),
+          style: _tabular(context.text.label)
+              .copyWith(color: context.colors.primary),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         );
@@ -218,10 +216,8 @@ class LineRow extends StatelessWidget {
     final String head = '$linePart, região ${lineCategoryLabel(category)}';
     final String tail = switch (status.kind) {
       LineStatusKind.live => UiStrings.certaintyLive,
-      LineStatusKind.now =>
-        'próxima saída às ${status.time}, agora',
-      LineStatusKind.imminent ||
-      LineStatusKind.upcoming =>
+      LineStatusKind.now => 'próxima saída às ${status.time}, agora',
+      LineStatusKind.imminent || LineStatusKind.upcoming =>
         'próxima saída às ${status.time}, em ${_spokenMinutes(status.minutes)}',
       LineStatusKind.tomorrow => 'Amanhã ${status.time}',
       LineStatusKind.noneToday => UiStrings.homeNoMoreToday,

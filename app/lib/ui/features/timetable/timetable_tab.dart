@@ -81,7 +81,9 @@ class _TimetableTabState extends State<TimetableTab> {
     final int nowMinutes = local.hour * 60 + local.minute;
     // The next highlight only applies to today. Past dimming in the rail
     // uses the same minute rule, so other days never dim or highlight.
-    final String? next = _day == today ? nextDeparture(times, nowMinutes) : null;
+    final String? next = _day == today
+        ? nextDeparture(times, nowMinutes)
+        : null;
     final List<ArrivalVM> arrivals = arrivalsOf(
       widget.line.code,
       times,
@@ -94,7 +96,9 @@ class _TimetableTabState extends State<TimetableTab> {
       _daySelector(today),
       _originSelector(),
       if (times.isEmpty)
-        _EmptyTimetable(onSeeData: _firstDayWithData() == null ? null : _seeData)
+        _EmptyTimetable(
+          onSeeData: _firstDayWithData() == null ? null : _seeData,
+        )
       else ...<Widget>[
         _summary(times),
         if (_day == today) _tomorrowBanner(next, local),
@@ -263,9 +267,7 @@ class _TimetableTabState extends State<TimetableTab> {
     if (next != null) {
       return const SizedBox.shrink();
     }
-    final DayType tomorrowType = dayTypeFor(
-      local.add(const Duration(days: 1)),
-    );
+    final DayType tomorrowType = dayTypeFor(local.add(const Duration(days: 1)));
     final List<String> tomorrow = timetableTimesOf(
       widget.line,
       tomorrowType,

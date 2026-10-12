@@ -232,7 +232,9 @@ class SettingsStore {
 
   /// Writes the reduce animations setting.
   Future<void> writeReduceMotion(bool value) async {
-    await writeReduceMotionMode(value ? ReduceMotionMode.on : ReduceMotionMode.off);
+    await writeReduceMotionMode(
+      value ? ReduceMotionMode.on : ReduceMotionMode.off,
+    );
   }
 }
 
@@ -247,10 +249,11 @@ Future<void> clearLocalData() async {
   await prefs.remove(recentsKey);
   await prefs.remove(shortcutsKey);
   await prefs.remove(alertsKey);
-  for (final String key in prefs
-      .getKeys()
-      .where((String k) => k.startsWith(linesKeyPrefix))
-      .toList()) {
+  for (final String key
+      in prefs
+          .getKeys()
+          .where((String k) => k.startsWith(linesKeyPrefix))
+          .toList()) {
     await prefs.remove(key);
   }
   await prefs.remove(manifestKey);

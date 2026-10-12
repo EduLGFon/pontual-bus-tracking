@@ -57,9 +57,8 @@ List<LineVM> sortedByCategory(List<LineVM> lines) {
       terminals: b.terminals,
       areaTags: b.areaTags,
     );
-    final int byCategory = lineCategoryOrder(
-      ca,
-    ).compareTo(lineCategoryOrder(cb));
+    final int byCategory = lineCategoryOrder(ca)
+        .compareTo(lineCategoryOrder(cb));
     if (byCategory != 0) {
       return byCategory;
     }

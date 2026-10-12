@@ -646,6 +646,7 @@ class UiStrings {
   /// the live sharing state.
   static String sharingNow(String line) =>
       'Você está compartilhando a Linha $line';
+
   /// End card title.
   static const String endTitle = 'Viagem encerrada. Obrigado por ajudar!';
 
@@ -855,6 +856,7 @@ class UiStrings {
 
   /// Delete my data action.
   static const String privacyDelete = 'Apagar meus dados';
+
   /// Delete confirmation title.
   static const String privacyDeleteTitle = 'Apagar meus dados?';
 

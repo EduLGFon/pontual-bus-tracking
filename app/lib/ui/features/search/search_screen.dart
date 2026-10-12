@@ -491,7 +491,8 @@ class _TopBar extends StatelessWidget {
 }
 
 /// A line hit: badge, name with the matched part in bold, terminals.
-class _ResultRow extends StatelessWidget {  const _ResultRow({
+class _ResultRow extends StatelessWidget {
+  const _ResultRow({
     required this.line,
     required this.query,
     required this.onTap,

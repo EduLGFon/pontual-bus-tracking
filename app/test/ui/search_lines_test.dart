@@ -185,10 +185,7 @@ void main() {
         find.text('2 ${UiStrings.linesCount} · 1 ${UiStrings.linesWithTimes}'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining(UiStrings.linesWithTimes),
-        findsOneWidget,
-      );
+      expect(find.textContaining(UiStrings.linesWithTimes), findsOneWidget);
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       // The timetable-less line shows the honest muted state.
       expect(find.text('Guriri'), findsOneWidget);

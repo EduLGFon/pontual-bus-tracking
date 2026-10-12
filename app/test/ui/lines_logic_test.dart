@@ -4,13 +4,12 @@ import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 
-LineVM vm(String short, String name, {List<String> terminals = const <String>[]}) {
-  return LineVM(
-    key: short,
-    name: name,
-    short: short,
-    terminals: terminals,
-  );
+LineVM vm(
+  String short,
+  String name, {
+  List<String> terminals = const <String>[],
+}) {
+  return LineVM(key: short, name: name, short: short, terminals: terminals);
 }
 
 void main() {
@@ -21,7 +20,12 @@ void main() {
       vm('70', 'Guriri via Praiano'),
       vm('66', 'Centro / IFES / UFES'),
     ]);
-    expect(sorted.map((LineVM l) => l.short), <String?>['66', '70', '13', '71']);
+    expect(sorted.map((LineVM l) => l.short), <String?>[
+      '66',
+      '70',
+      '13',
+      '71',
+    ]);
   });
 
   test('sorts by line number inside a group', () {
@@ -31,10 +35,12 @@ void main() {
       vm('66', 'Centro / IFES / UFES'),
       vm('62', 'Guriri / IFES / UFES'),
     ]);
-    expect(
-      sorted.map((LineVM l) => l.short),
-      <String?>['60', '62', '64', '66'],
-    );
+    expect(sorted.map((LineVM l) => l.short), <String?>[
+      '60',
+      '62',
+      '64',
+      '66',
+    ]);
   });
 
   test('grouped lines emit headers with counts', () {

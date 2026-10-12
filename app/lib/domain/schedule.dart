@@ -56,7 +56,13 @@ bool isSameMinute(DateTime a, DateTime b) {
 /// True when the minute of [at] is before the minute of [now].
 /// A departure at the current minute counts as now, not past.
 bool isPastMinute(DateTime at, DateTime now) {
-  final DateTime a = DateTime.utc(at.year, at.month, at.day, at.hour, at.minute);
+  final DateTime a = DateTime.utc(
+    at.year,
+    at.month,
+    at.day,
+    at.hour,
+    at.minute,
+  );
   final DateTime b = DateTime.utc(
     now.year,
     now.month,

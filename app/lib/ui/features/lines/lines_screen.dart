@@ -71,9 +71,7 @@ class LinesScreen extends ConsumerWidget {
     final List<LineVM> all = ref.watch(linesVmProvider);
     final Set<String> favorites = ref.watch(favoritesProvider);
     final bool offline = ref.watch(offlineFlagProvider);
-    final Map<String, StaticLine> statics = ref.watch(
-      staticLinesByKeyProvider,
-    );
+    final Map<String, StaticLine> statics = ref.watch(staticLinesByKeyProvider);
     int withTimes = 0;
     int liveLines = 0;
     for (final LineVM vm in all) {

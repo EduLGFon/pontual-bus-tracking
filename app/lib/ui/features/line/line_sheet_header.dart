@@ -265,9 +265,7 @@ class LineStarButton extends ConsumerWidget {
         ref
             .read(toastControllerProvider.notifier)
             .show(
-              favorite
-                  ? UiStrings.linesFavRemoved
-                  : UiStrings.linesFavAdded,
+              favorite ? UiStrings.linesFavRemoved : UiStrings.linesFavAdded,
               actionLabel: UiStrings.undo,
               onAction: () => unawaited(
                 ref.read(favoritesProvider.notifier).toggle(lineKey),

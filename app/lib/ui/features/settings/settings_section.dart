@@ -117,15 +117,14 @@ class SettingsTile extends StatelessWidget {
   const SettingsTile.value({
     required this.title,
     required this.onTap,
-    required String trailingValue,
+    required this.trailingValue,
     this.icon,
     this.description,
     this.semanticLabel,
     super.key,
   }) : _kind = _TrailingKind.chevron,
        value = false,
-       onChanged = null,
-       trailingValue = trailingValue;
+       onChanged = null;
 
   /// Row title in pt-BR.
   final String title;
@@ -210,10 +209,7 @@ class SettingsTile extends StatelessWidget {
                 ),
                 const SizedBox(width: Space.x3),
                 ExcludeSemantics(
-                  child: Switch(
-                    value: value,
-                    onChanged: onChanged,
-                  ),
+                  child: Switch(value: value, onChanged: onChanged),
                 ),
               ],
             ),

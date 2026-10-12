@@ -96,10 +96,7 @@ void main() {
       ]),
       isFalse,
     );
-    expect(
-      shouldShowTerminals('Bosque', const <String>['Bosque']),
-      isFalse,
-    );
+    expect(shouldShowTerminals('Bosque', const <String>['Bosque']), isFalse);
     expect(
       shouldShowTerminals('Linha especial', const <String>['Centro']),
       isTrue,

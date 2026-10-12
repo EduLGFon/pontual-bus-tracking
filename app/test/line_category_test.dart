@@ -92,11 +92,13 @@ void main() {
     expect(lineCategoryLabel(LineCategory.guriri), 'Guriri');
     expect(lineCategoryLabel(LineCategory.other), 'Outras');
     expect(
-      lineCategoryOrder(LineCategory.ufes) < lineCategoryOrder(LineCategory.guriri),
+      lineCategoryOrder(LineCategory.ufes) <
+          lineCategoryOrder(LineCategory.guriri),
       isTrue,
     );
     expect(
-      lineCategoryOrder(LineCategory.guriri) < lineCategoryOrder(LineCategory.other),
+      lineCategoryOrder(LineCategory.guriri) <
+          lineCategoryOrder(LineCategory.other),
       isTrue,
     );
   });

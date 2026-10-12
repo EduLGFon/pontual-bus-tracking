@@ -90,12 +90,10 @@ class SettingsScreen extends ConsumerWidget {
                 SettingsTile.toggle(
                   title: UiStrings.reduceMotion,
                   description: UiStrings.reduceMotionHint,
-                  value: AppMotion.reduced(
-                    context,
-                    settings.reduceMotionMode,
-                  ),
-                  onChanged: (bool value) =>
-                      ref.read(settingsProvider.notifier).setReduceMotion(value),
+                  value: AppMotion.reduced(context, settings.reduceMotionMode),
+                  onChanged: (bool value) => ref
+                      .read(settingsProvider.notifier)
+                      .setReduceMotion(value),
                 ),
               ],
             ),
@@ -204,14 +202,8 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (BuildContext context) => AlertDialog(
         backgroundColor: context.colors.surface,
-        title: Text(
-          UiStrings.clearLocalDataTitle,
-          style: context.text.title,
-        ),
-        content: Text(
-          UiStrings.clearLocalDataBody,
-          style: context.text.body,
-        ),
+        title: Text(UiStrings.clearLocalDataTitle, style: context.text.title),
+        content: Text(UiStrings.clearLocalDataBody, style: context.text.body),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

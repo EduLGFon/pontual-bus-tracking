@@ -37,7 +37,10 @@ class LineStatus {
   const LineStatus({required this.kind, this.time, this.minutes});
 
   /// Creates the live status.
-  const LineStatus.live() : kind = LineStatusKind.live, time = null, minutes = null;
+  const LineStatus.live()
+    : kind = LineStatusKind.live,
+      time = null,
+      minutes = null;
 
   /// Creates the no-timetable status.
   const LineStatus.noTimetable()

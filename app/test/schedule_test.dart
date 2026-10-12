@@ -106,7 +106,10 @@ void main() {
     expect(dayTypeFor(friday), DayType.weekday);
     expect(dayTypeFor(saturday), DayType.saturday);
     final DateTime saturdayNight = DateTime.utc(2026, 10, 17, 23, 50);
-    expect(dayTypeFor(saturdayNight.add(const Duration(days: 1))), DayType.sundayHoliday);
+    expect(
+      dayTypeFor(saturdayNight.add(const Duration(days: 1))),
+      DayType.sundayHoliday,
+    );
   });
 
   test('times group by hour', () {

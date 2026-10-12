@@ -111,8 +111,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     final DateTime now = ref.watch(currentNowProvider);
     final colors = context.colors;
     final status = ref.watch(lineStatusProvider(widget.line.key));
-    final String timetableDate =
-        ref.watch(timetableDateProvider).value ?? '';
+    final String timetableDate = ref.watch(timetableDateProvider).value ?? '';
     void openTimetable() {
       setState(() => _tab = SheetTab.timetable);
       widget.onTabChanged?.call(SheetTab.timetable);
@@ -385,9 +384,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   /// the night banner when nothing is left today.
   String? _tomorrowFirst(DateTime now) {
     final DateTime local = saoMateusTime(now);
-    final DayType tomorrowType = dayTypeFor(
-      local.add(const Duration(days: 1)),
-    );
+    final DayType tomorrowType = dayTypeFor(local.add(const Duration(days: 1)));
     final List<String> tomorrow = timetableTimesOf(
       widget.staticLine,
       tomorrowType,
