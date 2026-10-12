@@ -801,6 +801,9 @@ class UiStrings {
   /// Timetable date prefix.
   static const String timetablesPrefix = 'Horários: ';
 
+  /// Settings footer timetable prefix with the update wording.
+  static const String timetablesUpdatedPrefix = 'Horários atualizados em ';
+
   /// Delete my data action.
   static const String privacyDelete = 'Apagar meus dados';
 

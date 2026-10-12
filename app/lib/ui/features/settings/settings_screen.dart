@@ -118,8 +118,8 @@ class SettingsScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Space.x1),
               child: Text(
-                '${UiStrings.versionPrefix} $appVersion'
-                ' · ${UiStrings.timetablesPrefix}${date.value ?? '-'}',
+                'Pontual $appVersion'
+                ' · ${UiStrings.timetablesUpdatedPrefix}${date.value ?? '-'}',
                 style: context.text.caption,
               ),
             ),
