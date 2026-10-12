@@ -1644,3 +1644,20 @@ verification split as D-U25):
   report in `docs/ui/home-redesign.md`. Not verified here: no Flutter
   SDK on this machine, so `flutter analyze` and `flutter test` must run
   elsewhere before merge.
+- 2026-10-12: Lines-screen brief deviations (D31, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `lines-screen.md`
+  asked for a shared 30-second ticker (L1); the screen keeps the
+  1-minute `nowTickProvider` since countdowns are minute-granular and a
+  faster tick costs battery on the PLAN 3.3 phones (same call as D29).
+  No bottom sheet for unsupported lines (L2): the line detail already
+  renders empty timetables plus the non-pilot note, so rows stay
+  tappable with no sheet. The app uses the global dock pill, not a FAB
+  (L8), keeping `dockClearance`. Favorites copy drops the Home clause
+  (L7): favorites do not feed Home shortcuts (separate store).
+  Inline search skipped (L9) via the brief escape hatch: global Busca
+  already covers the same index offline for 21 rows. No `Expresso` tag:
+  not trivially derivable. Full audit and report in
+  `docs/ui/lines-redesign.md`. Not verified here: per the task
+  instruction no Flutter tooling ran in this session, so `flutter
+  analyze`, `flutter test`, screenshots and size profiling must run
+  elsewhere before merge.
