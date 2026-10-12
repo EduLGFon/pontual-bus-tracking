@@ -115,8 +115,19 @@ class LinesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final LinesFilter filter = _filterOf(context);
+    final List<LineVM> all = ref.watch(linesVmProvider);
+    final Map<String, StaticLine> statics = ref.watch(
+      staticLinesByKeyProvider,
+    );
+    int withTimes = 0;
+    for (final LineVM vm in all) {
+      final StaticLine? s = statics[vm.key];
+      if (s != null && hasTimetable(s)) {
+        withTimes++;
+      }
+    }
     final List<LineVM> lines = _visible(
-      ref.watch(linesVmProvider),
+      all,
       filter,
       ref.watch(favoritesProvider),
     );
@@ -125,7 +136,9 @@ class LinesScreen extends ConsumerWidget {
       body: SafeArea(
         child: CustomScrollView(
           slivers: <Widget>[
-            SliverToBoxAdapter(child: _Header(count: lines.length)),
+            SliverToBoxAdapter(
+              child: _Header(total: all.length, withTimes: withTimes),
+            ),
             const SliverToBoxAdapter(child: _FilterRow()),
             if (lines.isEmpty)
               SliverFillRemaining(
@@ -161,13 +174,16 @@ class LinesScreen extends ConsumerWidget {
   }
 }
 
-/// Screen title and the count derived from the visible data.
+/// Screen title and the honest totals derived from the data.
 class _Header extends StatelessWidget {
-  /// Creates the header for [count] visible lines.
-  const _Header({required this.count});
+  /// Creates the header for [total] lines with [withTimes] timetabled.
+  const _Header({required this.total, required this.withTimes});
 
-  /// Number of visible lines.
-  final int count;
+  /// Total active lines.
+  final int total;
+
+  /// Lines with at least one timetable time.
+  final int withTimes;
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +199,8 @@ class _Header extends StatelessWidget {
         children: <Widget>[
           Text(UiStrings.linesTitle, style: context.text.title),
           Text(
-            '$count ${count == 1 ? _oneLine : UiStrings.linesCount}',
+            '$total ${total == 1 ? _oneLine : UiStrings.linesCount} '
+            '· $withTimes ${UiStrings.linesWithTimes}',
             style: context.text.caption,
           ),
         ],
@@ -235,10 +252,13 @@ class _LineCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final String next = ref.watch(nextDepartureProvider(line.key));
     final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
+    final StaticLine? staticLine = ref.watch(staticLinesByKeyProvider)[line.key];
+    final bool timed = staticLine != null && hasTimetable(staticLine);
     return LineRow(
       line: line,
       nextEta: next,
       isFavorite: isFavorite,
+      hasTimetable: timed,
       onToggleFavorite: () => _toggleFavorite(ref),
       onTap: () => context.push('/line/${line.key}'),
     );

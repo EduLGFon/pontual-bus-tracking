@@ -180,9 +180,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(UiStrings.linesTitle), findsOneWidget);
       expect(find.textContaining('2 ${UiStrings.linesCount}'), findsOneWidget);
+      expect(
+        find.textContaining(UiStrings.linesWithTimes),
+        findsOneWidget,
+      );
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-      // Title and terminal subtitle both read Guriri.
-      expect(find.text('Guriri'), findsWidgets);
+      // The timetable-less line shows the honest muted state.
+      expect(find.text('Guriri'), findsOneWidget);
+      expect(find.text(UiStrings.linesNoTimetable), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

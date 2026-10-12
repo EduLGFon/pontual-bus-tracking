@@ -22,6 +22,7 @@ class LineRow extends StatelessWidget {
     this.onToggleFavorite,
     this.isFavorite = false,
     this.semanticLabel,
+    this.hasTimetable = true,
     super.key,
   });
 
@@ -43,14 +44,20 @@ class LineRow extends StatelessWidget {
   /// Screen-reader sentence for the row.
   final String? semanticLabel;
 
+  /// False when the line has no timetable data yet. Rows stay tappable:
+  /// live sharing remains possible and the detail handles the empty state.
+  final bool hasTimetable;
+
   @override
   Widget build(BuildContext context) {
     final bool live = line.isLive;
     final String subtitle = live
         ? '${line.liveVehicleCount} ${UiStrings.oneLive}'
-        : (line.terminalsText.isNotEmpty
-              ? line.terminalsText
-              : UiStrings.onlyTimetable);
+        : (!hasTimetable
+              ? UiStrings.linesNoTimetable
+              : (line.terminalsText.isNotEmpty
+                    ? line.terminalsText
+                    : UiStrings.onlyTimetable));
     return SurfaceCard(
       onTap: onTap,
       semanticLabel: semanticLabel,

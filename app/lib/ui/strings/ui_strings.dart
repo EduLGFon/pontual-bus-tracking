@@ -202,6 +202,17 @@ class UiStrings {
   /// Line count summary, for example "21 linhas".
   static const String linesCount = 'linhas';
 
+  /// Timetable count suffix, for example "9 com horários".
+  static const String linesWithTimes = 'com horários';
+
+  /// Muted status of a line without timetable data.
+  static const String linesNoTimetable = 'Sem horários ainda';
+
+  /// Friendly detail for a line without timetable data.
+  static const String linesNoTimetableBody =
+      'Ainda não temos os horários desta linha. Se você estiver nesse '
+      'ônibus, toque em Estou no ônibus para aparecer ao vivo.';
+
   /// All filter.
   static const String filterAll = 'Todas';
 
