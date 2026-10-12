@@ -87,8 +87,64 @@ class MapAttributionChip extends StatelessWidget {
   }
 }
 
+/// Locate controls, shown only after the user pans away. One Positioned
+/// column, anchored above the bottom sheet through [bottomPadding], so the
+/// sheet never hides it: the viewer button on top, the nearest-bus button
+/// below it.
+class MapLocateControls extends StatelessWidget {
+  /// Creates the controls.
+  const MapLocateControls({
+    required this.onLocateViewer,
+    required this.onLocateBus,
+    this.bottomPadding = Space.x3,
+    super.key,
+  });
+
+  /// Centres the viewer dot.
+  final VoidCallback onLocateViewer;
+
+  /// Centres the bus closest to the viewer.
+  final VoidCallback onLocateBus;
+
+  /// Distance from the bottom of the map, clearing the sheet or the dock.
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Positioned(
+      right: Space.x3,
+      bottom: bottomPadding,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          MapCircleButton(
+            icon: Icons.my_location_rounded,
+            semanticLabel: UiStrings.myLocation,
+            fill: colors.surface,
+            border: colors.line,
+            onTap: onLocateViewer,
+            iconSize: 20,
+          ),
+          const SizedBox(height: Space.x2),
+          MapCircleButton(
+            icon: Icons.directions_bus_rounded,
+            semanticLabel: UiStrings.nearestBus,
+            fill: colors.surface,
+            border: colors.line,
+            onTap: onLocateBus,
+            iconSize: 20,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Recenter control, shown only after the user pans away. Anchored above
 /// the bottom sheet through [bottomPadding], so the sheet never hides it.
+/// Deprecated: replaced by [MapLocateControls]; removed once the map uses
+/// the two-button controls.
 class MapRecenterButton extends StatelessWidget {
   /// Creates the button.
   const MapRecenterButton({

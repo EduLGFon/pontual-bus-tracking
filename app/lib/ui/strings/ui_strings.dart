@@ -313,6 +313,12 @@ class UiStrings {
   /// Recenter action.
   static const String recenter = 'Recentralizar';
 
+  /// Locate-me action: centres the viewer dot at neighbourhood zoom.
+  static const String myLocation = 'Minha localização';
+
+  /// Nearest-bus action: centres the closest bus to the viewer.
+  static const String nearestBus = 'Ônibus mais próximo';
+
   /// Attribution chip label.
   static const String attribution = '© OpenStreetMap contributors';
 
