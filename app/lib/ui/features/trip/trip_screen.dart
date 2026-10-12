@@ -268,21 +268,32 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
               children: <Widget>[
                 _header(context),
                 const SizedBox(height: Space.x4),
+                // Single scroll region above the pinned stop action: at
+                // large text scales the content scrolls and the button
+                // never scrolls away.
                 Expanded(
                   child: SingleChildScrollView(
-                    child: TripHero(
-                      controller: c,
-                      startedAtMs: c.startedAtMs,
-                      nowMs: _nowMs,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        TripHero(
+                          key: const ValueKey<String>('tripHeroSection'),
+                          controller: c,
+                          startedAtMs: c.startedAtMs,
+                          nowMs: _nowMs,
+                        ),
+                        const SizedBox(height: Space.x4),
+                        StatusBlock(
+                          controller: c,
+                          wakeUnsupported: _wakeUnsupported,
+                          nowMs: _nowMs,
+                        ),
+                        const SizedBox(height: Space.x4),
+                      ],
                     ),
                   ),
                 ),
-                StatusBlock(controller: c, wakeUnsupported: _wakeUnsupported),
-                const SizedBox(height: Space.x3),
-                DangerButton(
-                  label: UiStrings.endTrip,
-                  onPressed: () => unawaited(c.endTrip()),
-                ),
+                _stopBlock(context, c),
                 const SizedBox(height: Space.x4),
               ],
             ),
@@ -292,9 +303,32 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Pinned stop action: caption plus a full-width 56 dp button that is
+  /// never disabled. One tap ends the trip, online or offline.
+  Widget _stopBlock(BuildContext context, TripController c) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          UiStrings.tripStopCaption,
+          style: context.text.caption,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: Space.x2),
+        DangerButton(
+          key: const ValueKey<String>('tripStop'),
+          label: UiStrings.tripStop,
+          semanticLabel: UiStrings.tripStopSemantic,
+          onPressed: () => unawaited(c.endTrip()),
+        ),
+      ],
+    );
+  }
+
   /// Header with the minimise chevron and the screen title.
   Widget _header(BuildContext context) {
     return Padding(
+      key: const ValueKey<String>('tripHeader'),
       padding: const EdgeInsets.only(top: Space.x2),
       child: Row(
         children: <Widget>[

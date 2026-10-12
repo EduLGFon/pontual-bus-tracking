@@ -1,14 +1,18 @@
-// Trip hero: the live dot inside one shared pulse ring, the headline, the
-// line badge and name, and the private one-second clock of this screen.
+// Trip hero: the live indicator inside its own bounds, the headline,
+// the line badge with name and endpoints, the elapsed and last-send
+// proof lines, and the trust line. Only the small time texts rebuild
+// on the coarse timer; the rest rebuilds with the controller.
+// PRIVACY: no coordinates are ever shown or logged.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
-import 'package:pontual/ui/adapters/trip_adapter.dart';
+import 'package:pontual/ui/design/components/chip.dart' as pontual;
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
@@ -18,7 +22,7 @@ import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
-/// Hero of the trip screen: live dot, headline, line, and elapsed time.
+/// Hero of the trip screen: indicator, headline, line, times, trust.
 class TripHero extends ConsumerWidget {
   /// Creates the hero for [controller].
   const TripHero({
@@ -50,16 +54,19 @@ class TripHero extends ConsumerWidget {
         }
       }
     }
+    final SharingHealth health = controller.sharingHealth(nowMs());
+    final bool starting = health.overall == SharingOverall.starting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         const SizedBox(height: Space.x4),
-        const Center(
-          child: LivePulse(child: LiveDot(certainty: Certainty.live, size: 14)),
+        _LiveIndicator(
+          key: const ValueKey<String>('tripIndicator'),
+          overall: health.overall,
         ),
         const SizedBox(height: Space.x4),
         Text(
-          UiStrings.tripHero,
+          starting ? UiStrings.tripStarting : UiStrings.tripHero,
           style: context.text.headline,
           textAlign: TextAlign.center,
         ),
@@ -84,39 +91,101 @@ class TripHero extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: Space.x4),
-        Center(
-          child: _ElapsedClock(startedAtMs: startedAtMs, nowMs: nowMs),
+        if (line != null && line.terminalsText.isNotEmpty) ...<Widget>[
+          const SizedBox(height: Space.x2),
+          Center(child: pontual.Chip(label: line.terminalsText, compact: true)),
+        ],
+        const SizedBox(height: Space.x3),
+        _TripTimes(
+          controller: controller,
+          startedAtMs: startedAtMs,
+          nowMs: nowMs,
+        ),
+        const SizedBox(height: Space.x3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(Icons.lock_rounded, size: 16, color: context.colors.inkMuted),
+            const SizedBox(width: Space.x1),
+            Flexible(
+              child: Text(
+                UiStrings.tripTrust,
+                style: context.text.caption,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-/// Private one-second clock for this screen. It is the only timer the trip
-/// screen owns and it exists only while the screen is mounted.
-class _ElapsedClock extends StatefulWidget {
-  /// Creates the clock measuring from [startedAtMs].
-  const _ElapsedClock({required this.startedAtMs, required this.nowMs});
+/// Truthful live indicator. Green pulses only while positions flow;
+/// paused is a static amber dot, starting and ended are neutral.
+/// The dot draws inside its own box and never overflows the app bar.
+class _LiveIndicator extends StatelessWidget {
+  /// Creates the indicator for [overall].
+  const _LiveIndicator({required this.overall, super.key});
 
-  /// Trip start in milliseconds, null before the start is confirmed.
+  /// Overall sharing state.
+  final SharingOverall overall;
+
+  @override
+  Widget build(BuildContext context) {
+    final Certainty certainty = switch (overall) {
+      SharingOverall.live => Certainty.live,
+      SharingOverall.paused => Certainty.stale,
+      SharingOverall.starting => Certainty.scheduled,
+      SharingOverall.ended => Certainty.scheduled,
+    };
+    final String label = switch (overall) {
+      SharingOverall.live => 'Ao vivo. Compartilhando sua posição.',
+      SharingOverall.paused => 'Compartilhamento pausado.',
+      SharingOverall.starting => 'Iniciando compartilhamento.',
+      SharingOverall.ended => 'Viagem encerrada.',
+    };
+    return Semantics(
+      label: label,
+      excludeSemantics: true,
+      child: Center(
+        child: LivePulse(child: LiveDot(certainty: certainty, size: 14)),
+      ),
+    );
+  }
+}
+
+/// Elapsed time and last-send proof. Rebuilds only these two texts on
+/// a coarse 5 s timer, which stops with the screen.
+class _TripTimes extends StatefulWidget {
+  /// Creates the times for [controller].
+  const _TripTimes({
+    required this.controller,
+    required this.startedAtMs,
+    required this.nowMs,
+  });
+
+  /// Trip controller being read.
+  final TripController controller;
+
+  /// Trip start in milliseconds, null before confirmation.
   final int? startedAtMs;
 
   /// Clock in milliseconds.
   final int Function() nowMs;
 
   @override
-  State<_ElapsedClock> createState() => _ElapsedClockState();
+  State<_TripTimes> createState() => _TripTimesState();
 }
 
-class _ElapsedClockState extends State<_ElapsedClock> {
+class _TripTimesState extends State<_TripTimes> {
   Timer? _timer;
   late int _nowMs = widget.nowMs();
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) {
         setState(() => _nowMs = widget.nowMs());
       }
@@ -132,12 +201,43 @@ class _ElapsedClockState extends State<_ElapsedClock> {
   @override
   Widget build(BuildContext context) {
     final int? startedAtMs = widget.startedAtMs;
-    final int elapsedS = startedAtMs == null
-        ? 0
-        : ((_nowMs - startedAtMs) ~/ 1000).clamp(0, 1 << 30);
-    return Semantics(
-      label: '${UiStrings.dockSharing} ${formatElapsed(elapsedS)}',
-      child: Text(formatElapsed(elapsedS), style: context.text.clock),
+    final int? lastSuccessMs = widget.controller.lastSuccessMs;
+    final bool stale =
+        lastSuccessMs != null && _nowMs - lastSuccessMs > staleSendAfterMs;
+    final colors = context.colors;
+    return Column(
+      children: <Widget>[
+        if (startedAtMs != null)
+          Semantics(
+            label:
+                'Tempo de viagem ${UiStrings.agoLong(_elapsedS(startedAtMs))}',
+            child: Text(
+              UiStrings.elapsedAgo(_elapsedS(startedAtMs)),
+              style: context.text.bodyStrong,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (lastSuccessMs != null) ...<Widget>[
+          const SizedBox(height: Space.x1),
+          Semantics(
+            label:
+                'Última posição enviada ${UiStrings.agoLong((_nowMs - lastSuccessMs) ~/ 1000)}',
+            child: Text(
+              UiStrings.lastSentAgo(
+                UiStrings.agoShort((_nowMs - lastSuccessMs) ~/ 1000),
+              ),
+              style: context.text.caption.copyWith(
+                color: stale ? colors.warningText : colors.inkMuted,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ],
     );
+  }
+
+  int _elapsedS(int startedAtMs) {
+    return ((_nowMs - startedAtMs) ~/ 1000).clamp(0, 1 << 30);
   }
 }

@@ -730,6 +730,19 @@ class UiStrings {
   /// Elapsed trip time in pt-BR: "há 12 min".
   static String elapsedAgo(int secondsS) => agoShort(secondsS);
 
+  /// Long relative time for screen readers: "há 8 segundos".
+  static String agoLong(int secondsS) {
+    if (secondsS < 60) {
+      return secondsS == 1 ? 'há 1 segundo' : 'há $secondsS segundos';
+    }
+    final int minutes = secondsS ~/ 60;
+    if (minutes < 60) {
+      return minutes == 1 ? 'há 1 minuto' : 'há $minutes minutos';
+    }
+    final int hours = minutes ~/ 60;
+    return hours == 1 ? 'há 1 hora' : 'há $hours horas';
+  }
+
   /// End card confirm action (V4).
   static const String endDone = 'Concluído';
 

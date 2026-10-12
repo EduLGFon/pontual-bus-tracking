@@ -1,6 +1,9 @@
 // End card of a finished trip: the checkmark draws once over 400 ms and is
 // skipped under reduced motion, the reason line comes only from the
-// strings file, and the single action returns to the app.
+// strings file, and the single action returns to the previous screen.
+// The card auto-dismisses after about 3 seconds; stopping is the
+// privacy-protective action and never strands the rider here.
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -13,7 +16,7 @@ import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// End card shown after a trip ends, with the reason for automatic ends.
-class TripEndCard extends StatelessWidget {
+class TripEndCard extends StatefulWidget {
   /// Creates the end card.
   const TripEndCard({
     required this.kind,
@@ -52,6 +55,44 @@ class TripEndCard extends StatelessWidget {
   }
 
   @override
+  State<TripEndCard> createState() => _TripEndCardState();
+}
+
+/// State holding the auto-dismiss timer.
+class _TripEndCardState extends State<TripEndCard> {
+  /// Auto-dismiss delay in milliseconds.
+  static const int dismissAfterMs = 3000;
+
+  Timer? _timer;
+  bool _gone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: dismissAfterMs), _dismiss);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// Returns to the previous screen exactly once.
+  void _dismiss() {
+    if (_gone || !mounted) {
+      return;
+    }
+    _gone = true;
+    final BuildContext context = this.context;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return Scaffold(
@@ -66,23 +107,21 @@ class TripEndCard extends StatelessWidget {
               _CheckMark(animate: !reduce),
               const SizedBox(height: Space.x6),
               Text(
-                message,
+                widget.message,
                 style: context.text.title,
                 textAlign: TextAlign.center,
               ),
-              if (helpedTrips != null && helpedTrips! > 0) ...<Widget>[
+              if (widget.helpedTrips != null &&
+                  widget.helpedTrips! > 0) ...<Widget>[
                 const SizedBox(height: Space.x3),
                 Text(
-                  '${UiStrings.kudosPrefix} ${helpedTrips!} ${UiStrings.kudosSuffix}',
+                  '${UiStrings.kudosPrefix} ${widget.helpedTrips!} ${UiStrings.kudosSuffix}',
                   style: context.text.body,
                   textAlign: TextAlign.center,
                 ),
               ],
               const SizedBox(height: Space.x8),
-              PrimaryButton(
-                label: UiStrings.endBack,
-                onPressed: () => context.go('/'),
-              ),
+              PrimaryButton(label: UiStrings.endDone, onPressed: _dismiss),
             ],
           ),
         ),

@@ -194,6 +194,7 @@ class DangerButton extends StatelessWidget {
     this.onPressed,
     this.icon,
     this.fullWidth = true,
+    this.semanticLabel,
     super.key,
   });
 
@@ -209,12 +210,15 @@ class DangerButton extends StatelessWidget {
   /// Stretches to the available width.
   final bool fullWidth;
 
+  /// Screen-reader label when it differs from [label].
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Pressable(
       onTap: onPressed,
-      semanticLabel: label,
+      semanticLabel: semanticLabel ?? label,
       borderRadius: Radii.pill,
       minSize: 0,
       child: Container(
