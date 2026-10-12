@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
@@ -16,15 +17,16 @@ import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
+import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
+import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/format_eta.dart';
-import 'package:pontual/ui/util/search_index.dart';
 
 /// Filters offered by the chips row.
 enum LinesFilter {
@@ -126,11 +128,14 @@ class LinesScreen extends ConsumerWidget {
         withTimes++;
       }
     }
-    final List<LineVM> lines = _visible(
+    final List<LineVM> filtered = _filtered(
       all,
       filter,
       ref.watch(favoritesProvider),
     );
+    final List<LinesListItem> items = filter == LinesFilter.all
+        ? groupedLines(filtered)
+        : sortedByCategory(filtered).map(LinesLineItem.new).toList();
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
@@ -140,7 +145,7 @@ class LinesScreen extends ConsumerWidget {
               child: _Header(total: all.length, withTimes: withTimes),
             ),
             const SliverToBoxAdapter(child: _FilterRow()),
-            if (lines.isEmpty)
+            if (items.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -154,12 +159,17 @@ class LinesScreen extends ConsumerWidget {
               SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
                 sliver: SliverList.builder(
-                  itemCount: lines.length,
+                  itemCount: items.length,
                   itemBuilder: (BuildContext context, int index) {
+                    final LinesListItem item = items[index];
+                    if (item is LinesHeaderItem) {
+                      return _CategoryHeader(item: item);
+                    }
+                    final LineVM line = (item as LinesLineItem).line;
                     return Padding(
-                      key: ValueKey<String>(lines[index].key),
+                      key: ValueKey<String>(line.key),
                       padding: const EdgeInsets.only(bottom: Space.x2),
-                      child: _LineCard(line: lines[index]),
+                      child: _LineCard(line: line),
                     );
                   },
                 ),
@@ -169,6 +179,45 @@ class LinesScreen extends ConsumerWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Section header for one category: dot, name and count. Muted and compact.
+class _CategoryHeader extends StatelessWidget {
+  /// Creates the header for [item].
+  const _CategoryHeader({required this.item});
+
+  /// Header data with the category and its count.
+  final LinesHeaderItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color dot = categoryColorOf(
+      item.category,
+      brightness: Theme.of(context).brightness,
+    );
+    final String label = lineCategoryLabel(item.category);
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x4, bottom: Space.x2),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: Space.x2,
+            height: Space.x2,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: Space.x2),
+          Expanded(
+            child: Text(
+              '$label · ${item.count} ${item.count == 1 ? _oneLine : UiStrings.linesCount}',
+              style: context.text.caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -315,34 +364,20 @@ LinesFilter _filterOf(BuildContext context) {
   );
 }
 
-/// Lines for [filter], sorted live first, then favourites, then name.
-List<LineVM> _visible(
+/// Lines for [filter], unsorted. Sorting and grouping own the order:
+/// category first, then line number. Favorites are never pinned to the top.
+List<LineVM> _filtered(
   List<LineVM> all,
   LinesFilter filter,
   Set<String> favorites,
 ) {
-  final List<LineVM> lines = all.where((LineVM line) {
+  return all.where((LineVM line) {
     return switch (filter) {
       LinesFilter.all => true,
       LinesFilter.live => line.isLive,
       LinesFilter.favorites => favorites.contains(line.key),
     };
   }).toList();
-  lines.sort((LineVM a, LineVM b) => _compareLines(a, b, favorites));
-  return lines;
-}
-
-/// Orders live first, then favourites, then accent-insensitive name.
-int _compareLines(LineVM a, LineVM b, Set<String> favorites) {
-  if (a.isLive != b.isLive) {
-    return a.isLive ? -1 : 1;
-  }
-  final bool favoriteA = favorites.contains(a.key);
-  final bool favoriteB = favorites.contains(b.key);
-  if (favoriteA != favoriteB) {
-    return favoriteA ? -1 : 1;
-  }
-  return normalizeText(a.name).compareTo(normalizeText(b.name));
 }
 
 /// Singular of the count. The strings file only carries the plural form.

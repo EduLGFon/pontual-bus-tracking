@@ -218,7 +218,7 @@ void main() {
       final BuildContext context = tester.element(find.byType(LinesScreen));
       final ProviderContainer container = ProviderScope.containerOf(context);
       expect(container.read(favoritesProvider), isEmpty);
-      // Rows sort live-first, so the first star belongs to Litorâneo.
+      // Rows sort by category then number, so the first star is Litorâneo.
       await tester.tap(find.bySemanticsLabel(UiStrings.favorite).first);
       await tester.pumpAndSettle();
       expect(
@@ -229,6 +229,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);
+    });
+
+    testWidgets('todas groups rows under the category header', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('UFES / IFES'), findsOneWidget);
     });
 
     testWidgets('row tap opens the line', (WidgetTester tester) async {
