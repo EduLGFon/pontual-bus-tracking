@@ -131,6 +131,34 @@ class UiStrings {
   /// Live summary chip, for example "3 ao vivo".
   static const String liveCount = 'ao vivo';
 
+  /// Live summary chip when nothing is sharing. Neutral wording: no
+  /// green dot reads as live while nothing is live.
+  static const String homeLiveNone = 'Nenhum ao vivo';
+
+  /// Live summary chip while the app is offline.
+  static const String homeOffline = 'Offline';
+
+  /// Trust line under the empty live card, with a lock icon.
+  static const String homeTrust =
+      'Anônimo. Sua localização só é usada enquanto você compartilha.';
+
+  /// Shortcut card state when the timetable has no more departures today.
+  static const String homeNoMoreToday = 'Sem mais saídas hoje';
+
+  /// Tomorrow hint under the no-more-today state, for example
+  /// "Amanhã 06:10".
+  static String homeTomorrowAt(String hhmm) => 'Amanhã $hhmm';
+
+  /// Shortcut card state when the line has no usable timetable.
+  static const String homeNoTime = 'Sem horário';
+
+  /// Muted hint under the no-timetable state.
+  static const String homeNoTimeHint =
+      'Nenhum horário cadastrado para esta linha.';
+
+  /// Toast after clearing the recent lines, with an undo action.
+  static const String homeRecentsCleared = 'Recentes apagados.';
+
   /// Welcome card title.
   static const String welcomeTitle = 'Veja onde o ônibus está';
 
