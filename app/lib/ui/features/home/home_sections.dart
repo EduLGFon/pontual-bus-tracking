@@ -91,7 +91,7 @@ ArrivalVM? _nextArrival(StaticLine line, String? origin, DateTime now) {
 /// Shortcut entries for the current lines and instant, sorted with live
 /// lines first (a bus on the route now beats any timetable time) and the
 /// earliest next arrival winning inside each group. D30.
-List<_ShortcutEntry> shortcutEntries(
+List<_ShortcutEntry> _shortcutEntries(
   List<ShortcutVM> shortcuts,
   List<LineVM> lines,
   List<StaticLine> statics,
@@ -162,7 +162,7 @@ class ShortcutsSection extends ConsumerWidget {
       }
     } else {
       for (final _ShortcutEntry entry
-          in shortcutEntries(shortcuts, lines, statics, now)) {
+          in _shortcutEntries(shortcuts, lines, statics, now)) {
         final String tag =
             '${entry.shortcut.kind.name}-${entry.shortcut.lineKey}'
             '-${entry.shortcut.originLabel ?? ''}';
@@ -251,7 +251,7 @@ class SaindoAgoraSection extends ConsumerWidget {
         ref.watch(linesProvider).asData?.value ?? const <StaticLine>[];
     final List<LineVM> lines = ref.watch(linesVmProvider);
     final DateTime now = ref.watch(currentNowProvider);
-    final List<_ShortcutEntry> entries = shortcutEntries(
+    final List<_ShortcutEntry> entries = _shortcutEntries(
       shortcuts,
       lines,
       statics,
