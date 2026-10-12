@@ -1830,3 +1830,17 @@ the camera. No coordinates are read or logged in the error path.
 Verified: flutter analyze clean, offline_map_test (4 new assertions) and
 line_screen_test green. Production traffic still belongs on a self-hosted
 tile host per D12/D-U26; this only makes the OSM fallback recover.
+
+## D-U30-2026-10-12: two map locate buttons (viewer dot, closest bus)
+
+Request: the single recenter button did not focus the right place. Split
+it into two controls in one bottom-right column, shown after panning as
+before. The viewer button centres the dot at neighbourhood zoom 14 (city
+centre at 13 when unknown); the bus button centres the live vehicle
+closest to the viewer dot, or to the camera centre when the dot is
+unknown, at street zoom 15, falling back to the city centre with no live
+vehicles. Distance uses the shared haversine helper. The old single
+button and its string are removed.
+
+Verified: flutter analyze clean, line_screen_test plus offline_map_test
+green (18 passed).

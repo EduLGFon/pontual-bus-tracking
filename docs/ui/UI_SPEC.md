@@ -845,8 +845,10 @@ sharing; otherwise hidden. Never duplicate the CTA inside the sheet.
 - **Markers:** `VehicleMarker` (below), max ~20 rendered; anything beyond is
   summarised in the sheet.
 - **Controls:** back button (top-left, 44 dp circle, `surface` fill + hairline),
-  recenter button (appears after the user pans away; bottom-right above the
-  dock), zoom +/- only on pointer devices (web expanded). No rotation gesture.
+  two locate buttons in one bottom-right column above the
+  dock (viewer dot at zoom 14, city centre fallback; closest bus to the
+  viewer at zoom 15, camera-centre reference and city fallback otherwise),
+  zoom +/- only on pointer devices (web expanded). No rotation gesture.
   No compass.
 - **Camera:** on enter fit to live vehicles (if any) else route bounds else
   service-area center at zoom 13. The fit runs from the first build that has
