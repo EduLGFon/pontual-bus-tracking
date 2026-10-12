@@ -3,6 +3,8 @@
 // attribution chip and the camera controls. The viewer dot comes from an
 // on-device one-shot lookup and is drawn only, never sent anywhere.
 // See docs/ui/UI_SPEC.md 7.5.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +21,13 @@ import 'package:pontual/ui/models/vehicle_vm.dart';
 /// Maximum number of vehicle markers drawn at once. The sheet summarises
 /// anything beyond this, so no vehicle is dropped silently.
 const int maxMarkers = 20;
+
+/// Zoom of the city-centre fallback: wide enough to show the served area.
+const double cityZoom = 13;
+
+/// Zoom of the viewer recenter: close enough to read streets, wide enough
+/// to see the whole neighbourhood around the viewer dot.
+const double neighbourhoodZoom = 14;
 
 /// Route polyline casing width in dp, drawn under the coloured stroke.
 const double routeCasingDp = 8;
@@ -87,7 +96,8 @@ class LineMap extends StatefulWidget {
   /// Called when the user drags the map.
   final VoidCallback onPan;
 
-  /// Called by the recenter control.
+  /// Called by the recenter control. The screen centres the camera on the
+  /// viewer (city centre fallback) through [LineMapState.centerOnViewer].
   final VoidCallback onRecenter;
 
   @override
@@ -97,10 +107,18 @@ class LineMap extends StatefulWidget {
 /// State of the line map. Exposes the camera commands the screen needs.
 class LineMapState extends State<LineMap> {
   final MapController _map = MapController();
+
+  /// Reloads the visible tiles when the throttled-burst retry fires.
+  final StreamController<void> _tileReset = StreamController<void>();
+  Timer? _tileRetryTimer;
+  int _tileReloadAttempts = 0;
+  DateTime? _lastTileErrorAt;
   bool _viewerFitted = false;
 
   @override
   void dispose() {
+    _tileRetryTimer?.cancel();
+    _tileReset.close();
     _map.dispose();
     super.dispose();
   }
@@ -121,15 +139,57 @@ class LineMapState extends State<LineMap> {
       _viewerFitted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !widget.panned) {
-          _map.move(viewer, 15);
+          _map.move(viewer, neighbourhoodZoom);
         }
       });
     }
   }
 
-  /// Fits the camera to the live vehicles, else to the service-area bounds.
-  /// Called on enter, on recenter and on sheet settle, never per frame:
-  /// [padding] reserves the space covered by the sheet or the side panel.
+  /// Counts a failed tile and schedules one bounded reload of the visible
+  /// tiles. The public raster host throttles the burst fired when the map
+  /// opens or a fast zoom settles; without this the failed tiles stay blank
+  /// until the next user gesture. No tile coordinates are read or logged.
+  void _onTileError() {
+    if (!mounted || _tileReset.isClosed) {
+      return;
+    }
+    final DateTime now = DateTime.now();
+    final DateTime? last = _lastTileErrorAt;
+    if (last == null || now.difference(last) > tileErrorBurstWindow) {
+      _tileReloadAttempts = 0;
+    }
+    _lastTileErrorAt = now;
+    if (_tileReloadAttempts >= maxTileReloadAttempts) {
+      return;
+    }
+    if (_tileRetryTimer?.isActive == true) {
+      return;
+    }
+    _tileRetryTimer = Timer(tileReloadDelay(_tileReloadAttempts), () {
+      _tileReloadAttempts += 1;
+      if (mounted && !_tileReset.isClosed) {
+        _tileReset.add(null);
+      }
+    });
+  }
+
+  /// Centres the camera on the viewer at neighbourhood zoom. Falls back to
+  /// the city centre at city zoom when the viewer position is unknown.
+  /// Called by the recenter control only, never automatically.
+  void centerOnViewer() {
+    final LatLng? viewer = widget.viewerPosition;
+    if (viewer != null) {
+      _map.move(viewer, neighbourhoodZoom);
+      return;
+    }
+    _map.move(mapBounds.center, cityZoom);
+  }
+
+  /// Fits the camera to the live vehicles, else to the service-area bounds
+  /// (city centre). Called on enter and when the map is first revealed,
+  /// never when the sheet moves: expanding the line details must not move
+  /// the camera. [padding] reserves the space covered by the sheet or the
+  /// side panel.
   void fitToContent({EdgeInsets padding = EdgeInsets.zero}) {
     final List<LatLng> points = widget.vehicles
         .map((VehicleVM v) => LatLng(v.lat, v.lng))
@@ -166,7 +226,7 @@ class LineMapState extends State<LineMap> {
               mapController: _map,
               options: MapOptions(
                 initialCenter: _initialCenter(),
-                initialZoom: 13,
+                initialZoom: cityZoom,
                 minZoom: mapMinZoom,
                 maxZoom: mapMaxZoom,
                 cameraConstraint: CameraConstraint.contain(bounds: mapBounds),
@@ -181,6 +241,8 @@ class LineMapState extends State<LineMap> {
                 osmTileLayer(
                   widget.tileUrlTemplate,
                   httpClient: widget.httpClient,
+                  reset: _tileReset.stream,
+                  onTileError: _onTileError,
                 ),
                 // Premium muting without a GPU cost: one tinted box above
                 // the tiles. No ColorFiltered, no blend mode, no blur.
@@ -235,17 +297,17 @@ class LineMapState extends State<LineMap> {
         if (widget.panned)
           MapRecenterButton(
             bottomPadding: widget.controlsBottomPadding,
-            onTap: () {
-              widget.onRecenter();
-              fitToContent();
-            },
+            onTap: widget.onRecenter,
           ),
       ],
     );
   }
 
   /// Centre used before the first camera fit: the viewer first, then the
-  /// live vehicles, else the service-area centre at zoom 13.
+  /// live vehicles, else the city centre (service-area centre). The city
+  /// centre is the fallback for every case with no better position: no
+  /// location found, permission missing, lookup still loading, map just
+  /// opened.
   LatLng _initialCenter() {
     final LatLng? viewer = widget.viewerPosition;
     if (viewer != null) {
