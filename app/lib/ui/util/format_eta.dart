@@ -75,6 +75,15 @@ EtaFormat _freshFormat(ArrivalVM arrival, DateTime now) {
 }
 
 EtaFormat _scheduledFormat(ArrivalVM arrival, DateTime now) {
+  if (isSameMinute(arrival.at, now)) {
+    return EtaFormat(
+      primary: formatClock(arrival.at),
+      secondary: 'agora',
+      a11y:
+          'Próxima saída às ${_clockPhrase(arrival.at)}, agora. '
+          'Horário previsto pela tabela.',
+    );
+  }
   final int minutes = minutesUntilClock(arrival.at, now);
   if (minutes <= 0) {
     return EtaFormat(

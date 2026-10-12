@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
@@ -68,7 +69,8 @@ StaticLine? _staticOf(List<StaticLine> lines, String code) {
 }
 
 /// Next upcoming arrival for a shortcut. Falls back to the merged timetable
-/// when an origin yields nothing, which keeps the card honest.
+/// when an origin yields nothing, which keeps the card honest. A departure
+/// at the current minute counts as now, using the shared minute rule.
 ArrivalVM? _nextArrival(StaticLine line, String? origin, DateTime now) {
   final TimetableArrivalsSource source = TimetableArrivalsSource(
     line: line,
@@ -81,7 +83,7 @@ ArrivalVM? _nextArrival(StaticLine line, String? origin, DateTime now) {
     departures = source.departures(ArrivalQuery(lineKey: line.code, limit: 0));
   }
   for (final ArrivalVM arrival in departures) {
-    if (!arrival.isPast(now)) {
+    if (!isPastMinute(arrival.at, now)) {
       return arrival;
     }
   }

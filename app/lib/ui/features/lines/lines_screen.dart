@@ -60,11 +60,11 @@ final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
           );
     });
 
-/// Next departure of a line key, empty when nothing is left today. Reads
-/// the static data of today only and formats the first upcoming time, so
-/// rows build synchronously: no per-row future, no staggered rebuild while
-/// scrolling. Also drops times of other day types, which the old merged
-/// scan could surface on the wrong day.
+/// Next departure of a line key. Today wins at or after now; otherwise the
+/// first departure of the next service day wins as `Amanhã HH:mm`; empty
+/// when the line has no timetable at all. Uses the shared minute rule from
+/// domain/schedule so Home and Linhas agree. `currentNowProvider` already
+/// holds São Mateus wall clock, so no extra conversion applies here.
 final nextDepartureProvider = Provider.family<String, String>((
   Ref ref,
   String key,
@@ -73,30 +73,38 @@ final nextDepartureProvider = Provider.family<String, String>((
   if (line == null) {
     return '';
   }
-  final DateTime local = saoMateusTime(ref.watch(currentNowProvider));
-  final int nowMinutes = local.hour * 60 + local.minute;
-  for (final String time in timetableTimesOf(line, dayTypeFor(local), null)) {
-    final int? minutes = parseMinutesOf(time);
-    if (minutes == null || minutes <= nowMinutes) {
-      continue;
-    }
-    return formatEta(
-      ArrivalVM(
-        lineKey: key,
-        at: DateTime.utc(
-          local.year,
-          local.month,
-          local.day,
-          minutes ~/ 60,
-          minutes % 60,
-        ),
-        certainty: Certainty.scheduled,
-        asOf: local,
-      ),
-      local,
-    ).primary;
+  final DateTime now = ref.watch(currentNowProvider);
+  final int nowMinutes = nowMinutesOf(now);
+  final List<String> today = timetableTimesOf(line, dayTypeFor(now), null);
+  final DayType tomorrowType = dayTypeFor(now.add(const Duration(days: 1)));
+  final List<String> tomorrow = timetableTimesOf(line, tomorrowType, null);
+  final NextDeparture? next = resolveNextDeparture(
+    todayTimes: today,
+    tomorrowTimes: tomorrow,
+    nowMinutes: nowMinutes,
+  );
+  if (next == null) {
+    return '';
   }
-  return '';
+  if (next.isTomorrow) {
+    return UiStrings.homeTomorrowAt(next.time);
+  }
+  final int minutes = minutesOf(next.time);
+  return formatEta(
+    ArrivalVM(
+      lineKey: key,
+      at: DateTime.utc(
+        now.year,
+        now.month,
+        now.day,
+        minutes ~/ 60,
+        minutes % 60,
+      ),
+      certainty: Certainty.scheduled,
+      asOf: now,
+    ),
+    now,
+  ).primary;
 });
 
 /// The Linhas screen.
