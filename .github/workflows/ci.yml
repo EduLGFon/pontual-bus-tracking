@@ -126,6 +126,9 @@ jobs:
       - name: Data tool tests
         working-directory: tools
         run: deno task data-test
+      - name: Map tool tests
+        working-directory: tools
+        run: deno task map-test
       - name: Data validation
         working-directory: tools
         run: deno task data-validate
