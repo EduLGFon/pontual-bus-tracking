@@ -1661,3 +1661,25 @@ verification split as D-U25):
   instruction no Flutter tooling ran in this session, so `flutter
   analyze`, `flutter test`, screenshots and size profiling must run
   elsewhere before merge.
+- 2026-10-12: Line-detail brief deviations (D32, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `line-screen.md`
+  describes the old map plus bottom-sheet UI; the new UI already covers
+  D1 bounds plus cache plus scrim, D2 snaps, D8 segmented and the shared
+  next-departure core, so this pass is polish only. Full-screen sheet at
+  D2 skipped: full stays 0.92 with the map behind instead of hiding the
+  map and adding a top bar, keeping the live context rows act on. FAB at
+  D5 skipped: the global dock pill plus `LineDock` own sharing per
+  UI_SPEC 7.1 (same call as D29 and D31); no `Qual o sentido?` sheet,
+  the line chooser plus consent flow stays. Per-line origin memory at D6
+  deferred: needs a new prefs store through the timetable tab, left as
+  a follow-up like lines C10. Holiday auto-detection plus 30 s ticker at
+  D9 skipped: 1-minute tick stays on battery grounds (same call as D29
+  and D31) and `Dom/Feriados` stays manual per UI_SPEC 7.6. Per-direction
+  triplets at D4 skipped: times merge origins like the D-U26 lines rule;
+  live vehicles carry no direction signal. Dark `ColorFiltered` at D1
+  skipped: the `mapScrim` tint stays (no GPU cost). Header next chip hides
+  while live (same live-wins rule as the lines rows). Full audit and
+  report in `docs/ui/line-detail-redesign.md`. Not verified here: per the
+  task instruction no Flutter tooling ran in this session, so `flutter
+  analyze`, `flutter test`, screenshots and size profiling must run
+  elsewhere before merge.

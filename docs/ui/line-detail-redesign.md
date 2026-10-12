@@ -151,8 +151,83 @@ See sections 4 and 5 for the per-item implementation and report.
 
 ## 5. Final report
 
-TODO (filled at the end): files touched, decisions, skipped items,
-size and performance notes (not measured here per task instruction:
-no Flutter tooling ran, so `flutter analyze`, `flutter test`,
-screenshots and bundle sizes must run on a Flutter-capable machine
-before merge).
+### Files touched
+
+- `app/lib/ui/features/line/line_sheet_header.dart`: duplicate
+  terminals hidden via `shouldShowTerminals`; star uses per-line
+  `favoriteLine`/`unfavoriteLine` semantics plus `Desfazer` toast;
+  new `_NextRow` from shared `lineStatusProvider` (tappable countdown,
+  `Amanhã`, `Sem mais saídas hoje`, `Sem horários ainda`; hidden while
+  live, same live-wins rule as the lines rows; tap opens Horários).
+- `app/lib/ui/features/line/line_sheet.dart`: Agora empty is a compact
+  card (no bus illustration, no `Ver horários` link); night banner
+  (`Sem mais saídas hoje` plus `Amanhã HH:mm`) via `earliestTime`;
+  header wired to `lineStatusProvider` plus `timetableDateProvider`.
+- `app/lib/ui/features/timetable/timetable_tab.dart`: day tabs mark
+  today (`Dias úteis · hoje`); two origins use `Segmented` matching the
+  main tabs; `Primeira · Última` summary; tomorrow banner on today only;
+  empty day offers `Ver dias úteis` jumping to the first day with data;
+  past dim and next highlight apply to today only; footnote shows the
+  manifest `timetableDate` passed by the parent (stays testable without
+  a `ProviderScope`).
+- `app/lib/ui/features/line/line_screen.dart`: map carries
+  `Mapa da linha <short>, <live>` semantics; tab switch snaps the sheet
+  (Horários to half, Agora to peek, instant with reduce-motion).
+- `app/lib/ui/strings/ui_strings.dart`: `todayMark`, `timetableFirst`,
+  `timetableLast`, `timetableSeeData`, `mapOfLine` only.
+- Tests: `app/test/ui/timetable_tab_test.dart` (hoje label).
+- Docs: this file plus `DECISIONS.md` D32.
+
+### Decisions and trade-offs
+
+- 1-minute tick over 30 s (battery, D29/D31 precedent).
+- Dock pill over FAB (UI_SPEC 7.1, D29/D31 precedent).
+- Times merge origins (D-U26 rule); no per-direction triplets.
+- Header next chip hidden while live (live-wins, like lines rows).
+- Footnote date via parent param, not a `Consumer` tab (keeps the four
+  existing tab tests scope-free).
+- Non-today tabs never dim or highlight (their minutes belong to
+  another service day).
+
+### What was skipped and why
+
+- Full-screen sheet with hidden map and top bar (D2): keeps live
+  context; 0.92 plus clearance reaches every row.
+- System-back collapses-full-first: needs sheet-size-aware pop scope;
+  follow-up.
+- Pinned header while scrolling: needs sheet slivers restructure;
+  follow-up.
+- Per-line origin memory: needs a new prefs store; follow-up like
+  lines C10.
+- Holiday auto-detection: manual switch per UI_SPEC 7.6; owner owns
+  the municipal list (see below).
+- Offline `Mapa indisponível offline` chip: global offline banner
+  already covers it; sheet and timetables keep working.
+- Stale marker dim style beyond `Certainty.stale`: markers already
+  carry certainty plus age; no new paint work.
+- Contrast widget test for text buttons (D7): no `TextButton` bug in
+  the new UI; token pairs already gated by `contrast_test.dart`.
+
+### Size and performance numbers
+
+Not measured here: per the task instruction no Flutter tooling
+(`analyze`, `test`, builds) ran in this session, so APK and web bundle
+deltas, frame times and contrast runs must happen on a
+Flutter-capable machine before merge (`flutter analyze`,
+`flutter test`, 320/360/411 dp plus 390/1280 web, 100 and 200 percent
+text scale, dark plus light). Expected delta near zero: no new
+dependencies, no images, no blur or shadows, one extra provider watch
+per sheet plus text-only rows, lists stay lazy with stable keys.
+
+### Needs owner input
+
+- Municipal holidays plus optional days (Carnival, Corpus Christi):
+  no list was added; `Dom/Feriados` stays manual.
+- Route geometry and stop coordinates: `data/routes/` is still empty,
+  `LineMap.routePoints` stays empty and draws nothing. Commit real
+  traces to light up the polyline.
+- Default map center if one had to be defined: not needed, the app
+  frames `mapBounds` (São Mateus area) and fits live vehicles first.
+- Verify on a Flutter machine: `flutter analyze`, `flutter test`
+  (timetable hoje, line screen, headers), text-scale and theme passes,
+  plus the D2 back-behavior and header-pinning follow-ups above.
