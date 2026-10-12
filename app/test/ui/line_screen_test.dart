@@ -221,7 +221,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text(UiStrings.lineNoTracking), findsOneWidget);
     expect(find.text(UiStrings.dockIdleOnLine), findsNothing);
-    expect(find.text(UiStrings.homeNoLive), findsOneWidget);
+    // At the fixed 09:00 clock both departures (05:30, 06:10) are past, so
+    // the Agora body shows the night banner instead of the empty hint.
+    expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
+    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
   });
 
   testWidgets('200 percent text scale raises no exception', (
