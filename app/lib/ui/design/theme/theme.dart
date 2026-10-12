@@ -71,6 +71,29 @@ ThemeData _base(Brightness brightness, PontualColors colors) {
       contentTextStyle: PontualText.body.copyWith(color: colors.inkMuted),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (Set<WidgetState> states) => states.contains(WidgetState.selected)
+            ? colors.onPrimary
+            : colors.inkMuted,
+      ),
+      thumbIcon: WidgetStateProperty.resolveWith(
+        (Set<WidgetState> states) => states.contains(WidgetState.selected)
+            ? Icon(Icons.check_rounded, size: 16, color: colors.primary)
+            : null,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (Set<WidgetState> states) => states.contains(WidgetState.selected)
+            ? colors.primary
+            : Colors.transparent,
+      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (Set<WidgetState> states) => states.contains(WidgetState.selected)
+            ? Colors.transparent
+            : colors.line,
+      ),
+      trackOutlineWidth: const WidgetStatePropertyAll<double>(2),
+    ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
         color: colors.surfaceRaised,

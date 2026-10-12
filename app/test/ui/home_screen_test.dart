@@ -109,7 +109,7 @@ void main() {
 
     expect(find.text(UiStrings.homeLiveNow), findsOneWidget);
     expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-    expect(find.text('2 ${UiStrings.oneLive}'), findsWidgets);
+    expect(find.textContaining(UiStrings.certaintyLive), findsWidgets);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -214,7 +214,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('saindo agora lists the next departure per shortcut', (
+  testWidgets('departures section hides when cards cover every departure', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -226,8 +226,30 @@ void main() {
     await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
     await tester.pumpAndSettle();
 
-    expect(find.text(UiStrings.saindoAgora), findsOneWidget);
+    // The single upcoming departure already shows on the Casa card, so the
+    // feed dedupes it away and hides instead of duplicating the card.
+    expect(find.text(UiStrings.saindoAgora), findsNothing);
+    expect(find.text(UiStrings.nextDepartures), findsNothing);
     expect(find.text('10:20'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('departures section shows live rows for live shortcut lines', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      ...onboardingDone,
+      shortcutsKey:
+          '[{"kind":"home","label":"Casa","lineKey":"60-litoraneo-aviacao",'
+          '"originLabel":null}]',
+    });
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[[60,2]]'));
+    await tester.pumpAndSettle();
+
+    // The card shows the live badge instead of a time, so the live row is
+    // new information and the section titles itself Saindo agora.
+    expect(find.text(UiStrings.saindoAgora), findsOneWidget);
+    expect(find.text(UiStrings.certaintyLive), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 

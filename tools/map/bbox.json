@@ -1,0 +1,28 @@
+{
+  "municipality": {
+    "name": "Sao Mateus, Espirito Santo, Brazil",
+    "osm_relation": 1834958,
+    "source": "Nominatim boundingbox, verified 2026-10-12",
+    "south": -19.1488575,
+    "north": -18.4441081,
+    "west": -40.4056406,
+    "east": -39.7190224
+  },
+  "extract_bbox": {
+    "comment": "Municipality bbox plus ~0.05 deg buffer for context and route overshoot, extended east to cover the app pan bounds over Guriri waters. Order: min_lon,min_lat,max_lon,max_lat.",
+    "min_lon": -40.46,
+    "min_lat": -19.2,
+    "max_lon": -39.5,
+    "max_lat": -18.39
+  },
+  "app_bounds": {
+    "comment": "Must stay in sync with mapBounds in app/lib/features/map/tile_source.dart.",
+    "south": -19.05,
+    "north": -18.4,
+    "west": -40.25,
+    "east": -39.55
+  },
+  "protomaps_build": "20261012",
+  "protomaps_url_pattern": "https://build.protomaps.com/<YYYYMMDD>.pmtiles",
+  "pmtiles_cli": "1.31.2"
+}

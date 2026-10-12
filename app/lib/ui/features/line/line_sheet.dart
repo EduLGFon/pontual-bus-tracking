@@ -11,10 +11,10 @@ import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/alerts_store.dart';
+import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
-import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/segmented.dart';
@@ -110,6 +110,13 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   Widget build(BuildContext context) {
     final DateTime now = ref.watch(currentNowProvider);
     final colors = context.colors;
+    final status = ref.watch(lineStatusProvider(widget.line.key));
+    final String timetableDate = ref.watch(timetableDateProvider).value ?? '';
+    void openTimetable() {
+      setState(() => _tab = SheetTab.timetable);
+      widget.onTabChanged?.call(SheetTab.timetable);
+    }
+
     return RepaintBoundary(
       child: Container(
         decoration: BoxDecoration(
@@ -146,12 +153,22 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               ),
             ),
             const SizedBox(height: Space.x3),
-            LineSheetHeader(line: widget.line, vehicles: widget.vehicles),
+            LineSheetHeader(
+              line: widget.line,
+              vehicles: widget.vehicles,
+              status: status,
+              onOpenTimetable: openTimetable,
+            ),
             const SizedBox(height: Space.x3),
             _tabs(),
             const SizedBox(height: Space.x4),
             if (_tab == SheetTab.timetable)
-              TimetableTab(line: widget.staticLine, now: now, scrollable: false)
+              TimetableTab(
+                line: widget.staticLine,
+                now: now,
+                scrollable: false,
+                timetableDate: timetableDate,
+              )
             else ...<Widget>[..._nowBody(now), _actionRow()],
           ],
         ),
@@ -235,13 +252,53 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     }
     out.add(const SizedBox(height: Space.x6));
     if (widget.vehicles.isEmpty) {
-      out.add(
-        const EmptyState(
-          title: UiStrings.homeNoLive,
-          message: UiStrings.homeNoLiveHint,
-          art: EmptyArt.bus,
-        ),
-      );
+      final String? tomorrow = _tomorrowFirst(now);
+      if (departures.isEmpty && tomorrow != null) {
+        out.add(
+          SurfaceCard(
+            semanticLabel:
+                '${UiStrings.homeNoMoreToday}. '
+                '${UiStrings.homeTomorrowAt(tomorrow)}.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  UiStrings.homeNoMoreToday,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: Space.x1),
+                Text(
+                  UiStrings.homeTomorrowAt(tomorrow),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        out.add(
+          SurfaceCard(
+            semanticLabel:
+                '${UiStrings.homeNoLive} ${UiStrings.homeNoLiveHint}',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  UiStrings.homeNoLive,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: Space.x1),
+                Text(
+                  UiStrings.homeNoLiveHint,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     } else {
       out.add(
         SectionHeader(
@@ -302,30 +359,38 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     return out;
   }
 
-  /// Secondary action row: the timetable switch and the map reveal.
+  /// Secondary action row: the map reveal in data saver mode. The timetable
+  /// switch lives in the tab control above, so no `Ver horários` link here.
   Widget _actionRow() {
+    if (!widget.showMapAction) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.only(top: Space.x4),
       child: Wrap(
         spacing: Space.x2,
         children: <Widget>[
           GhostLink(
-            label: UiStrings.seeTimetable,
-            icon: Icons.schedule_rounded,
-            onTap: () {
-              setState(() => _tab = SheetTab.timetable);
-              widget.onTabChanged?.call(SheetTab.timetable);
-            },
+            label: UiStrings.seeOnMap,
+            icon: Icons.map_rounded,
+            onTap: widget.onShowMap,
           ),
-          if (widget.showMapAction)
-            GhostLink(
-              label: UiStrings.seeOnMap,
-              icon: Icons.map_rounded,
-              onTap: widget.onShowMap,
-            ),
         ],
       ),
     );
+  }
+
+  /// First departure of the next service day, null when unknown. Used by
+  /// the night banner when nothing is left today.
+  String? _tomorrowFirst(DateTime now) {
+    final DateTime local = saoMateusTime(now);
+    final DayType tomorrowType = dayTypeFor(local.add(const Duration(days: 1)));
+    final List<String> tomorrow = timetableTimesOf(
+      widget.staticLine,
+      tomorrowType,
+      null,
+    );
+    return earliestTime(tomorrow);
   }
 
   /// Departures of today that are still ahead, in order.

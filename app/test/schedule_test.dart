@@ -47,6 +47,71 @@ void main() {
     expect(minutesUntil('14:35', 14 * 60 + 23), 12);
   });
 
+  test('departure at the current minute counts as now', () {
+    expect(nextDeparture(<String>['10:00', '11:00'], 10 * 60), '10:00');
+    expect(nextDeparture(<String>['10:00'], 10 * 60 + 1), isNull);
+    expect(
+      isPastMinute(
+        DateTime.utc(2026, 10, 14, 10, 0),
+        DateTime.utc(2026, 10, 14, 10, 0, 30),
+      ),
+      isFalse,
+    );
+    expect(
+      isPastMinute(
+        DateTime.utc(2026, 10, 14, 10, 0),
+        DateTime.utc(2026, 10, 14, 10, 1),
+      ),
+      isTrue,
+    );
+    expect(
+      isSameMinute(
+        DateTime.utc(2026, 10, 14, 10, 0, 5),
+        DateTime.utc(2026, 10, 14, 10, 0, 55),
+      ),
+      isTrue,
+    );
+  });
+
+  test('resolve rolls to tomorrow when nothing remains today', () {
+    final NextDeparture? rolled = resolveNextDeparture(
+      todayTimes: const <String>['05:40', '06:20'],
+      tomorrowTimes: const <String>['05:40', '07:00'],
+      nowMinutes: 23 * 60 + 10,
+    );
+    expect(rolled?.time, '05:40');
+    expect(rolled?.isTomorrow, isTrue);
+    expect(
+      resolveNextDeparture(
+        todayTimes: const <String>['05:40'],
+        tomorrowTimes: const <String>[],
+        nowMinutes: 23 * 60,
+      ),
+      isNull,
+    );
+    expect(
+      resolveNextDeparture(
+        todayTimes: const <String>['10:00', '09:00'],
+        tomorrowTimes: const <String>[],
+        nowMinutes: 8 * 60,
+      )?.time,
+      '09:00',
+    );
+  });
+
+  test('friday night rolls to saturday type and saturday to sunday', () {
+    // 2026-10-16 is a Friday, 2026-10-17 a Saturday.
+    final DateTime friday = DateTime.utc(2026, 10, 16, 23, 50);
+    final DateTime saturday = friday.add(const Duration(days: 1));
+    expect(dayTypeFor(friday), DayType.weekday);
+    expect(dayTypeFor(saturday), DayType.saturday);
+    final DateTime saturdayNight = DateTime.utc(2026, 10, 17, 23, 50);
+    expect(
+      dayTypeFor(saturdayNight.add(const Duration(days: 1))),
+      DayType.sundayHoliday,
+    );
+  });
+
   test('times group by hour', () {
     expect(
       groupByHour(<String>['05:30', '05:45', '06:10']),

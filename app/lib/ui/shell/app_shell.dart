@@ -21,6 +21,11 @@ class AppShell extends ConsumerWidget {
   /// The shell owned by go_router.
   final StatefulNavigationShell navigationShell;
 
+  /// Branches without the global dock. Settings (index 2) hides it: the
+  /// screen owns a sharing banner instead, so the CTA never floats where
+  /// it makes no sense. Every other branch keeps the current behavior.
+  static const Set<int> _dockHiddenBranches = <int>{2};
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final Breakpoint breakpoint = Breakpoint.of(
@@ -32,6 +37,9 @@ class AppShell extends ConsumerWidget {
     // dev gallery entries), the dock still hides while this route is not
     // current, so a sheet owns the bottom of the screen either way.
     final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
+    final bool hideDock = _dockHiddenBranches.contains(
+      navigationShell.currentIndex,
+    );
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -63,8 +71,9 @@ class AppShell extends ConsumerWidget {
                         ),
                         // The idle pill is the global trip entry point, so
                         // it stays mounted even with no trip running, but
-                        // never above a modal sheet.
-                        if (!modalOpen)
+                        // never above a modal sheet and never on branches
+                        // that own their own sharing state.
+                        if (!modalOpen && !hideDock)
                           const Padding(
                             padding: EdgeInsets.only(bottom: Space.x3),
                             child: LiveDockHost(),

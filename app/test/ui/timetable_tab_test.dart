@@ -81,7 +81,11 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text(UiStrings.dayWeekday), findsOneWidget);
+    // Wednesday noon: the weekday tab carries the `hoje` mark.
+    expect(
+      find.text('${UiStrings.dayWeekday} · ${UiStrings.todayMark}'),
+      findsOneWidget,
+    );
     expect(find.text(UiStrings.daySaturday), findsOneWidget);
     expect(find.text(UiStrings.daySunday), findsOneWidget);
     // Next departure after 12:00 is 14:35.

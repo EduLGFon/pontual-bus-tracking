@@ -131,6 +131,34 @@ class UiStrings {
   /// Live summary chip, for example "3 ao vivo".
   static const String liveCount = 'ao vivo';
 
+  /// Live summary chip when nothing is sharing. Neutral wording: no
+  /// green dot reads as live while nothing is live.
+  static const String homeLiveNone = 'Nenhum ao vivo';
+
+  /// Live summary chip while the app is offline.
+  static const String homeOffline = 'Offline';
+
+  /// Trust line under the empty live card, with a lock icon.
+  static const String homeTrust =
+      'Anônimo. Sua localização só é usada enquanto você compartilha.';
+
+  /// Shortcut card state when the timetable has no more departures today.
+  static const String homeNoMoreToday = 'Sem mais saídas hoje';
+
+  /// Tomorrow hint under the no-more-today state, for example
+  /// "Amanhã 06:10".
+  static String homeTomorrowAt(String hhmm) => 'Amanhã $hhmm';
+
+  /// Shortcut card state when the line has no usable timetable.
+  static const String homeNoTime = 'Sem horário';
+
+  /// Muted hint under the no-timetable state.
+  static const String homeNoTimeHint =
+      'Nenhum horário cadastrado para esta linha.';
+
+  /// Toast after clearing the recent lines, with an undo action.
+  static const String homeRecentsCleared = 'Recentes apagados.';
+
   /// Welcome card title.
   static const String welcomeTitle = 'Veja onde o ônibus está';
 
@@ -174,6 +202,25 @@ class UiStrings {
   /// Line count summary, for example "21 linhas".
   static const String linesCount = 'linhas';
 
+  /// Timetable count suffix, for example "9 com horários".
+  static const String linesWithTimes = 'com horários';
+
+  /// Muted status of a line without timetable data.
+  static const String linesNoTimetable = 'Sem horários ainda';
+
+  /// Empty live state body when nothing is sharing.
+  static const String linesNoLiveBody =
+      'Quem estiver no ônibus pode tocar em Estou no ônibus.';
+
+  /// Empty live state when offline: status unknown, timetables still work.
+  static const String linesLiveOffline =
+      'Sem conexão. Os horários continuam disponíveis.';
+
+  /// Friendly detail for a line without timetable data.
+  static const String linesNoTimetableBody =
+      'Ainda não temos os horários desta linha. Se você estiver nesse '
+      'ônibus, toque em Estou no ônibus para aparecer ao vivo.';
+
   /// All filter.
   static const String filterAll = 'Todas';
 
@@ -193,7 +240,14 @@ class UiStrings {
   static const String linesNoLive = 'Nenhuma linha ao vivo agora.';
 
   /// Empty state for the favorites filter.
-  static const String linesNoFavorites = 'Toque na estrela para favoritar.';
+  static const String linesNoFavorites =
+      'Toque na estrela de uma linha para fixá-la aqui.';
+
+  /// Toast after starring a line.
+  static const String linesFavAdded = 'Linha favoritada.';
+
+  /// Toast after unstarring a line.
+  static const String linesFavRemoved = 'Linha removida dos favoritos.';
 
   /// Subtitle of a line with no live tracking and no terminals.
   static const String onlyTimetable = 'Só horários';
@@ -203,6 +257,13 @@ class UiStrings {
 
   /// Star remove action label.
   static const String unfavorite = 'Remover dos favoritos';
+
+  /// Per-line favorite action, for example "Favoritar linha 13".
+  static String favoriteLine(String short) => 'Favoritar linha $short';
+
+  /// Per-line unfavorite action, for example "Remover linha 13 dos favoritos".
+  static String unfavoriteLine(String short) =>
+      'Remover linha $short dos favoritos';
 
   /// Row action opening a line.
   static const String openLine = 'Abrir linha';
@@ -261,6 +322,9 @@ class UiStrings {
   /// Ship marker sheet header count, for example "2 ônibus".
   static const String vehicles = 'ônibus';
 
+  /// Map semantics prefix, for example "Mapa da linha 66".
+  static const String mapOfLine = 'Mapa da linha';
+
   // Timetable.
 
   /// Weekday day type.
@@ -278,6 +342,18 @@ class UiStrings {
   /// Empty timetable state.
   static const String timetableEmpty =
       'Sem horários cadastrados para este dia.';
+
+  /// Small mark on the day tab for today.
+  static const String todayMark = 'hoje';
+
+  /// First departure label of the summary line.
+  static const String timetableFirst = 'Primeira';
+
+  /// Last departure label of the summary line.
+  static const String timetableLast = 'Última';
+
+  /// Empty day action switching to a day with data.
+  static const String timetableSeeData = 'Ver dias úteis';
 
   /// Timetable footnote.
   static const String timetableFootnote =
@@ -563,6 +639,14 @@ class UiStrings {
   /// End trip action.
   static const String endTrip = 'Desci - encerrar viagem';
 
+  /// Stop sharing action on the settings sharing banner.
+  static const String stop = 'Parar';
+
+  /// Sharing banner message for [line], the shared line id or label from
+  /// the live sharing state.
+  static String sharingNow(String line) =>
+      'Você está compartilhando a Linha $line';
+
   /// End card title.
   static const String endTitle = 'Viagem encerrada. Obrigado por ajudar!';
 
@@ -682,6 +766,20 @@ class UiStrings {
   /// Sharing section.
   static const String sectionSharing = 'Compartilhamento';
 
+  /// Data and performance section.
+  static const String sectionData = 'Dados e desempenho';
+
+  /// Privacy and help section.
+  static const String sectionPrivacyHelp = 'Privacidade e ajuda';
+
+  /// About section.
+  static const String sectionAbout = 'Sobre';
+
+  /// One-line privacy summary under the help header. True in code today:
+  /// no sign-up exists and the viewer position never leaves the device.
+  static const String privacySummary =
+      'Sem cadastro. Sua localização só é usada enquanto você compartilha.';
+
   /// Theme row.
   static const String theme = 'Tema';
 
@@ -699,10 +797,38 @@ class UiStrings {
 
   /// Data saver description.
   static const String dataSaverHint =
-      'Abre a linha em lista primeiro e só carrega o mapa quando você pedir.';
+      'Abre a linha em lista primeiro e só carrega o mapa quando você '
+      'pedir. Usa menos internet.';
 
   /// Reduce animations row.
   static const String reduceMotion = 'Reduzir animações';
+
+  /// Reduce animations description.
+  static const String reduceMotionHint =
+      'Menos movimento nas transições. Ajuda a economizar bateria.';
+
+  /// Clear local data row.
+  static const String clearLocalData = 'Limpar dados locais';
+
+  /// Clear local data description.
+  static const String clearLocalDataHint =
+      'Remove favoritos, recentes e dados salvos no aparelho. Seus ajustes '
+      'continuam.';
+
+  /// Clear local data confirmation title.
+  static const String clearLocalDataTitle = 'Limpar dados locais?';
+
+  /// Clear local data confirmation body. Lists exactly what the action
+  /// removes so the dialog never promises more or less than the code.
+  static const String clearLocalDataBody =
+      'Remove favoritos, recentes, atalhos, alertas e o cache de horários '
+      'deste aparelho. Seus ajustes continuam. Isso não pode ser desfeito.';
+
+  /// Clear local data confirm action.
+  static const String clearLocalDataConfirm = 'Limpar';
+
+  /// Toast after clearing local data.
+  static const String localDataCleared = 'Dados locais removidos';
 
   /// How sharing works row.
   static const String howSharing = 'Como funciona';
@@ -724,6 +850,9 @@ class UiStrings {
 
   /// Timetable date prefix.
   static const String timetablesPrefix = 'Horários: ';
+
+  /// Settings footer timetable prefix with the update wording.
+  static const String timetablesUpdatedPrefix = 'Horários atualizados em ';
 
   /// Delete my data action.
   static const String privacyDelete = 'Apagar meus dados';

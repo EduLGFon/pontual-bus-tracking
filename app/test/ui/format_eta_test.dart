@@ -116,6 +116,16 @@ void main() {
     expect(f.a11y, contains('já saiu'));
   });
 
+  test('scheduled at the current minute says agora', () {
+    final EtaFormat f = formatEta(
+      arrival(Certainty.scheduled, now),
+      now.add(const Duration(seconds: 30)),
+    );
+    expect(f.primary, '14:23');
+    expect(f.secondary, 'agora');
+    expect(f.a11y, contains('agora'));
+  });
+
   test('stale shows the age', () {
     final EtaFormat f = formatEta(
       arrival(

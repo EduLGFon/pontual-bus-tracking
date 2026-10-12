@@ -145,6 +145,8 @@ void main() {
       expect(find.text(UiStrings.dataSaver), findsOneWidget);
       expect(find.text(UiStrings.reduceMotion), findsOneWidget);
       expect(find.text(UiStrings.privacyData), findsOneWidget);
+      // The about row sits below the fold of the lazy list.
+      await tester.scrollUntilVisible(find.text(UiStrings.about), 200);
       expect(find.text(UiStrings.about), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

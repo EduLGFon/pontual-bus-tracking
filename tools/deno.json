@@ -5,6 +5,10 @@
     "data-build": "deno run --allow-read=../data --allow-write=../build --allow-env=API_ORIGIN data/main.ts build",
     "data-test": "deno test --allow-read=../data,../build --allow-write=../build --allow-env=API_ORIGIN data/main_test.ts",
     "route-test": "deno test route/main_test.ts",
+    "map-bbox": "deno run --allow-read=../data/routes,./map map/main.ts bbox",
+    "map-extract": "deno run --allow-read --allow-run --allow-env=PMTILES_BIN map/main.ts extract",
+    "map-verify": "deno run --allow-read --allow-run --allow-env=PMTILES_BIN map/main.ts verify",
+    "map-test": "deno test --allow-read=../data/routes,./map map/main_test.ts",
     "route": "deno run --allow-read=../data --allow-write=../data/routes route/main.ts",
     "fmt": "deno fmt --check",
     "lint": "deno lint"

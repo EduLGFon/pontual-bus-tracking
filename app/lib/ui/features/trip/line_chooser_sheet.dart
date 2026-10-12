@@ -111,13 +111,28 @@ class _ChooserLines extends StatelessWidget {
         final LineVM line = lines[i];
         return Padding(
           padding: const EdgeInsets.only(bottom: Space.x2),
-          child: LineRow(
-            line: line,
-            semanticLabel: UiStrings.openLine,
-            onTap: () => Navigator.of(context).pop(line),
-          ),
+          child: _ChooserLineRow(line: line),
         );
       },
+    );
+  }
+}
+
+/// One chooser row with its shared status.
+class _ChooserLineRow extends ConsumerWidget {
+  /// Creates the row for [line].
+  const _ChooserLineRow({required this.line});
+
+  /// Line shown by the row.
+  final LineVM line;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return LineRow(
+      line: line,
+      status: ref.watch(lineStatusProvider(line.key)),
+      semanticLabel: UiStrings.openLine,
+      onTap: () => Navigator.of(context).pop(line),
     );
   }
 }

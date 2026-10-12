@@ -384,7 +384,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (hit is! _LineHit) {
       return const SizedBox.shrink();
     }
-    return LineRow(line: hit.line, onTap: open);
+    return _BrowseLineRow(line: hit.line, onTap: open);
   }
 
   Widget _noResults() {
@@ -554,5 +554,27 @@ class _ResultRow extends StatelessWidget {
       TextSpan(text: line.name.substring(range[0], range[1]), style: strong),
       TextSpan(text: line.name.substring(range[1]), style: base),
     ];
+  }
+}
+
+/// Browse-state line row with its shared status. Only the status text
+/// rebuilds on tick, using the same adapter provider as Linhas.
+class _BrowseLineRow extends ConsumerWidget {
+  /// Creates the row for [line].
+  const _BrowseLineRow({required this.line, required this.onTap});
+
+  /// Line shown by the row.
+  final LineVM line;
+
+  /// Called when the row is tapped.
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return LineRow(
+      line: line,
+      status: ref.watch(lineStatusProvider(line.key)),
+      onTap: onTap,
+    );
   }
 }

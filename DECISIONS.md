@@ -1626,3 +1626,86 @@ verification split as D-U25):
   the lines list rule from D-U25. A day with no schedules returns
   empty (card shows "--", Saindo agora skips) instead of a wrong
   time.
+- 2026-10-12: Home-screen brief deviations (D29, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `home-screen.md` asked
+  for an extended FAB (C1); the app keeps the global `TripDock` pill per
+  UI_SPEC 7.1, which already fixes the reported overlap via
+  `dockClearance` and owns the sharing-active state. Cards stay at the
+  156 dp token instead of 168 dp (C2); the 2-line label plus direction
+  line fixes the reported truncation. Recents stay as chips capped at 4
+  (C6) and live rows keep `LineRow` without ages (C5): the live endpoint
+  exposes counts only, and ages would need a contract change the brief
+  forbids. The 1-minute clock tick stays instead of a 30 s ticker (C8):
+  countdowns are minute-granular and a faster tick costs battery on the
+  entry-level phones in PLAN 3.3. `formatEta` keeps regular spaces (C8):
+  its unit tests pin them. No cache-age line (C10): needs cache-age
+  plumbing through `StaticDataRepository`, left for a follow-up. Line
+  colors (C9) were already done via `line_colors.dart`. Full audit and
+  report in `docs/ui/home-redesign.md`. Not verified here: no Flutter
+  SDK on this machine, so `flutter analyze` and `flutter test` must run
+  elsewhere before merge.
+- 2026-10-12: Lines-screen brief deviations (D31, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `lines-screen.md`
+  asked for a shared 30-second ticker (L1); the screen keeps the
+  1-minute `nowTickProvider` since countdowns are minute-granular and a
+  faster tick costs battery on the PLAN 3.3 phones (same call as D29).
+  No bottom sheet for unsupported lines (L2): the line detail already
+  renders empty timetables plus the non-pilot note, so rows stay
+  tappable with no sheet. The app uses the global dock pill, not a FAB
+  (L8), keeping `dockClearance`. Favorites copy drops the Home clause
+  (L7): favorites do not feed Home shortcuts (separate store).
+  Inline search skipped (L9) via the brief escape hatch: global Busca
+  already covers the same index offline for 21 rows. No `Expresso` tag:
+  not trivially derivable. Full audit and report in
+  `docs/ui/lines-redesign.md`. Not verified here: per the task
+  instruction no Flutter tooling ran in this session, so `flutter
+  analyze`, `flutter test`, screenshots and size profiling must run
+  elsewhere before merge.
+- 2026-10-12: Line-detail brief deviations (D32, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `line-screen.md`
+  describes the old map plus bottom-sheet UI; the new UI already covers
+  D1 bounds plus cache plus scrim, D2 snaps, D8 segmented and the shared
+  next-departure core, so this pass is polish only. Full-screen sheet at
+  D2 skipped: full stays 0.92 with the map behind instead of hiding the
+  map and adding a top bar, keeping the live context rows act on. FAB at
+  D5 skipped: the global dock pill plus `LineDock` own sharing per
+  UI_SPEC 7.1 (same call as D29 and D31); no `Qual o sentido?` sheet,
+  the line chooser plus consent flow stays. Per-line origin memory at D6
+  deferred: needs a new prefs store through the timetable tab, left as
+  a follow-up like lines C10. Holiday auto-detection plus 30 s ticker at
+  D9 skipped: 1-minute tick stays on battery grounds (same call as D29
+  and D31) and `Dom/Feriados` stays manual per UI_SPEC 7.6. Per-direction
+  triplets at D4 skipped: times merge origins like the D-U26 lines rule;
+  live vehicles carry no direction signal. Dark `ColorFiltered` at D1
+  skipped: the `mapScrim` tint stays (no GPU cost). Header next chip hides
+  while live (same live-wins rule as the lines rows). Full audit and
+  report in `docs/ui/line-detail-redesign.md`. Not verified here: per the
+  task instruction no Flutter tooling ran in this session, so `flutter
+  analyze`, `flutter test`, screenshots and size profiling must run
+  elsewhere before merge.
+
+## D40-2026-10-12: offline vector city map pipeline (Accepted, renderer Proposed)
+
+Plan-conformant exit of D12/R-05: one 43.6 MB Protomaps v4 `.pmtiles`
+extract (build 20261012, bbox -40.46,-19.20,-39.50,-18.39 covering OSM
+relation 1834958 plus buffer and the app pan bounds) serves both themes
+via two bundled MapLibre v8 styles (`app/assets/map/protomaps-*.json`,
+no sprites, relative glyphs, `coalesce(name:pt, name)` labels).
+Measured: z0-15 43.6 MB, z0-14 28.1, z0-13 17.8, z0-12 10.6; even z12
+breaks the 15 MB RNF14 budget, so the file is fetched once from our own
+static host (range reads on web, app-storage copy on Android), never
+bundled, never from a third-party tile server. Reproducible via
+`deno task map-bbox|map-extract|map-verify` (tools/map). Renderer
+choice: `maplibre_gl` (BSD-3-Clause, GPLv2-compatible, maintained,
+PMTiles on Android/iOS/web) over stale `vector_map_tiles*` (pins
+flutter_map ^7, unmaintained since 2024); NOT added here, needs its own
+ADR (APK delta, manifest audit, low-end render test) plus owner approval
+per AGENTS.md 6. Raster fallback rejected with numbers (tens of
+thousands of tiles per theme, hundreds of MB). License findings:
+project treated as GPLv2-only; new items are BSD-3/MIT/CC0/OFL/ODbL
+(data), all compatible; pre-existing `latlong2` Apache-2.0 conflict
+flagged for INFRA-19. Full record in docs/maps.md. Verified here:
+deno fmt/lint/check plus map tests green, `flutter analyze` clean, 6 new
+client tests pass. Not verified here: Pages range-request check (needs
+deploy), glyph generation, renderer integration, device/network
+measurements (no Android SDK or phone on this host).

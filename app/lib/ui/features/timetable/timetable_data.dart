@@ -82,6 +82,21 @@ List<String> timetableTimesOf(StaticLine line, DayType day, String? origin) {
   return times.toList()..sort();
 }
 
+/// True when [line] has at least one usable timetable time.
+/// Derived from data, never hardcoded. Lines without a timetable are
+/// still valid: riders can share live position on them.
+bool hasTimetable(StaticLine line) {
+  for (final Map<String, dynamic> s in line.schedules) {
+    final List<dynamic> raw = s['times'] as List<dynamic>? ?? <dynamic>[];
+    for (final dynamic t in raw) {
+      if (t is String && t.isNotEmpty) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /// Builds scheduled arrivals from HH:mm strings on the date of [now].
 /// Certainty is always [Certainty.scheduled]: a timetable is a promise
 /// about time, never about position.

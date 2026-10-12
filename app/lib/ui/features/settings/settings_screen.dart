@@ -2,21 +2,34 @@
 // animations), the sharing and privacy entries, the quiet install item the
 // browser offers, and the version footer. No network calls: the theme and
 // the toggles are local, the timetable date comes from the bundle.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/config/remote_config.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
+import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/web/install_hint.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
+import 'package:pontual/ui/adapters/alerts_store.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
+import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
-import 'package:pontual/ui/design/components/pressable.dart';
-import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/segmented.dart';
+import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
+import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/home/home_providers.dart';
+import 'package:pontual/ui/features/home/shortcut_sheet.dart';
+import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
+import 'package:pontual/ui/features/settings/settings_section.dart';
+import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 
@@ -38,90 +51,123 @@ class SettingsScreen extends ConsumerWidget {
             marginFor(context),
             Space.x4,
             marginFor(context),
-            dockClearance,
+            // No dock on this branch: the clearance covers the
+            // navigation bar only.
+            Sizes.navBar + Space.x4,
           ),
           children: <Widget>[
-            Text(UiStrings.settingsTitle, style: context.text.display),
-            const SectionHeader(
+            const _SharingBanner(),
+            Text(UiStrings.settingsTitle, style: context.text.title),
+            SettingsSection(
               title: UiStrings.sectionAppearance,
               topSpacing: Space.x4,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: Space.x1),
-              child: Text(UiStrings.theme, style: context.text.label),
-            ),
-            const SizedBox(height: Space.x2),
-            Segmented(
-              segments: const <Segment>[
-                Segment(value: 'system', label: UiStrings.themeSystem),
-                Segment(value: 'light', label: UiStrings.themeLight),
-                Segment(value: 'dark', label: UiStrings.themeDark),
-              ],
-              value: _themeValue(mode),
-              onChanged: (String value) =>
-                  ref.read(themeHostProvider.notifier).set(_modeOf(value)),
-            ),
-            const SizedBox(height: Space.x4),
-            _SwitchRow(
-              label: UiStrings.dataSaver,
-              hint: UiStrings.dataSaverHint,
-              value: settings.dataSaver,
-              onChanged: (bool value) =>
-                  ref.read(settingsProvider.notifier).setDataSaver(value),
-            ),
-            const SizedBox(height: Space.x2),
-            _SwitchRow(
-              label: UiStrings.reduceMotion,
-              value: settings.reduceMotion,
-              onChanged: (bool value) =>
-                  ref.read(settingsProvider.notifier).setReduceMotion(value),
-            ),
-            const SectionHeader(title: UiStrings.sectionSharing),
-            _Row(
-              icon: Icons.help_outline_rounded,
-              label: UiStrings.howSharing,
-              onTap: () => _infoSheet(
-                context,
-                title: UiStrings.howSharing,
-                lines: const <String>[
-                  UiStrings.consentBulletPurpose,
-                  UiStrings.consentBulletNoIdentity,
-                  UiStrings.consentBulletDeleted,
-                  UiStrings.consentBulletOthers,
-                  UiStrings.consentBulletControl,
-                ],
-              ),
-            ),
-            if (PlatformInfo.isAndroid)
-              _Row(
-                icon: Icons.battery_saver_rounded,
-                label: UiStrings.batteryTips,
-                onTap: () => _infoSheet(
-                  context,
-                  title: UiStrings.batteryTips,
-                  lines: const <String>[UiStrings.batteryTip],
+              children: <Widget>[
+                Text(UiStrings.theme, style: context.text.label),
+                const SizedBox(height: Space.x2),
+                Segmented(
+                  segments: const <Segment>[
+                    Segment(
+                      value: 'system',
+                      label: UiStrings.themeSystem,
+                      icon: Icons.brightness_auto_rounded,
+                    ),
+                    Segment(
+                      value: 'light',
+                      label: UiStrings.themeLight,
+                      icon: Icons.light_mode_rounded,
+                    ),
+                    Segment(
+                      value: 'dark',
+                      label: UiStrings.themeDark,
+                      icon: Icons.dark_mode_rounded,
+                    ),
+                  ],
+                  value: _themeValue(mode),
+                  onChanged: (String value) =>
+                      ref.read(themeHostProvider.notifier).set(_modeOf(value)),
                 ),
-              ),
-            _Row(
-              icon: Icons.privacy_tip_outlined,
-              label: UiStrings.privacyData,
-              onTap: () => context.push('/privacy'),
+                const SizedBox(height: Space.x2),
+                SettingsTile.toggle(
+                  title: UiStrings.reduceMotion,
+                  description: UiStrings.reduceMotionHint,
+                  value: AppMotion.reduced(context, settings.reduceMotionMode),
+                  onChanged: (bool value) => ref
+                      .read(settingsProvider.notifier)
+                      .setReduceMotion(value),
+                ),
+              ],
             ),
-            _Row(
-              icon: Icons.info_outline_rounded,
-              label: UiStrings.about,
-              onTap: () => context.push('/about'),
+            SettingsSection(
+              title: UiStrings.sectionData,
+              children: <Widget>[
+                SettingsTile.toggle(
+                  title: UiStrings.dataSaver,
+                  description: UiStrings.dataSaverHint,
+                  value: settings.dataSaver,
+                  onChanged: (bool value) =>
+                      ref.read(settingsProvider.notifier).setDataSaver(value),
+                ),
+                SettingsTile.chevron(
+                  icon: Icons.cleaning_services_outlined,
+                  title: UiStrings.clearLocalData,
+                  description: UiStrings.clearLocalDataHint,
+                  onTap: () => _clearLocalData(context, ref),
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: UiStrings.sectionPrivacyHelp,
+              subtitle: UiStrings.privacySummary,
+              children: <Widget>[
+                SettingsTile.chevron(
+                  icon: Icons.privacy_tip_outlined,
+                  title: UiStrings.privacyData,
+                  onTap: () => context.push('/privacy'),
+                ),
+                SettingsTile.chevron(
+                  icon: Icons.help_outline_rounded,
+                  title: UiStrings.howSharing,
+                  onTap: () => _infoSheet(
+                    context,
+                    title: UiStrings.howSharing,
+                    lines: const <String>[
+                      UiStrings.consentBulletPurpose,
+                      UiStrings.consentBulletNoIdentity,
+                      UiStrings.consentBulletDeleted,
+                      UiStrings.consentBulletOthers,
+                      UiStrings.consentBulletControl,
+                    ],
+                  ),
+                ),
+                if (PlatformInfo.isAndroid)
+                  SettingsTile.chevron(
+                    icon: Icons.battery_saver_rounded,
+                    title: UiStrings.batteryTips,
+                    onTap: () => _infoSheet(
+                      context,
+                      title: UiStrings.batteryTips,
+                      lines: const <String>[UiStrings.batteryTip],
+                    ),
+                  ),
+              ],
+            ),
+            SettingsSection(
+              title: UiStrings.sectionAbout,
+              children: <Widget>[
+                SettingsTile.chevron(
+                  icon: Icons.info_outline_rounded,
+                  title: UiStrings.about,
+                  onTap: () => context.push('/about'),
+                ),
+              ],
             ),
             const InstallHintSlot(),
             const AndroidAppDownloadSlot(),
             const SizedBox(height: Space.x4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Space.x1),
-              child: Text(
-                '${UiStrings.versionPrefix} $appVersion'
-                ' · ${UiStrings.timetablesPrefix}${date.value ?? '-'}',
-                style: context.text.caption,
-              ),
+            Text(
+              'Pontual $appVersion'
+              ' · ${UiStrings.timetablesUpdatedPrefix}${date.value ?? '-'}',
+              style: context.text.caption,
             ),
             const SizedBox(height: Space.x6),
           ],
@@ -146,6 +192,50 @@ class SettingsScreen extends ConsumerWidget {
       'dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     };
+  }
+
+  /// Clears disposable local data after confirmation. Keeps the settings
+  /// and never touches the live trip: the sharing banner stays whatever
+  /// it was. Offline-safe: prefs only, no network call.
+  Future<void> _clearLocalData(BuildContext context, WidgetRef ref) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: Text(UiStrings.clearLocalDataTitle, style: context.text.title),
+        content: Text(UiStrings.clearLocalDataBody, style: context.text.body),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(UiStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(UiStrings.clearLocalDataConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) {
+      return;
+    }
+    try {
+      await clearLocalData();
+    } on Object {
+      if (!context.mounted) {
+        return;
+      }
+      ref.read(toastControllerProvider.notifier).show(UiStrings.genericError);
+      return;
+    }
+    ref.invalidate(shortcutsProvider);
+    ref.invalidate(homeRecentsProvider);
+    ref.invalidate(favoritesProvider);
+    ref.invalidate(alertsProvider);
+    if (!context.mounted) {
+      return;
+    }
+    ref.read(toastControllerProvider.notifier).show(UiStrings.localDataCleared);
   }
 
   /// Opens a short explanation sheet with one line per bullet.
@@ -192,90 +282,56 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-/// Navigation row: icon, label, chevron, 48 dp hit area, pt-BR label.
-class _Row extends StatelessWidget {
-  /// Creates the row for [label].
-  const _Row({required this.icon, required this.label, required this.onTap});
-
-  /// Leading icon.
-  final IconData icon;
-
-  /// Row label in pt-BR.
-  final String label;
-
-  /// Called on tap.
-  final VoidCallback onTap;
+/// Sharing banner: visible only while the user is sharing. Shows the live
+/// line from the existing sharing state with a `Parar` action that uses
+/// the existing stop logic. Nothing renders when not sharing.
+class _SharingBanner extends ConsumerWidget {
+  /// Creates the banner.
+  const _SharingBanner();
 
   @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      semanticLabel: label,
-      borderRadius: Radii.l,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.x3),
-        child: Row(
-          children: <Widget>[
-            Icon(icon, size: 20, color: context.colors.inkMuted),
-            const SizedBox(width: Space.x3),
-            Expanded(child: Text(label, style: context.text.body)),
-            const SizedBox(width: Space.x2),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: context.colors.inkSubtle,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Switch row with a label, an optional hint, and a 48 dp target.
-class _SwitchRow extends StatelessWidget {
-  /// Creates the row for [label].
-  const _SwitchRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.hint,
-  });
-
-  /// Row label in pt-BR.
-  final String label;
-
-  /// Current value.
-  final bool value;
-
-  /// Called with the new value.
-  final ValueChanged<bool> onChanged;
-
-  /// Optional explanation under the label.
-  final String? hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final TripController? controller = ref.watch(tripHostProvider);
+    if (controller == null) {
+      return const SizedBox.shrink();
+    }
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (BuildContext context, Widget? child) {
+        if (!tripInProgress(controller.state)) {
+          return const SizedBox.shrink();
+        }
+        final String line =
+            controller.lineId?.toString() ?? controller.lineLabel;
+        final String message = UiStrings.sharingNow(line);
+        return Semantics(
+          label: message,
+          liveRegion: true,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(label, style: context.text.body),
-              if (hint != null) ...<Widget>[
-                const SizedBox(height: Space.x1),
-                Text(hint!, style: context.text.caption),
-              ],
+              SurfaceCard(
+                child: Row(
+                  children: <Widget>[
+                    const LiveDot(certainty: Certainty.live, size: 8),
+                    const SizedBox(width: Space.x2),
+                    Expanded(
+                      child: Text(message, style: context.text.bodyStrong),
+                    ),
+                    const SizedBox(width: Space.x2),
+                    TextButton(
+                      onPressed: () => unawaited(controller.endTrip()),
+                      child: const Text(UiStrings.stop),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: Space.x4),
             ],
           ),
-        ),
-        Semantics(
-          label: label,
-          child: Switch(value: value, onChanged: onChanged),
-        ),
-      ],
+        );
+      },
     );
   }
 }

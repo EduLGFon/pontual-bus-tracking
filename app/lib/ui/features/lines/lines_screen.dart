@@ -9,22 +9,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
-import 'package:pontual/domain/schedule.dart';
+import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
-import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
+import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
+import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
-import 'package:pontual/ui/models/arrival_vm.dart';
-import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
+import 'package:pontual/ui/shell/offline_bridge.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
-import 'package:pontual/ui/util/format_eta.dart';
-import 'package:pontual/ui/util/search_index.dart';
 
 /// Filters offered by the chips row.
 enum LinesFilter {
@@ -47,7 +47,7 @@ enum LinesFilter {
   const LinesFilter(this.value, this.label);
 }
 
-/// Static lines keyed by code, so each row can reach its arrivals source.
+/// Static lines keyed by code, so the header can count timetabled lines.
 final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
     Provider<Map<String, StaticLine>>((Ref ref) {
       return ref
@@ -60,45 +60,6 @@ final Provider<Map<String, StaticLine>> staticLinesByKeyProvider =
           );
     });
 
-/// Next departure of a line key, empty when nothing is left today. Reads
-/// the static data of today only and formats the first upcoming time, so
-/// rows build synchronously: no per-row future, no staggered rebuild while
-/// scrolling. Also drops times of other day types, which the old merged
-/// scan could surface on the wrong day.
-final nextDepartureProvider = Provider.family<String, String>((
-  Ref ref,
-  String key,
-) {
-  final StaticLine? line = ref.watch(staticLinesByKeyProvider)[key];
-  if (line == null) {
-    return '';
-  }
-  final DateTime local = saoMateusTime(ref.watch(currentNowProvider));
-  final int nowMinutes = local.hour * 60 + local.minute;
-  for (final String time in timetableTimesOf(line, dayTypeFor(local), null)) {
-    final int? minutes = parseMinutesOf(time);
-    if (minutes == null || minutes <= nowMinutes) {
-      continue;
-    }
-    return formatEta(
-      ArrivalVM(
-        lineKey: key,
-        at: DateTime.utc(
-          local.year,
-          local.month,
-          local.day,
-          minutes ~/ 60,
-          minutes % 60,
-        ),
-        certainty: Certainty.scheduled,
-        asOf: local,
-      ),
-      local,
-    ).primary;
-  }
-  return '';
-});
-
 /// The Linhas screen.
 class LinesScreen extends ConsumerWidget {
   /// Creates the screen.
@@ -107,25 +68,48 @@ class LinesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final LinesFilter filter = _filterOf(context);
-    final List<LineVM> lines = _visible(
-      ref.watch(linesVmProvider),
-      filter,
-      ref.watch(favoritesProvider),
-    );
+    final List<LineVM> all = ref.watch(linesVmProvider);
+    final Set<String> favorites = ref.watch(favoritesProvider);
+    final bool offline = ref.watch(offlineFlagProvider);
+    final Map<String, StaticLine> statics = ref.watch(staticLinesByKeyProvider);
+    int withTimes = 0;
+    int liveLines = 0;
+    for (final LineVM vm in all) {
+      final StaticLine? s = statics[vm.key];
+      if (s != null && hasTimetable(s)) {
+        withTimes++;
+      }
+      if (vm.isLive) {
+        liveLines++;
+      }
+    }
+    final List<LineVM> filtered = _filtered(all, filter, favorites);
+    final List<LinesListItem> items = filter == LinesFilter.all
+        ? groupedLines(filtered)
+        : sortedByCategory(filtered).map(LinesLineItem.new).toList();
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: <Widget>[
-            SliverToBoxAdapter(child: _Header(count: lines.length)),
-            const SliverToBoxAdapter(child: _FilterRow()),
-            if (lines.isEmpty)
+            SliverToBoxAdapter(
+              child: _Header(total: all.length, withTimes: withTimes),
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _PinnedChips(
+                liveCount: liveLines,
+                favoriteCount: favorites.length,
+                offline: offline,
+              ),
+            ),
+            if (items.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Padding(
                     padding: EdgeInsets.all(marginFor(context)),
-                    child: _EmptyState(filter: filter),
+                    child: _EmptyState(filter: filter, offline: offline),
                   ),
                 ),
               )
@@ -133,12 +117,17 @@ class LinesScreen extends ConsumerWidget {
               SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
                 sliver: SliverList.builder(
-                  itemCount: lines.length,
+                  itemCount: items.length,
                   itemBuilder: (BuildContext context, int index) {
+                    final LinesListItem item = items[index];
+                    if (item is LinesHeaderItem) {
+                      return _CategoryHeader(item: item);
+                    }
+                    final LineVM line = (item as LinesLineItem).line;
                     return Padding(
-                      key: ValueKey<String>(lines[index].key),
+                      key: ValueKey<String>(line.key),
                       padding: const EdgeInsets.only(bottom: Space.x2),
-                      child: _LineCard(line: lines[index]),
+                      child: _LineCard(line: line),
                     );
                   },
                 ),
@@ -153,13 +142,55 @@ class LinesScreen extends ConsumerWidget {
   }
 }
 
-/// Screen title and the count derived from the visible data.
-class _Header extends StatelessWidget {
-  /// Creates the header for [count] visible lines.
-  const _Header({required this.count});
+/// Section header for one category: dot, name and count. Muted and compact.
+class _CategoryHeader extends StatelessWidget {
+  /// Creates the header for [item].
+  const _CategoryHeader({required this.item});
 
-  /// Number of visible lines.
-  final int count;
+  /// Header data with the category and its count.
+  final LinesHeaderItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color dot = categoryColorOf(
+      item.category,
+      brightness: Theme.of(context).brightness,
+    );
+    final String label = lineCategoryLabel(item.category);
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.x4, bottom: Space.x2),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: Space.x2,
+            height: Space.x2,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: Space.x2),
+          Expanded(
+            child: Text(
+              '$label · ${item.count} ${item.count == 1 ? _oneLine : UiStrings.linesCount}',
+              style: context.text.caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Screen title and the honest totals derived from the data.
+class _Header extends StatelessWidget {
+  /// Creates the header for [total] lines with [withTimes] timetabled.
+  const _Header({required this.total, required this.withTimes});
+
+  /// Total active lines.
+  final int total;
+
+  /// Lines with at least one timetable time.
+  final int withTimes;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +206,8 @@ class _Header extends StatelessWidget {
         children: <Widget>[
           Text(UiStrings.linesTitle, style: context.text.title),
           Text(
-            '$count ${count == 1 ? _oneLine : UiStrings.linesCount}',
+            '$total ${total == 1 ? _oneLine : UiStrings.linesCount} '
+            '· $withTimes ${UiStrings.linesWithTimes}',
             style: context.text.caption,
           ),
         ],
@@ -184,13 +216,91 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Pinned chips delegate: the filter row stays visible while the list
+/// scrolls. Opaque background so rows slide under it without ghosting.
+class _PinnedChips extends SliverPersistentHeaderDelegate {
+  /// Creates the delegate.
+  const _PinnedChips({
+    required this.liveCount,
+    required this.favoriteCount,
+    required this.offline,
+  });
+
+  /// Lines currently sharing. Unknown when [offline] is true.
+  final int liveCount;
+
+  /// Favourite lines.
+  final int favoriteCount;
+
+  /// True while the app is offline.
+  final bool offline;
+
+  @override
+  double get minExtent => Sizes.chip + Space.x3;
+
+  @override
+  double get maxExtent => Sizes.chip + Space.x3;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: context.colors.bg,
+      child: _FilterRow(
+        liveCount: liveCount,
+        favoriteCount: favoriteCount,
+        offline: offline,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedChips oldDelegate) {
+    return oldDelegate.liveCount != liveCount ||
+        oldDelegate.favoriteCount != favoriteCount ||
+        oldDelegate.offline != offline;
+  }
+}
+
 /// The chips row. Tapping a chip writes the filter to the URL.
+/// Counts are cheap and derived: live lines and favourites. When offline
+/// the live count is unknown, so the chip shows no count.
 class _FilterRow extends StatelessWidget {
   /// Creates the chips row.
-  const _FilterRow();
+  const _FilterRow({
+    required this.liveCount,
+    required this.favoriteCount,
+    required this.offline,
+  });
+
+  /// Lines currently sharing. Unknown when [offline] is true.
+  final int liveCount;
+
+  /// Favourite lines.
+  final int favoriteCount;
+
+  /// True while the app is offline.
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
+    final LinesFilter current = _filterOf(context);
+    String liveLabel = UiStrings.filterLive;
+    if (!offline && liveCount > 0) {
+      liveLabel = '${UiStrings.filterLive} ($liveCount)';
+    }
+    String favLabel = UiStrings.filterFavorites;
+    if (favoriteCount > 0) {
+      favLabel = '${UiStrings.filterFavorites} ($favoriteCount)';
+    }
+    final Map<LinesFilter, String> labels = <LinesFilter, String>{
+      LinesFilter.all: UiStrings.filterAll,
+      LinesFilter.live: liveLabel,
+      LinesFilter.favorites: favLabel,
+    };
     return Padding(
       padding: EdgeInsets.fromLTRB(
         marginFor(context),
@@ -202,8 +312,8 @@ class _FilterRow extends StatelessWidget {
         children: <Widget>[
           for (final LinesFilter value in LinesFilter.values) ...<Widget>[
             Chip(
-              label: value.label,
-              selected: value == _filterOf(context),
+              label: labels[value]!,
+              selected: value == current,
               onTap: () => _select(context, value),
             ),
             if (value != LinesFilter.values.last)
@@ -215,7 +325,9 @@ class _FilterRow extends StatelessWidget {
   }
 }
 
-/// One row of the list, with its star toggle and its next departure.
+/// One row of the list, with its star toggle and its live status.
+/// The status comes from the shared adapter provider, so only the small
+/// status text rebuilds on tick, not the list order.
 class _LineCard extends ConsumerWidget {
   /// Creates the row for [line].
   const _LineCard({required this.line});
@@ -225,39 +337,66 @@ class _LineCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String next = ref.watch(nextDepartureProvider(line.key));
+    final LineStatus status = ref.watch(lineStatusProvider(line.key));
     final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
     return LineRow(
       line: line,
-      nextEta: next,
+      status: status,
       isFavorite: isFavorite,
-      onToggleFavorite: () => _toggleFavorite(ref),
+      onToggleFavorite: () => _toggleFavorite(context, ref),
       onTap: () => context.push('/line/${line.key}'),
     );
   }
 
-  void _toggleFavorite(WidgetRef ref) {
+  void _toggleFavorite(BuildContext context, WidgetRef ref) {
     HapticFeedback.selectionClick();
+    final bool wasFavorite = ref.read(favoritesProvider).contains(line.key);
     unawaited(ref.read(favoritesProvider.notifier).toggle(line.key));
+    ref
+        .read(toastControllerProvider.notifier)
+        .show(
+          wasFavorite ? UiStrings.linesFavRemoved : UiStrings.linesFavAdded,
+          actionLabel: UiStrings.undo,
+          onAction: () =>
+              unawaited(ref.read(favoritesProvider.notifier).toggle(line.key)),
+        );
   }
 }
 
 /// Empty state per filter, always with a way back to the other filters.
+/// Offline live is unknown, not zero: the empty state says timetables
+/// still work instead of claiming nothing is sharing.
 class _EmptyState extends StatelessWidget {
   /// Creates the empty state for [filter].
-  const _EmptyState({required this.filter});
+  const _EmptyState({required this.filter, required this.offline});
 
   /// Filter that produced no lines.
   final LinesFilter filter;
 
+  /// True while the app is offline.
+  final bool offline;
+
   @override
   Widget build(BuildContext context) {
     final bool noData = filter == LinesFilter.all;
+    if (filter == LinesFilter.live && offline) {
+      return EmptyState(
+        art: EmptyArt.cloud,
+        title: UiStrings.filterLive,
+        message: UiStrings.linesLiveOffline,
+        actionLabel: UiStrings.filterAll,
+        onAction: () => _select(context, LinesFilter.all),
+      );
+    }
     return EmptyState(
       art: filter == LinesFilter.live ? EmptyArt.bus : EmptyArt.search,
-      title: filter == LinesFilter.live ? UiStrings.linesNoLive : filter.label,
+      title: switch (filter) {
+        LinesFilter.live => UiStrings.homeNoLive,
+        LinesFilter.favorites => UiStrings.filterFavorites,
+        LinesFilter.all => filter.label,
+      },
       message: switch (filter) {
-        LinesFilter.live => UiStrings.homeNoLiveHint,
+        LinesFilter.live => UiStrings.linesNoLiveBody,
         LinesFilter.favorites => UiStrings.linesNoFavorites,
         LinesFilter.all => _noLinesMessage,
       },
@@ -287,34 +426,20 @@ LinesFilter _filterOf(BuildContext context) {
   );
 }
 
-/// Lines for [filter], sorted live first, then favourites, then name.
-List<LineVM> _visible(
+/// Lines for [filter], unsorted. Sorting and grouping own the order:
+/// category first, then line number. Favorites are never pinned to the top.
+List<LineVM> _filtered(
   List<LineVM> all,
   LinesFilter filter,
   Set<String> favorites,
 ) {
-  final List<LineVM> lines = all.where((LineVM line) {
+  return all.where((LineVM line) {
     return switch (filter) {
       LinesFilter.all => true,
       LinesFilter.live => line.isLive,
       LinesFilter.favorites => favorites.contains(line.key),
     };
   }).toList();
-  lines.sort((LineVM a, LineVM b) => _compareLines(a, b, favorites));
-  return lines;
-}
-
-/// Orders live first, then favourites, then accent-insensitive name.
-int _compareLines(LineVM a, LineVM b, Set<String> favorites) {
-  if (a.isLive != b.isLive) {
-    return a.isLive ? -1 : 1;
-  }
-  final bool favoriteA = favorites.contains(a.key);
-  final bool favoriteB = favorites.contains(b.key);
-  if (favoriteA != favoriteB) {
-    return favoriteA ? -1 : 1;
-  }
-  return normalizeText(a.name).compareTo(normalizeText(b.name));
 }
 
 /// Singular of the count. The strings file only carries the plural form.

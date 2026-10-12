@@ -14,13 +14,16 @@ import 'package:pontual/ui/util/platform.dart';
 @immutable
 class Segment {
   /// Creates a segment.
-  const Segment({required this.value, required this.label});
+  const Segment({required this.value, required this.label, this.icon});
 
   /// Value the segment represents.
   final String value;
 
   /// Label in pt-BR.
   final String label;
+
+  /// Leading icon, if any.
+  final IconData? icon;
 }
 
 /// Custom segmented control.
@@ -71,7 +74,7 @@ class Segmented extends StatelessWidget {
                 widthFactor: 1 / count,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: colors.surface,
+                    color: colors.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(Radii.pill),
                     border: Border.all(color: colors.line),
                   ),
@@ -97,16 +100,40 @@ class Segmented extends StatelessWidget {
                       height: double.infinity,
                       alignment: Alignment.center,
                       padding: const EdgeInsets.symmetric(horizontal: Space.x2),
-                      child: Text(
-                        segment.label,
-                        style: PontualText.label.copyWith(
-                          color: segment.value == value
-                              ? colors.ink
-                              : colors.inkMuted,
-                        ),
-                        maxLines: 2,
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          if (segment.icon != null) ...<Widget>[
+                            Icon(
+                              segment.icon,
+                              size: 16,
+                              color: segment.value == value
+                                  ? colors.ink
+                                  : colors.inkMuted,
+                            ),
+                            const SizedBox(width: Space.x1),
+                          ],
+                          Flexible(
+                            child: Text(
+                              segment.label,
+                              style: segment.value == value
+                                  ? PontualText.label.copyWith(
+                                      color: colors.ink,
+                                      fontWeight: FontWeight.w700,
+                                      fontVariations: const <FontVariation>[
+                                        FontVariation(weightAxis, 700),
+                                      ],
+                                    )
+                                  : PontualText.label.copyWith(
+                                      color: colors.inkMuted,
+                                    ),
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

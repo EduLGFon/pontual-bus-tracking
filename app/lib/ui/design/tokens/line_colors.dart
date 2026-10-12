@@ -1,9 +1,10 @@
-// Deterministic line colours. A stable line key hashes into a curated
-// 10-colour palette that excludes pure green (reserved for live) and
-// indigo/violet (reserved for predicted). Badge text colour is computed
-// per fill and both themes have their own palette.
-// See docs/ui/UI_SPEC.md 4.1.
+// Deterministic line colours plus the business category palette.
+// The hash palette stays for unknown contexts; real lines use the category
+// fills below, which carry region meaning. Both avoid pure green (live)
+// and red (errors). Badge text colour is computed per fill.
+// See docs/ui/UI_SPEC.md 4.1 and docs/ui/lines-redesign.md.
 import 'package:flutter/material.dart';
+import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/util/contrast.dart';
 
 /// Light theme line palette. Ordered so hashing spreads across hues.
@@ -67,6 +68,32 @@ Color lineColorOf(
 /// Text colour for a line badge fill, always at least 4.5:1.
 Color lineBadgeTextOf(Color fill) {
   return bestTextOn(fill);
+}
+
+/// Category fills, light theme. UFES blue matches the previous blue badge;
+/// Guriri yellow carries dark text; Aroeira purple is distinct from both;
+/// other is neutral gray. Green and red are never used.
+const Map<LineCategory, Color> lineCategoryLight = <LineCategory, Color>{
+  LineCategory.ufes: Color(0xFF2563EB),
+  LineCategory.guriri: Color(0xFFEAB308),
+  LineCategory.aroeira: Color(0xFF7C3AED),
+  LineCategory.other: Color(0xFF475569),
+};
+
+/// Category fills, dark theme. Same hues, adjusted so badge text still
+/// reaches 4.5:1 in dark mode.
+const Map<LineCategory, Color> lineCategoryDark = <LineCategory, Color>{
+  LineCategory.ufes: Color(0xFF2B73FF),
+  LineCategory.guriri: Color(0xFFFACC15),
+  LineCategory.aroeira: Color(0xFFA78BFA),
+  LineCategory.other: Color(0xFF687D9A),
+};
+
+/// Fill colour of a [category] for [brightness].
+Color categoryColorOf(LineCategory category, {required Brightness brightness}) {
+  return brightness == Brightness.dark
+      ? lineCategoryDark[category]!
+      : lineCategoryLight[category]!;
 }
 
 /// Parses `#RRGGBB` or `RRGGBB`. Null on anything else.

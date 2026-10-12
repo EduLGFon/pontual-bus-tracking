@@ -11,10 +11,12 @@ import 'package:http/testing.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/design/components/toast.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/lines/lines_screen.dart';
 import 'package:pontual/ui/features/search/search_screen.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -179,10 +181,15 @@ void main() {
       await tester.pumpWidget(wrapRouter('/lines'));
       await tester.pumpAndSettle();
       expect(find.text(UiStrings.linesTitle), findsOneWidget);
-      expect(find.textContaining('2 ${UiStrings.linesCount}'), findsOneWidget);
+      expect(
+        find.text('2 ${UiStrings.linesCount} · 1 ${UiStrings.linesWithTimes}'),
+        findsOneWidget,
+      );
+      expect(find.textContaining(UiStrings.linesWithTimes), findsOneWidget);
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-      // Title and terminal subtitle both read Guriri.
-      expect(find.text('Guriri'), findsWidgets);
+      // The timetable-less line shows the honest muted state.
+      expect(find.text('Guriri'), findsOneWidget);
+      expect(find.text(UiStrings.linesNoTimetable), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -202,7 +209,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(UiStrings.filterLive));
       await tester.pumpAndSettle();
-      expect(find.text(UiStrings.linesNoLive), findsOneWidget);
+      expect(find.text(UiStrings.homeNoLive), findsOneWidget);
+      expect(find.text(UiStrings.linesNoLiveBody), findsOneWidget);
+    });
+
+    testWidgets('live chip shows its count', (WidgetTester tester) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      expect(find.text('${UiStrings.filterLive} (1)'), findsOneWidget);
     });
 
     testWidgets('star toggle persists the favourite', (
@@ -213,17 +227,53 @@ void main() {
       final BuildContext context = tester.element(find.byType(LinesScreen));
       final ProviderContainer container = ProviderScope.containerOf(context);
       expect(container.read(favoritesProvider), isEmpty);
-      // Rows sort live-first, so the first star belongs to Litorâneo.
-      await tester.tap(find.bySemanticsLabel(UiStrings.favorite).first);
+      // Rows sort by category then number, so the first star is Litorâneo.
+      await tester.tap(
+        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
+      );
       await tester.pumpAndSettle();
       expect(
         container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
         isTrue,
       );
-      await tester.tap(find.text(UiStrings.filterFavorites));
+      await tester.tap(find.textContaining(UiStrings.filterFavorites));
       await tester.pumpAndSettle();
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);
+      // Flush the favorites toast timer before teardown.
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('star toggle offers undo', (WidgetTester tester) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      final BuildContext context = tester.element(find.byType(LinesScreen));
+      final ProviderContainer container = ProviderScope.containerOf(context);
+      await tester.tap(
+        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
+        isTrue,
+      );
+      // No shell toast slot in this harness, so assert the controller state.
+      final ToastData? toast = container.read(toastControllerProvider).current;
+      expect(toast?.message, UiStrings.linesFavAdded);
+      expect(toast?.actionLabel, UiStrings.undo);
+      toast?.onAction?.call();
+      await tester.pumpAndSettle();
+      expect(container.read(favoritesProvider), isEmpty);
+      // Flush the favorites toast timer before teardown.
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('todas groups rows under the category header', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('UFES / IFES'), findsOneWidget);
     });
 
     testWidgets('row tap opens the line', (WidgetTester tester) async {
