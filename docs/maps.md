@@ -57,6 +57,25 @@ sudo install pmtiles /usr/local/bin/pmtiles
 pmtiles version  # must print 1.31.2
 ```
 
+Pick the asset matching your machine (`uname -sm` to check). The
+`Linux_x86_64` file above is only for 64-bit Intel/AMD Linux:
+
+| Machine | Asset |
+| ------- | ----- |
+| Linux, Intel/AMD 64-bit | `go-pmtiles_1.31.2_Linux_x86_64.tar.gz` |
+| Linux, ARM 64-bit (Raspberry Pi, Oracle Ampere, Apple VM) | `go-pmtiles_1.31.2_Linux_arm64.tar.gz` |
+| macOS, Apple Silicon | `go-pmtiles_1.31.2_Darwin_arm64.zip` |
+| macOS, Intel | `go-pmtiles_1.31.2_Darwin_x86_64.zip` |
+| Windows 64-bit | `go-pmtiles_1.31.2_Windows_x86_64.zip` |
+
+`exec format error` (or `Syntax error: ")" unexpected`) after install
+means the wrong asset: the file is not executable on your CPU/OS. Check
+with `file $(which pmtiles)`. A common slip is installing the archive
+itself instead of the extracted `pmtiles` binary, or an HTML error page
+from a failed download (re-run `curl` with the `-f` flag so HTTP errors
+fail loudly, and confirm the file starts with the `ELF` or `Mach-O`
+magic via `file`).
+
 Without the binary the tasks fail with install help (exit 1), never a
 stack trace. `map-extract` and `map-verify` run the binary you name via
 `PMTILES_BIN` or PATH, so they carry broad `--allow-run` plus full
