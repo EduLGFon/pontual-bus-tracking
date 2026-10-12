@@ -97,8 +97,9 @@ class LinesScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: _Header(total: all.length, withTimes: withTimes),
             ),
-            SliverToBoxAdapter(
-              child: _FilterRow(
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _PinnedChips(
                 liveCount: liveLines,
                 favoriteCount: favorites.length,
                 offline: offline,
@@ -214,6 +215,55 @@ class _Header extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Pinned chips delegate: the filter row stays visible while the list
+/// scrolls. Opaque background so rows slide under it without ghosting.
+class _PinnedChips extends SliverPersistentHeaderDelegate {
+  /// Creates the delegate.
+  const _PinnedChips({
+    required this.liveCount,
+    required this.favoriteCount,
+    required this.offline,
+  });
+
+  /// Lines currently sharing. Unknown when [offline] is true.
+  final int liveCount;
+
+  /// Favourite lines.
+  final int favoriteCount;
+
+  /// True while the app is offline.
+  final bool offline;
+
+  @override
+  double get minExtent => Sizes.chip + Space.x3;
+
+  @override
+  double get maxExtent => Sizes.chip + Space.x3;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: context.colors.bg,
+      child: _FilterRow(
+        liveCount: liveCount,
+        favoriteCount: favoriteCount,
+        offline: offline,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedChips oldDelegate) {
+    return oldDelegate.liveCount != liveCount ||
+        oldDelegate.favoriteCount != favoriteCount ||
+        oldDelegate.offline != offline;
   }
 }
 
