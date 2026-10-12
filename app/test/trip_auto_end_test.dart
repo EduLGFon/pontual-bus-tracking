@@ -146,7 +146,7 @@ void main() {
     // (its slot is long past) and that success heals the trip.
     r.positions.add(pos(8, timestampMs: r.clock.nowMs()));
     for (int i = 0; i < 50 && r.controller.isOffline; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(Duration.zero);
     }
     expect(r.controller.isOffline, isFalse);
     expect(activeRole(r.controller.state), TripRole.follower);

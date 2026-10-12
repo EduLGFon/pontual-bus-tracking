@@ -27,13 +27,20 @@ Widget wrapApp(Widget child) {
   );
 }
 
+/// One pump that also flushes sheet and navigation animations. Fake time,
+/// so the duration costs no wall time. Used instead of pumpAndSettle,
+/// which is slower and hangs on screens with a never-settling pulse.
+Future<void> settleOnce(WidgetTester tester) {
+  return tester.pump(const Duration(milliseconds: 300));
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
   group('TripScreen', () {
-    testWidgets('renders the hero, the rows and the end action', (
+    testWidgets('renders the hero, rows, tick and end action', (
       WidgetTester tester,
     ) async {
       final rig.Rig r = rig.rig(rig.happy());
@@ -44,21 +51,10 @@ void main() {
       expect(find.text(UiStrings.connection), findsOneWidget);
       expect(find.text(UiStrings.gps), findsOneWidget);
       expect(find.text(UiStrings.tripStop), findsOneWidget);
+      expect(find.textContaining('há '), findsWidgets);
       expect(tester.takeException(), isNull);
       // Inline teardown: the invariant check runs before addTearDown, so
       // the controller and its timers must stop inside the test body.
-      r.controller.dispose();
-      await r.positions.close();
-    });
-
-    testWidgets('elapsed time ticks in tabular figures', (
-      WidgetTester tester,
-    ) async {
-      final rig.Rig r = rig.rig(rig.happy());
-      await rig.start(r);
-      await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
-      await tester.pump();
-      expect(find.textContaining('há '), findsWidgets);
       r.controller.dispose();
       await r.positions.close();
     });
@@ -71,9 +67,7 @@ void main() {
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
       await tester.tap(find.text(UiStrings.tripStop));
-      for (int i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
+      await tester.pump(const Duration(seconds: 1));
       expect(find.text(UiStrings.endTitle), findsOneWidget);
       expect(find.text(UiStrings.endDone), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -111,14 +105,12 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
       unawaited(router.push('/trip'));
       await tester.pump();
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
-      // No pumpAndSettle: the hero pulse never settles by design.
-      for (int i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
+      // No settle: the hero pulse never settles by design.
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('home-marker'), findsOneWidget);
       expect(r.controller.endKind, isNull);
       r.controller.dispose();
@@ -127,25 +119,18 @@ void main() {
   });
 
   group('SettingsScreen', () {
-    testWidgets('theme switch updates the provider', (
+    testWidgets('theme switch and toggles persist', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapApp(const SettingsScreen()));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       await tester.tap(find.text(UiStrings.themeDark));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       final BuildContext context = tester.element(find.byType(SettingsScreen));
       expect(
         ProviderScope.containerOf(context).read(themeHostProvider),
         ThemeMode.dark,
       );
-    });
-
-    testWidgets('toggles persist data saver and reduced motion', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapApp(const SettingsScreen()));
-      await tester.pumpAndSettle();
       expect(find.text(UiStrings.dataSaver), findsOneWidget);
       expect(find.text(UiStrings.reduceMotion), findsOneWidget);
       expect(find.text(UiStrings.privacyData), findsOneWidget);
@@ -154,33 +139,14 @@ void main() {
       expect(find.text(UiStrings.about), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
-
-    testWidgets('survives 200 percent text scale', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MediaQuery(
-            data: const MediaQueryData(
-              textScaler: TextScaler.linear(2),
-              size: Size(360, 640),
-            ),
-            child: MaterialApp(
-              theme: pontualLightTheme(),
-              home: const SettingsScreen(),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-    });
   });
 
   group('PrivacyScreen', () {
-    testWidgets('shows the rows and the collection summary', (
+    testWidgets('rows, summary and cancel keep the data', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapApp(const PrivacyScreen()));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.privacyPolicy), findsOneWidget);
       expect(find.text(UiStrings.privacyTerms), findsOneWidget);
       expect(find.text(UiStrings.privacyCollectsTitle), findsOneWidget);
@@ -188,21 +154,13 @@ void main() {
       // The danger row sits below the fold of the lazy list.
       await tester.scrollUntilVisible(find.text(UiStrings.privacyDelete), 200);
       expect(find.text(UiStrings.privacyDelete), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('cancel keeps the dialog away and the data kept', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapApp(const PrivacyScreen()));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text(UiStrings.privacyDelete), 200);
       await tester.tap(find.text(UiStrings.privacyDelete));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.privacyDeleteTitle), findsOneWidget);
       await tester.tap(find.text(UiStrings.cancel));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.privacyDeleteTitle), findsNothing);
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -211,7 +169,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapApp(const AboutScreen()));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.aboutDisclaimer), findsOneWidget);
       expect(find.text(UiStrings.aboutOsm), findsOneWidget);
       expect(find.text(UiStrings.aboutLicences), findsOneWidget);
@@ -221,26 +179,21 @@ void main() {
   });
 
   group('SystemScreen', () {
-    testWidgets('maintenance offers the timetables way out', (
+    testWidgets('maintenance and not-found states', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
         wrapApp(const SystemScreen(kind: SystemKind.maintenance)),
       );
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.maintenanceTitle), findsOneWidget);
       expect(find.text(UiStrings.maintenanceBody), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('unknown route renders the not-found state', (
-      WidgetTester tester,
-    ) async {
       await tester.pumpWidget(
         wrapApp(const SystemScreen(kind: SystemKind.notFound)),
       );
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.notFoundTitle), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

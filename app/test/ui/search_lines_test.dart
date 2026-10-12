@@ -101,23 +101,42 @@ class _RouterApp extends StatelessWidget {
   }
 }
 
+/// One pump that flushes async providers and short animations. Fake time,
+/// so the duration costs no wall time. Used instead of pumpAndSettle.
+Future<void> settleOnce(WidgetTester tester) {
+  return tester.pump(const Duration(milliseconds: 300));
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
   group('SearchScreen', () {
-    testWidgets('empty query shows recents and suggestions', (
+    testWidgets('empty query, filtering and empty state', (
       WidgetTester tester,
     ) async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         'ui_recents_v1': <String>['62-guriri'],
       });
       await tester.pumpWidget(wrapTest(const SearchScreen(), liveBody: '[]'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.searchRecents), findsOneWidget);
       expect(find.text(UiStrings.searchSuggestions), findsOneWidget);
       expect(find.text('Guriri'), findsWidgets);
+      // Accent-insensitive filtering with no network.
+      await tester.enterText(find.byType(TextField), 'litoraneo');
+      await settleOnce(tester);
+      expect(find.text('Litorâneo / Aviação'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'gur');
+      await settleOnce(tester);
+      expect(find.text('Guriri'), findsWidgets);
+      expect(find.text('Litorâneo / Aviação'), findsNothing);
+      // No results show the empty state.
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await settleOnce(tester);
+      expect(find.text(UiStrings.searchEmptyTitle), findsOneWidget);
+      expect(find.text(UiStrings.searchEmptyTip), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -125,61 +144,29 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapTest(const SearchScreen(), liveBody: '[]'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.searchRecents), findsNothing);
       expect(find.text(UiStrings.searchSuggestions), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('typing filters the lines with no network', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapTest(const SearchScreen(), liveBody: '[]'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'gur');
-      await tester.pumpAndSettle();
-      // The name appears in the row and in the highlighted match.
-      expect(find.text('Guriri'), findsWidgets);
-      expect(find.text('Litorâneo / Aviação'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('accent-insensitive query matches', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapTest(const SearchScreen(), liveBody: '[]'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'litoraneo');
-      await tester.pumpAndSettle();
-      expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-    });
-
-    testWidgets('no results shows the empty state', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapTest(const SearchScreen(), liveBody: '[]'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'zzz');
-      await tester.pumpAndSettle();
-      expect(find.text(UiStrings.searchEmptyTitle), findsOneWidget);
-      expect(find.text(UiStrings.searchEmptyTip), findsOneWidget);
-    });
-
     testWidgets('tapping a row opens the line', (WidgetTester tester) async {
       await tester.pumpWidget(wrapRouter('/search'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       await tester.enterText(find.byType(TextField), 'gur');
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       await tester.tap(find.text('Guriri').first);
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text('line:62-guriri'), findsOneWidget);
     });
   });
 
   group('LinesScreen', () {
-    testWidgets('lists every line with its count', (WidgetTester tester) async {
+    testWidgets('lists every line with counts and category headers', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.linesTitle), findsOneWidget);
       expect(
         find.text('2 ${UiStrings.linesCount} · 1 ${UiStrings.linesWithTimes}'),
@@ -190,40 +177,31 @@ void main() {
       // The timetable-less line shows the honest muted state.
       expect(find.text('Guriri'), findsOneWidget);
       expect(find.text(UiStrings.linesNoTimetable), findsOneWidget);
+      expect(find.textContaining('UFES / IFES'), findsOneWidget);
+      expect(find.text('${UiStrings.filterLive} (1)'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('live filter shows only live lines', (
+    testWidgets('live filter shows only live lines, then the empty state', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapRouter('/lines?filter=live'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);
-    });
-
-    testWidgets('live filter empty state when nothing is live', (
-      WidgetTester tester,
-    ) async {
       await tester.pumpWidget(wrapRouter('/lines', liveBody: '[]'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       await tester.tap(find.text(UiStrings.filterLive));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text(UiStrings.homeNoLive), findsOneWidget);
       expect(find.text(UiStrings.linesNoLiveBody), findsOneWidget);
     });
 
-    testWidgets('live chip shows its count', (WidgetTester tester) async {
-      await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
-      expect(find.text('${UiStrings.filterLive} (1)'), findsOneWidget);
-    });
-
-    testWidgets('star toggle persists the favourite', (
+    testWidgets('star toggle persists and offers undo', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       final BuildContext context = tester.element(find.byType(LinesScreen));
       final ProviderContainer container = ProviderScope.containerOf(context);
       expect(container.read(favoritesProvider), isEmpty);
@@ -231,28 +209,7 @@ void main() {
       await tester.tap(
         find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
       );
-      await tester.pumpAndSettle();
-      expect(
-        container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
-        isTrue,
-      );
-      await tester.tap(find.textContaining(UiStrings.filterFavorites));
-      await tester.pumpAndSettle();
-      expect(find.text('Litorâneo / Aviação'), findsOneWidget);
-      expect(find.text('Guriri'), findsNothing);
-      // Flush the favorites toast timer before teardown.
-      await tester.pump(const Duration(seconds: 4));
-    });
-
-    testWidgets('star toggle offers undo', (WidgetTester tester) async {
-      await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
-      final BuildContext context = tester.element(find.byType(LinesScreen));
-      final ProviderContainer container = ProviderScope.containerOf(context);
-      await tester.tap(
-        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
-      );
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(
         container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
         isTrue,
@@ -262,25 +219,20 @@ void main() {
       expect(toast?.message, UiStrings.linesFavAdded);
       expect(toast?.actionLabel, UiStrings.undo);
       toast?.onAction?.call();
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(container.read(favoritesProvider), isEmpty);
-      // Flush the favorites toast timer before teardown.
+      await tester.tap(find.textContaining(UiStrings.filterFavorites));
+      await settleOnce(tester);
+      expect(find.text('Litorâneo / Aviação'), findsNothing);
+      // Flush the favorites toast timer before teardown (fake time).
       await tester.pump(const Duration(seconds: 4));
-    });
-
-    testWidgets('todas groups rows under the category header', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('UFES / IFES'), findsOneWidget);
     });
 
     testWidgets('row tap opens the line', (WidgetTester tester) async {
       await tester.pumpWidget(wrapRouter('/lines'));
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       await tester.tap(find.text('Guriri').first);
-      await tester.pumpAndSettle();
+      await settleOnce(tester);
       expect(find.text('line:62-guriri'), findsOneWidget);
     });
   });

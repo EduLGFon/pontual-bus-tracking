@@ -153,7 +153,7 @@ void main() {
     expect(find.text('Agora'), findsOneWidget);
     expect(find.text('Horários'), findsOneWidget);
     await tester.tap(find.text('Horários'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(chosen, 'horarios');
   });
 

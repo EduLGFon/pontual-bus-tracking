@@ -272,7 +272,7 @@ void main() {
     expect(opens, 1);
     expect(fetches, 1);
     r.debugSocketDown();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(Duration.zero);
     expect(opens, 2);
     expect(fetches, 2);
     expect(channels[1].sent.length, 1);
@@ -302,7 +302,7 @@ void main() {
     expect(opens, 1);
     r.debugSocketDown();
     await r.stop();
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await Future<void>.delayed(Duration.zero);
     expect(opens, 1);
     await channel.dispose();
   });

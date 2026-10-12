@@ -164,11 +164,11 @@ void main() {
     );
     // Let the start reach the GPS wait, then cancel (closes the stream).
     for (int i = 0; i < 20 && started == null; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await Future<void>.delayed(Duration.zero);
     }
     r.controller.cancelStart();
     for (int i = 0; i < 50 && started == null; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await Future<void>.delayed(Duration.zero);
     }
     expect(started, isFalse);
     expect(r.controller.failReason, StartFailure.declined);

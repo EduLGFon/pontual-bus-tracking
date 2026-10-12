@@ -62,7 +62,7 @@ void main() {
 
   testWidgets('boots on home with pt-BR copy', (WidgetTester tester) async {
     await pumpAppWithLines(tester);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.wordmark), findsOneWidget);
     expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
     expect(find.text(UiStrings.navHome), findsOneWidget);
@@ -72,10 +72,10 @@ void main() {
 
   testWidgets('first run shows the welcome card', (WidgetTester tester) async {
     await pumpAppWithLines(tester);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.welcomeTitle), findsOneWidget);
     await tester.tap(find.text(UiStrings.ok));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.welcomeTitle), findsNothing);
   });
 
@@ -83,21 +83,21 @@ void main() {
     WidgetTester tester,
   ) async {
     await pumpAppWithLines(tester);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(_navItem(UiStrings.navLines));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.filterAll), findsOneWidget);
     await tester.tap(_navItem(UiStrings.navSettings));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.sectionAppearance), findsOneWidget);
     await tester.tap(_navItem(UiStrings.navHome));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
   });
 
   testWidgets('survives 200 percent text scale', (WidgetTester tester) async {
     await pumpAppWithLines(tester, textScale: 2);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
   });
 }
