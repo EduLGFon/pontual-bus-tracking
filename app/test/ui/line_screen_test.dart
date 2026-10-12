@@ -191,14 +191,15 @@ void main() {
       400,
     );
     await _openSheet(tester);
-    // The sheet builds lazily, so rows below the fold need a scroll to
-    // exist: bring each row into view before asserting it.
+    // The sheet builds lazily: rows below the fold need a scroll to
+    // exist, and rows scrolled far out of view are evicted again. So
+    // assert the header while row 1 is in view, then go to row 2.
     await tester.scrollUntilVisible(find.text('Ônibus 1'), 200);
     expect(find.text('Ônibus 1'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Ônibus 2'), 200);
-    expect(find.text('Ônibus 2'), findsOneWidget);
     expect(find.text(UiStrings.vehiclesNow), findsOneWidget);
     expect(find.text(UiStrings.dockIdleOnLine), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Ônibus 2'), 200);
+    expect(find.text('Ônibus 2'), findsOneWidget);
     // The map is mounted and the vehicle rows carry the accessible
     // alternative a screen reader reads instead of the map.
     expect(find.byType(RepaintBoundary), findsWidgets);
