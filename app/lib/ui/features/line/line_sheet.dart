@@ -222,13 +222,13 @@ class _LineSheetState extends ConsumerState<LineSheet> {
           semanticLabel: UiStrings.alertFiring,
           child: Row(
             children: <Widget>[
-              const Icon(Icons.notifications_active_rounded),
+              Icon(
+                Icons.notifications_active_rounded,
+                color: context.colors.ink,
+              ),
               const SizedBox(width: Space.x2),
               Expanded(
-                child: Text(
-                  UiStrings.alertFiring,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                child: Text(UiStrings.alertFiring, style: context.text.body),
               ),
             ],
           ),
@@ -263,14 +263,11 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(
-                  UiStrings.homeNoMoreToday,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text(UiStrings.homeNoMoreToday, style: context.text.headline),
                 const SizedBox(height: Space.x1),
                 Text(
                   UiStrings.homeTomorrowAt(tomorrow),
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: context.text.body,
                 ),
               ],
             ),
@@ -285,15 +282,9 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(
-                  UiStrings.homeNoLive,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text(UiStrings.homeNoLive, style: context.text.headline),
                 const SizedBox(height: Space.x1),
-                Text(
-                  UiStrings.homeNoLiveHint,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Text(UiStrings.homeNoLiveHint, style: context.text.body),
               ],
             ),
           ),

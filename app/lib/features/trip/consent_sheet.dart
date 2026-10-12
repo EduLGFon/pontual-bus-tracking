@@ -3,6 +3,7 @@
 // boxes; dismissible without side effects. See PLAN.md S06.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 
 /// Result of the consent sheet.
 enum ConsentChoice {
@@ -39,10 +40,7 @@ class ConsentSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(
-              'Compartilhar sua localização',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Compartilhar sua localização', style: context.text.title),
             const SizedBox(height: 12),
             Text(
               'Para mostrar onde o ônibus está, este app coleta a '
@@ -54,7 +52,7 @@ class ConsentSheet extends StatelessWidget {
               '• Outros usuários veem a posição do ônibus, não quem está nele. '
               'Se só você compartilhar, a posição do ônibus é a sua.\n'
               '• Você pode encerrar quando quiser.',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: context.text.body,
             ),
             TextButton(
               onPressed: () => context.go('/privacy'),

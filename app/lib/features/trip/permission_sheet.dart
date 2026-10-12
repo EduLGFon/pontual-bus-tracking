@@ -3,6 +3,7 @@
 // education, denied, permanently-denied, and services-off states.
 // See PLAN.md S07.
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 
 /// Location permission states relevant to sharing.
 enum LocationPermissionState {
@@ -49,7 +50,7 @@ class PermissionInfoSheet extends StatelessWidget {
             Text(
               'Para compartilhar, o app precisa da localização enquanto '
               'estiver em uso. Nós não pedimos localização o tempo todo.',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: context.text.body,
             ),
             const SizedBox(height: 16),
             FilledButton(
@@ -80,7 +81,7 @@ class PermissionDeniedSheet extends StatelessWidget {
             Text(
               'Sem permissão de localização. Sem ela não dá para '
               'compartilhar a viagem.',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: context.text.body,
             ),
             const SizedBox(height: 16),
             FilledButton(
@@ -115,7 +116,7 @@ class PermissionBlockedSheet extends StatelessWidget {
             Text(
               'Sem permissão de localização. Sem ela não dá para '
               'compartilhar a viagem.',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: context.text.body,
             ),
             const SizedBox(height: 16),
             FilledButton(
@@ -147,10 +148,7 @@ class LocationOffSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              'Ative a localização do aparelho.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
+            Text('Ative a localização do aparelho.', style: context.text.body),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),

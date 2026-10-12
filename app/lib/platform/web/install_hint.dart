@@ -3,6 +3,7 @@
 // See PLAN.md 8.12 and T39.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,15 +56,20 @@ class InstallHintCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Row(
+              Row(
                 children: <Widget>[
-                  Icon(Icons.add_to_home_screen),
-                  SizedBox(width: 8),
-                  Expanded(child: Text(UiStrings.installHintTitle)),
+                  Icon(Icons.add_to_home_screen, color: context.colors.ink),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      UiStrings.installHintTitle,
+                      style: context.text.bodyStrong,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
-              const Text(UiStrings.installHintBody),
+              Text(UiStrings.installHintBody, style: context.text.body),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,

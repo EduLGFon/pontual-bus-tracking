@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/domain/trip/share_phases.dart';
 import 'package:pontual/features/trip/share_progress_tracker.dart';
@@ -84,20 +85,17 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
                       : 'Iniciando viagem',
                   child: Text(
                     UiStrings.shareProgressTitle,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: context.text.title,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  widget.lineLabel,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Text(widget.lineLabel, style: context.text.body),
                 const SizedBox(height: 16),
                 for (final SharePhase phase in sharePhaseOrder)
                   _phaseRow(context, tracker, phase),
                 if (message != null) ...<Widget>[
                   const SizedBox(height: 12),
-                  Text(message, style: Theme.of(context).textTheme.bodyLarge),
+                  Text(message, style: context.text.body),
                 ],
                 const SizedBox(height: 8),
                 _details(context, tracker),
@@ -146,15 +144,15 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
           child: CircularProgressIndicator(strokeWidth: 2),
         );
       case SharePhaseStatus.done:
-        icon = const Icon(Icons.check_circle, color: Colors.green, size: 20);
+        icon = Icon(Icons.check_circle, color: context.colors.live, size: 20);
       case SharePhaseStatus.failed:
+        icon = Icon(Icons.error, color: context.colors.danger, size: 20);
+      case SharePhaseStatus.pending:
         icon = Icon(
-          Icons.error,
-          color: Theme.of(context).colorScheme.error,
+          Icons.circle_outlined,
+          color: context.colors.inkSubtle,
           size: 20,
         );
-      case SharePhaseStatus.pending:
-        icon = const Icon(Icons.circle_outlined, color: Colors.grey, size: 20);
     }
     final String label = _labelFor(phase);
     String? sub;
@@ -176,9 +174,8 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(label, style: Theme.of(context).textTheme.bodyLarge),
-                  if (sub != null)
-                    Text(sub, style: Theme.of(context).textTheme.bodySmall),
+                  Text(label, style: context.text.body),
+                  if (sub != null) Text(sub, style: context.text.caption),
                 ],
               ),
             ),
@@ -256,13 +253,20 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
       rows.writeln('gps: aguardando (${left}s)');
     }
     return ExpansionTile(
-      title: const Text(UiStrings.shareProgressDetails),
+      iconColor: context.colors.inkMuted,
+      collapsedIconColor: context.colors.inkMuted,
+      textColor: context.colors.ink,
+      collapsedTextColor: context.colors.ink,
+      title: Text(
+        UiStrings.shareProgressDetails,
+        style: context.text.bodyStrong,
+      ),
       children: <Widget>[
         Align(
           alignment: Alignment.centerLeft,
           child: SelectableText(
             rows.toString().trim(),
-            style: Theme.of(context).textTheme.bodySmall,
+            style: context.text.caption,
           ),
         ),
       ],

@@ -2,6 +2,7 @@
 // page is open and unlocked, so the banner never dismisses. See PLAN
 // 8.12.
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Banner shown during every web trip.
@@ -32,22 +33,27 @@ class WebTripBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Row(
+              Row(
                 children: <Widget>[
-                  Icon(Icons.stay_current_portrait),
-                  SizedBox(width: 8),
-                  Expanded(child: Text(UiStrings.webKeepOpen)),
+                  Icon(Icons.stay_current_portrait, color: context.colors.ink),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      UiStrings.webKeepOpen,
+                      style: context.text.bodyStrong,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
-              const Text(UiStrings.webWakeNote),
+              Text(UiStrings.webWakeNote, style: context.text.body),
               if (wakeUnsupported) ...<Widget>[
                 const SizedBox(height: 4),
-                const Text(UiStrings.webWakeUnsupported),
+                Text(UiStrings.webWakeUnsupported, style: context.text.body),
               ],
               if (paused) ...<Widget>[
                 const SizedBox(height: 4),
-                const Text(UiStrings.webHiddenPaused),
+                Text(UiStrings.webHiddenPaused, style: context.text.body),
               ],
             ],
           ),

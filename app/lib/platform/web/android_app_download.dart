@@ -4,6 +4,7 @@
 // See PLAN.md 8.12 and T48.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -81,15 +82,20 @@ class AndroidAppDownloadCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Row(
+              Row(
                 children: <Widget>[
-                  Icon(Icons.android_rounded),
-                  SizedBox(width: Space.x2),
-                  Expanded(child: Text(UiStrings.androidAppTitle)),
+                  Icon(Icons.android_rounded, color: context.colors.ink),
+                  const SizedBox(width: Space.x2),
+                  Expanded(
+                    child: Text(
+                      UiStrings.androidAppTitle,
+                      style: context.text.bodyStrong,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: Space.x1),
-              const Text(UiStrings.androidAppBody),
+              Text(UiStrings.androidAppBody, style: context.text.body),
               const SizedBox(height: Space.x2),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
