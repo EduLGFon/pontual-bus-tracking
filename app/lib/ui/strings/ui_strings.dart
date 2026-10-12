@@ -758,6 +758,20 @@ class UiStrings {
   /// Sharing section.
   static const String sectionSharing = 'Compartilhamento';
 
+  /// Data and performance section.
+  static const String sectionData = 'Dados e desempenho';
+
+  /// Privacy and help section.
+  static const String sectionPrivacyHelp = 'Privacidade e ajuda';
+
+  /// About section.
+  static const String sectionAbout = 'Sobre';
+
+  /// One-line privacy summary under the help header. True in code today:
+  /// no sign-up exists and the viewer position never leaves the device.
+  static const String privacySummary =
+      'Sem cadastro. Sua localização só é usada enquanto você compartilha.';
+
   /// Theme row.
   static const String theme = 'Tema';
 

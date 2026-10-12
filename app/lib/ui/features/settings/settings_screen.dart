@@ -71,13 +71,6 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: Space.x2),
                 SettingsTile.toggle(
-                  title: UiStrings.dataSaver,
-                  description: UiStrings.dataSaverHint,
-                  value: settings.dataSaver,
-                  onChanged: (bool value) =>
-                      ref.read(settingsProvider.notifier).setDataSaver(value),
-                ),
-                SettingsTile.toggle(
                   title: UiStrings.reduceMotion,
                   value: settings.reduceMotion,
                   onChanged: (bool value) =>
@@ -86,8 +79,26 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
             SettingsSection(
-              title: UiStrings.sectionSharing,
+              title: UiStrings.sectionData,
               children: <Widget>[
+                SettingsTile.toggle(
+                  title: UiStrings.dataSaver,
+                  description: UiStrings.dataSaverHint,
+                  value: settings.dataSaver,
+                  onChanged: (bool value) =>
+                      ref.read(settingsProvider.notifier).setDataSaver(value),
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: UiStrings.sectionPrivacyHelp,
+              subtitle: UiStrings.privacySummary,
+              children: <Widget>[
+                SettingsTile.chevron(
+                  icon: Icons.privacy_tip_outlined,
+                  title: UiStrings.privacyData,
+                  onTap: () => context.push('/privacy'),
+                ),
                 SettingsTile.chevron(
                   icon: Icons.help_outline_rounded,
                   title: UiStrings.howSharing,
@@ -113,11 +124,11 @@ class SettingsScreen extends ConsumerWidget {
                       lines: const <String>[UiStrings.batteryTip],
                     ),
                   ),
-                SettingsTile.chevron(
-                  icon: Icons.privacy_tip_outlined,
-                  title: UiStrings.privacyData,
-                  onTap: () => context.push('/privacy'),
-                ),
+              ],
+            ),
+            SettingsSection(
+              title: UiStrings.sectionAbout,
+              children: <Widget>[
                 SettingsTile.chevron(
                   icon: Icons.info_outline_rounded,
                   title: UiStrings.about,
