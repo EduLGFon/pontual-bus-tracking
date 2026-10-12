@@ -23,6 +23,7 @@ import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Fallback tile URL template, the same one the data layer uses.
 const String _tileUrlFallback =
@@ -132,10 +133,15 @@ class _LineScreenState extends ConsumerState<LineScreen> {
           // The map sits outside the sheet rebuild path.
           child: RepaintBoundary(
             child: map
-                ? _mapLayer(
-                    vehicles,
-                    controlsBottomPadding:
-                        sheetPixels(_screenHeight, _peek) + Space.x3,
+                ? Semantics(
+                    container: true,
+                    label: _mapLabel(staticLine, vehicles),
+                    excludeSemantics: true,
+                    child: _mapLayer(
+                      vehicles,
+                      controlsBottomPadding:
+                          sheetPixels(_screenHeight, _peek) + Space.x3,
+                    ),
                   )
                 : const SizedBox(),
           ),
@@ -154,6 +160,7 @@ class _LineScreenState extends ConsumerState<LineScreen> {
               vehicles: vehicles,
               scrollController: controller,
               initialTab: widget.tab,
+              onTabChanged: _onTabChanged,
               onShowMap: _openMap,
               showMapAction: !map,
               onVehicleTap: (VehicleVM v) => _focus(v, map),
@@ -282,6 +289,34 @@ class _LineScreenState extends ConsumerState<LineScreen> {
         ),
       );
     }
+  }
+
+  /// Snaps the sheet for the selected tab: Horários needs room, so half;
+  /// Agora reads fine at peek. Instant with reduce-motion.
+  void _onTabChanged(String tab) {
+    if (!_sheet.isAttached) {
+      return;
+    }
+    final double target = tab == SheetTab.timetable ? sheetHalf : _peek;
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _sheet.jumpTo(target);
+      return;
+    }
+    unawaited(
+      _sheet.animateTo(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  /// Accessible summary of the map; the Agora list is the alternative.
+  String _mapLabel(StaticLine line, List<VehicleVM> vehicles) {
+    final String live = vehicles.isEmpty
+        ? UiStrings.homeLiveNone
+        : '${vehicles.length} ${UiStrings.liveCount}';
+    return '${UiStrings.mapOfLine} ${line.short}, $live';
   }
 
   /// Follows a vehicle: selects the marker and recentres on it.

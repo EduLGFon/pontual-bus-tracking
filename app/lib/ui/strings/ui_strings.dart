@@ -322,6 +322,9 @@ class UiStrings {
   /// Ship marker sheet header count, for example "2 ônibus".
   static const String vehicles = 'ônibus';
 
+  /// Map semantics prefix, for example "Mapa da linha 66".
+  static const String mapOfLine = 'Mapa da linha';
+
   // Timetable.
 
   /// Weekday day type.
