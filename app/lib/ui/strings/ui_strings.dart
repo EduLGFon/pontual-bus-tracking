@@ -240,7 +240,14 @@ class UiStrings {
   static const String linesNoLive = 'Nenhuma linha ao vivo agora.';
 
   /// Empty state for the favorites filter.
-  static const String linesNoFavorites = 'Toque na estrela para favoritar.';
+  static const String linesNoFavorites =
+      'Toque na estrela de uma linha para fixá-la aqui.';
+
+  /// Toast after starring a line.
+  static const String linesFavAdded = 'Linha favoritada.';
+
+  /// Toast after unstarring a line.
+  static const String linesFavRemoved = 'Linha removida dos favoritos.';
 
   /// Subtitle of a line with no live tracking and no terminals.
   static const String onlyTimetable = 'Só horários';

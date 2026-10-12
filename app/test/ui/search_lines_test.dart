@@ -240,6 +240,22 @@ void main() {
       expect(find.text('Guriri'), findsNothing);
     });
 
+    testWidgets('star toggle offers undo', (WidgetTester tester) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await tester.pumpAndSettle();
+      final BuildContext context = tester.element(find.byType(LinesScreen));
+      final ProviderContainer container = ProviderScope.containerOf(context);
+      await tester.tap(
+        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(UiStrings.linesFavAdded), findsOneWidget);
+      expect(find.text(UiStrings.undo), findsOneWidget);
+      await tester.tap(find.text(UiStrings.undo));
+      await tester.pumpAndSettle();
+      expect(container.read(favoritesProvider), isEmpty);
+    });
+
     testWidgets('todas groups rows under the category header', (
       WidgetTester tester,
     ) async {

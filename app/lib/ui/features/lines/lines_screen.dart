@@ -23,6 +23,7 @@ import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/shell/offline_bridge.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Filters offered by the chips row.
@@ -294,14 +295,23 @@ class _LineCard extends ConsumerWidget {
       line: line,
       status: status,
       isFavorite: isFavorite,
-      onToggleFavorite: () => _toggleFavorite(ref),
+      onToggleFavorite: () => _toggleFavorite(context, ref),
       onTap: () => context.push('/line/${line.key}'),
     );
   }
 
-  void _toggleFavorite(WidgetRef ref) {
+  void _toggleFavorite(BuildContext context, WidgetRef ref) {
     HapticFeedback.selectionClick();
+    final bool wasFavorite = ref.read(favoritesProvider).contains(line.key);
     unawaited(ref.read(favoritesProvider.notifier).toggle(line.key));
+    ref
+        .read(toastControllerProvider.notifier)
+        .show(
+          wasFavorite ? UiStrings.linesFavRemoved : UiStrings.linesFavAdded,
+          actionLabel: UiStrings.undo,
+          onAction: () =>
+              unawaited(ref.read(favoritesProvider.notifier).toggle(line.key)),
+        );
   }
 }
 
