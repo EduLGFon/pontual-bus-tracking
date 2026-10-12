@@ -1730,3 +1730,16 @@ pre-prompt plus the OS dialog, then the progress sheet.
 Verified: flutter analyze clean, full flutter test green (320 passed),
 targeted trip_flow plus share_flow tests updated (the denial test now
 asserts no second consent sheet before the permission card).
+
+## D-U27-followup-2026-10-12: startShare no longer fails silently
+
+Field report on the fixed build: after accepting the disclosure the
+sheet closed and nothing followed, not even the pre-prompt. The widget
+tests prove the sheet sequence works, so the break is an unexpected
+throw in the unguarded awaits between the sheets (startShare had no
+try/catch, unlike shareTrip, so the error died in the zone with both
+sheets already popped). startShare is now split into _startShare plus
+a guard that shows the connection snackbar on any unexpected throw.
+Declines and dismissals still return normally and stay silent. Not
+pushed: owner tests locally first, production PWA still serves the
+pre-fix build until master is pushed and Pages rebuilds.

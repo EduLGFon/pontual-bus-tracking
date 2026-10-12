@@ -21,6 +21,7 @@ import 'package:pontual/ui/design/components/permission_card.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/shell/trip_host.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 
 import 'line_chooser_sheet.dart';
@@ -30,13 +31,35 @@ import 'permission_sheets.dart';
 /// line first. Steps: chooser, consent disclosure, permission pre-prompt,
 /// then the existing share flow, which owns the OS prompt, the progress
 /// sheet, and the navigation to /trip. Declines and dismissals are silent:
-/// nothing is logged and no state changes behind the rider.
+/// nothing is logged and no state changes behind the rider. Unexpected
+/// failures show the connection message instead of closing silently.
 Future<void> startShare(
   BuildContext context,
   WidgetRef ref,
   LineVM? line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
+}) async {
+  try {
+    await _startShare(context, ref, line,
+        gateway: gateway, ensureNotifications: ensureNotifications);
+  } catch (_) {
+    // The sheets above already popped: without this the tap ends on an
+    // empty screen with the error only in the zone.
+    if (!context.mounted) {
+      return;
+    }
+    _tell(context, UiStrings.shareNoConnection);
+  }
+}
+
+/// Share body; throws nothing by design, but the caller guards anyway.
+Future<void> _startShare(
+  BuildContext context,
+  WidgetRef ref,
+  LineVM? line, {
+  required PermissionGateway gateway,
+  required Future<void> Function() ensureNotifications,
 }) async {
   final LineVM? chosen = line ?? await _chooseLine(context);
   if (chosen == null) {
@@ -312,4 +335,11 @@ class _PermissionRecorder implements PermissionGateway {
 
   @override
   Future<void> openSettings() => gateway.openSettings();
+}
+
+/// Shows a short explanation where the tap happened. No-op without a
+/// Scaffold; production call sites always have one.
+void _tell(BuildContext context, String message) {
+  ScaffoldMessenger.maybeOf(context)
+      ?.showSnackBar(SnackBar(content: Text(message)));
 }
