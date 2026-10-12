@@ -849,7 +849,14 @@ sharing; otherwise hidden. Never duplicate the CTA inside the sheet.
   dock), zoom +/- only on pointer devices (web expanded). No rotation gesture.
   No compass.
 - **Camera:** on enter fit to live vehicles (if any) else route bounds else
-  service-area center at zoom 13; user pan cancels follow mode; "Seguir" on a
+  service-area center at zoom 13. The fit runs from the first build that has
+  a map (lines load async, so never once from `initState`), plus at most one
+  refit when vehicles arrive after an empty first fit and the user has not
+  panned. Sheet movement never moves the camera. The recenter control
+  centres the viewer dot at zoom 14 (city centre at zoom 13 when the viewer
+  position is unknown). Throttled tile bursts reload automatically with a
+  bounded backoff (max 3 attempts per burst); failed tiles are evicted when
+  pruned. User pan cancels follow mode; "Seguir" on a
   `VehicleRow` (flag `followVehicle`) smoothly follows that bus (400 ms ease to
   marker; chip "Seguindo Ônibus 1 ✕" at top-center).
 - **User location is not shown** while only viewing (no location access for

@@ -1753,3 +1753,80 @@ without the fix. Unexpected throws still show the connection snackbar
 instead of closing silently. Not pushed: owner tests locally first,
 production PWA still serves the pre-fix build until master is pushed
 and Pages rebuilds.
+
+## D-U28-2026-10-12: recenter targets viewer at neighbourhood zoom, sheet no longer moves camera
+
+Request: recenter button focuses the viewer at neighbourhood scale, city
+centre is the fallback everywhere (no location, map just opened), and
+expanding the line details sheet stops moving the map.
+
+Change: added `cityZoom` (13) and `neighbourhoodZoom` (14) plus
+`LineMapState.centerOnViewer()` (viewer at 14, else city centre at 13).
+Recenter now calls `centerOnViewer()` instead of `fitToContent()`
+(vehicles); removed the duplicate fit in the button. `_initialCenter()`
+and `fitToContent()` fallbacks stay city centre. Removed the
+sheet-settle listener (`_onSheetChanged`) so dragging peek/half/full
+never refits the camera; the one enter-time `fitToContent()` with peek
+padding stays. Viewer one-shot framing (no vehicles, not panned) now
+uses neighbourhood zoom.
+
+Verified: `flutter analyze` clean on both files,
+`flutter test test/ui/line_screen_test.dart` 4 passed. Full suite not
+run to green (timed out locally).
+
+## D-U29-2026-10-12: test suite slimmed for speed, 46 files to 28
+
+Request: `flutter test` too big and slow; remove the unimportant parts
+and make the rest faster.
+
+Change (tests only, no production code): deleted 8 files outright -
+`future_components` and `future_models` (flagged-off, never mounted in
+shipped screens), `gallery` (design-system smoke, not user-facing),
+`frame_timing` (two trivial math asserts), `sharing_signals` (duplicate
+of `sharing_health`), `lines_logic` (folded the one unique grouping
+test into `line_category`), `map` (single tile assertion folded into
+`offline_map`), `trip_screen` (IssueDebouncer cases moved to
+`trip_domain`; layout duplicates of `trip_settings` dropped). Merged 11
+more files into 4: seven pure-logic files into `ui/ui_logic_test.dart`
+(65 tests, one process), `api` into `bus_api`, `install_hint` +
+`android_app_download` into `web_prompts`, `trip_flow` into
+`share_flow`, `timetable_tab` into `line_screen`. Consolidated
+`search_lines` 14 to 7 and `trip_settings` 12 to 7 widget tests;
+replaced `pumpAndSettle` with single fixed pumps where the screens have
+no entrance animation, and real `Future.delayed` waits with
+`Duration.zero`/microtask flushes in unit tests. Sheet-flow tests keep
+`pumpAndSettle`: a single fixed pump does not finish bottom-sheet
+entrance (9 failures on the first attempt, reverted).
+
+Kept: every PLAN 15.3 minimum (reducer, sampling, PingClient, auto-end,
+VehicleRepository, static data, S03/S04/S05/S06/S08/S11 widgets).
+
+Verified: full suite 304 passed + 1 pre-existing skip, `flutter
+analyze` clean, `dart format` clean. Wall 99 s to ~90 s on a loaded
+4-core box; the bottleneck is per-file process startup, so fewer files
+is what moves it.
+
+## D-U29-2026-10-12: map tile failure recovery and deterministic enter fit
+
+Field report: the line map stayed blank until the first gesture, and some
+zoom positions rendered fully black or in blocks, despite the tile cache.
+
+Diagnosis, all verified in code: on web the built-in caching provider is a
+disabled stub, so the PWA has no tile cache at all (Android native has the
+50 MB file cache); only HTTP 200 tiles are ever cached, failures never are;
+the burst fired on open hits tile.openstreetmap.org, which throttles bursty
+anonymous clients (on web our User-Agent cannot even be sent); failed tiles
+rendered as the surface background (near-black in dark mode) with no error
+or loading surface; and the one-shot initState fit silently no-oped while
+lines loaded async, so the framing never ran on cold open.
+
+Change: tile seam exposes a coordinate-free error callback plus a reset
+stream and evicts failed tiles when pruned; the map schedules a bounded
+backoff reload (2/4/8 s, max 3 per 30 s burst window) through that stream;
+the enter fit runs from the first build with a map plus one refit when
+vehicles arrive after an empty first fit; sheet movement still never moves
+the camera. No coordinates are read or logged in the error path.
+
+Verified: flutter analyze clean, offline_map_test (4 new assertions) and
+line_screen_test green. Production traffic still belongs on a self-hosted
+tile host per D12/D-U26; this only makes the OSM fallback recover.
