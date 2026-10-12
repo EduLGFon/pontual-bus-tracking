@@ -1,12 +1,77 @@
-// Android app download hint: shows once, only to unseen Android web,
-// and the download button opens the latest release APK URL.
+// Platform-gated web prompts: the iOS install hint (T39) and the
+// Android app download card. Both show once, only on their unseen
+// platform, and stay hidden on the test platform. Merged into one file
+// so the suite pays a single test-process startup instead of two.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
+import 'package:pontual/platform/web/install_hint.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  group('shouldShowInstallHint', () {
+    test('only unseen iOS web', () {
+      expect(
+        shouldShowInstallHint(isWeb: true, isIos: true, seen: false),
+        isTrue,
+      );
+      expect(
+        shouldShowInstallHint(isWeb: true, isIos: true, seen: true),
+        isFalse,
+      );
+      expect(
+        shouldShowInstallHint(isWeb: true, isIos: false, seen: false),
+        isFalse,
+      );
+      expect(
+        shouldShowInstallHint(isWeb: false, isIos: true, seen: false),
+        isFalse,
+      );
+    });
+  });
+
+  group('InstallHintStore', () {
+    test('round-trips the dismissal', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      const InstallHintStore store = InstallHintStore();
+      expect(await store.seen(), isFalse);
+      await store.markSeen();
+      expect(await store.seen(), isTrue);
+    });
+  });
+
+  group('InstallHintCard', () {
+    testWidgets('shows Safari steps and dismisses', (
+      WidgetTester tester,
+    ) async {
+      bool dismissed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InstallHintCard(onDismiss: () => dismissed = true),
+          ),
+        ),
+      );
+      expect(find.textContaining('Adicionar à Tela de Início'), findsOneWidget);
+      await tester.tap(find.text('Entendi'));
+      expect(dismissed, isTrue);
+    });
+  });
+
+  group('InstallHintSlot', () {
+    testWidgets('stays hidden off iOS web test platform', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: InstallHintSlot())),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(InstallHintCard), findsNothing);
+    });
+  });
+
   group('shouldShowAndroidAppDownload', () {
     test('only unseen Android web', () {
       expect(
@@ -89,7 +154,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: AndroidAppDownloadSlot())),
       );
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(AndroidAppDownloadCard), findsNothing);
     });
   });
