@@ -224,7 +224,8 @@ void main() {
     // At the fixed 09:00 clock both departures (05:30, 06:10) are past, so
     // the Agora body shows the night banner instead of the empty hint.
     expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
-    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
+    // Twice: the header next-departure chip and the Agora night banner.
+    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsNWidgets(2));
   });
 
   testWidgets('200 percent text scale raises no exception', (
