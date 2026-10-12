@@ -122,3 +122,117 @@ Audit of the `/trip` sharing screen (`Compartilhando viagem`) against
    (V7), startup debounce (V10), minimize check (V9), keep-awake
    tip plus wake audit (V8).
 7. Theme and contrast check (V11).
+
+## Final report (implemented 2026-10-12, commits 81d7b64 to 330bd16)
+
+### What changed
+
+- New pure model `app/lib/domain/trip/sharing_health.dart`: tile
+  codes plus levels for `Conexão`, `GPS`, `Seu celular`, one
+  `primaryIssue`, overall `starting`, `live`, `paused`, `ended`.
+  Priority: permission, location off, offline, GPS, low battery.
+- Read-only wiring only, no behavior change:
+  `TripController.lastSuccessMs`, `lastAccuracyM`, `lastBatteryPct`,
+  `lastCharging`, `permissionRevoked`, `servicesOn`,
+  `sharingSignals`, memoized `sharingHealth`;
+  `TripSupervisor.lastSuccessMs`, `permissionRevoked`.
+- `trip_status.dart` rewritten: value-under-label tiles (row on
+  600 dp and wider, stacked otherwise), one debounced banner (2 s
+  hold, startup grace 3 s), one neutral keep-awake tip. The Android
+  battery-optimization banner was removed from this screen (second
+  tip); it still lives under Settings battery tips.
+- `trip_hero.dart` rewritten: truthful indicator (green pulse live,
+  static amber paused, neutral starting and ended, bounded box),
+  `Iniciando...` state, badge plus name plus endpoints chip,
+  `há 12 min` elapsed, `Última posição enviada há 8 s` proof line
+  (amber when stale), trust line. Times tick on a coarse 5 s timer
+  instead of every second.
+- `trip_screen.dart`: single scroll region above a pinned stop
+  block (caption plus `Desci do ônibus`, 56 dp, never disabled,
+  semantic label `Encerrar viagem e parar de compartilhar`).
+- `trip_end_card.dart`: `Concluído` action, returns to the previous
+  screen, auto-dismisses after about 3 s.
+- `DangerButton` gained an optional `semanticLabel` (additive only).
+- Copy additions in `UiStrings` (short tile values, banners,
+  `agoShort`, `agoLong`, trust and tip lines).
+
+### Files touched
+
+`domain/trip/sharing_health.dart` (new),
+`features/trip/trip_controller.dart`, `features/trip/trip_supervisor.dart`,
+`ui/features/trip/trip_status.dart`, `trip_hero.dart`, `trip_screen.dart`,
+`trip_end_card.dart`, `ui/design/components/buttons.dart`,
+`ui/strings/ui_strings.dart`, tests `sharing_health_test.dart` (new),
+`sharing_signals_test.dart` (new), `ui/trip_screen_test.dart` (new),
+`ui/trip_settings_test.dart`, `trip_controller_test.dart`,
+plus this document.
+
+### Decisions and trade-offs
+
+- Health model returns codes, not sentences; widgets map codes to
+  `UiStrings`. Keeps one copy source per AGENTS.md 5.
+- Banner hold (2 s) and startup grace (3 s) implemented as
+  `IssueDebouncer` plus model-side grace; banner has no entrance
+  animation (reduced-motion safe by construction).
+- New thresholds in one file: weak GPS above 30 m (drop stays
+  60 m), stale send above 45 s, low battery at or below 15 percent
+  while unplugged. Charging exempts low battery.
+- Endpoints chip shows both terminals (`Litorâneo · Aviação`);
+  per-trip direction is not captured anywhere (direction sheet is
+  out of scope), so no live `Sentido X` claim is made. See gaps.
+- `DangerButton` 12 percent fill already reaches 4.5:1 (light 5.06,
+  dark 7.02, computed); no new theme tokens were needed, so no
+  tonal container was added.
+- Offline copy keeps the resume wording (`Vamos retomar assim que
+  voltar`) because `PingClient` drops history by design
+  (latest-wins); nothing claims backlog delivery.
+- Dim battery-saving view (V8 optional) skipped: web minimized
+  trips already lose the wake lock (gap below), and a near-black
+  overlay adds risk without measured gain.
+
+### Size and performance numbers
+
+- No new dependencies. Expected bundle delta near zero (not
+  measured here: no Android SDK on this host for AAB, web build
+  not re-run;CI `release-android.yml` and web size gates cover it).
+- Screen now owns one 5 s text timer plus the shared pulse
+  controller (paused under reduced motion or `TickerMode` off);
+  health resolution is memoized on identical inputs.
+- `flutter analyze` clean. Targeted suites green (sharing,
+  controller, settings, layout). Full `flutter test`: 342 passed,
+  1 skipped, 0 failed.
+- `dart format` clean on all touched files. Note: local Flutter
+  3.47.7 reformats two untouched files (`trip_flow.dart`,
+  `trip_flow_test.dart`); reverted as unrelated drift, CI pins
+  3.47.6. Manifest source audit PASS.
+
+### Gaps found
+
+1. Web minimized trips lose protection: disposing `TripScreen`
+   disables `ProdWebWakeLock` and cancels the visibility timer
+   while the controller keeps running in the host. Reopening
+   re-acquires. No leak on start, stop, error, dispose.
+2. No per-trip direction stored (`lineLabel` is the line name);
+   the chip lists both endpoints instead of a live sense.
+3. Reopened screen reads the controller synchronously (no stale
+   flash), except the line badge which waits on `linesProvider`.
+4. Every main screen shows sharing through `LiveDockHost` plus the
+   Settings sharing banner; verified in code and by the minimize
+   widget test, not by hand on a device.
+
+### Recommendations (out of scope)
+
+Foreground service with persistent notification so the phone can
+lock during the trip (Android already uses the geolocator
+foreground service; the tip discount stays until then), auto-stop
+after long inactivity or far-from-route, adaptive update
+frequency. The skipped dim view can be revisited with measured
+numbers.
+
+### Needs owner input
+
+- Confirm the three new thresholds (weak 30 m, stale 45 s, low
+  battery 15 percent).
+- Anything in the brief that conflicts with PLAN.md or AGENTS.md:
+  none found; the brief was followed except the documented
+  endpoints-chip and dim-view deviations above.
