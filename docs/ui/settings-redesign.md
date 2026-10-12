@@ -42,15 +42,18 @@ strings are pt-BR.
     shared pulse when `MediaQuery.disableAnimations` is true. It does
     not read the app setting.
   - `line_screen.dart` `_onTabChanged` and `timetable_tab.dart`
-    `_scrollToNext` use `MediaQuery.maybeDisableAnimationsOf` for sheet
-    and rail scrolls. They do not read the app setting.
-  - `motionDuration` helper exists in `ui/design/tokens/motion.dart`
-    but has no callers. Router transitions (`app_router.dart`,
-    200/140 ms), `Segmented` thumb (`AnimatedAlign`), `Pressable`
-    (`AnimatedScale`, `AnimatedContainer`), `BannerSlot`
-    (`AnimatedSize`), nav `AnimatedContainer`, sheet snap animation
-    (320/200 ms) and skeletons ignore both the system flag and the app
+    `_scrollToNext` jump instead of animating when
+    `MediaQuery.maybeDisableAnimationsOf` is true. They do not read the
+    app setting.
+  - The router fade-through (`page_transition.dart`) shortens to instant
+    with no slide when the system flag is true. It does not read the app
     setting.
+  - `motionDuration` helper exists in `ui/design/tokens/motion.dart`
+    but has no callers. `Segmented` thumb (`AnimatedAlign`),
+    `Pressable` (`AnimatedScale`, `AnimatedContainer`), `BannerSlot`
+    (`AnimatedSize`), nav pill tint, sheet snap durations, skeletons,
+    `LiveDot`/marker interpolation and the trip elapsed ticker ignore
+    both the system flag and the app setting.
 - Timetable date source:
   - `timetableDateProvider` in `app/providers.dart` reads
     `assets/data/manifest.json` (`generated_at`) and formats
@@ -179,12 +182,14 @@ appbundle`, `flutter build web --release`).
   viewer-position lookup. It does not change live refresh rate,
   prefetching or tile preloading.
 - Reduce-motion app setting is honored only where wired in this change
-  (switch effective value plus helper). Ignored by: router fade-through
-  (200/140 ms), `Segmented` thumb, `Pressable` scale/tint, `BannerSlot`
-  size, nav pill tint, line sheet snap (200/320 ms), timetable rail
-  auto-scroll (except the existing `MediaQuery` check), skeletons,
-  `LiveDot`/marker interpolation, trip elapsed ticker. `LivePulse`
-  honors the system flag only, not the app setting.
+  (settings switch effective value, `AppMotion` helper, line sheet tab
+  snap). The system flag was already honored by `LivePulse`, the router
+  fade-through, the sheet snap and the timetable rail auto-scroll.
+  Still ignoring the app setting: router fade-through, `Segmented`
+  thumb, `Pressable` scale/tint, `BannerSlot` size, nav pill tint,
+  timetable rail auto-scroll, skeletons, `LiveDot`/marker
+  interpolation, trip elapsed ticker. `LivePulse` honors the system flag
+  only, not the app setting.
 - Cold-start theme flash: a saved non-system theme applies after the
   first frame, not before.
 - Footer version is a compile-time constant, not package info.
