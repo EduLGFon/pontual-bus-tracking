@@ -789,7 +789,8 @@ class UiStrings {
 
   /// Data saver description.
   static const String dataSaverHint =
-      'Abre a linha em lista primeiro e só carrega o mapa quando você pedir.';
+      'Abre a linha em lista primeiro e só carrega o mapa quando você '
+      'pedir. Usa menos internet.';
 
   /// Reduce animations row.
   static const String reduceMotion = 'Reduzir animações';
