@@ -12,6 +12,7 @@ import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/models/certainty.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -66,6 +67,7 @@ class LineSheetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final String terminals = line.terminalsText;
+    final bool showTerminals = shouldShowTerminals(line.name, line.terminals);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -85,7 +87,7 @@ class LineSheetHeader extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (terminals.isNotEmpty) ...<Widget>[
+              if (terminals.isNotEmpty && showTerminals) ...<Widget>[
                 const SizedBox(height: Space.x1),
                 Text(terminals, style: context.text.caption),
               ],
