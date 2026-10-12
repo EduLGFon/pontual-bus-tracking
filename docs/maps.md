@@ -115,6 +115,11 @@ third-party host.
 ## 5. Hosting and runtime
 
 - File: `sao_mateus.pmtiles`, 43.6 MB at z0-15 (measured 2026-10-12).
+  CI builds it on every static deploy (`deploy-static.yml`: installs
+  pmtiles 1.31.2, runs `map-bbox`, `map-extract`, `map-verify`) and
+  publishes it at `maps/sao_mateus.pmtiles`. Never commit the file to
+  git (`*.pmtiles` is gitignored); a local `deno task map-extract` is
+  for verification and size checks only.
 - Web: serve from our Pages host at `maps/sao_mateus.pmtiles`, read with
   HTTP range requests so the browser fetches only needed chunks. Verify
   ranges work after deploy: `curl -s -r 0-100 -o /dev/null -w "%{http_code}" \

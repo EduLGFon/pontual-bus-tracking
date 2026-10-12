@@ -30,6 +30,7 @@ dist/
 *.aab
 *.apk
 *.ipa
+*.pmtiles
 
 # Backups and dumps
 *.dump

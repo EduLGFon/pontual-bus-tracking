@@ -11,6 +11,7 @@ on:
     paths:
       - "data/**"
       - "app/**"
+      - "tools/map/**"
       - ".github/workflows/deploy-static.yml"
   workflow_dispatch:
 permissions:
@@ -57,14 +58,25 @@ jobs:
             --base-href "${{ steps.origins.outputs.base }}" \
             --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }} \
             --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
+      - name: Build offline map tiles
+        working-directory: tools
+        run: |
+          curl -fsSL -o /tmp/pmtiles.tar.gz https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
+          tar xzf /tmp/pmtiles.tar.gz -C /tmp pmtiles
+          export PATH="/tmp:$PATH"
+          pmtiles version
+          deno task map-bbox
+          deno task map-extract ../build/sao_mateus.pmtiles
+          deno task map-verify ../build/sao_mateus.pmtiles
       - name: Assemble Pages directory
         run: |
-          rm -rf pages && mkdir -p pages/data
+          rm -rf pages && mkdir -p pages/data pages/maps
           cp -r app/build/web/* pages/
           cp build/lines.*.json build/manifest.json build/config.json pages/data/
+          cp build/sao_mateus.pmtiles pages/maps/
           cp pages/index.html pages/404.html
           touch pages/.nojekyll
-          ls pages/data
+          ls pages/data pages/maps
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
