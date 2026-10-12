@@ -2,6 +2,8 @@
 // terminals, the certainty status chip and the favourite star. Kept apart
 // from the sheet body so both stay small and focused.
 // See docs/ui/UI_SPEC.md 7.5.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +17,7 @@ import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Certainty shown by the header chip: live when a fresh position exists,
@@ -103,7 +106,7 @@ class LineSheetHeader extends StatelessWidget {
             ],
           ),
         ),
-        LineStarButton(lineKey: line.key),
+        LineStarButton(lineKey: line.key, short: line.short),
       ],
     );
   }
@@ -150,10 +153,13 @@ class _StatusChip extends StatelessWidget {
 /// the lines list and the filter always agree.
 class LineStarButton extends ConsumerWidget {
   /// Creates the toggle.
-  const LineStarButton({required this.lineKey, super.key});
+  const LineStarButton({required this.lineKey, this.short, super.key});
 
   /// Stable line key of the toggle.
   final String lineKey;
+
+  /// Badge text used by the per-line semantics, empty when unknown.
+  final String? short;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -161,14 +167,31 @@ class LineStarButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     final bool favorite = ref.watch(favoritesProvider).contains(lineKey);
+    final String text = (short ?? '').isEmpty
+        ? (favorite ? UiStrings.unfavorite : UiStrings.favorite)
+        : (favorite
+              ? UiStrings.unfavoriteLine(short!)
+              : UiStrings.favoriteLine(short!));
     return IconBtn(
       icon: favorite ? Icons.star_rounded : Icons.star_border_rounded,
-      semanticLabel: favorite ? UiStrings.unfavorite : UiStrings.favorite,
+      semanticLabel: text,
+      tooltip: text,
       selected: favorite,
       iconSize: 22,
       onTap: () {
         HapticFeedback.selectionClick();
-        ref.read(favoritesProvider.notifier).toggle(lineKey);
+        unawaited(ref.read(favoritesProvider.notifier).toggle(lineKey));
+        ref
+            .read(toastControllerProvider.notifier)
+            .show(
+              favorite
+                  ? UiStrings.linesFavRemoved
+                  : UiStrings.linesFavAdded,
+              actionLabel: UiStrings.undo,
+              onAction: () => unawaited(
+                ref.read(favoritesProvider.notifier).toggle(lineKey),
+              ),
+            );
       },
     );
   }
