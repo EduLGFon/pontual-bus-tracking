@@ -49,9 +49,21 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: Space.x2),
                 Segmented(
                   segments: const <Segment>[
-                    Segment(value: 'system', label: UiStrings.themeSystem),
-                    Segment(value: 'light', label: UiStrings.themeLight),
-                    Segment(value: 'dark', label: UiStrings.themeDark),
+                    Segment(
+                      value: 'system',
+                      label: UiStrings.themeSystem,
+                      icon: Icons.brightness_auto_rounded,
+                    ),
+                    Segment(
+                      value: 'light',
+                      label: UiStrings.themeLight,
+                      icon: Icons.light_mode_rounded,
+                    ),
+                    Segment(
+                      value: 'dark',
+                      label: UiStrings.themeDark,
+                      icon: Icons.dark_mode_rounded,
+                    ),
                   ],
                   value: _themeValue(mode),
                   onChanged: (String value) =>
