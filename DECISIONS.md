@@ -1831,7 +1831,7 @@ Verified: flutter analyze clean, offline_map_test (4 new assertions) and
 line_screen_test green. Production traffic still belongs on a self-hosted
 tile host per D12/D-U26; this only makes the OSM fallback recover.
 
-## D-U30-2026-10-12: two map locate buttons (viewer dot, closest bus)
+## D-U31-2026-10-12: two map locate buttons (viewer dot, closest bus)
 
 Request: the single recenter button did not focus the right place. Split
 it into two controls in one bottom-right column, shown after panning as
