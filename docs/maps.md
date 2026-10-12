@@ -48,8 +48,20 @@ used (verified unnecessary).
 
 ## 3. Build (one command, reproducible)
 
-Prerequisite: `pmtiles` CLI 1.31.2 on PATH (release binary from
-`github.com/protomaps/go-pmtiles`, ~17 MB; `pmtiles version` to check).
+Prerequisite: `pmtiles` CLI 1.31.2, either on PATH or via `PMTILES_BIN`:
+
+```sh
+curl -sSfLO https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
+tar xzf go-pmtiles_1.31.2_Linux_x86_64.tar.gz pmtiles
+sudo install pmtiles /usr/local/bin/pmtiles
+pmtiles version  # must print 1.31.2
+```
+
+Without the binary the tasks fail with install help (exit 1), never a
+stack trace. `map-extract` and `map-verify` run the binary you name via
+`PMTILES_BIN` or PATH, so they carry broad `--allow-run` plus full
+`--allow-read` (input/output paths are maintainer-chosen); `map-bbox`
+and `map-test` stay fully scoped and never spawn anything.
 The extract reads byte ranges from the Protomaps daily planet build (a
 data file, not a tile endpoint), so no bulk tile download is involved.
 

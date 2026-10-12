@@ -114,6 +114,59 @@ function flattenCoords(node: unknown): Array<[number, number]> {
   return out;
 }
 
+/** Resolves the pmtiles CLI: PMTILES_BIN when set, else a PATH lookup
+ * of "pmtiles". Read lazily so commands that never spawn a subprocess
+ * need no env permission. */
+function pmtilesBin(): string {
+  try {
+    return Deno.env.get("PMTILES_BIN") ?? "pmtiles";
+  } catch {
+    return "pmtiles";
+  }
+}
+
+/** Help printed when the CLI is missing instead of a stack trace. Pure,
+ * so tests pin the wording. */
+export function missingBinHelp(
+  bin: string,
+  cliVersion: string,
+  args: string[],
+): string {
+  return [
+    `pmtiles CLI not found (tried "${bin}").`,
+    `Install pmtiles ${cliVersion} and put it on PATH:`,
+    "  curl -sSfLO https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz",
+    "  tar xzf go-pmtiles_1.31.2_Linux_x86_64.tar.gz pmtiles",
+    "  sudo install pmtiles /usr/local/bin/pmtiles",
+    "Or point PMTILES_BIN at the binary instead of using PATH.",
+    "You can also run the step manually once the binary exists:",
+    `  ${args.join(" ")}`,
+  ].join("\n");
+}
+
+/** Runs the pmtiles CLI, printing install help and returning 1 when the
+ * binary is missing. Returns the process exit code otherwise. */
+async function runPmtiles(
+  bin: string,
+  args: string[],
+  cliVersion: string,
+): Promise<number> {
+  try {
+    const proc = new Deno.Command(bin, {
+      args,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    return (await proc.output()).code;
+  } catch (e) {
+    if (e instanceof Deno.errors.NotFound) {
+      console.error(missingBinHelp(bin, cliVersion, [bin, ...args]));
+      return 1;
+    }
+    throw e;
+  }
+}
+
 /** Exact pmtiles extract command for the pinned build. Printed by
  * map-extract and run when the pmtiles CLI is on PATH. */
 export function extractCommand(
@@ -149,28 +202,18 @@ async function main(): Promise<void> {
       ? Number(Deno.args[2])
       : undefined;
     const args = extractCommand(bbox, out, maxzoom);
-    console.log(args.join(" "));
-    const proc = new Deno.Command(args[0], {
-      args: args.slice(1),
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    const status = await proc.output();
-    if (!status.success) Deno.exit(status.code);
+    const bin = pmtilesBin();
+    console.log([bin, ...args.slice(1)].join(" "));
+    const code = await runPmtiles(bin, args.slice(1), bbox.pmtiles_cli);
+    if (code !== 0) Deno.exit(code);
     const stat = await Deno.stat(out);
     console.log(`wrote ${out}: ${(stat.size / 1048576).toFixed(1)} MB`);
   } else if (cmd === "verify") {
     const file = Deno.args[1] ?? "sao_mateus.pmtiles";
-    for (
-      const sub of [["pmtiles", "verify", file], ["pmtiles", "show", file]]
-    ) {
-      const proc = new Deno.Command(sub[0], {
-        args: sub.slice(1),
-        stdout: "inherit",
-        stderr: "inherit",
-      });
-      const status = await proc.output();
-      if (!status.success) Deno.exit(status.code);
+    const bin = pmtilesBin();
+    for (const sub of [[bin, "verify", file], [bin, "show", file]]) {
+      const code = await runPmtiles(sub[0], sub.slice(1), bbox.pmtiles_cli);
+      if (code !== 0) Deno.exit(code);
     }
     const stat = await Deno.stat(file);
     console.log(`size: ${(stat.size / 1048576).toFixed(1)} MB`);

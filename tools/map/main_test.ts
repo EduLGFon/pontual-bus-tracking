@@ -5,6 +5,7 @@ import {
   extractCommand,
   geometryCoords,
   loadBbox,
+  missingBinHelp,
 } from "./main.ts";
 
 Deno.test("extract bbox covers municipality and app bounds", async () => {
@@ -47,4 +48,16 @@ Deno.test("extract command uses bbox order lon,lat and pinned build", async () =
   assert(cmd.some((a) => a.startsWith("--bbox=-40.46,-19.2,-39.5,-18.39")));
   const capped = extractCommand(bbox, "out.pmtiles", 14);
   assert(capped.includes("--maxzoom=14"));
+});
+
+Deno.test("missing binary help names the binary and the manual command", () => {
+  const help = missingBinHelp("pmtiles", "1.31.2", [
+    "pmtiles",
+    "verify",
+    "f.pmtiles",
+  ]);
+  assert(help.includes('tried "pmtiles"'));
+  assert(help.includes("1.31.2"));
+  assert(help.includes("PMTILES_BIN"));
+  assert(help.includes("pmtiles verify f.pmtiles"));
 });
