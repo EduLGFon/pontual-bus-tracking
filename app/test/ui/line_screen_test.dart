@@ -136,16 +136,15 @@ List<Override> overridesFor(
       (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
     ),
     currentNowProvider.overrideWithValue(fixedNow),
-    // A short burst replaces the 5 s production tick: enough rebuilds for
-    // the snapshot to land, and the timer stops with the subscription.
-    vehicleTickProvider.overrideWith(
-      (Ref ref) => Stream<int>.periodic(
-        const Duration(milliseconds: 50),
-        (int i) => i,
-      ).take(4),
-    ),
     for (final MapEntry<int, List<ClientVehicle>> e in vehicles.entries)
       vehicleRepoProvider(e.key).overrideWithValue(repoOf(e.value)),
+    // Seeded synchronously from the same fake rows. The repository only
+    // surfaces its snapshot on the 5 s tick, so a finite tick burst can
+    // elapse before the async start lands and the sheet stays empty.
+    for (final MapEntry<int, List<ClientVehicle>> e in vehicles.entries)
+      vehiclesVmProvider(e.key).overrideWithValue(
+        orderVehicles(e.value, e.key.toString()),
+      ),
   ];
 }
 
@@ -192,8 +191,10 @@ void main() {
       400,
     );
     await _openSheet(tester);
+    // The sheet builds lazily, so rows below the fold need a scroll to
+    // exist: bring each row into view before asserting it.
+    await tester.scrollUntilVisible(find.text('Ônibus 1'), 200);
     expect(find.text('Ônibus 1'), findsOneWidget);
-    // The sheet builds lazily, so the second row needs a scroll to exist.
     await tester.scrollUntilVisible(find.text('Ônibus 2'), 200);
     expect(find.text('Ônibus 2'), findsOneWidget);
     expect(find.text(UiStrings.vehiclesNow), findsOneWidget);
