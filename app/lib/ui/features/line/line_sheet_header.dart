@@ -198,7 +198,9 @@ class _NextRow extends StatelessWidget {
       LineStatusKind.imminent ||
       LineStatusKind.upcoming ||
       LineStatusKind.tomorrow => true,
-      LineStatusKind.noneToday || LineStatusKind.noTimetable => false,
+      LineStatusKind.live ||
+      LineStatusKind.noneToday ||
+      LineStatusKind.noTimetable => false,
     };
   }
 
