@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/home_sections.dart';
 import 'package:pontual/ui/features/home/home_lists.dart';
 import 'package:pontual/ui/features/home/welcome_state.dart';
+import 'package:pontual/ui/shell/offline_bridge.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 
 /// Maximum live lines shown in the live section.
@@ -52,6 +53,7 @@ class HomeScreen extends ConsumerWidget {
     final features = ref.watch(homeFeaturesProvider);
     final onboarding = ref.watch(onboardingProvider);
     final bool liveKnown = ref.watch(liveProvider).hasValue;
+    final bool offline = ref.watch(offlineFlagProvider);
     final DateTime now = ref.watch(currentNowProvider);
 
     int liveTotal = 0;
@@ -83,6 +85,7 @@ class HomeScreen extends ConsumerWidget {
       greeting: greetingFor(now),
       liveTotal: liveTotal,
       liveKnown: liveKnown,
+      offline: offline,
     );
     final Widget shortcutsSection = features.shortcuts
         ? const ShortcutsSection()
@@ -201,6 +204,7 @@ class _HomeHeader extends StatelessWidget {
     required this.greeting,
     required this.liveTotal,
     required this.liveKnown,
+    required this.offline,
   });
 
   /// pt-BR greeting.
@@ -211,6 +215,9 @@ class _HomeHeader extends StatelessWidget {
 
   /// False while the live count is still unknown.
   final bool liveKnown;
+
+  /// True while the app is offline.
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
@@ -228,17 +235,23 @@ class _HomeHeader extends StatelessWidget {
                 style: context.text.title.copyWith(color: colors.primary),
               ),
             ),
-            _LiveSummaryChip(shown: liveKnown, total: liveTotal),
+            _LiveSummaryChip(
+              shown: liveKnown,
+              total: liveTotal,
+              offline: offline,
+            ),
           ],
         ),
-        const SizedBox(height: Space.x4),
+        const SizedBox(height: Space.x3),
         Text(greeting, style: context.text.display),
         const SizedBox(height: Space.x1),
         Text(
           UiStrings.homeSubtitle,
           style: context.text.body.copyWith(color: colors.inkMuted),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: Space.x4),
+        const SizedBox(height: Space.x3),
         SearchEntry(
           hint: UiStrings.searchHint,
           onTap: () => context.push('/search'),
@@ -249,8 +262,16 @@ class _HomeHeader extends StatelessWidget {
 }
 
 /// Live count chip that reserves its height even while the count is unknown.
+///
+/// Honest states: zero buses show a neutral dot with `Nenhum ao vivo`
+/// (no green reads as live while nothing is live); one or more show the
+/// green dot with `N ao vivo`; offline shows `Offline`.
 class _LiveSummaryChip extends StatelessWidget {
-  const _LiveSummaryChip({required this.shown, required this.total});
+  const _LiveSummaryChip({
+    required this.shown,
+    required this.total,
+    required this.offline,
+  });
 
   /// False hides the chip but keeps its height reserved.
   final bool shown;
@@ -258,15 +279,26 @@ class _LiveSummaryChip extends StatelessWidget {
   /// Vehicles sharing right now.
   final int total;
 
+  /// True while the app is offline.
+  final bool offline;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final Certainty certainty = offline || total <= 0
+        ? (offline ? Certainty.stale : Certainty.scheduled)
+        : Certainty.live;
+    final String text = offline
+        ? UiStrings.homeOffline
+        : (total <= 0
+              ? UiStrings.homeLiveNone
+              : '$total ${UiStrings.liveCount}');
     return SizedBox(
       height: Sizes.badgeL,
       child: Center(
         child: shown
             ? Semantics(
-                label: '$total ${UiStrings.liveCount}',
+                label: text,
                 excludeSemantics: true,
                 child: Container(
                   height: 30,
@@ -280,10 +312,10 @@ class _LiveSummaryChip extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const LiveDot(certainty: Certainty.live),
+                      LiveDot(certainty: certainty),
                       const SizedBox(width: Space.x2),
                       Text(
-                        '$total ${UiStrings.liveCount}',
+                        text,
                         style: PontualText.label.copyWith(color: colors.ink),
                       ),
                     ],
