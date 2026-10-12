@@ -639,6 +639,100 @@ class UiStrings {
   /// End trip action.
   static const String endTrip = 'Desci - encerrar viagem';
 
+  /// Trip stop button label (V4).
+  static const String tripStop = 'Desci do ônibus';
+
+  /// Caption above the stop button. True in code: stopping ends the
+  /// trip locally first, then best-effort ends it on the server.
+  static const String tripStopCaption =
+      'Encerra a viagem e para de enviar sua posição.';
+
+  /// Semantic label of the stop button.
+  static const String tripStopSemantic =
+      'Encerrar viagem e parar de compartilhar';
+
+  /// Short connection value while steady offline.
+  static const String connOffline = 'Sem conexão';
+
+  /// Short connection value while starting or retrying.
+  static const String connReconnecting = 'Reconectando';
+
+  /// Short GPS value when accuracy is coarse.
+  static const String gpsWeak = 'Fraco';
+
+  /// Short GPS value when location services are off.
+  static const String gpsOffShort = 'Desligado';
+
+  /// Short GPS value when the permission was revoked.
+  static const String gpsNoPermission = 'Sem permissão';
+
+  /// Short GPS value while waiting for the first fix.
+  static const String gpsSearching = 'Procurando sinal';
+
+  /// Short device value when the phone is fine.
+  static const String deviceScreenOn = 'Tela ligada';
+
+  /// Short device value when the battery is low.
+  static const String deviceLowBattery = 'Bateria baixa';
+
+  /// Starting state title.
+  static const String tripStarting = 'Iniciando...';
+
+  /// Weak GPS banner.
+  static const String gpsWeakBanner =
+      'Sinal de GPS fraco. Sua posição pode ficar imprecisa.';
+
+  /// GPS-off banner with the action to open settings.
+  static const String gpsOffBanner =
+      'GPS desligado. Ative para continuar compartilhando.';
+
+  /// Action opening the system location settings.
+  static const String activateGps = 'Ativar GPS';
+
+  /// Permission-revoked banner.
+  static const String permissionBanner = 'Permissão de localização desativada.';
+
+  /// Low-battery banner.
+  static const String lowBatteryBanner =
+      'Bateria baixa. Se acabar, o compartilhamento para.';
+
+  /// Trust line under the trip times. True in code: viewers see merged
+  /// vehicles only, and the token is opaque.
+  static const String tripTrust =
+      'Anônimo. Só a posição do ônibus, sem nome nem conta.';
+
+  /// Single keep-awake tip on Android (neutral, shown once).
+  static const String keepAwakeTip =
+      'Mantenha a tela aberta e o celular desbloqueado. Baixe o brilho '
+      'para economizar bateria.';
+
+  /// Single keep-awake tip on the web (tab must stay visible).
+  static const String keepAwakeTipWeb =
+      'Mantenha esta aba aberta e visível. Baixe o brilho para '
+      'economizar bateria.';
+
+  /// Prefix of the last-send proof line, for example
+  /// "Última posição enviada há 8 s".
+  static String lastSentAgo(String ago) => 'Última posição enviada $ago';
+
+  /// Short relative time in pt-BR: "há 8 s", "há 1 min", "há 12 min".
+  static String agoShort(int secondsS) {
+    if (secondsS < 60) {
+      return 'há $secondsS s';
+    }
+    final int minutes = secondsS ~/ 60;
+    if (minutes < 60) {
+      return 'há $minutes min';
+    }
+    return 'há ${minutes ~/ 60} h';
+  }
+
+  /// Elapsed trip time in pt-BR: "há 12 min".
+  static String elapsedAgo(int secondsS) => agoShort(secondsS);
+
+  /// End card confirm action (V4).
+  static const String endDone = 'Concluído';
+
   /// Stop sharing action on the settings sharing banner.
   static const String stop = 'Parar';
 
