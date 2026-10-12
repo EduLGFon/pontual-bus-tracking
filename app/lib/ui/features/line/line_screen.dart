@@ -55,27 +55,27 @@ class _LineScreenState extends ConsumerState<LineScreen> {
   bool _panned = false;
   bool _mapOpened = false;
   int? _selectedKey;
-  double _fittedFraction = -1;
+
+  /// True once the enter-time camera fit has run. The lines load async, so
+  /// the map often does not exist on the first frame; the fit is issued
+  /// from the first build that actually has a map instead of once from
+  /// initState, where it silently no-ops.
+  bool _didInitialFit = false;
+
+  /// Whether that fit already framed live vehicles. When the first fit ran
+  /// on an empty vehicle list and buses arrive later, one more fit frames
+  /// them, unless the rider already took the camera.
+  bool _initialFitHadVehicles = false;
 
   @override
   void initState() {
     super.initState();
-    _sheet.addListener(_onSheetChanged);
-    // The map opens on the raw area centre before any fit, with the peek
-    // sheet covering the lower part: frame the city in the visible area on
-    // the first frame so it never loads shifted to one side.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _mapKey.currentState?.fitToContent(
-          padding: EdgeInsets.only(bottom: sheetPixels(_screenHeight, _peek)),
-        );
-      }
-    });
+    // The camera never moves when the sheet is dragged: expanding the line
+    // details must not change the map focus. See _ensureInitialFit.
   }
 
   @override
   void dispose() {
-    _sheet.removeListener(_onSheetChanged);
     _sheet.dispose();
     // The repository is kept in a field: reading a provider in dispose of a
     // disposed element is unsafe in Riverpod.
@@ -99,6 +99,14 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     final bool showMap = _mapOpened || !dataSaver;
     final List<VehicleVM> vehicles = _vehiclesOf(staticLine);
     final bool compact = MediaQuery.sizeOf(context).width < 600;
+    if (showMap) {
+      _ensureInitialFit(
+        vehicles,
+        padding: compact
+            ? EdgeInsets.only(bottom: sheetPixels(_screenHeight, _peek))
+            : EdgeInsets.zero,
+      );
+    }
     return LivePulse(
       child: Scaffold(
         backgroundColor: context.colors.bg,
@@ -239,10 +247,45 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       onPan: () => setState(() => _panned = true),
       onRecenter: () {
         setState(() => _panned = false);
-        _mapKey.currentState?.fitToContent();
+        _mapKey.currentState?.centerOnViewer();
       },
       onVehicleTap: (VehicleVM v) => _focus(v, true),
     );
+  }
+
+  /// Issues the enter-time camera fit from the first build that actually
+  /// has a map, then at most one more fit when live vehicles arrive after
+  /// an empty first fit. Never called from sheet movement: expanding the
+  /// line details must not change the map focus. Deferred past the frame:
+  /// moving the camera rebuilds the map, which is illegal mid-build.
+  void _ensureInitialFit(
+    List<VehicleVM> vehicles, {
+    required EdgeInsets padding,
+  }) {
+    if (_didInitialFit) {
+      if (!_initialFitHadVehicles &&
+          vehicles.isNotEmpty &&
+          !_panned &&
+          _mapKey.currentState != null) {
+        _initialFitHadVehicles = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_panned) {
+            _mapKey.currentState?.fitToContent(padding: padding);
+          }
+        });
+      }
+      return;
+    }
+    if (_mapKey.currentState == null) {
+      return;
+    }
+    _didInitialFit = true;
+    _initialFitHadVehicles = vehicles.isNotEmpty;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapKey.currentState?.fitToContent(padding: padding);
+      }
+    });
   }
 
   /// Vehicles of the line, capped at the marker cap.
@@ -327,22 +370,6 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     if (mapVisible) {
       _focus(vehicle, mapVisible);
     }
-  }
-
-  /// Fits the camera after the sheet settles on a new snap point. Never
-  /// called per frame: the fraction is quantised to the snap points.
-  void _onSheetChanged() {
-    if (!_sheet.isAttached) {
-      return;
-    }
-    final double? fraction = nearestSnapOf(_sheet.size, _snaps);
-    if (fraction == null || (fraction - _fittedFraction).abs() < 0.001) {
-      return;
-    }
-    _fittedFraction = fraction;
-    _mapKey.currentState?.fitToContent(
-      padding: EdgeInsets.only(bottom: sheetPixels(_screenHeight, fraction)),
-    );
   }
 
   /// Peek fraction, never below 220 dp.
