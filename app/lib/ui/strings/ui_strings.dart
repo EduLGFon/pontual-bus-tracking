@@ -799,6 +799,29 @@ class UiStrings {
   static const String reduceMotionHint =
       'Menos movimento nas transições. Ajuda a economizar bateria.';
 
+  /// Clear local data row.
+  static const String clearLocalData = 'Limpar dados locais';
+
+  /// Clear local data description.
+  static const String clearLocalDataHint =
+      'Remove favoritos, recentes e dados salvos no aparelho. Seus ajustes '
+      'continuam.';
+
+  /// Clear local data confirmation title.
+  static const String clearLocalDataTitle = 'Limpar dados locais?';
+
+  /// Clear local data confirmation body. Lists exactly what the action
+  /// removes so the dialog never promises more or less than the code.
+  static const String clearLocalDataBody =
+      'Remove favoritos, recentes, atalhos, alertas e o cache de horários '
+      'deste aparelho. Seus ajustes continuam. Isso não pode ser desfeito.';
+
+  /// Clear local data confirm action.
+  static const String clearLocalDataConfirm = 'Limpar';
+
+  /// Toast after clearing local data.
+  static const String localDataCleared = 'Dados locais removidos';
+
   /// How sharing works row.
   static const String howSharing = 'Como funciona';
 
@@ -825,7 +848,6 @@ class UiStrings {
 
   /// Delete my data action.
   static const String privacyDelete = 'Apagar meus dados';
-
   /// Delete confirmation title.
   static const String privacyDeleteTitle = 'Apagar meus dados?';
 

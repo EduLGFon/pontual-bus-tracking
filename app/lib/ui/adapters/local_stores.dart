@@ -7,6 +7,9 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pontual/data/config/remote_config.dart';
+import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/ui/adapters/alerts_store.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/models/shortcut_vm.dart';
 
@@ -231,6 +234,30 @@ class SettingsStore {
   Future<void> writeReduceMotion(bool value) async {
     await writeReduceMotionMode(value ? ReduceMotionMode.on : ReduceMotionMode.off);
   }
+}
+
+/// Removes disposable local data: favorites, recents, shortcuts, alert
+/// rules and the static timetable and remote-config caches. Keeps the
+/// theme, motion and data-saver settings, the consent record and the
+/// device token, and never touches the live trip: no controller, no
+/// network call, so it works offline.
+Future<void> clearLocalData() async {
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  await prefs.remove(favoritesKey);
+  await prefs.remove(recentsKey);
+  await prefs.remove(shortcutsKey);
+  await prefs.remove(alertsKey);
+  for (final String key in prefs
+      .getKeys()
+      .where((String k) => k.startsWith(linesKeyPrefix))
+      .toList()) {
+    await prefs.remove(key);
+  }
+  await prefs.remove(manifestKey);
+  await prefs.remove(manifestEtagKey);
+  await prefs.remove(lastCheckKey);
+  await prefs.remove(remoteConfigKey);
+  await prefs.remove(remoteConfigCheckKey);
 }
 
 /// Local settings state, loaded once and updated optimistically.

@@ -9,6 +9,7 @@ import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/platform/web/install_hint.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
+import 'package:pontual/ui/adapters/alerts_store.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
@@ -16,7 +17,11 @@ import 'package:pontual/ui/design/components/segmented.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/home/home_providers.dart';
+import 'package:pontual/ui/features/home/shortcut_sheet.dart';
+import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/settings/settings_section.dart';
+import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 
@@ -92,6 +97,12 @@ class SettingsScreen extends ConsumerWidget {
                   value: settings.dataSaver,
                   onChanged: (bool value) =>
                       ref.read(settingsProvider.notifier).setDataSaver(value),
+                ),
+                SettingsTile.chevron(
+                  icon: Icons.cleaning_services_outlined,
+                  title: UiStrings.clearLocalData,
+                  description: UiStrings.clearLocalDataHint,
+                  onTap: () => _clearLocalData(context, ref),
                 ),
               ],
             ),
@@ -172,6 +183,56 @@ class SettingsScreen extends ConsumerWidget {
       'dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     };
+  }
+
+  /// Clears disposable local data after confirmation. Keeps the settings
+  /// and never touches the live trip: the sharing banner stays whatever
+  /// it was. Offline-safe: prefs only, no network call.
+  Future<void> _clearLocalData(BuildContext context, WidgetRef ref) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: Text(
+          UiStrings.clearLocalDataTitle,
+          style: context.text.title,
+        ),
+        content: Text(
+          UiStrings.clearLocalDataBody,
+          style: context.text.body,
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(UiStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(UiStrings.clearLocalDataConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) {
+      return;
+    }
+    try {
+      await clearLocalData();
+    } on Object {
+      if (!context.mounted) {
+        return;
+      }
+      ref.read(toastControllerProvider.notifier).show(UiStrings.genericError);
+      return;
+    }
+    ref.invalidate(shortcutsProvider);
+    ref.invalidate(homeRecentsProvider);
+    ref.invalidate(favoritesProvider);
+    ref.invalidate(alertsProvider);
+    if (!context.mounted) {
+      return;
+    }
+    ref.read(toastControllerProvider.notifier).show(UiStrings.localDataCleared);
   }
 
   /// Opens a short explanation sheet with one line per bullet.
