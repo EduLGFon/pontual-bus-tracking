@@ -14,6 +14,7 @@ import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/theme/context.dart';
+import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_dock.dart';
 import 'package:pontual/ui/features/line/line_expanded.dart';
@@ -298,7 +299,8 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       return;
     }
     final double target = tab == SheetTab.timetable ? sheetHalf : _peek;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    final ReduceMotionMode motion = ref.read(settingsProvider).reduceMotionMode;
+    if (AppMotion.reduced(context, motion)) {
       _sheet.jumpTo(target);
       return;
     }

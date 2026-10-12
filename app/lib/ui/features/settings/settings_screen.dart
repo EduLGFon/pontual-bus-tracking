@@ -14,6 +14,7 @@ import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/components/segmented.dart';
 import 'package:pontual/ui/design/theme/context.dart';
+import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/settings/settings_section.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -72,7 +73,11 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: Space.x2),
                 SettingsTile.toggle(
                   title: UiStrings.reduceMotion,
-                  value: settings.reduceMotion,
+                  description: UiStrings.reduceMotionHint,
+                  value: AppMotion.reduced(
+                    context,
+                    settings.reduceMotionMode,
+                  ),
                   onChanged: (bool value) =>
                       ref.read(settingsProvider.notifier).setReduceMotion(value),
                 ),

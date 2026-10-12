@@ -795,6 +795,10 @@ class UiStrings {
   /// Reduce animations row.
   static const String reduceMotion = 'Reduzir animações';
 
+  /// Reduce animations description.
+  static const String reduceMotionHint =
+      'Menos movimento nas transições. Ajuda a economizar bateria.';
+
   /// How sharing works row.
   static const String howSharing = 'Como funciona';
 

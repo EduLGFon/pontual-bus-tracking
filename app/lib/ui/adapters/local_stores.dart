@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/models/shortcut_vm.dart';
 
 /// Storage key for the shortcut list.
@@ -23,6 +24,12 @@ const String dataSaverKey = 'ui_data_saver_v1';
 
 /// Storage key for the reduce animations setting.
 const String reduceMotionKey = 'ui_reduce_motion_v1';
+
+/// Storage key for the three-state reduce-motion preference. The legacy
+/// bool key above stays readable for migration: true means on, anything
+/// else means follow system (the old default was off and most installs
+/// never touched the switch).
+const String reduceMotionModeKey = 'ui_reduce_motion_mode_v1';
 
 /// Storage key for the device-only helped-trips counter.
 const String kudosKey = 'ui_kudos_v1';
@@ -191,16 +198,38 @@ class SettingsStore {
     await prefs.setBool(dataSaverKey, value);
   }
 
+  /// Reads the reduce animations preference, defaulting to follow system.
+  Future<ReduceMotionMode> readReduceMotionMode() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    switch (prefs.getString(reduceMotionModeKey)) {
+      case 'on':
+        return ReduceMotionMode.on;
+      case 'off':
+        return ReduceMotionMode.off;
+      case 'system':
+        return ReduceMotionMode.system;
+    }
+    // Migration from the legacy bool: only an explicit true becomes on.
+    if (prefs.getBool(reduceMotionKey) ?? false) {
+      return ReduceMotionMode.on;
+    }
+    return ReduceMotionMode.system;
+  }
+
+  /// Writes the reduce animations preference.
+  Future<void> writeReduceMotionMode(ReduceMotionMode value) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(reduceMotionModeKey, value.name);
+  }
+
   /// Reads the reduce animations setting, defaulting to false.
   Future<bool> readReduceMotion() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(reduceMotionKey) ?? false;
+    return (await readReduceMotionMode()) == ReduceMotionMode.on;
   }
 
   /// Writes the reduce animations setting.
   Future<void> writeReduceMotion(bool value) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(reduceMotionKey, value);
+    await writeReduceMotionMode(value ? ReduceMotionMode.on : ReduceMotionMode.off);
   }
 }
 
@@ -215,14 +244,17 @@ class SettingsNotifier extends Notifier<UiSettings> {
 
   Future<void> _load(SettingsStore store) async {
     bool dataSaver = false;
-    bool reduceMotion = false;
+    ReduceMotionMode reduceMotionMode = ReduceMotionMode.system;
     try {
       dataSaver = await store.readDataSaver();
-      reduceMotion = await store.readReduceMotion();
+      reduceMotionMode = await store.readReduceMotionMode();
     } on Object {
       // Defaults stand when prefs are unavailable.
     }
-    state = UiSettings(dataSaver: dataSaver, reduceMotion: reduceMotion);
+    state = UiSettings(
+      dataSaver: dataSaver,
+      reduceMotionMode: reduceMotionMode,
+    );
   }
 
   /// Sets data saver.
@@ -232,30 +264,47 @@ class SettingsNotifier extends Notifier<UiSettings> {
     await store.writeDataSaver(value);
   }
 
-  /// Sets reduce animations.
+  /// Sets reduce animations from the switch: an explicit user choice that
+  /// stops following the system setting.
   Future<void> setReduceMotion(bool value) async {
-    state = state.copyWith(reduceMotion: value);
+    await setReduceMotionMode(
+      value ? ReduceMotionMode.on : ReduceMotionMode.off,
+    );
+  }
+
+  /// Sets the reduce-motion preference, including follow-system.
+  Future<void> setReduceMotionMode(ReduceMotionMode value) async {
+    state = state.copyWith(reduceMotionMode: value);
     const SettingsStore store = SettingsStore();
-    await store.writeReduceMotion(value);
+    await store.writeReduceMotionMode(value);
   }
 }
 
 /// Local settings of the new UI.
 class UiSettings {
   /// Creates the settings.
-  const UiSettings({this.dataSaver = false, this.reduceMotion = false});
+  const UiSettings({
+    this.dataSaver = false,
+    this.reduceMotionMode = ReduceMotionMode.system,
+  });
 
   /// Map and images stay on the cheap side.
   final bool dataSaver;
 
-  /// Overrides the OS setting towards no motion.
-  final bool reduceMotion;
+  /// Reduce-motion preference. System means the OS accessibility setting
+  /// decides; on and off are explicit user choices.
+  final ReduceMotionMode reduceMotionMode;
+
+  /// Effective switch position without a context: true only for an
+  /// explicit on. Screens resolve the system case with
+  /// `AppMotion.reduced(context, mode)`.
+  bool get reduceMotion => reduceMotionMode == ReduceMotionMode.on;
 
   /// Returns a copy with the given overrides.
-  UiSettings copyWith({bool? dataSaver, bool? reduceMotion}) {
+  UiSettings copyWith({bool? dataSaver, ReduceMotionMode? reduceMotionMode}) {
     return UiSettings(
       dataSaver: dataSaver ?? this.dataSaver,
-      reduceMotion: reduceMotion ?? this.reduceMotion,
+      reduceMotionMode: reduceMotionMode ?? this.reduceMotionMode,
     );
   }
 }
