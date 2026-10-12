@@ -1683,3 +1683,29 @@ verification split as D-U25):
   task instruction no Flutter tooling ran in this session, so `flutter
   analyze`, `flutter test`, screenshots and size profiling must run
   elsewhere before merge.
+
+## D40-2026-10-12: offline vector city map pipeline (Accepted, renderer Proposed)
+
+Plan-conformant exit of D12/R-05: one 43.6 MB Protomaps v4 `.pmtiles`
+extract (build 20261012, bbox -40.46,-19.20,-39.50,-18.39 covering OSM
+relation 1834958 plus buffer and the app pan bounds) serves both themes
+via two bundled MapLibre v8 styles (`app/assets/map/protomaps-*.json`,
+no sprites, relative glyphs, `coalesce(name:pt, name)` labels).
+Measured: z0-15 43.6 MB, z0-14 28.1, z0-13 17.8, z0-12 10.6; even z12
+breaks the 15 MB RNF14 budget, so the file is fetched once from our own
+static host (range reads on web, app-storage copy on Android), never
+bundled, never from a third-party tile server. Reproducible via
+`deno task map-bbox|map-extract|map-verify` (tools/map). Renderer
+choice: `maplibre_gl` (BSD-3-Clause, GPLv2-compatible, maintained,
+PMTiles on Android/iOS/web) over stale `vector_map_tiles*` (pins
+flutter_map ^7, unmaintained since 2024); NOT added here, needs its own
+ADR (APK delta, manifest audit, low-end render test) plus owner approval
+per AGENTS.md 6. Raster fallback rejected with numbers (tens of
+thousands of tiles per theme, hundreds of MB). License findings:
+project treated as GPLv2-only; new items are BSD-3/MIT/CC0/OFL/ODbL
+(data), all compatible; pre-existing `latlong2` Apache-2.0 conflict
+flagged for INFRA-19. Full record in docs/maps.md. Verified here:
+deno fmt/lint/check plus map tests green, `flutter analyze` clean, 6 new
+client tests pass. Not verified here: Pages range-request check (needs
+deploy), glyph generation, renderer integration, device/network
+measurements (no Android SDK or phone on this host).
