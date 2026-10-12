@@ -112,19 +112,14 @@ Widget flowButton(
     Scaffold(
       body: Builder(
         builder: (BuildContext context) {
-          return Consumer(
-            builder: (BuildContext context, WidgetRef ref, _) {
-              return FilledButton(
-                onPressed: () => startShare(
-                  context,
-                  ref,
-                  line,
-                  gateway: gateway,
-                  ensureNotifications: ensureNotifications ?? () async {},
-                ),
-                child: const Text('share'),
-              );
-            },
+          return FilledButton(
+            onPressed: () => startShare(
+              context,
+              line,
+              gateway: gateway,
+              ensureNotifications: ensureNotifications ?? () async {},
+            ),
+            child: const Text('share'),
           );
         },
       ),
@@ -216,4 +211,84 @@ void main() {
     expect(find.text(UiStrings.permissionDenied), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('share survives the caller unmounting under sheets', (
+    WidgetTester tester,
+  ) async {
+    // The production dock hides itself under any open sheet, unmounting
+    // the context captured at tap time. The flow must continue on the
+    // root navigator context instead of dying at the first mounted
+    // check after the disclosure (D-U27-followup).
+    final RecordingGateway gateway = RecordingGateway()
+      ..permission = LocationPermissionState.denied;
+    const LineVM line = LineVM(
+      key: '60-litoraneo-aviacao',
+      name: 'Litorâneo / Aviação',
+      short: '60',
+      supportsSharing: true,
+    );
+    await tester.pumpWidget(
+      wrapFlow(
+        Scaffold(body: _HidingDock(line: line, gateway: gateway)),
+        gateway: gateway,
+      ),
+    );
+    await tester.tap(find.text('share'));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.consentTitle), findsOneWidget);
+    // The dock hid itself, like the production pill under a sheet.
+    expect(find.text('share'), findsNothing);
+    await tester.scrollUntilVisible(find.text(UiStrings.consentAccept), 200);
+    await tester.tap(find.text(UiStrings.consentAccept));
+    await tester.pumpAndSettle();
+    // Dead caller context or not, the pre-prompt still opens.
+    expect(find.text(UiStrings.permissionPrompt), findsOneWidget);
+    await tester.tap(find.text(UiStrings.permissionContinue));
+    await tester.pumpAndSettle();
+    expect(find.byType(PermissionCard), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// Dock-like button that removes itself right after being tapped,
+/// mimicking the production pill hiding under open sheets.
+class _HidingDock extends StatefulWidget {
+  /// Creates the hiding dock for [line].
+  const _HidingDock({required this.line, required this.gateway});
+
+  /// Line to share.
+  final LineVM line;
+
+  /// Fake OS gateway.
+  final PermissionGateway gateway;
+
+  @override
+  State<_HidingDock> createState() => _HidingDockState();
+}
+
+class _HidingDockState extends State<_HidingDock> {
+  bool _visible = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible) {
+      return const SizedBox.shrink();
+    }
+    return FilledButton(
+      onPressed: () {
+        // Hide first: the captured context below is unmounted on the
+        // next frame, exactly like the production dock under a sheet.
+        // startShare resolves its stable context synchronously here,
+        // while this element is still mounted.
+        setState(() => _visible = false);
+        startShare(
+          context,
+          widget.line,
+          gateway: widget.gateway,
+          ensureNotifications: () async {},
+        );
+      },
+      child: const Text('share'),
+    );
+  }
 }

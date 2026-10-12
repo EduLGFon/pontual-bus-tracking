@@ -66,7 +66,7 @@ class LiveDockHost extends ConsumerWidget {
       return DockHost(
         trip: const TripVM(phase: TripPhase.idle),
         idleLabel: idleLabel,
-        onTap: () => startShare(context, ref, boundLine),
+        onTap: () => startShare(context, boundLine),
       );
     }
     return ListenableBuilder(

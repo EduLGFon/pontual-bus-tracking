@@ -29,12 +29,14 @@ import 'package:pontual/platform/android/permission_gateway.dart';
 /// then a phased progress sheet for the network and GPS steps, and
 /// navigates to /trip on success. Declines stay silent; failures keep
 /// the progress sheet open with the reason and a retry action.
+/// Takes the provider [container], not a WidgetRef: callers (the dock)
+/// may unmount mid-flow, and reading through a disposed ref throws.
 /// [gateway] and [ensureNotifications] are injectable for tests:
 /// production uses geolocator and the notification permission request,
 /// tests pass fakes so no platform channel is ever touched.
 Future<void> shareTrip(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   StaticLine line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
@@ -51,7 +53,7 @@ Future<void> shareTrip(
   try {
     await _shareTrip(
       context,
-      ref,
+      container,
       line,
       gateway,
       ensureNotifications,
@@ -72,7 +74,7 @@ Future<void> shareTrip(
 /// Share body; throws nothing, but the caller guards anyway.
 Future<void> _shareTrip(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   StaticLine line,
   PermissionGateway gateway,
   Future<void> Function() ensureNotifications, {
@@ -96,13 +98,13 @@ Future<void> _shareTrip(
     );
     return;
   }
-  final RemoteConfigRepository remote = await ref.read(
+  final RemoteConfigRepository remote = await container.read(
     remoteConfigRepoProvider.future,
   );
   final int consentVersion = (await remote.current()).consentVersion;
   final TripController controller = TripController(
     TripDeps(
-      api: ref.read(busApiProvider),
+      api: container.read(busApiProvider),
       gateway: gateway,
       consentStore: const ConsentStore(),
       consentVersion: consentVersion,
@@ -152,13 +154,14 @@ Future<void> _shareTrip(
             unawaited(
               shareTrip(
                 context,
-                ref,
+                container,
                 line,
                 gateway: gateway,
                 ensureNotifications: ensureNotifications,
                 // The retry belongs to the flow that opened this sheet:
-                // dropping the flag would fall back to the legacy sheets.
+                // dropping the flags would fall back to the legacy sheets.
                 legacySheets: legacySheets,
+                consentAnswer: consentAnswer,
               ),
             );
           },

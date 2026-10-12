@@ -75,7 +75,7 @@ Widget shareButton(StaticLine line) {
                   // a no-op here (the real request has its own unit test).
                   onPressed: () => shareTrip(
                     context,
-                    ref,
+                    ProviderScope.containerOf(context),
                     line,
                     gateway: gateway,
                     ensureNotifications: () async {},

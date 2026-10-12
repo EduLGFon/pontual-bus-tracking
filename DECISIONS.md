@@ -1731,15 +1731,25 @@ Verified: flutter analyze clean, full flutter test green (320 passed),
 targeted trip_flow plus share_flow tests updated (the denial test now
 asserts no second consent sheet before the permission card).
 
-## D-U27-followup-2026-10-12: startShare no longer fails silently
+## D-U27-followup-2026-10-12: startShare used a dying context and ref
 
 Field report on the fixed build: after accepting the disclosure the
-sheet closed and nothing followed, not even the pre-prompt. The widget
-tests prove the sheet sequence works, so the break is an unexpected
-throw in the unguarded awaits between the sheets (startShare had no
-try/catch, unlike shareTrip, so the error died in the zone with both
-sheets already popped). startShare is now split into _startShare plus
-a guard that shows the connection snackbar on any unexpected throw.
-Declines and dismissals still return normally and stay silent. Not
-pushed: owner tests locally first, production PWA still serves the
-pre-fix build until master is pushed and Pages rebuilds.
+sheet closed and nothing followed, not even the pre-prompt. Reproduced
+under the real router: `consent step=true mounted=false`. Root cause:
+the dock hides itself under any open sheet (D-U25 pill rule), so the
+BuildContext and WidgetRef captured at tap time both die as soon as
+the first sheet opens. Every later `mounted` check failed, and any
+`ref.read` after an async gap would throw once disposed. The widget
+tests never caught it because their button never unmounts.
+
+Fix: startShare resolves the root navigator context plus
+`ProviderScope.containerOf` synchronously at tap time and threads only
+those down (trip_flow, shareTrip, retry path). The `ref` parameter is
+gone from startShare; shareTrip takes the container. Also fixed on the
+way: the progress-sheet retry dropped consentAnswer, which would have
+resurrected the double sheet on retry. Regression test `share survives
+the caller unmounting under sheets` uses a self-hiding dock and fails
+without the fix. Unexpected throws still show the connection snackbar
+instead of closing silently. Not pushed: owner tests locally first,
+production PWA still serves the pre-fix build until master is pushed
+and Pages rebuilds.

@@ -33,30 +33,40 @@ import 'permission_sheets.dart';
 /// sheet, and the navigation to /trip. Declines and dismissals are silent:
 /// nothing is logged and no state changes behind the rider. Unexpected
 /// failures show the connection message instead of closing silently.
+///
+/// The dock that starts this flow unmounts itself while any sheet is open
+/// (the pill hides under modal sheets), so both the caller's context and
+/// its ref are dead after the first sheet pops. Everything below resolves
+/// the root navigator context and the provider container once, up front,
+/// and uses only those for sheets, reads, mounted checks, and navigation.
 Future<void> startShare(
   BuildContext context,
-  WidgetRef ref,
   LineVM? line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
 }) async {
+  // Stable for the whole flow: the root Navigator and the container never
+  // unmount while the app lives, unlike the dock that tapped here. Read
+  // through the dock ref after an async gap throws once it is disposed.
+  final ProviderContainer container = ProviderScope.containerOf(context);
+  final BuildContext rootContext =
+      Navigator.of(context, rootNavigator: true).context;
   try {
-    await _startShare(context, ref, line,
+    await _startShare(rootContext, container, line,
         gateway: gateway, ensureNotifications: ensureNotifications);
   } catch (_) {
     // The sheets above already popped: without this the tap ends on an
     // empty screen with the error only in the zone.
-    if (!context.mounted) {
-      return;
+    if (rootContext.mounted) {
+      _tell(rootContext, UiStrings.shareNoConnection);
     }
-    _tell(context, UiStrings.shareNoConnection);
   }
 }
 
 /// Share body; throws nothing by design, but the caller guards anyway.
 Future<void> _startShare(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   LineVM? line, {
   required PermissionGateway gateway,
   required Future<void> Function() ensureNotifications,
@@ -65,7 +75,7 @@ Future<void> _startShare(
   if (chosen == null) {
     return;
   }
-  final StaticLine? target = await _staticLineOf(ref, chosen.key);
+  final StaticLine? target = await _staticLineOf(container, chosen.key);
   if (target == null || !target.pilot) {
     return;
   }
@@ -75,7 +85,7 @@ Future<void> _startShare(
   // The disclosure is presented before the first trip and whenever the
   // consent version changes; a rider who already accepted it goes
   // straight to the permission pre-prompt.
-  if (await _consentNeeded(ref)) {
+  if (await _consentNeeded(container)) {
     if (!context.mounted || !await _consentStep(context)) {
       return;
     }
@@ -85,7 +95,7 @@ Future<void> _startShare(
   }
   await _permissionStep(
     context,
-    ref,
+    container,
     target,
     chosen,
     gateway,
@@ -95,9 +105,9 @@ Future<void> _startShare(
 
 /// True while the rider has to accept the current consent version. Reads
 /// the same store and version the share flow uses; it never writes them.
-Future<bool> _consentNeeded(WidgetRef ref) async {
+Future<bool> _consentNeeded(ProviderContainer container) async {
   try {
-    final RemoteConfigRepository config = await ref.read(
+    final RemoteConfigRepository config = await container.read(
       remoteConfigRepoProvider.future,
     );
     final int version = (await config.current()).consentVersion;
@@ -164,7 +174,7 @@ Future<bool> _consentStep(BuildContext context) async {
 /// of the matrix in UI_SPEC 7.7 and offers the retry, which restarts here.
 Future<void> _permissionStep(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   StaticLine target,
   LineVM line,
   PermissionGateway gateway,
@@ -179,7 +189,7 @@ Future<void> _permissionStep(
   final _PermissionRecorder recorder = _PermissionRecorder(gateway);
   await shareTrip(
     context,
-    ref,
+    container,
     target,
     gateway: recorder,
     ensureNotifications: ensureNotifications,
@@ -200,7 +210,7 @@ Future<void> _permissionStep(
   if (retry && context.mounted) {
     await _permissionStep(
       context,
-      ref,
+      container,
       target,
       line,
       gateway,
@@ -280,9 +290,12 @@ PermissionCardState? _cardStateOf(_PermissionRecorder recorder) {
 
 /// Static line for [key], or null when the data has no such line. Only the
 /// chooser deals in view-models; the share flow still owns the static data.
-Future<StaticLine?> _staticLineOf(WidgetRef ref, String key) async {
+Future<StaticLine?> _staticLineOf(
+  ProviderContainer container,
+  String key,
+) async {
   try {
-    final List<StaticLine> lines = await ref.read(linesProvider.future);
+    final List<StaticLine> lines = await container.read(linesProvider.future);
     for (final StaticLine line in lines) {
       if (line.code == key) {
         return line;
