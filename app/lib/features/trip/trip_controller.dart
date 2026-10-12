@@ -15,6 +15,7 @@ import 'package:pontual/data/prefs/consent_store.dart';
 import 'package:pontual/domain/trip/auto_end.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';
 import 'package:pontual/domain/trip/share_phases.dart';
+import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/consent_flow.dart';
 import 'package:pontual/features/trip/location_service.dart';
@@ -191,6 +192,85 @@ class TripController extends ChangeNotifier {
   /// True while location services are off (stream paused, banner shown).
   bool get isPaused => _supervisor?.paused ?? false;
 
+  /// Last successful ping in ms, null before the first success.
+  /// Read-only view of the supervisor clock; never changes behavior.
+  int? get lastSuccessMs => _supervisor?.lastSuccessMs;
+
+  /// Last accepted fix accuracy in meters, null before the first fix.
+  /// Read-only; recorded on the existing fix path.
+  double? get lastAccuracyM => _lastAccuracyM;
+  double? _lastAccuracyM;
+
+  /// Last accepted fix battery bucket, null before the first fix.
+  /// Read-only; recorded on the existing fix path.
+  int? get lastBatteryPct => _lastBatteryPct;
+  int? _lastBatteryPct;
+
+  /// Last accepted fix charging flag. Read-only.
+  bool get lastCharging => _lastCharging;
+  bool _lastCharging = false;
+
+  /// True after the permission is revoked mid-trip (3 bad polls).
+  /// Read-only view of the supervisor flag.
+  bool get permissionRevoked => _supervisor?.permissionRevoked ?? false;
+
+  /// False while OS location services are off. Read-only.
+  bool get servicesOn => !isPaused;
+
+  /// Groups the existing state into signals for the health model.
+  /// Read-only; never changes behavior.
+  SharingSignals sharingSignals(int nowMs) {
+    final bool starting = _state is! TripActive && _state is! TripIdle;
+    final bool ended = _state is TripIdle && _endKind != null;
+    return SharingSignals(
+      ended: ended,
+      isStarting: starting,
+      offline: isOffline,
+      servicesOn: servicesOn,
+      permissionGranted: !permissionRevoked,
+      nowMs: nowMs,
+      accuracyM: _lastAccuracyM,
+      lastSuccessMs: _supervisor?.lastSuccessMs,
+      startedAtMs: _startedAtMs,
+      batteryPct: _lastBatteryPct,
+      charging: _lastCharging,
+    );
+  }
+
+  /// Resolves the health model for [nowMs]. The result is memoized on
+  /// identical inputs so ticker rebuilds do no extra work.
+  SharingHealth sharingHealth(int nowMs) {
+    final SharingSignals s = sharingSignals(nowMs);
+    final SharingHealth? cached = _cachedHealth;
+    if (cached != null &&
+        _cachedSignals != null &&
+        _sameSignals(_cachedSignals!, s)) {
+      return cached;
+    }
+    final SharingHealth h = resolveSharingHealth(s);
+    _cachedSignals = s;
+    _cachedHealth = h;
+    return h;
+  }
+
+  SharingSignals? _cachedSignals;
+  SharingHealth? _cachedHealth;
+
+  /// Compares two signal sets field by field.
+  bool _sameSignals(SharingSignals a, SharingSignals b) {
+    return a.ended == b.ended &&
+        a.isStarting == b.isStarting &&
+        a.offline == b.offline &&
+        a.servicesOn == b.servicesOn &&
+        a.permissionGranted == b.permissionGranted &&
+        a.accuracyM == b.accuracyM &&
+        a.lastSuccessMs == b.lastSuccessMs &&
+        a.startedAtMs == b.startedAtMs &&
+        a.nowMs == b.nowMs &&
+        a.batteryPct == b.batteryPct &&
+        a.charging == b.charging;
+  }
+
   /// Current sampling mode for tests and the location service.
   @visibleForTesting
   SamplingMode get samplingMode => _samplingMode;
@@ -265,6 +345,11 @@ class TripController extends ChangeNotifier {
     _lastErrorCode = null;
     _cancelled = false;
     _nextPingAtMs = 0;
+    _lastAccuracyM = null;
+    _lastBatteryPct = null;
+    _lastCharging = false;
+    _cachedSignals = null;
+    _cachedHealth = null;
     _supervisor = TripSupervisor(gateway: _deps.gateway);
     _samplingMode = SamplingMode.waiting;
     _set(tripReduce(_state, TripEvent.tapStart));
@@ -519,6 +604,9 @@ class TripController extends ChangeNotifier {
     if (supervisor == null) {
       return;
     }
+    _lastAccuracyM = fix.accuracyM;
+    _lastBatteryPct = fix.batteryPct;
+    _lastCharging = fix.charging;
     final bool hadPrompt = supervisor.promptVisible;
     supervisor.onFix(fix, _deps.clock.nowMs());
     if (supervisor.promptVisible != hadPrompt) {

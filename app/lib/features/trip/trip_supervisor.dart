@@ -69,6 +69,13 @@ class TripSupervisor {
   /// True while location services are off.
   bool get paused => _gpsOffSinceMs != null;
 
+  /// Last successful ping in ms, null before the first success.
+  /// Read-only for the health model.
+  int? get lastSuccessMs => _lastSuccessMs;
+
+  /// True after 3 consecutive non-granted polls. Read-only.
+  bool get permissionRevoked => _permissionRevoked;
+
   /// Seeds the success clock at trip start.
   void begin(int nowMs) {
     _lastSuccessMs = nowMs;
