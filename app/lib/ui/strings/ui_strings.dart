@@ -639,6 +639,13 @@ class UiStrings {
   /// End trip action.
   static const String endTrip = 'Desci - encerrar viagem';
 
+  /// Stop sharing action on the settings sharing banner.
+  static const String stop = 'Parar';
+
+  /// Sharing banner message for [line], the shared line id or label from
+  /// the live sharing state.
+  static String sharingNow(String line) =>
+      'Você está compartilhando a Linha $line';
   /// End card title.
   static const String endTitle = 'Viagem encerrada. Obrigado por ajudar!';
 

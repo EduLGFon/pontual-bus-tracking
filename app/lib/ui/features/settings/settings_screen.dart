@@ -2,18 +2,24 @@
 // animations), the sharing and privacy entries, the quiet install item the
 // browser offers, and the version footer. No network calls: the theme and
 // the toggles are local, the timetable date comes from the bundle.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/config/remote_config.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
+import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/web/install_hint.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 import 'package:pontual/ui/adapters/alerts_store.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
+import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/components/segmented.dart';
+import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -21,7 +27,9 @@ import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/shortcut_sheet.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/settings/settings_section.dart';
+import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 
@@ -43,9 +51,12 @@ class SettingsScreen extends ConsumerWidget {
             marginFor(context),
             Space.x4,
             marginFor(context),
-            dockClearance,
+            // No dock on this branch: the clearance covers the
+            // navigation bar only.
+            Sizes.navBar + Space.x4,
           ),
           children: <Widget>[
+            const _SharingBanner(),
             Text(UiStrings.settingsTitle, style: context.text.title),
             SettingsSection(
               title: UiStrings.sectionAppearance,
@@ -275,6 +286,60 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Sharing banner: visible only while the user is sharing. Shows the live
+/// line from the existing sharing state with a `Parar` action that uses
+/// the existing stop logic. Nothing renders when not sharing.
+class _SharingBanner extends ConsumerWidget {
+  /// Creates the banner.
+  const _SharingBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final TripController? controller = ref.watch(tripHostProvider);
+    if (controller == null) {
+      return const SizedBox.shrink();
+    }
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (BuildContext context, Widget? child) {
+        if (!tripInProgress(controller.state)) {
+          return const SizedBox.shrink();
+        }
+        final String line =
+            controller.lineId?.toString() ?? controller.lineLabel;
+        final String message = UiStrings.sharingNow(line);
+        return Semantics(
+          label: message,
+          liveRegion: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SurfaceCard(
+                child: Row(
+                  children: <Widget>[
+                    const LiveDot(certainty: Certainty.live, size: 8),
+                    const SizedBox(width: Space.x2),
+                    Expanded(
+                      child: Text(message, style: context.text.bodyStrong),
+                    ),
+                    const SizedBox(width: Space.x2),
+                    TextButton(
+                      onPressed: () => unawaited(controller.endTrip()),
+                      child: const Text(UiStrings.stop),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: Space.x4),
+            ],
+          ),
+        );
+      },
     );
   }
 }
