@@ -1626,3 +1626,21 @@ verification split as D-U25):
   the lines list rule from D-U25. A day with no schedules returns
   empty (card shows "--", Saindo agora skips) instead of a wrong
   time.
+- 2026-10-12: Home-screen brief deviations (D29, Accepted, pending owner
+  review on a Flutter-capable machine). The brief `home-screen.md` asked
+  for an extended FAB (C1); the app keeps the global `TripDock` pill per
+  UI_SPEC 7.1, which already fixes the reported overlap via
+  `dockClearance` and owns the sharing-active state. Cards stay at the
+  156 dp token instead of 168 dp (C2); the 2-line label plus direction
+  line fixes the reported truncation. Recents stay as chips capped at 4
+  (C6) and live rows keep `LineRow` without ages (C5): the live endpoint
+  exposes counts only, and ages would need a contract change the brief
+  forbids. The 1-minute clock tick stays instead of a 30 s ticker (C8):
+  countdowns are minute-granular and a faster tick costs battery on the
+  entry-level phones in PLAN 3.3. `formatEta` keeps regular spaces (C8):
+  its unit tests pin them. No cache-age line (C10): needs cache-age
+  plumbing through `StaticDataRepository`, left for a follow-up. Line
+  colors (C9) were already done via `line_colors.dart`. Full audit and
+  report in `docs/ui/home-redesign.md`. Not verified here: no Flutter
+  SDK on this machine, so `flutter analyze` and `flutter test` must run
+  elsewhere before merge.
