@@ -11,6 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Storage key prefix for versioned cached line bundles.
 const String linesKeyPrefix = 'static_lines_';
 
+/// Storage key prefix for cached stop sets, keyed by stops file name.
+const String stopsKeyPrefix = 'static_stops_';
+
 /// Storage key for the cached manifest.
 const String manifestKey = 'static_manifest';
 
@@ -104,6 +107,39 @@ List<String> _stringsOf(Object? raw) {
   return raw.whereType<String>().toList(growable: false);
 }
 
+/// One city bus stop: public infrastructure, never a person.
+class StopPoint {
+  /// Creates a stop from decoded fields.
+  const StopPoint({
+    required this.id,
+    required this.lat,
+    required this.lng,
+    this.name,
+  });
+
+  /// Stable id, never reused.
+  final String id;
+
+  /// Latitude in degrees.
+  final double lat;
+
+  /// Longitude in degrees.
+  final double lng;
+
+  /// Posted name, null when unmapped.
+  final String? name;
+
+  /// Parses a stop object. Throws [FormatException] on bad shapes.
+  factory StopPoint.fromJson(Map<String, dynamic> json) {
+    return StopPoint(
+      id: json['id'] as String,
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      name: json['name'] as String?,
+    );
+  }
+}
+
 /// Repository for lines and timetables with offline-first semantics.
 class StaticDataRepository {
   /// Creates a repository. No network calls happen until [refresh].
@@ -114,6 +150,7 @@ class StaticDataRepository {
     required this.bundleLinesJson,
     required this.prefs,
     required this.nowMs,
+    this.bundleStopsJson = '[]',
   });
 
   /// Shared HTTP client.
@@ -127,6 +164,9 @@ class StaticDataRepository {
 
   /// Bundled lines JSON from assets.
   final String bundleLinesJson;
+
+  /// Bundled stops JSON from assets. Empty until stops are mapped.
+  final String bundleStopsJson;
 
   /// Preferences accessor.
   final Future<SharedPreferences> Function() prefs;
@@ -153,6 +193,33 @@ class StaticDataRepository {
       }
     }
     return _parseLines(bundleLinesJson);
+  }
+
+  /// Returns bus stops: cached set first, bundled fallback. Never throws;
+  /// unknown shapes yield an empty list, never a broken map.
+  Future<List<StopPoint>> stops() async {
+    final SharedPreferences sp = await prefs();
+    final String? manifestStr = sp.getString(manifestKey);
+    if (manifestStr != null) {
+      try {
+        final Map<String, dynamic> manifest =
+            jsonDecode(manifestStr) as Map<String, dynamic>;
+        final String? name = manifest['stops'] as String?;
+        if (name != null) {
+          final String? stopsStr = sp.getString('$stopsKeyPrefix$name');
+          if (stopsStr != null) {
+            return _parseStops(stopsStr);
+          }
+        }
+      } catch (_) {
+        // Fall through to the bundle.
+      }
+    }
+    try {
+      return _parseStops(bundleStopsJson);
+    } catch (_) {
+      return const <StopPoint>[];
+    }
   }
 
   /// Checks the remote manifest at most once per day and atomically swaps
@@ -199,8 +266,30 @@ class StaticDataRepository {
       if (parsed.isEmpty) {
         return const Err<bool>(ServerFailure('empty bundle', 'static'));
       }
+      // Stops ride the same manifest but never block it: a stops failure
+      // keeps the previous set while lines still swap below.
+      String? stopsName;
+      String? stopsBody;
+      try {
+        final String? remoteStops = remote['stops'] as String?;
+        if (remoteStops != null) {
+          final http.Response stopsRes = await client
+              .get(Uri.parse('${staticBaseUrl()}/$remoteStops'))
+              .timeout(requestTimeout);
+          if (stopsRes.statusCode == 200) {
+            _parseStops(stopsRes.body);
+            stopsName = remoteStops;
+            stopsBody = stopsRes.body;
+          }
+        }
+      } catch (_) {
+        // Keep the previous stops; lines still swap below.
+      }
       // Atomic swap: versioned lines first, manifest pointer last.
       await sp.setString('$linesKeyPrefix$version', linesRes.body);
+      if (stopsName != null && stopsBody != null) {
+        await sp.setString('$stopsKeyPrefix$stopsName', stopsBody);
+      }
       await sp.setString(manifestKey, res.body);
       final String? newEtag = headerOf(res.headers, 'etag');
       if (newEtag != null) {
@@ -212,6 +301,11 @@ class StaticDataRepository {
       final Set<String> keys = sp.getKeys();
       for (final String k in keys) {
         if (k.startsWith(linesKeyPrefix) && k != '$linesKeyPrefix$version') {
+          await sp.remove(k);
+        }
+        if (stopsName != null &&
+            k.startsWith(stopsKeyPrefix) &&
+            k != '$stopsKeyPrefix$stopsName') {
           await sp.remove(k);
         }
       }
@@ -246,6 +340,13 @@ class StaticDataRepository {
     final List<dynamic> raw = jsonDecode(text) as List<dynamic>;
     return raw
         .map((dynamic e) => StaticLine.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  List<StopPoint> _parseStops(String text) {
+    final List<dynamic> raw = jsonDecode(text) as List<dynamic>;
+    return raw
+        .map((dynamic e) => StopPoint.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

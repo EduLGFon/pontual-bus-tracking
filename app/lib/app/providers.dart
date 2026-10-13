@@ -95,14 +95,38 @@ final FutureProvider<StaticDataRepository> staticDataRepoProvider =
       final String lines = await rootBundle.loadString(
         'assets/data/$linesName',
       );
+      final String stopsName = _stopsNameOf(manifest);
+      String stops = '[]';
+      if (stopsName.isNotEmpty) {
+        try {
+          stops = await rootBundle.loadString('assets/data/$stopsName');
+        } catch (_) {
+          // No bundled stops: the repository serves an empty list.
+        }
+      }
       return StaticDataRepository(
         client: ref.watch(httpClientProvider),
         staticBaseUrl: () => staticBaseUrl,
         bundleManifestJson: manifest,
         bundleLinesJson: lines,
+        bundleStopsJson: stops,
         prefs: SharedPreferences.getInstance,
         nowMs: () => DateTime.now().millisecondsSinceEpoch,
       );
+    });
+
+/// City bus stops for the map layer. Empty until stops are mapped and on
+/// any failure: the map stands without dots, never broken.
+final FutureProvider<List<StopPoint>> stopsProvider =
+    FutureProvider<List<StopPoint>>((Ref ref) async {
+      try {
+        final StaticDataRepository repo = await ref.watch(
+          staticDataRepoProvider.future,
+        );
+        return repo.stops();
+      } catch (_) {
+        return const <StopPoint>[];
+      }
     });
 
 /// Extracts the lines file name from a manifest document.
@@ -118,6 +142,22 @@ String _linesNameOf(String manifest) {
     // Fall through to the fallback name.
   }
   return 'lines.json';
+}
+
+/// Extracts the stops file name from a manifest document. Empty when the
+/// manifest names none: the map then stands without stop dots.
+String _stopsNameOf(String manifest) {
+  try {
+    final Map<String, dynamic> decoded =
+        jsonDecode(manifest) as Map<String, dynamic>;
+    final String? name = decoded['stops'] as String?;
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+  } catch (_) {
+    // Fall through to the empty fallback.
+  }
+  return '';
 }
 
 /// Cached lines shown instantly on first paint.
