@@ -5,6 +5,7 @@
 // See docs/ui/UI_SPEC.md 7.5.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
@@ -52,6 +53,7 @@ class LineSheet extends ConsumerStatefulWidget {
     required this.staticLine,
     required this.vehicles,
     required this.scrollController,
+    this.viewer,
     this.initialTab,
     this.onTabChanged,
     this.onShowMap,
@@ -69,6 +71,10 @@ class LineSheet extends ConsumerStatefulWidget {
 
   /// Vehicles of this line, already capped by the caller.
   final List<VehicleVM> vehicles;
+
+  /// Viewer position for the live hero ETA, null when unknown. Only the
+  /// distance feeds the prediction; nothing is drawn from it here.
+  final LatLng? viewer;
 
   /// Scroll controller of the draggable sheet.
   final ScrollController scrollController;
@@ -199,6 +205,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       widget.staticLine.code,
       widget.vehicles,
       now,
+      viewer: widget.viewer,
     );
     final List<ArrivalVM> departures = _upcoming(
       now,

@@ -4,6 +4,7 @@
 // the suite pays a single test-process startup instead of seven.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -727,6 +728,78 @@ void main() {
       ], liveNow);
       expect(hero, isNotNull);
       expect(hero!.certainty, Certainty.predicted);
+    });
+
+    test('live hero near the viewer stays live now', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 29,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+            paceKmh: 25.5,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.72, -39.85),
+      );
+      expect(hero, isNotNull);
+      expect(hero!.certainty, Certainty.live);
+      expect(hero.at, liveNow);
+    });
+
+    test('live hero far from the viewer becomes a pace ETA', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 29,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+            paceKmh: 36,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.71, -39.85),
+      );
+      expect(hero, isNotNull);
+      expect(hero!.certainty, Certainty.predicted);
+      // About 1.1 km at 10 m/s: a few minutes out, never "now".
+      final int etaS = hero.at.difference(liveNow).inSeconds;
+      expect(etaS > 60, isTrue);
+      expect(etaS < 300, isTrue);
+    });
+
+    test('live hero far without pace falls back to the timetable', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 0,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.71, -39.85),
+      );
+      expect(hero, isNull);
     });
 
     test('no hero without live or predicted vehicles', () {
