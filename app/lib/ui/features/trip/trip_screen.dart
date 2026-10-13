@@ -94,7 +94,6 @@ int _systemNowMs() => DateTime.now().millisecondsSinceEpoch;
 class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   Timer? _visibilityTimer;
   bool _promptOpen = false;
-  bool _minimising = false;
   bool _wakeUnsupported = false;
   bool _kudosCounted = false;
   int? _helpedTrips;
@@ -248,13 +247,14 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? _) {
-        if (didPop || _minimising) {
+        if (didPop) {
           return;
         }
-        _minimising = true;
         // System back minimises instead of ending: the dock keeps the trip
-        // and the foreground service keeps sharing (UI_SPEC 8).
-        context.pop();
+        // and the foreground service keeps sharing (UI_SPEC 8). go, not
+        // pop: the share flow reached /trip with go, so there is no route
+        // to pop back to.
+        context.go('/');
       },
       child: Scaffold(
         backgroundColor: context.colors.bg,
@@ -323,7 +323,10 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Header with the minimise chevron and the screen title.
+  /// Header with the minimise chevron and the screen title. Minimising
+  /// goes home with go, not pop: /trip was reached with go, so pop has no
+  /// route to return to. The live trip stays attached to the trip host, so
+  /// the dock keeps working and sharing continues.
   Widget _header(BuildContext context) {
     return Padding(
       key: const ValueKey<String>('tripHeader'),
@@ -333,7 +336,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           IconBtn(
             icon: Icons.keyboard_arrow_down_rounded,
             semanticLabel: UiStrings.tripMinimize,
-            onTap: () => context.pop(),
+            onTap: () => context.go('/'),
           ),
           const SizedBox(width: Space.x2),
           Expanded(child: Text(UiStrings.tripTitle, style: context.text.title)),
