@@ -4,7 +4,7 @@
 // See PLAN.md 6.6 steps for startTrip, applyPing, endTrip.
 import { isCoherent, nearestVehicle } from "./attach.ts";
 import { recordPassage } from "./arrivals.ts";
-import { distM, distToPolylineM } from "./geo.ts";
+import { distM, distToShapeM, type RouteShape } from "./geo.ts";
 import { impliedSpeedMps, validateFix } from "./validate.ts";
 import type { Store } from "../state/store.ts";
 import { addVehicle, removeVehicle, vehiclesOfLine } from "../state/store.ts";
@@ -126,7 +126,7 @@ export function applyPing(
   store: Store,
   events: EngineEvent[],
   deviceId: string,
-  lineRoute: { lat: number; lng: number }[] | null,
+  lineRoute: RouteShape | null,
   fix: Fix,
   nowMs: number,
   cfg: EngineConfig,
@@ -163,9 +163,12 @@ export function applyPing(
     }
   }
   // 6. Route check: store but do not attach or publish, no strike.
+  // The bbox reject inside distToShapeM skips the segment scan for
+  // fixes far from the route; near fixes pay the exact scan.
   if (
-    lineRoute && lineRoute.length > 0 &&
-    distToPolylineM(fix.lat, fix.lng, lineRoute) > cfg.routeMaxDistM
+    lineRoute && lineRoute.pts.length > 0 &&
+    distToShapeM(fix.lat, fix.lng, lineRoute, cfg.routeMaxDistM) >
+      cfg.routeMaxDistM
   ) {
     storeFix(trip, fix, nowMs, cfg);
     trip.vehicleId = null;

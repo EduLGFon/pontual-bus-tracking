@@ -139,3 +139,62 @@ export function decodePolyline(
   }
   return pts;
 }
+
+/** Route geometry with a precomputed bounding box. The box is built once
+ * at bundle load so the per-ping route check can reject far fixes without
+ * scanning every segment. See distToShapeM. */
+export interface RouteShape {
+  pts: { lat: number; lng: number }[];
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/** Wrap decoded points with their bounding box. Empty input yields an
+ * empty shape; distToShapeM answers Infinity for it, matching
+ * distToPolylineM. */
+export function routeShape(
+  pts: { lat: number; lng: number }[],
+): RouteShape {
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const p of pts) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lng < minLng) minLng = p.lng;
+    if (p.lng > maxLng) maxLng = p.lng;
+  }
+  return { pts, minLat, maxLat, minLng, maxLng };
+}
+
+/** Distance to a route shape in meters. Fixes farther than [maxM] from
+ * the bounding box edge skip the segment scan: the edge distance is a
+ * lower bound on the true distance (same equirectangular projection as
+ * distToSegM), so returning it is exact for the `> maxM` comparison the
+ * single caller makes. Fixes near or inside the box pay the full scan. */
+export function distToShapeM(
+  lat: number,
+  lng: number,
+  shape: RouteShape,
+  maxM: number,
+): number {
+  if (shape.pts.length === 0) return Infinity;
+  const kx = DEG_M * Math.cos((lat * Math.PI) / 180);
+  const dx = lat < shape.minLat
+    ? (shape.minLat - lat) * DEG_M
+    : lat > shape.maxLat
+    ? (lat - shape.maxLat) * DEG_M
+    : 0;
+  const dw = lng < shape.minLng
+    ? (shape.minLng - lng) * kx
+    : lng > shape.maxLng
+    ? (lng - shape.maxLng) * kx
+    : 0;
+  if (dx > maxM || dw > maxM) return Math.hypot(dx, dw);
+  const edge = Math.hypot(dx, dw);
+  if (edge > maxM) return edge;
+  return distToPolylineM(lat, lng, shape.pts);
+}

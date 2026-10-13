@@ -1,12 +1,12 @@
 // Line resolver. Production data comes from the built static bundle in
 // DATA_DIR; tests inject a fake resolver. Line ids are stable and never
 // reused; removal means is_active false.
-import { decodePolyline } from "../domain/geo.ts";
+import { decodePolyline, type RouteShape, routeShape } from "../domain/geo.ts";
 
 export interface LineRecord {
   id: number;
   isActive: boolean;
-  route: { lat: number; lng: number }[] | null;
+  route: RouteShape | null;
 }
 
 export type LineResolver = (id: number) => LineRecord | null;
@@ -46,7 +46,7 @@ export async function loadLinesFromDir(dataDir: string): Promise<LineRecord[]> {
   const lines = JSON.parse(linesText) as BundleLine[];
   if (!Array.isArray(lines)) throw new Error("bad bundle lines");
   const routes = (manifest.routes ?? {}) as Record<string, unknown>;
-  const byCode = new Map<string, { lat: number; lng: number }[]>();
+  const byCode = new Map<string, RouteShape>();
   for (const [code, path] of Object.entries(routes)) {
     if (typeof path !== "string" || path.includes("..")) {
       throw new Error(`bad route path for ${code}`);
@@ -57,7 +57,7 @@ export async function loadLinesFromDir(dataDir: string): Promise<LineRecord[]> {
     if (typeof file.polyline !== "string") {
       throw new Error(`bad route file for ${code}`);
     }
-    byCode.set(code, decodePolyline(file.polyline, 5));
+    byCode.set(code, routeShape(decodePolyline(file.polyline, 5)));
   }
   return lines.map((l) => ({
     id: Number(l.id),

@@ -49,7 +49,12 @@ Deno.test("bundle routes decode to geometry", async () => {
     );
     const loaded = await loadLinesFromDir(dir);
     assertEquals(loaded.length, 1);
-    assertEquals(loaded[0].route?.length, 1);
+    assertEquals(loaded[0].route?.pts.length, 1);
+    // Single-point route: the box collapses to the decoded fix.
+    assertEquals(loaded[0].route?.minLat, 38.5);
+    assertEquals(loaded[0].route?.maxLat, 38.5);
+    assertEquals(loaded[0].route?.minLng, -120.2);
+    assertEquals(loaded[0].route?.maxLng, -120.2);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
