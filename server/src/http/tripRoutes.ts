@@ -209,6 +209,11 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     return c.json({ r: out.role, n: out.intervalS });
   });
 
+  // End intentionally skips guard(): ending is cleanup and must succeed
+  // even under kill switch, blocklist, or consent mismatch, so a device
+  // is never stranded in-trip while reads degrade. Rate limit still
+  // applies. SECURITY: auth runs first; endTrip is idempotent and scoped
+  // to the caller device id only.
   app.delete("/v1/trip", auth, (c) => {
     const deviceId = c.get("deviceId");
     if (!endsPerDevice.hit(deviceId, Date.now())) {
