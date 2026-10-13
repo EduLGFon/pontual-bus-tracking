@@ -292,6 +292,10 @@ class VehicleRepository {
     _socketDownAtMs ??= _clock.monotonicMs();
     // Frames from the dead socket prove nothing about the next one.
     _lastFrameAtMs = null;
+    // Cancel the dead subscription: a half-open socket delivering one
+    // delayed duplicate snapshot must not refresh the status or the data.
+    unawaited(_sub?.cancel());
+    _sub = null;
     // No immediate poller: the watchdog arms polling only after
     // pollFallbackAfterS of downtime, while reconnect (5-30 s) covers
     // transient blips without doubling HTTP traffic.
