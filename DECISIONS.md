@@ -1844,3 +1844,54 @@ button and its string are removed.
 
 Verified: flutter analyze clean, line_screen_test plus offline_map_test
 green (18 passed).
+
+## D41-2026-10-13: docs and asset locations outside AGENTS.md section 14
+
+AGENTS.md section 14 allows only `docs/privacy/`, `docs/security/`,
+`docs/runbooks/`, `docs/field-tests/` under `docs/`, plus seven fixed
+root files. The tree has three established exceptions predating this
+audit: `docs/ui/` (UI_SPEC, VERIFY-NOTES, AUDIT, PERF, redesign notes),
+`design/brand/` (icon masters and the brand mark source), and
+`docs/maps.md` (offline map pipeline notes). Moving them now would break
+a dozen references for no runtime benefit.
+
+Handling (Accepted): keep all three where they are; propose amending
+AGENTS.md section 14 to list `docs/ui/` and `design/` as allowed homes
+for UI spec work and brand sources. `step.md` (stale 2026-10-04 progress
+notes, a root allow-list violation) moves to
+`docs/runbooks/step-history.md` in this change set; the historical prose
+mention of `step.md` above stays untouched per the append-only rule.
+
+## D42-2026-10-13: deep-audit deferred items with rationale (Accepted)
+
+A three-track audit (app, server, tools/data/docs/CI) on 2026-10-13
+found no P0. Fixed in this change set: `stream_channel` to
+dev_dependencies, `trip_screen` import order, `build.gradle.kts` TODO
+format, server type and logging hygiene (TickResult dup, Ctx status
+type, content-length NaN guard, onError through Log.error), auth cache
+token-expiry revalidation, scoped `map-extract`/`map-verify` flags,
+SECURITY and PRIVACY markers on auth and location code, and the DELETE
+guard rationale comment. Deferred with rationale, each needs its own
+task and owner sign-off where noted:
+
+- WS messages use hand-rolled checks in `server/src/ws/hub.ts`, not the
+  Valibot strict schema. Migrating changes the public stream contract,
+  so it needs a dedicated task with compatibility tests, not a drive-by.
+- `app_config.max_active_trips` loads but capacity enforces the engine
+  default (both 300). Wiring the DB knob into the trip path changes
+  capacity behavior under load; dedicated task with a capacity test.
+- `pontual_app` holds insert/update/delete on `app_config` but only
+  selects it. Tightening needs a forward-only migration (0001 is merged
+  and immutable) applied by the owner; dedicated task, never against
+  prod without explicit authorization.
+- Marker cap (20) labels use the capped list, so >20 vehicles per line
+  would under-report. Unlikely at alpha scale; fix with the uncapped
+  count when scale demands, with widget tests.
+- `TripController` (861 lines, `startTrip` ~219) and the geolocator/http
+  calls inside `viewer_location`, `trip_status`, and `line_map` are the
+  real architecture debt. Splitting and re-seaming needs widget plus
+  lifecycle tests per slice; one slice per task, not one big rewrite.
+- `route` tool writes `data/routes/` while PLAN 14.5 says
+  `--allow-write=build`; the routes directory is the committed source
+  of truth the builder reads, so the write is intentional. Propose a
+  one-line PLAN clarification instead of moving the output.
