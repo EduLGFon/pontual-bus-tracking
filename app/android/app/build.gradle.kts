@@ -15,7 +15,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.spotnik.pontual"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -39,7 +38,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // TODO(owner-keystore): replace debug signing with the release
+            // TODO(#t45): replace debug signing with the release
             // keystore from encrypted secrets before the first tag. Until
             // then `flutter run --release` still works locally.
             signingConfig = signingConfigs.getByName("debug")
