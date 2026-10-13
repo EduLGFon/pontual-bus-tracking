@@ -14,10 +14,3 @@ final Provider<DateTime> currentNowProvider = Provider<DateTime>((Ref ref) {
 final StreamProvider<int> nowTickProvider = StreamProvider<int>((Ref ref) {
   return Stream<int>.periodic(const Duration(minutes: 1), (int i) => i);
 });
-
-/// Emits once per second while a trip is on screen.
-final StreamProvider<int> nowSecondTickProvider = StreamProvider<int>((
-  Ref ref,
-) {
-  return Stream<int>.periodic(const Duration(seconds: 1), (int i) => i);
-});
