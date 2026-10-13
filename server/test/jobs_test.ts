@@ -70,6 +70,18 @@ Deno.test("tick via guard ends timed-out trips", () => {
   assert(!store.trips.has("a"));
 });
 
+Deno.test("tick guard drains the scratch events buffer", () => {
+  const store = createStore();
+  const events: EngineEvent[] = [];
+  startTrip(store, events, "a", LINE, fix({ seq: 0 }), 0, cfg);
+  applyPing(store, events, "a", null, fix({ seq: 1 }), 5000, cfg, 0);
+  // Pre-tick the array holds start/attach events; the timeout below adds
+  // a tripEnded event. None of it may survive the guarded tick, or ended
+  // trips accumulate for the life of the process.
+  runTickGuarded({ running: false }, store, events, 611001, cfg);
+  assertEquals(events.length, 0);
+});
+
 Deno.test("purge removes expired devices", async () => {
   const sql = openDb(testDbUrl());
   try {

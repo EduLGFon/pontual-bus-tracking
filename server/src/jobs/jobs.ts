@@ -38,6 +38,12 @@ export function runTickGuarded(
   guard.running = true;
   try {
     const out = tick(store, events, nowMs, engine);
+    // The array is a scratch buffer: tick appends tripEnded events via
+    // endTrip, and no consumer reads them (onTick uses changedLines only).
+    // Drain it here so ended trips do not accumulate for the life of the
+    // process. Callers that pre-fill the array for the engine call itself
+    // are unaffected: the drain happens after tick returns.
+    events.length = 0;
     return { ran: true, changedLines: out.changedLines };
   } finally {
     guard.running = false;
