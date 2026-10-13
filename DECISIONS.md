@@ -2056,3 +2056,24 @@ linked defects, all fixed in one change set:
   `resume: true` while the loop keeps running; adoption bumps the
   trip generation so straggler 404s cannot kill the revived trip.
   Anything else, or a second `gone`, ends exactly like before.
+
+## D48-2026-10-13: share lifecycle races and notify guard (Accepted)
+
+Re-audit of lifecycle races in the same family as D47:
+
+- Double taps (or two docks at once) ran duplicate share flows with
+  duplicate controllers, sheets, and server trips. `startShare` is now
+  single-flight; the flag always clears in `finally`.
+- `TripHost.attach` overwrote without disposing, leaking a previous
+  controller that kept pinging behind the new trip. It now disposes a
+  different previous controller (same instance is a no-op).
+- `confirmStillRiding` called `notifyListeners` unguarded; the RF16
+  dialog can outlive the route. Now a no-op after dispose. The other
+  notify sites were audited safe (disposed state, reset supervisor, or
+  existing `_disposed` checks).
+- Server pass: tick iteration, hub fan-out, job guards, and rate
+  limiter state are safe; start/delete event lag self-heals on the
+  5 s tick by design, no change.
+- Deferred with reason: home feed live rows still read "Agora" without
+  positions (needs home positions plumbing), per-stop scheduled ETAs
+  need stop coverage plus geometry, route-following needs T17 traces.
