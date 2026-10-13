@@ -2151,3 +2151,19 @@ item; nothing here invents stop coordinates or line-stop mapping.
   measurement first. Not built here.
 - Stops layer itself (RF20 first half) is done: D46 seed, D49
   resurvey to 12, dots on the line map, offline-first repo.
+
+## D53-2026-10-13: progress sheet popped on the wrong navigator (Accepted)
+
+Bug: the share progress sheet opens with `useRootNavigator: true`
+(above the shell dock pill, D-U26), but the success path closed it
+with a branch `Navigator.of(context).pop()`. Under the production
+`StatefulShellRoute` that pop is a silent no-op, stranding the stale
+progress sheet over the trip screen until the rider manually closes
+it. Widget tests never caught it: single-navigator harnesses make
+root and branch pops identical.
+
+Fix: pop through the root navigator on success, and clear the
+`sheetOpen` flag synchronously in every sheet-button callback so a
+user close racing a start completion cannot double-pop. Verified by
+reading only; needs a shell-harness widget test plus a device pass
+(no Flutter toolchain on this host).
