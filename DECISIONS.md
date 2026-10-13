@@ -2009,3 +2009,24 @@ untouched): start answers W/n:10, second moving ping promotes to L/n:5,
 leader holds n:5, snapshot age 6 s with pace. Sim 75 s (1 bus,
 2 riders, line 60): 30 pings, 1 hand-over, 28 WS snapshots,
 lastVehicleAgeS 0, p95 5 s, zero errors.
+
+## D46-2026-10-13: stops layer promoted to alpha, OSM seed (Accepted)
+
+Field report: no stop points on the map. Owner order promotes RF20
+(stops layer) from later to alpha scope; per-stop ETA and
+user-relative scheduled times stay pending on coverage plus route
+geometry.
+
+Findings: OpenStreetMap holds only 8 waiting-place nodes for the whole
+city (6 `highway=bus_stop`, 2 `public_transport=platform`, all near
+the center, mostly unnamed); `stop_position` nodes are on-road points,
+not waiting places, and were excluded. City-wide coverage needs an
+owner field survey, like route traces (T17). Nothing was invented:
+every stop carries its OSM node id and `src`.
+
+Shipped: `data/stops.json` source plus schema, validation, and
+content-hashed bundle output with a manifest key (old readers ignore
+it); offline-first client load with cached-then-bundle fallback that
+never breaks lines; stop dots on the line map under the vehicles;
+assets and Pages publish wired. Survey-scale hundreds will need a zoom
+gate or cap on the marker layer.

@@ -235,6 +235,8 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     double controlsBottomPadding = Space.x3,
   }) {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
+    final List<StopPoint> stops =
+        ref.watch(stopsProvider).value ?? const <StopPoint>[];
     return LineMap(
       // Global key so the parent can command the camera without rebuilding
       // the map when the sheet moves.
@@ -242,6 +244,7 @@ class _LineScreenState extends ConsumerState<LineScreen> {
       lineKey: _staticLine?.code ?? '',
       vehicles: vehicles,
       tileUrlTemplate: tileUrl,
+      stops: stops,
       panned: _panned,
       selectedKey: _selectedKey,
       viewerPosition: ref.watch(viewerLocationProvider).value,
