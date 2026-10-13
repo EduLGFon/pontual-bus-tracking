@@ -2077,3 +2077,23 @@ Re-audit of lifecycle races in the same family as D47:
 - Deferred with reason: home feed live rows still read "Agora" without
   positions (needs home positions plumbing), per-stop scheduled ETAs
   need stop coverage plus geometry, route-following needs T17 traces.
+
+## D49-2026-10-13: stops resurvey, 8 to 12 OSM nodes (Accepted)
+
+Field report said the stop dots do not reflect real stops. Checked
+against live OSM via Overpass plus every outside source named:
+
+- Client render verified correct (`LatLng(stop.lat, stop.lng)`,
+  `StopPoint.fromJson` maps lat to lat): the 8 stored dots sit
+  exactly on their OSM nodes, so nothing is misplaced by code.
+  The complaint is coverage: 6 unnamed center nodes plus 2 named
+  "Ponto de ônibus" for a whole city.
+- The first seed missed 4 in-bbox nodes that all predate it
+  (2018-2023): named `Guriri`, 2x `Entrada do Jaguaré`, one unnamed
+  northern coastal stop. Added with `src: osm`, ids sorted,
+  validator plus builder green (12 stops).
+- No other licensed coordinates exist: operator site and
+  onibus.online carry street itineraries only, SGBus/Mobilibus has
+  no public API or open data, Google/Moovit are proprietary (Moovit
+  scraping is a hard limit), no GTFS feed. Full coverage still
+  needs the owner field survey with mapping into OSM (T17 pattern).
