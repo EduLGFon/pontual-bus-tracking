@@ -20,12 +20,14 @@ import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/share_flow.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/design/components/permission_card.dart';
+import 'package:pontual/ui/design/components/trip_dock.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:pontual/ui/features/trip/trip_flow.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/router/app_router.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -343,6 +345,39 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byType(SystemScreen), findsWidgets);
       expect(find.byType(TripScreen), findsNothing);
+    });
+  });
+
+  group('dock return', () {
+    testWidgets('active dock opens the live trip, not the fallback', (
+      WidgetTester tester,
+    ) async {
+      final Rig r = rig(happy());
+      await start(r);
+      final GoRouter router = buildUiRouter();
+      await tester.pumpWidget(
+        ProviderScope(child: MaterialApp.router(routerConfig: router)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // Attach through the mounted container: the notifier cannot take
+      // state before its provider initializes.
+      final BuildContext ctx = tester.element(find.byType(MaterialApp));
+      ProviderScope.containerOf(
+        ctx,
+      ).read(tripHostProvider.notifier).attach(r.controller);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byType(TripDock).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // The dock must carry the controller in extra: without it the
+      // router renders the not-found fallback and the live trip is lost.
+      expect(find.byType(TripScreen), findsWidgets);
+      expect(find.byType(SystemScreen), findsNothing);
+      expect(tester.takeException(), isNull);
+      r.controller.dispose();
+      await r.positions.close();
     });
   });
 
