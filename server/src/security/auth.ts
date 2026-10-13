@@ -5,7 +5,7 @@
 import type { Context, Next } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
 import { findDeviceByTokenHash } from "../db/devices.ts";
-import { bearerToken, tokenHash } from "./token.ts";
+import { bearerToken, hashHex, tokenHash } from "./token.ts";
 
 interface CacheEntry {
   deviceId: string;
@@ -22,12 +22,8 @@ const CACHE_TTL_MS = 60 * 1000;
 const CACHE_MAX = 5000;
 
 /** Evict a token hash from the cache (revocation path). */
-export function evictTokenHash(hashHex: string): void {
-  cache.delete(hashHex);
-}
-
-function hashHex(hash: Uint8Array): string {
-  return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
+export function evictTokenHash(hashHexKey: string): void {
+  cache.delete(hashHexKey);
 }
 
 export function authMiddleware(sql: Sql) {

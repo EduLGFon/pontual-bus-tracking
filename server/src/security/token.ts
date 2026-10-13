@@ -39,3 +39,9 @@ export async function tokenHash(token: string): Promise<Uint8Array> {
   );
   return new Uint8Array(digest);
 }
+
+/** Hex rendering of a hash, for cache keys. Single home for the
+ * conversion so auth and account routes cannot drift apart. */
+export function hashHex(hash: Uint8Array): string {
+  return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
+}

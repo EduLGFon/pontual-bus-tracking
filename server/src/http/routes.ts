@@ -9,7 +9,12 @@ import { recordConsent } from "../db/consents.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import { ConsentsBody, DevicesBody, parseJson } from "./schemas.ts";
 import { authMiddleware, evictTokenHash } from "../security/auth.ts";
-import { bearerToken, generateToken, tokenHash } from "../security/token.ts";
+import {
+  bearerToken,
+  generateToken,
+  hashHex,
+  tokenHash,
+} from "../security/token.ts";
 import { RateLimiter } from "../security/rateLimit.ts";
 
 const DEVICE_TTL_MS = 30 * 86400 * 1000;
@@ -18,10 +23,6 @@ const BODY_CAP = 1024;
 type Vars = {
   Variables: { requestId: string; deviceId: string; clientIp: string };
 };
-
-function hex(hash: Uint8Array): string {
-  return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 type Body = { kind: "json"; value: unknown } | { kind: "media" } | {
   kind: "empty";
@@ -111,7 +112,7 @@ export function buildAccountRoutes(deps: {
     }
     const token = bearerToken(c.req.header("authorization") ?? null);
     await deleteDevice(sql, deviceId);
-    if (token) evictTokenHash(hex(await tokenHash(token)));
+    if (token) evictTokenHash(hashHex(await tokenHash(token)));
     return c.body(null, 204);
   });
 
