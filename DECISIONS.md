@@ -1980,3 +1980,230 @@ background viewer-stream stop; web hidden-tab GPS pause; sheet/map
 rebuild memoization; `LineScreen.build` leaf split; timetable rail
 un-nesting; size-budget ADRs for arm64 (~20.8 vs 15 MB) and web
 (~3.10 vs 3.0 MB gz).
+
+## D45-2026-10-13: ping cadence toward 5 s map updates (Accepted)
+
+Field report: bus positions often arrived 30 s apart, sometimes 45 s,
+even on stable GPS and data. Owner order: the bus must update around
+every 5 s.
+
+Change: leader moving 15 s to 5 s, leader still 30 s to 15 s, follower
+90 s to 45 s, waiting 20 s to 10 s. Server
+`defaultEngineConfig` plus the client `settingsFor` stream intervals
+move together, so the location stream always emits at least as fast as
+the instructed `n`. PLAN.md RF08, section 6.3 table, section 8.5
+sampling table, KL1, and RNF03 updated in the same change set.
+
+Trade-offs: leader data rises to about 0.45 MB/h and follower to about
+0.05 MB/h at the measured 0.62 KB per ping (RNF03 updated, still tiny
+in absolute terms). Leader battery cost rises with 5 s high-accuracy
+GPS plus radio; RNF02 (4 percent/h) is unchanged and must be confirmed
+on phones in the T47 field test. The 4 s `min_ping_interval_s` rate
+guard is untouched, so fast web streams still sample safely. Follower
+promotion worst case halves to about 45 s (KL1).
+
+## D45-verify-2026-10-13: 5 s cadence proven on a live smoke server
+
+Isolated server on 8081 plus throwaway PG (owner 8080 process left
+untouched): start answers W/n:10, second moving ping promotes to L/n:5,
+leader holds n:5, snapshot age 6 s with pace. Sim 75 s (1 bus,
+2 riders, line 60): 30 pings, 1 hand-over, 28 WS snapshots,
+lastVehicleAgeS 0, p95 5 s, zero errors.
+
+## D46-2026-10-13: stops layer promoted to alpha, OSM seed (Accepted)
+
+Field report: no stop points on the map. Owner order promotes RF20
+(stops layer) from later to alpha scope; per-stop ETA and
+user-relative scheduled times stay pending on coverage plus route
+geometry.
+
+Findings: OpenStreetMap holds only 8 waiting-place nodes for the whole
+city (6 `highway=bus_stop`, 2 `public_transport=platform`, all near
+the center, mostly unnamed); `stop_position` nodes are on-road points,
+not waiting places, and were excluded. City-wide coverage needs an
+owner field survey, like route traces (T17). Nothing was invented:
+every stop carries its OSM node id and `src`.
+
+Shipped: `data/stops.json` source plus schema, validation, and
+content-hashed bundle output with a manifest key (old readers ignore
+it); offline-first client load with cached-then-bundle fallback that
+never breaks lines; stop dots on the line map under the vehicles;
+assets and Pages publish wired. Survey-scale hundreds will need a zoom
+gate or cap on the marker layer.
+
+## D47-2026-10-13: stale-pump poisoning, dead gone/auth, revive-once (Accepted)
+
+Field report: sharing looked active but sent nothing for minutes, and a
+second trip ended on its first pings. Code inspection proved three
+linked defects, all fixed in one change set:
+
+- The ping pump outlived the trip. `_stopLocal` dropped the client
+  without stopping a retry parked in backoff (up to 60 s), which woke
+  up and applied a stale fix to the next trip's server record: same
+  device, so the server cannot tell the trips apart. Stale seq numbers
+  got real fixes ignored as duplicates, stale positions jumped the
+  marker, and bad ones spent strikes on the innocent trip.
+  `PingClient.close()` (called on every local stop) ends all future
+  sends and outcomes.
+- Terminal record states never surfaced. The send closure collapsed
+  every HTTP error to status 0, so the designed 401-refresh and
+  404-gone outcomes were dead code: trips hung offline forever on a
+  deleted record instead of ending or resuming. `gone` and `auth`
+  codes now map to 404/401 replies; everything transient still backs
+  off. A persistently dead token now ends the trip.
+- No resume existed. A `gone` on a live trip (own late trip-end,
+  server restart per KL6) re-creates the record once with
+  `resume: true` while the loop keeps running; adoption bumps the
+  trip generation so straggler 404s cannot kill the revived trip.
+  Anything else, or a second `gone`, ends exactly like before.
+
+## D48-2026-10-13: share lifecycle races and notify guard (Accepted)
+
+Re-audit of lifecycle races in the same family as D47:
+
+- Double taps (or two docks at once) ran duplicate share flows with
+  duplicate controllers, sheets, and server trips. `startShare` is now
+  single-flight; the flag always clears in `finally`.
+- `TripHost.attach` overwrote without disposing, leaking a previous
+  controller that kept pinging behind the new trip. It now disposes a
+  different previous controller (same instance is a no-op).
+- `confirmStillRiding` called `notifyListeners` unguarded; the RF16
+  dialog can outlive the route. Now a no-op after dispose. The other
+  notify sites were audited safe (disposed state, reset supervisor, or
+  existing `_disposed` checks).
+- Server pass: tick iteration, hub fan-out, job guards, and rate
+  limiter state are safe; start/delete event lag self-heals on the
+  5 s tick by design, no change.
+- Deferred with reason: home feed live rows still read "Agora" without
+  positions (needs home positions plumbing), per-stop scheduled ETAs
+  need stop coverage plus geometry, route-following needs T17 traces.
+
+## D49-2026-10-13: stops resurvey, 8 to 12 OSM nodes (Accepted)
+
+Field report said the stop dots do not reflect real stops. Checked
+against live OSM via Overpass plus every outside source named:
+
+- Client render verified correct (`LatLng(stop.lat, stop.lng)`,
+  `StopPoint.fromJson` maps lat to lat): the 8 stored dots sit
+  exactly on their OSM nodes, so nothing is misplaced by code.
+  The complaint is coverage: 6 unnamed center nodes plus 2 named
+  "Ponto de ônibus" for a whole city.
+- The first seed missed 4 in-bbox nodes that all predate it
+  (2018-2023): named `Guriri`, 2x `Entrada do Jaguaré`, one unnamed
+  northern coastal stop. Added with `src: osm`, ids sorted,
+  validator plus builder green (12 stops).
+- No other licensed coordinates exist: operator site and
+  onibus.online carry street itineraries only, SGBus/Mobilibus has
+  no public API or open data, Google/Moovit are proprietary (Moovit
+  scraping is a hard limit), no GTFS feed. Full coverage still
+  needs the owner field survey with mapping into OSM (T17 pattern).
+
+## D50-2026-10-13: prediction horizon starts at staleness onset (Accepted)
+
+Bug: `vehicleVmOf` checked `ageS <= predictedWhileS` (30 s) after the
+live branch already took every age under `liveFreshS` (45 s), so the
+predicted branch was unreachable dead code. No bus ever rendered as a
+labeled moving prediction, and the `liveHeroOf` predicted fallback
+plus the ghost-marker chain never fired: stale buses flipped straight
+from live to gray hold, and the hero ETA vanished instead of
+degrading. The df71a38 cap (120 to 30 s) caused it by shrinking the
+window below the live threshold, and its test used age 25 (live, not
+stale), so the red test hid inside a green-file claim.
+
+Fix: the 30 s window now runs past the staleness onset
+(`ageS <= liveFreshS + predictedWhileS`, 75 s total horizon).
+Tests use genuinely stale ages: 50 for predict-forward, 80 for
+hold-at-fix. Stopped and very-old cases unchanged.
+
+## D51-2026-10-13: predicted arrivals exempt from staleness flip (Accepted)
+
+Follow-up to D50: `isStaleArrival` marked every non-scheduled arrival
+with `asOf` older than 45 s as stale, including predicted ones (age
+46-75 by design). Any caller would have flipped a labeled prediction
+back to a stale "Última posição" row. Narrowed to live-only aging;
+scheduled never stales, predicted carries its horizon upstream.
+No production caller today; the helper plus one new test pin the
+contract for the next caller.
+
+## D52-2026-10-13: per-stop ETA and user-relative times hunt list (Proposed)
+
+Owner order: keep this list open and work it until done. Status per
+item; nothing here invents stop coordinates or line-stop mapping.
+
+- Per-stop ETA (bus arrives at stop X in N min). Needs all three:
+  (a) stop coverage (12 OSM nodes after D49; hundreds needed, owner
+  field survey mapping into OSM), (b) line-to-stop mapping (no
+  source: itineraries are street names, no GTFS, SGBus API is
+  private), (c) route geometry for along-route distance (T17
+  traces). Until then any "ETA" is straight-line distance over
+  pace, a lower bound only. No code ships until (a) plus (b)
+  exist; (c) upgrades accuracy later. Next action is owner-side:
+  survey plus outreach to the operator for the stop registry.
+- Scheduled user-relative times ("your bus in 12 min"). Same
+  blocker: timetables are per line plus origin, and without (b) no
+  departure can be attributed to a stop. Ships with the same data.
+- Home live rows read "Agora" with no distance. Verified honest:
+  `isLive` comes from the server `/v1/live` counts, so a row means
+  a bus is actually out on that line; tap leads to the live map.
+  Positions plumbing (one stream per shortcut line) is a proposed
+  enhancement, not a fix: it reintroduces multi-socket fan-out with
+  battery and data cost, so it needs an owner decision plus budget
+  measurement first. Not built here.
+- Stops layer itself (RF20 first half) is done: D46 seed, D49
+  resurvey to 12, dots on the line map, offline-first repo.
+
+## D53-2026-10-13: progress sheet popped on the wrong navigator (Accepted)
+
+Bug: the share progress sheet opens with `useRootNavigator: true`
+(above the shell dock pill, D-U26), but the success path closed it
+with a branch `Navigator.of(context).pop()`. Under the production
+`StatefulShellRoute` that pop is a silent no-op, stranding the stale
+progress sheet over the trip screen until the rider manually closes
+it. Widget tests never caught it: single-navigator harnesses make
+root and branch pops identical.
+
+Fix: pop through the root navigator on success, and clear the
+`sheetOpen` flag synchronously in every sheet-button callback so a
+user close racing a start completion cannot double-pop. Verified by
+reading only; needs a shell-harness widget test plus a device pass
+(no Flutter toolchain on this host).
+
+## D54-2026-10-13: consent revoke half-life (Accepted client half, Proposed server half)
+
+Bug: "revogar consentimento" cleared only the local acceptance key.
+The server confirmation key survived, so the next acceptance skipped
+the POST and rode on the pre-revoke server record: revocation never
+reached the server in any form. Fixed client-side: revoke now also
+forgets the confirmation, so the next acceptance re-posts
+(reaffirmation within the current contract, quota-safe).
+
+Proposed, pending owner: true server-side revocation needs a
+`DELETE /v1/consents` endpoint (device-scoped delete, no migration).
+That is a public contract addition, so it ships only with a PLAN
+amendment and owner sign-off. Until then the privacy text must not
+claim server-side revocation; it promises re-asking, which holds.
+
+## D55-2026-10-13: live dots survive a failed poll (Accepted)
+
+Bug: any failed `GET /v1/live` made `liveProvider` return empty, so
+every live badge across home, lines, and search blanked for up to
+30 s on any network blip (flickering dots, unstable visualization).
+Fixed with a last-good holder: success refreshes it, failure serves
+it, and the very first failure still serves empty. Covered by a new
+`live_provider_test.dart` (keeps dots, starts empty).
+
+## D56-2026-10-13: cancel racing the create POST opened zombie trips (Accepted)
+
+Bug: `cancelStart` during the `POST /v1/trip` window left `_cancelled`
+set but nothing checked it after the POST returned, so the flow
+confirmed the start and opened a trip with no fixes, no pings, and no
+supervisor (rounds early-return on null). The trip screen showed a
+fake-active share; the orphan server record lingered unpublished to
+its timeout. Hittable on slow networks where the POST window is
+seconds, not milliseconds.
+
+Fix: check `aborted()` after the create POST like every other step;
+on cancel, end the fresh record best-effort via `_finish` and report
+`declined` (silent, like every other cancel). Regression test feeds a
+fix, cancels under a hanging POST, and asserts `false`, `declined`,
+idle, plus exactly one DELETE.

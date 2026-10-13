@@ -27,6 +27,11 @@ import 'package:pontual/ui/util/platform.dart';
 import 'line_chooser_sheet.dart';
 import 'permission_sheets.dart';
 
+/// True while a share flow is in flight. Double taps (and two docks at
+/// once) share one flow: a second entry returns immediately instead of
+/// starting a duplicate controller, sheet stack, and server trip.
+bool _shareInFlight = false;
+
 /// Starts sharing a trip on [line]. When [line] is null the rider picks a
 /// line first. Steps: chooser, consent disclosure, permission pre-prompt,
 /// then the existing share flow, which owns the OS prompt, the progress
@@ -45,15 +50,21 @@ Future<void> startShare(
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<void> Function() ensureNotifications = ensureNotificationPermission,
 }) async {
-  // Stable for the whole flow: the root Navigator and the container never
-  // unmount while the app lives, unlike the dock that tapped here. Read
-  // through the dock ref after an async gap throws once it is disposed.
-  final ProviderContainer container = ProviderScope.containerOf(context);
-  final BuildContext rootContext = Navigator.of(
-    context,
-    rootNavigator: true,
-  ).context;
+  if (_shareInFlight) {
+    return;
+  }
+  _shareInFlight = true;
+  BuildContext? rootContext;
   try {
+    // Stable for the whole flow: the root Navigator and the container
+    // never unmount while the app lives, unlike the dock that tapped
+    // here. Read through the dock ref after an async gap throws once it
+    // is disposed.
+    final ProviderContainer container = ProviderScope.containerOf(context);
+    rootContext = Navigator.of(
+      context,
+      rootNavigator: true,
+    ).context;
     await _startShare(
       rootContext,
       container,
@@ -63,10 +74,14 @@ Future<void> startShare(
     );
   } catch (_) {
     // The sheets above already popped: without this the tap ends on an
-    // empty screen with the error only in the zone.
-    if (rootContext.mounted) {
-      _tell(rootContext, UiStrings.shareNoConnection);
+    // empty screen with the error only in the zone. Falls back to the
+    // caller context when even the resolution failed.
+    final BuildContext ctx = rootContext ?? context;
+    if (ctx.mounted) {
+      _tell(ctx, UiStrings.shareNoConnection);
     }
+  } finally {
+    _shareInFlight = false;
   }
 }
 

@@ -133,14 +133,14 @@ void main() {
     expect(waiting, isA<AndroidSettings>());
     final AndroidSettings active =
         settingsFor(SamplingMode.leaderMoving, '60') as AndroidSettings;
-    expect(active.intervalDuration, const Duration(seconds: 12));
+    expect(active.intervalDuration, const Duration(seconds: 5));
     expect(
       active.foregroundNotificationConfig?.notificationTitle,
       contains('60'),
     );
     final AndroidSettings follower =
         settingsFor(SamplingMode.follower, '60') as AndroidSettings;
-    expect(follower.intervalDuration, const Duration(seconds: 90));
+    expect(follower.intervalDuration, const Duration(seconds: 45));
   });
 
   test('gateway constructs without platform calls', () {
@@ -223,6 +223,82 @@ void main() {
     expect(fixes.length, 2);
     expect(reads, 1);
     expect(fixes[0].batteryPct, 80);
+    service.stop();
+    await positions.close();
+  });
+
+  test('a dead position stream restarts without waiting hysteresis', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    // Same mode inside hysteresis restarts nothing while healthy.
+    service.requestMode(SamplingMode.waiting, 100000);
+    expect(opens, 1);
+    // The OS kills the position stream when location services go off.
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    service.requestMode(SamplingMode.waiting, 100000);
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
+
+  test('a silent stream restarts after the stall window', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    int now = 100000;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.waiting,
+      lineLabel: 't',
+    );
+    final Future<TripFix> first = stream.first;
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+        accuracy: 10,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    await first.timeout(const Duration(seconds: 5));
+    expect(opens, 1);
+    // Inside the stall window the same mode restarts nothing.
+    now = 100000 + LocationService.stallRestartMs - 1000;
+    service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 1);
+    // Past it with no fix since, the stream recreates.
+    now = 100000 + LocationService.stallRestartMs + 1000;
+    service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 2);
     service.stop();
     await positions.close();
   });

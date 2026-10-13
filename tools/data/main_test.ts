@@ -3,6 +3,7 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   buildBundle,
   checkSemantics,
+  checkStopsSemantics,
   checkStructure,
   readLineFiles,
 } from "./main.ts";
@@ -66,6 +67,32 @@ Deno.test("semantics rejects duplicates and unsorted times", () => {
   checkSemantics([line(1, "a1", ["05:30", "06:10"])]);
   assertEquals(typeof checkSemantics, "function");
   assert(true);
+});
+
+Deno.test("stops semantics: unique sorted ids inside the area", () => {
+  const stop = (id: string, lat = -18.72, lng = -39.85) => ({
+    id,
+    name: null,
+    lat,
+    lng,
+    src: "osm",
+  });
+  assertThrows(
+    () => checkStopsSemantics([stop("s1"), stop("s1")]),
+    Error,
+    "duplicate id",
+  );
+  assertThrows(
+    () => checkStopsSemantics([stop("s2"), stop("s1")]),
+    Error,
+    "sorted",
+  );
+  assertThrows(
+    () => checkStopsSemantics([stop("s1", -18.0, -39.85)]),
+    Error,
+    "outside",
+  );
+  checkStopsSemantics([stop("s1"), stop("s2")]);
 });
 
 Deno.test("bundle writes headers with revalidation rules", async () => {

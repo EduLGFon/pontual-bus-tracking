@@ -211,6 +211,27 @@ void main() {
     expect(round.endReason, isNull);
   });
 
+  test('flowing fixes forgive permission flaps', () async {
+    final FakeGateway gateway = FakeGateway()
+      ..permission = LocationPermissionState.denied;
+    final TripSupervisor supervisor = TripSupervisor(gateway: gateway);
+    supervisor.begin(0);
+    await supervisor.pollEnvironment(1000);
+    await supervisor.pollEnvironment(2000);
+    // Positions still flow: the polls flapped, nothing was revoked.
+    supervisor.onFix(fix(8), 2500);
+    await supervisor.pollEnvironment(3000);
+    final Supervision round = supervisor.evaluate(
+      role: 'L',
+      failures: 0,
+      wasOffline: false,
+      startedAtMs: 0,
+      nowMs: 3000,
+    );
+    expect(round.endReason, isNull);
+    expect(supervisor.permissionRevoked, isFalse);
+  });
+
   test('max duration ends the trip', () {
     final FakeGateway gateway = FakeGateway();
     final TripSupervisor supervisor = TripSupervisor(gateway: gateway);

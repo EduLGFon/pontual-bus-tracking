@@ -95,14 +95,38 @@ final FutureProvider<StaticDataRepository> staticDataRepoProvider =
       final String lines = await rootBundle.loadString(
         'assets/data/$linesName',
       );
+      final String stopsName = _stopsNameOf(manifest);
+      String stops = '[]';
+      if (stopsName.isNotEmpty) {
+        try {
+          stops = await rootBundle.loadString('assets/data/$stopsName');
+        } catch (_) {
+          // No bundled stops: the repository serves an empty list.
+        }
+      }
       return StaticDataRepository(
         client: ref.watch(httpClientProvider),
         staticBaseUrl: () => staticBaseUrl,
         bundleManifestJson: manifest,
         bundleLinesJson: lines,
+        bundleStopsJson: stops,
         prefs: SharedPreferences.getInstance,
         nowMs: () => DateTime.now().millisecondsSinceEpoch,
       );
+    });
+
+/// City bus stops for the map layer. Empty until stops are mapped and on
+/// any failure: the map stands without dots, never broken.
+final FutureProvider<List<StopPoint>> stopsProvider =
+    FutureProvider<List<StopPoint>>((Ref ref) async {
+      try {
+        final StaticDataRepository repo = await ref.watch(
+          staticDataRepoProvider.future,
+        );
+        return repo.stops();
+      } catch (_) {
+        return const <StopPoint>[];
+      }
     });
 
 /// Extracts the lines file name from a manifest document.
@@ -120,6 +144,22 @@ String _linesNameOf(String manifest) {
   return 'lines.json';
 }
 
+/// Extracts the stops file name from a manifest document. Empty when the
+/// manifest names none: the map then stands without stop dots.
+String _stopsNameOf(String manifest) {
+  try {
+    final Map<String, dynamic> decoded =
+        jsonDecode(manifest) as Map<String, dynamic>;
+    final String? name = decoded['stops'] as String?;
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+  } catch (_) {
+    // Fall through to the empty fallback.
+  }
+  return '';
+}
+
 /// Cached lines shown instantly on first paint.
 final FutureProvider<List<StaticLine>> linesProvider =
     FutureProvider<List<StaticLine>>((Ref ref) async {
@@ -129,17 +169,49 @@ final FutureProvider<List<StaticLine>> linesProvider =
       return repo.lines();
     });
 
-/// Live-lines indicator. Loading or error states show no dots rather than
-/// spinners: cached content never waits on the network.
+/// Last good live-lines payload. A failed poll keeps these dots instead
+/// of blanking every live badge for up to 30 s on any network blip.
+class LastLive extends Notifier<LiveLines> {
+  /// Creates the holder with no lines live.
+  LastLive() : super();
+
+  @override
+  LiveLines build() => const LiveLines(<List<int>>[]);
+
+  /// Remembers [live] as the last good payload.
+  void set(LiveLines live) {
+    state = live;
+  }
+}
+
+/// Holds the last good live-lines payload across failed polls.
+final NotifierProvider<LastLive, LiveLines> lastLiveProvider =
+    NotifierProvider<LastLive, LiveLines>(LastLive.new);
+
+/// Live-lines indicator. Loading or error states keep the last good dots
+/// rather than spinners or blanking: cached content never waits on the
+/// network. Re-fetches on [liveTickProvider] so home and line rows stop
+/// showing yesterday's dots instead of needing a reload.
 final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
   Ref ref,
 ) async {
+  ref.watch(liveTickProvider);
   final BusApi api = ref.watch(busApiProvider);
   final result = await api.getLive();
   if (result is Ok<LiveLines>) {
+    ref.read(lastLiveProvider.notifier).set(result.value);
     return result.value;
   }
-  return const LiveLines(<List<int>>[]);
+  return ref.read(lastLiveProvider);
+});
+
+/// Refreshes the live-lines indicator every 30 s. /v1/live is tiny and
+/// edge-cached for 10 s. Auto-disposed with the last watcher, like the
+/// vehicle tick; the app-lifetime live provider holds it while mounted.
+final StreamProvider<int> liveTickProvider = StreamProvider.autoDispose<int>((
+  Ref ref,
+) {
+  return Stream<int>.periodic(const Duration(seconds: 30), (int i) => i);
 });
 
 /// Anonymous recent arrivals per line (D30). Null while loading or on

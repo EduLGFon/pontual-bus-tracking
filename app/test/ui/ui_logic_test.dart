@@ -4,6 +4,7 @@
 // the suite pays a single test-process startup instead of seven.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -447,6 +448,16 @@ void main() {
       expect(isStaleArrival(old, etaNow), isTrue);
     });
 
+    test('isStaleArrival keeps predicted arrivals out of stale', () {
+      final ArrivalVM predicted = ArrivalVM(
+        lineKey: 'x',
+        at: etaNow,
+        certainty: Certainty.predicted,
+        asOf: etaNow.subtract(const Duration(seconds: 90)),
+      );
+      expect(isStaleArrival(predicted, etaNow), isFalse);
+    });
+
     test('arrival helpers never return negative seconds', () {
       expect(arrival(Certainty.live, etaNow).secondsUntil(etaNow), 0);
       expect(
@@ -729,6 +740,78 @@ void main() {
       expect(hero!.certainty, Certainty.predicted);
     });
 
+    test('live hero near the viewer stays live now', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 29,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+            paceKmh: 25.5,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.72, -39.85),
+      );
+      expect(hero, isNotNull);
+      expect(hero!.certainty, Certainty.live);
+      expect(hero.at, liveNow);
+    });
+
+    test('live hero far from the viewer becomes a pace ETA', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 29,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+            paceKmh: 36,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.71, -39.85),
+      );
+      expect(hero, isNotNull);
+      expect(hero!.certainty, Certainty.predicted);
+      // About 1.1 km at 10 m/s: a few minutes out, never "now".
+      final int etaS = hero.at.difference(liveNow).inSeconds;
+      expect(etaS > 60, isTrue);
+      expect(etaS < 300, isTrue);
+    });
+
+    test('live hero far without pace falls back to the timetable', () {
+      final ArrivalVM? hero = liveHeroOf(
+        '60',
+        <VehicleVM>[
+          const VehicleVM(
+            key: 1,
+            lineKey: '60',
+            lat: -18.72,
+            lng: -39.85,
+            headingDeg: 90,
+            speedKmh: 0,
+            ageSeconds: 4,
+            certainty: Certainty.live,
+          ),
+        ],
+        liveNow,
+        viewer: const LatLng(-18.71, -39.85),
+      );
+      expect(hero, isNull);
+    });
+
     test('no hero without live or predicted vehicles', () {
       expect(
         liveHeroOf('60', <VehicleVM>[vehicle(400, Certainty.stale)], liveNow),
@@ -853,6 +936,20 @@ void main() {
       expect(vm.paceKmh, 25.5);
     });
 
+    test('rider counts ride along to the view model', () {
+      final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+        3,
+        -18.72,
+        -39.85,
+        90,
+        29.0,
+        3,
+        4,
+        25.5,
+      ]);
+      expect(vehicleVmOf(v, lineKey: '60').members, 3);
+    });
+
     test('stale moving vehicles predict forward and are labeled', () {
       final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
         3,
@@ -861,7 +958,7 @@ void main() {
         90,
         29.0,
         1,
-        90,
+        50,
         28.8,
       ]);
       final vm = vehicleVmOf(v, lineKey: '60');
@@ -869,6 +966,23 @@ void main() {
       // Eastward heading moves longitude forward, latitude stays.
       expect(vm.lng > -39.85, isTrue);
       expect((vm.lat - -18.72).abs() < 0.001, isTrue);
+    });
+
+    test('old predictions hold at the last fix, never off-road', () {
+      final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+        3,
+        -18.72,
+        -39.85,
+        90,
+        29.0,
+        1,
+        80,
+        28.8,
+      ]);
+      final vm = vehicleVmOf(v, lineKey: '60');
+      expect(vm.certainty, Certainty.stale);
+      expect(vm.lat, -18.72);
+      expect(vm.lng, -39.85);
     });
 
     test('stopped buses never predict', () {

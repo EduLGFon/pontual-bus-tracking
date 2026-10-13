@@ -11,11 +11,12 @@ export function snapshotRows(
   lineId: number,
   nowMs: number,
   publishTtlS: number,
+  memberAliveS: number,
 ): SnapshotRow[] {
   const vehicles = vehiclesOfLine(store, lineId);
   const members = new Map();
   for (const v of vehicles) {
-    members.set(v.id, membersOf(store, v.id, nowMs, 300));
+    members.set(v.id, membersOf(store, v.id, nowMs, memberAliveS));
   }
   return buildSnapshot(vehicles, members, lineId, nowMs, publishTtlS).v;
 }
@@ -26,10 +27,11 @@ export function lineSnapshot(
   lineId: number,
   nowMs: number,
   publishTtlS: number,
+  memberAliveS: number,
 ): { body: string; etag: string } {
   const snap = {
     t: Math.floor(nowMs / 1000),
-    v: snapshotRows(store, lineId, nowMs, publishTtlS),
+    v: snapshotRows(store, lineId, nowMs, publishTtlS, memberAliveS),
   };
   const body = JSON.stringify(snap);
   return { body, etag: etagOf(body) };
@@ -40,10 +42,12 @@ export function livePayload(
   store: Store,
   nowMs: number,
   publishTtlS: number,
+  memberAliveS: number,
 ): { body: string } {
   const rows: [number, number][] = [];
   for (const [lineId] of store.byLine) {
-    const count = snapshotRows(store, lineId, nowMs, publishTtlS).length;
+    const count =
+      snapshotRows(store, lineId, nowMs, publishTtlS, memberAliveS).length;
     if (count > 0) rows.push([lineId, count]);
   }
   rows.sort((a, b) => a[0] - b[0]);

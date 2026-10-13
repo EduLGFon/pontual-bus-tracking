@@ -10,6 +10,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:pontual/core/geo/geo.dart' as geo;
+import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
@@ -54,6 +55,7 @@ class LineMap extends StatefulWidget {
     required this.onLocateBus,
     this.httpClient,
     this.routePoints = const <LatLng>[],
+    this.stops = const <StopPoint>[],
     this.dashedRoute = false,
     this.selectedKey,
     this.onVehicleTap,
@@ -77,6 +79,11 @@ class LineMap extends StatefulWidget {
 
   /// Route polyline points, empty until route data exists.
   final List<LatLng> routePoints;
+
+  /// City bus stops to draw as small dots, empty until mapped. Drawn
+  /// under the vehicles; survey-scale hundreds need a zoom gate or cap,
+  /// but the mapped handful needs none.
+  final List<StopPoint> stops;
 
   /// Draws the route dashed instead of solid.
   final bool dashedRoute;
@@ -300,6 +307,21 @@ class LineMapState extends State<LineMap> {
                     dashed: widget.dashedRoute,
                   ),
                 ],
+                if (widget.stops.isNotEmpty)
+                  MarkerLayer(
+                    rotate: false,
+                    alignment: Alignment.center,
+                    markers: <Marker>[
+                      for (final StopPoint stop in widget.stops)
+                        Marker(
+                          key: ValueKey<String>('stop-${stop.id}'),
+                          point: LatLng(stop.lat, stop.lng),
+                          width: 16,
+                          height: 16,
+                          child: _StopDot(name: stop.name),
+                        ),
+                    ],
+                  ),
                 MarkerLayer(
                   rotate: false,
                   alignment: Alignment.center,
@@ -423,6 +445,36 @@ class _ViewerDot extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: colors.surface, width: 2.5),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bus stop dot: small muted circle with a surface ring. Never a bus
+/// glyph and never pulsing, so it cannot read as a vehicle. Names come
+/// from survey or OSM data, never invented.
+class _StopDot extends StatelessWidget {
+  /// Creates a stop dot with the posted [name], if mapped.
+  const _StopDot({this.name});
+
+  /// Posted stop name, null when unmapped.
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      label: name == null || name!.isEmpty ? 'Ponto de ônibus' : 'Ponto: $name',
+      child: Center(
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: colors.inkMuted,
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.surface, width: 2),
           ),
         ),
       ),

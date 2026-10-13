@@ -72,7 +72,7 @@ jobs:
         run: |
           rm -rf pages && mkdir -p pages/data pages/maps
           cp -r app/build/web/* pages/
-          cp build/lines.*.json build/manifest.json build/config.json pages/data/
+          cp build/lines.*.json build/stops.*.json build/manifest.json build/config.json pages/data/
           cp build/sao_mateus.pmtiles pages/maps/
           cp pages/index.html pages/404.html
           touch pages/.nojekyll

@@ -76,6 +76,7 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{
         tokenPrefsKey: 'bm1_x',
         consentVersionKey: 1,
+        consentPostedKey: 1,
       });
       bool ended = false;
       final PrivacyActions actions = PrivacyActions(
@@ -90,6 +91,7 @@ void main() {
       await actions.revokeConsent();
       expect(ended, isTrue);
       expect(await const ConsentStore().read(), isNull);
+      expect(await const ConsentStore().readPosted(), isNull);
     });
   });
 

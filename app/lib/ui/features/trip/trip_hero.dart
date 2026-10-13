@@ -185,6 +185,10 @@ class _TripTimesState extends State<_TripTimes> {
   @override
   void initState() {
     super.initState();
+    // A ping success moves lastSuccessMs past the 5 s cached clock, which
+    // rendered negative ages like "-3s". Refresh on every controller
+    // notification so the age is measured against the real now.
+    widget.controller.addListener(_onController);
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) {
         setState(() => _nowMs = widget.nowMs());
@@ -192,8 +196,18 @@ class _TripTimesState extends State<_TripTimes> {
     });
   }
 
+  /// Refreshes the render clock when the controller notifies (ping
+  /// success, role change, prompt flip), so a fresh success never reads
+  /// older than the cached tick.
+  void _onController() {
+    if (mounted) {
+      setState(() => _nowMs = widget.nowMs());
+    }
+  }
+
   @override
   void dispose() {
+    widget.controller.removeListener(_onController);
     _timer?.cancel();
     super.dispose();
   }
@@ -204,6 +218,12 @@ class _TripTimesState extends State<_TripTimes> {
     final int? lastSuccessMs = widget.controller.lastSuccessMs;
     final bool stale =
         lastSuccessMs != null && _nowMs - lastSuccessMs > staleSendAfterMs;
+    // Clamped at zero: with the listener above this is normally fresh, but
+    // an injected test clock can still sit behind the success timestamp.
+    final int rawSentS = lastSuccessMs == null
+        ? 0
+        : (_nowMs - lastSuccessMs) ~/ 1000;
+    final int lastSentS = rawSentS < 0 ? 0 : rawSentS;
     final colors = context.colors;
     return Column(
       children: <Widget>[
@@ -220,12 +240,9 @@ class _TripTimesState extends State<_TripTimes> {
         if (lastSuccessMs != null) ...<Widget>[
           const SizedBox(height: Space.x1),
           Semantics(
-            label:
-                'Última posição enviada ${UiStrings.agoLong((_nowMs - lastSuccessMs) ~/ 1000)}',
+            label: 'Última posição enviada ${UiStrings.agoLong(lastSentS)}',
             child: Text(
-              UiStrings.lastSentAgo(
-                UiStrings.agoShort((_nowMs - lastSuccessMs) ~/ 1000),
-              ),
+              UiStrings.lastSentAgo(UiStrings.agoShort(lastSentS)),
               style: context.text.caption.copyWith(
                 color: stale ? colors.warningText : colors.inkMuted,
               ),

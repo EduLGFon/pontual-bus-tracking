@@ -11,9 +11,14 @@ class TripHost extends Notifier<TripController?> {
   @override
   TripController? build() => null;
 
-  /// Attaches a started controller.
+  /// Attaches a started controller. Disposes a different previous one:
+  /// a superseded share flow must never keep pinging behind the new trip.
   void attach(TripController controller) {
+    final TripController? current = state;
     state = controller;
+    if (current != null && current != controller) {
+      current.dispose();
+    }
   }
 
   /// Detaches and disposes the controller.

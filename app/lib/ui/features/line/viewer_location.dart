@@ -20,6 +20,10 @@ const double viewerAccuracyMaxM = 200;
 /// here), data saver on (the power-saving mode), lookup failure or timeout,
 /// a coarse fix, and a fix outside the served area.
 ///
+/// The lookup uses medium accuracy with a generous timeout: it runs once
+/// per mount and the map never waits for it, so a slow first fix still
+/// lands as a dot instead of leaving the rider at the city fallback.
+///
 /// Auto-disposed: the lookup re-runs per screen mount, so a moved viewer
 /// never sees a stale app-lifetime dot.
 final FutureProvider<LatLng?> viewerLocationProvider =
@@ -35,10 +39,10 @@ final FutureProvider<LatLng?> viewerLocationProvider =
         }
         final Position position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 8),
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 15),
           ),
-        ).timeout(const Duration(seconds: 10));
+        ).timeout(const Duration(seconds: 20));
         if (position.accuracy > viewerAccuracyMaxM) {
           return null;
         }

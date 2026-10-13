@@ -6,8 +6,11 @@
 const ROOT = new URL("../../", import.meta.url);
 const LINES_DIR = new URL("data/lines/", ROOT);
 const SCHEMA_URL = new URL("data/schema/line.schema.json", ROOT);
+const STOPS_URL = new URL("data/stops.json", ROOT);
+const STOPS_SCHEMA_URL = new URL("data/schema/stops.schema.json", ROOT);
 const BUILD_DIR = new URL("build/", ROOT);
 const SIZE_BUDGET = 100 * 1024;
+const STOPS_BUDGET = 32 * 1024;
 
 export interface LineFile {
   path: string;
@@ -199,6 +202,61 @@ export function checkSemantics(files: LineFile[]): void {
   }
 }
 
+export interface StopPoint {
+  id: string;
+  name: string | null;
+  lat: number;
+  lng: number;
+  src: string;
+}
+
+/** Read and validate the city bus stops. Absence means none mapped yet. */
+export async function readStopsFile(): Promise<StopPoint[]> {
+  let text: string;
+  try {
+    text = await Deno.readTextFile(STOPS_URL);
+  } catch {
+    return [];
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("stops.json: invalid JSON");
+  }
+  if (!Array.isArray(data)) {
+    throw new Error("stops.json: root must be an array");
+  }
+  const schema = JSON.parse(await Deno.readTextFile(STOPS_SCHEMA_URL));
+  const out: StopPoint[] = [];
+  for (const [i, item] of data.entries()) {
+    checkStructure(`stops.json[${i}]`, schema, item);
+    out.push(item as StopPoint);
+  }
+  checkStopsSemantics(out);
+  return out;
+}
+
+/** Semantic checks: unique sorted ids, served-area bbox, size budget. */
+export function checkStopsSemantics(stops: StopPoint[]): void {
+  const ids = new Set<string>();
+  let total = 0;
+  let prev = "";
+  for (const s of stops) {
+    if (ids.has(s.id)) throw new Error(`stops.json: duplicate id ${s.id}`);
+    ids.add(s.id);
+    if (s.id < prev) throw new Error("stops.json: ids must be sorted");
+    prev = s.id;
+    if (s.lat < -19.05 || s.lat > -18.40 || s.lng < -40.25 || s.lng > -39.55) {
+      throw new Error(`stops.json: ${s.id} outside the served area`);
+    }
+    total += JSON.stringify(s).length;
+  }
+  if (total > STOPS_BUDGET) {
+    throw new Error(`stops exceed size budget: ${total} > ${STOPS_BUDGET}`);
+  }
+}
+
 async function sha12(text: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -211,6 +269,7 @@ async function sha12(text: string): Promise<string> {
 /** Build the deployed bundle into build/. Returns the manifest. */
 export async function buildBundle(
   files: LineFile[],
+  stops: StopPoint[] = [],
 ): Promise<Record<string, unknown>> {
   const { encodePolyline, parseGeoJson } = await import("../route/main.ts");
   const lines = files.map((f) => f.data).sort((a, b) =>
@@ -254,10 +313,18 @@ export async function buildBundle(
     routes[code] = `routes/${name}`;
   }
 
+  let stopsName: string | null = null;
+  if (stops.length > 0) {
+    const stopsText = JSON.stringify(stops);
+    stopsName = `stops.${await sha12(stopsText)}.json`;
+    await Deno.writeTextFile(new URL(stopsName, BUILD_DIR), stopsText);
+  }
+
   const manifest = {
     data_version: linesHash,
     lines: linesName,
     routes,
+    stops: stopsName,
     generated_at: new Date().toISOString(),
   };
   await Deno.writeTextFile(
@@ -303,10 +370,11 @@ if (import.meta.main) {
   const cmd = Deno.args[0];
   const files = await readLineFiles();
   checkSemantics(files);
+  const stops = await readStopsFile();
   if (cmd === "validate") {
-    console.log(`valid: ${files.length} line files`);
+    console.log(`valid: ${files.length} line files, ${stops.length} stops`);
   } else if (cmd === "build") {
-    const manifest = await buildBundle(files);
+    const manifest = await buildBundle(files, stops);
     console.log(`built: ${JSON.stringify(manifest)}`);
   } else {
     console.error("usage: main.ts validate|build");

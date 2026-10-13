@@ -10,9 +10,13 @@ import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 
-/// Last age in seconds that still renders a moving prediction.
-/// Beyond this the vehicle reads stale at its last fix.
-const int predictedWhileS = 120;
+/// Seconds of moving prediction past the staleness onset. Straight-line
+/// dead reckoning leaves the road within seconds on curves, so the horizon
+/// stays short: a bus older than `liveFreshS + predictedWhileS` holds at
+/// its last fix as a gray stale ghost until the server TTL drops it.
+/// Following the line way needs route geometry, which waits for field
+/// traces (T17).
+const int predictedWhileS = 30;
 
 /// Minimum effective pace in km/h for a prediction. Stopped buses
 /// never predict forward.
@@ -37,10 +41,11 @@ VehicleVM vehicleVmOf(
       certainty: Certainty.live,
       ordinal: ordinal,
       paceKmh: vehicle.paceKmh,
+      members: vehicle.members,
     );
   }
   final double paceKmh = vehicle.paceKmh ?? vehicle.kmh;
-  if (ageS <= predictedWhileS &&
+  if (ageS <= liveFreshS + predictedWhileS &&
       vehicle.heading != null &&
       paceKmh >= predictedMinKmh) {
     final LatLng predicted = predictPosition(
@@ -61,6 +66,7 @@ VehicleVM vehicleVmOf(
       certainty: Certainty.predicted,
       ordinal: ordinal,
       paceKmh: vehicle.paceKmh,
+      members: vehicle.members,
     );
   }
   return VehicleVM(
@@ -74,6 +80,7 @@ VehicleVM vehicleVmOf(
     certainty: Certainty.stale,
     ordinal: ordinal,
     paceKmh: vehicle.paceKmh,
+    members: vehicle.members,
   );
 }
 

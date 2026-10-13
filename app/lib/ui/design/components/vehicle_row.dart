@@ -43,9 +43,15 @@ class VehicleRow extends StatelessWidget {
     final String speed = vehicle.speedKmh == null
         ? ''
         : '${vehicle.speedKmh!.round()} km/h';
+    final List<String> bits = <String>[age];
+    if (speed.isNotEmpty) {
+      bits.add(speed);
+    }
+    bits.add(UiStrings.aboard(vehicle.members));
     final String a11y =
         '$label, atualizado há ${_ageWords(vehicle.ageSeconds)}, '
-        '${vehicle.speedKmh?.round() ?? 0} quilômetros por hora.';
+        '${vehicle.speedKmh?.round() ?? 0} quilômetros por hora, '
+        '${UiStrings.aboard(vehicle.members)}.';
     return SurfaceCard(
       onTap: onTap,
       selected: selected,
@@ -65,7 +71,7 @@ class VehicleRow extends StatelessWidget {
               children: <Widget>[
                 Text(label, style: context.text.headline),
                 const SizedBox(height: Space.x1),
-                Text('$age · $speed', style: context.text.caption),
+                Text(bits.join(' · '), style: context.text.caption),
               ],
             ),
           ),

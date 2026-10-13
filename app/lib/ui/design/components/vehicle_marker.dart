@@ -9,6 +9,7 @@ import 'package:pontual/ui/design/icons/bus_icon.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Marker body diameter in dp.
 const double markerBodyDp = 36;
@@ -107,7 +108,7 @@ class VehicleMarker extends StatelessWidget {
     final int ordinal = vehicle.ordinal ?? 1;
     final int ageS = vehicle.ageSeconds;
     final String age = ageS < 60 ? '$ageS s' : '${(ageS + 59) ~/ 60} min';
-    return 'Ônibus $ordinal, há $age';
+    return 'Ônibus $ordinal, há $age, ${UiStrings.aboard(vehicle.members)}';
   }
 }
 

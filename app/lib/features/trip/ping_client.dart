@@ -71,14 +71,32 @@ class PingClient {
   bool _refreshed = false;
   int _attempt = 0;
 
+  /// Closed clients send nothing more and deliver no outcomes. The
+  /// controller closes its client on every local stop: a pump parked in
+  /// backoff must not wake up and apply a stale fix to the next trip's
+  /// server record (same device, so the server cannot tell the trips
+  /// apart). In-flight work still lands, but it is dropped here and its
+  /// outcome would be ignored by the trip generation guard anyway.
+  bool _closed = false;
+
   /// Consecutive failed sends. The controller uses it for offline saver.
   int get consecutiveFailures => _attempt;
 
-  /// Queues a fix for sending. Sends immediately when idle.
+  /// Stops all future sends and drops the parked fix. Safe to call twice.
+  void close() {
+    _closed = true;
+    _latest = null;
+  }
+
+  /// Queues a fix for sending. Sends immediately when idle. Ignored
+  /// after [close].
   void queue(
     Map<String, dynamic> fix,
     void Function(PingOutcome outcome) onOutcome,
   ) {
+    if (_closed) {
+      return;
+    }
     _latest = fix;
     if (!_inFlight) {
       unawaited(_pump(onOutcome));
@@ -89,25 +107,46 @@ class PingClient {
     _inFlight = true;
     try {
       while (_latest != null) {
+        if (_closed) {
+          return;
+        }
         final Map<String, dynamic> fix = _latest!;
         _latest = null;
         PingReply reply;
         try {
           reply = await _send(fix);
         } catch (_) {
+          if (_closed) {
+            return;
+          }
           // Keep the latest fix for retry; never queue history.
           _latest ??= fix;
           await _backoff();
           continue;
         }
+        if (_closed) {
+          return;
+        }
         if (reply.status == 401 && !_refreshed) {
           _refreshed = true;
-          await _refreshToken();
+          try {
+            await _refreshToken();
+          } catch (_) {
+            // A failing refresh is transient trouble, not a dead token:
+            // back off and retry the fix. Letting it escape would land
+            // an uncaught error in the zone and kill the pump.
+            _latest ??= fix;
+            await _backoff();
+            continue;
+          }
           _latest = fix;
           continue;
         }
-        _refreshed = false;
         if (reply.status == 200) {
+          // Only success re-arms the single refresh: a 401 after
+          // transient errors still means a dead token and must end the
+          // trip, not loop refresh calls into the registration caps.
+          _refreshed = false;
           _attempt = 0;
           onOutcome(
             PingOutcome(
@@ -125,6 +164,9 @@ class PingClient {
           onOutcome(const PingOutcome(role: 'W', intervalS: 20, end: 'gone'));
           return;
         } else {
+          if (_closed) {
+            return;
+          }
           _latest ??= fix;
           await _backoff();
         }

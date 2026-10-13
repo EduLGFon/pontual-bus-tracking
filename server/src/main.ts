@@ -100,7 +100,13 @@ function broadcastLine(lineId: number): void {
     payload = JSON.stringify({
       l: lineId,
       t: Math.floor(nowMs / 1000),
-      v: snapshotRows(store, lineId, nowMs, engine.publishTtlS),
+      v: snapshotRows(
+        store,
+        lineId,
+        nowMs,
+        engine.publishTtlS,
+        engine.memberAliveS,
+      ),
     });
   } catch {
     // Engine output is practically always valid JSON; if it ever is

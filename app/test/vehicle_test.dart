@@ -306,4 +306,25 @@ void main() {
     expect(opens, 1);
     await channel.dispose();
   });
+
+  test('frames from a dead socket are ignored', () async {
+    final FakeClock clock = FakeClock(100000);
+    final FakeChannel channel = FakeChannel();
+    final VehicleRepository r = repo(
+      clock,
+      channel,
+      snapshot: <ClientVehicle>[one],
+    );
+    await r.start(7);
+    expect(r.vehicles.length, 1);
+    r.debugSocketDown();
+    // A half-open socket delivering one delayed duplicate snapshot must
+    // not refresh the status or swap the data.
+    channel.incoming.add('{"t":100,"v":[[9,-18.8,-39.9,null,0,1,2]]}');
+    await Future<void>.delayed(Duration.zero);
+    expect(r.vehicles.length, 1);
+    expect(r.vehicles.first.id, 3);
+    await r.stop();
+    await channel.dispose();
+  });
 }

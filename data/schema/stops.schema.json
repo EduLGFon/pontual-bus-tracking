@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pontual.local/schemas/stops.schema.json",
+  "title": "Pontual bus stop (source of truth, data/stops.json)",
+  "type": "object",
+  "required": ["id", "lat", "lng", "src"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{2,40}$" },
+    "name": { "type": ["string", "null"], "maxLength": 120 },
+    "lat": { "type": "number", "minimum": -19.05, "maximum": -18.4 },
+    "lng": { "type": "number", "minimum": -40.25, "maximum": -39.55 },
+    "src": { "type": "string", "enum": ["osm", "survey"] }
+  }
+}

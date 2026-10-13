@@ -58,6 +58,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
       id,
       Date.now(),
       cfg.publishTtlS,
+      cfg.memberAliveS,
     );
     memo.set(id, { body, etag });
     if (inm === etag) {
@@ -74,7 +75,12 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
       recordHttp429();
       return c.json({ e: "rate" }, 429);
     }
-    const { body } = livePayload(deps.store, Date.now(), cfg.publishTtlS);
+    const { body } = livePayload(
+      deps.store,
+      Date.now(),
+      cfg.publishTtlS,
+      cfg.memberAliveS,
+    );
     c.header("Cache-Control", "public, max-age=10");
     return c.body(body, 200, { "content-type": "application/json" });
   });
@@ -139,7 +145,13 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
             return JSON.stringify({
               l: lineId,
               t: Math.floor(nowMs / 1000),
-              v: snapshotRows(deps.store, lineId, nowMs, cfg.publishTtlS),
+              v: snapshotRows(
+                deps.store,
+                lineId,
+                nowMs,
+                cfg.publishTtlS,
+                cfg.memberAliveS,
+              ),
             });
           } catch {
             return null;

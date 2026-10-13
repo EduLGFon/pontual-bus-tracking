@@ -149,26 +149,26 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
     case SamplingMode.waiting:
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 20),
+        intervalDuration: const Duration(seconds: 10),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderMoving:
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        intervalDuration: const Duration(seconds: 12),
+        intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderStill:
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 30),
+        intervalDuration: const Duration(seconds: 15),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.follower:
     case SamplingMode.offlineSaver:
       return AndroidSettings(
         accuracy: LocationAccuracy.low,
-        intervalDuration: const Duration(seconds: 90),
+        intervalDuration: const Duration(seconds: 45),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.paused:
@@ -218,6 +218,11 @@ class LocationService {
   final int Function() _nowMs;
 
   StreamSubscription<Position>? _sub;
+
+  /// True once the OS-side position stream errored or closed (location
+  /// services toggled off mid-trip, OEM kill). The fix stream stays open,
+  /// but no fixes arrive until the position stream is recreated.
+  bool _streamDead = false;
   int _seq = 0;
   int _lastChangeMs = 0;
   SamplingMode _mode = SamplingMode.waiting;
@@ -229,6 +234,14 @@ class LocationService {
   /// duplicate fixes do not each pay two Binder calls.
   static const int batteryCacheTtlMs = 60 * 1000;
   int? _lastBatteryReadMs;
+
+  /// Silence without any accepted fix that forces a position-stream
+  /// restart even for the same mode. The OS can freeze GPS delivery
+  /// without closing the stream (notably with the screen off), and no
+  /// error ever marks it dead: without this the trip goes quiet until
+  /// the server timeout ends it.
+  static const int stallRestartMs = 60 * 1000;
+  int? _lastFixAtMs;
 
   /// Starts emitting accepted fixes for [mode]. Recreates the stream when
   /// the policy switches modes, at most once per 30 seconds.
@@ -253,6 +266,7 @@ class LocationService {
 
   void _listen(SamplingMode m, StreamController<TripFix> controller) {
     unawaited(_sub?.cancel());
+    _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) {
         void handle() async {
@@ -304,6 +318,7 @@ class LocationService {
                   charging: chg,
                 ),
               );
+              _lastFixAtMs = atMs;
             }
           } catch (_) {
             Log.w('fix handling failed', '');
@@ -314,18 +329,36 @@ class LocationService {
       },
       onError: (Object e) {
         Log.w('position stream error', e.runtimeType.toString());
+        // The OS closes the position stream when location services go
+        // off. requestMode recreates it on the next supervision round.
+        _streamDead = true;
+      },
+      onDone: () {
+        _streamDead = true;
       },
     );
   }
 
   /// Requests a mode switch honoring hysteresis. Recreates the underlying
   /// position stream when the mode actually changes so offline saver drops
-  /// to low-power GPS. Returns the active mode.
+  /// to low-power GPS. A dead position stream recreates immediately, even
+  /// for the same mode and inside hysteresis: the trip has no fixes until
+  /// it does. A silent stream (fixes flowed, then nothing for
+  /// [stallRestartMs]) recreates too, at most once per stall window: some
+  /// devices freeze delivery without ever erroring. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
-    if (mode == _mode) {
+    final bool restartDead = _streamDead;
+    final int? fixAt = _lastFixAtMs;
+    final bool stalled =
+        _seq > 0 &&
+        fixAt != null &&
+        nowMs - fixAt > stallRestartMs &&
+        nowMs - _lastChangeMs >= stallRestartMs;
+    final bool restart = restartDead || stalled;
+    if (mode == _mode && !restart) {
       return _mode;
     }
-    if (nowMs - _lastChangeMs < streamHysteresisMs) {
+    if (!restart && nowMs - _lastChangeMs < streamHysteresisMs) {
       return _mode;
     }
     _mode = mode;

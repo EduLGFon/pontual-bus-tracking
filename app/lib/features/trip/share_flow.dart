@@ -141,6 +141,7 @@ Future<void> _shareTrip(
           tracker: tracker,
           lineLabel: line.name,
           onCancel: () {
+            sheetOpen = false;
             tracker.cancel();
             controller.cancelStart();
             if (context.mounted) {
@@ -148,6 +149,7 @@ Future<void> _shareTrip(
             }
           },
           onRetry: () {
+            sheetOpen = false;
             if (context.mounted) {
               Navigator.of(context).pop();
             }
@@ -166,6 +168,7 @@ Future<void> _shareTrip(
             );
           },
           onClose: () {
+            sheetOpen = false;
             if (context.mounted) {
               Navigator.of(context).pop();
             }
@@ -221,7 +224,11 @@ Future<void> _shareTrip(
   }
   if (started) {
     if (sheetOpen) {
-      Navigator.of(context).pop();
+      sheetOpen = false;
+      // Root navigator: the sheet opened above the shell dock pill, so
+      // only the root pop reaches it. A branch pop here is a silent
+      // no-op that strands the stale sheet over the trip screen.
+      Navigator.of(context, rootNavigator: true).pop();
     }
     context.go('/trip', extra: controller);
     return;
