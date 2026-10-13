@@ -2001,3 +2001,11 @@ GPS plus radio; RNF02 (4 percent/h) is unchanged and must be confirmed
 on phones in the T47 field test. The 4 s `min_ping_interval_s` rate
 guard is untouched, so fast web streams still sample safely. Follower
 promotion worst case halves to about 45 s (KL1).
+
+## D45-verify-2026-10-13: 5 s cadence proven on a live smoke server
+
+Isolated server on 8081 plus throwaway PG (owner 8080 process left
+untouched): start answers W/n:10, second moving ping promotes to L/n:5,
+leader holds n:5, snapshot age 6 s with pace. Sim 75 s (1 bus,
+2 riders, line 60): 30 pings, 1 hand-over, 28 WS snapshots,
+lastVehicleAgeS 0, p95 5 s, zero errors.
