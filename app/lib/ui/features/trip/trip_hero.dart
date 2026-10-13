@@ -220,9 +220,10 @@ class _TripTimesState extends State<_TripTimes> {
         lastSuccessMs != null && _nowMs - lastSuccessMs > staleSendAfterMs;
     // Clamped at zero: with the listener above this is normally fresh, but
     // an injected test clock can still sit behind the success timestamp.
-    final int lastSentS = lastSuccessMs == null
+    final int rawSentS = lastSuccessMs == null
         ? 0
-        : ((_nowMs - lastSuccessMs) ~/ 1000).clamp(0, 1 << 30);
+        : (_nowMs - lastSuccessMs) ~/ 1000;
+    final int lastSentS = rawSentS < 0 ? 0 : rawSentS;
     final colors = context.colors;
     return Column(
       children: <Widget>[
