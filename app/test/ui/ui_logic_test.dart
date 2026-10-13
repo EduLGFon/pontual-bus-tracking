@@ -861,7 +861,7 @@ void main() {
         90,
         29.0,
         1,
-        90,
+        25,
         28.8,
       ]);
       final vm = vehicleVmOf(v, lineKey: '60');
@@ -869,6 +869,23 @@ void main() {
       // Eastward heading moves longitude forward, latitude stays.
       expect(vm.lng > -39.85, isTrue);
       expect((vm.lat - -18.72).abs() < 0.001, isTrue);
+    });
+
+    test('old predictions hold at the last fix, never off-road', () {
+      final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+        3,
+        -18.72,
+        -39.85,
+        90,
+        29.0,
+        1,
+        60,
+        28.8,
+      ]);
+      final vm = vehicleVmOf(v, lineKey: '60');
+      expect(vm.certainty, Certainty.stale);
+      expect(vm.lat, -18.72);
+      expect(vm.lng, -39.85);
     });
 
     test('stopped buses never predict', () {
