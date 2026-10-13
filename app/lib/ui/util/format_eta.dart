@@ -161,10 +161,13 @@ String _clockPhrase(DateTime instant) {
   return '$hh e $mm';
 }
 
-/// True when an arrival is stale for [now].
+/// True when an arrival is stale for [now]. Only live arrivals age out:
+/// scheduled times never go stale (the timetable is the data), and
+/// predicted arrivals carry their own horizon upstream in `vehicleVmOf`,
+/// so an old `asOf` on one must not flip it back to stale here.
 bool isStaleArrival(ArrivalVM arrival, DateTime now) {
   return arrival.certainty == Certainty.stale ||
-      (arrival.certainty != Certainty.scheduled &&
+      (arrival.certainty == Certainty.live &&
           now.difference(arrival.asOf).inSeconds > liveFreshS);
 }
 

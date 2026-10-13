@@ -2114,3 +2114,13 @@ Fix: the 30 s window now runs past the staleness onset
 (`ageS <= liveFreshS + predictedWhileS`, 75 s total horizon).
 Tests use genuinely stale ages: 50 for predict-forward, 80 for
 hold-at-fix. Stopped and very-old cases unchanged.
+
+## D51-2026-10-13: predicted arrivals exempt from staleness flip (Accepted)
+
+Follow-up to D50: `isStaleArrival` marked every non-scheduled arrival
+with `asOf` older than 45 s as stale, including predicted ones (age
+46-75 by design). Any caller would have flipped a labeled prediction
+back to a stale "Última posição" row. Narrowed to live-only aging;
+scheduled never stales, predicted carries its horizon upstream.
+No production caller today; the helper plus one new test pin the
+contract for the next caller.

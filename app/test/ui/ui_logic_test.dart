@@ -448,6 +448,16 @@ void main() {
       expect(isStaleArrival(old, etaNow), isTrue);
     });
 
+    test('isStaleArrival keeps predicted arrivals out of stale', () {
+      final ArrivalVM predicted = ArrivalVM(
+        lineKey: 'x',
+        at: etaNow,
+        certainty: Certainty.predicted,
+        asOf: etaNow.subtract(const Duration(seconds: 90)),
+      );
+      expect(isStaleArrival(predicted, etaNow), isFalse);
+    });
+
     test('arrival helpers never return negative seconds', () {
       expect(arrival(Certainty.live, etaNow).secondsUntil(etaNow), 0);
       expect(
