@@ -54,11 +54,16 @@ class TimetableArrivalsSource implements ArrivalsSource {
   /// Next departures for [query], in order. Only the day type of [now]
   /// is considered: a Sunday query over weekday-only data returns empty
   /// instead of surfacing a weekday time on the wrong day. D-U26.
+  /// Past departures are dropped before [query.limit] applies, so callers
+  /// get the next N times, never the first N of the day.
   List<ArrivalVM> departures(ArrivalQuery query) {
     final List<String> times = _timesFor(query.originLabel);
     final List<ArrivalVM> all = <ArrivalVM>[];
     for (final String t in times) {
       final DateTime at = _atOf(t);
+      if (isPastMinute(at, now)) {
+        continue;
+      }
       all.add(
         ArrivalVM(
           lineKey: line.code,
