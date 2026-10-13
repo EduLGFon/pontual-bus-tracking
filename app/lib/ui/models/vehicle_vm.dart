@@ -20,6 +20,7 @@ class VehicleVM {
     this.ordinal,
     this.paceFactor,
     this.paceKmh,
+    this.members = 1,
   });
 
   /// Internal id. Never displayed.
@@ -49,6 +50,9 @@ class VehicleVM {
   /// Display position: 1, 2, 3 by recency. Null before assignment.
   final int? ordinal;
 
+  /// Riders merged into this bus, capped at 3 by the server (never exact
+  /// beyond that). 1 means a lone sharer.
+  final int members;
   /// Recent pace along the route divided by the usual pace, kept in memory
   /// for the life of the vehicle only (UI_SPEC 13.1). Null when unknown.
   final double? paceFactor;
@@ -76,6 +80,7 @@ class VehicleVM {
       ordinal: value,
       paceFactor: paceFactor,
       paceKmh: paceKmh,
+      members: members,
     );
   }
 }

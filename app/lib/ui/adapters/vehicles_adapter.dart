@@ -40,6 +40,7 @@ VehicleVM vehicleVmOf(
       certainty: Certainty.live,
       ordinal: ordinal,
       paceKmh: vehicle.paceKmh,
+      members: vehicle.members,
     );
   }
   final double paceKmh = vehicle.paceKmh ?? vehicle.kmh;
@@ -64,6 +65,7 @@ VehicleVM vehicleVmOf(
       certainty: Certainty.predicted,
       ordinal: ordinal,
       paceKmh: vehicle.paceKmh,
+      members: vehicle.members,
     );
   }
   return VehicleVM(
@@ -77,6 +79,7 @@ VehicleVM vehicleVmOf(
     certainty: Certainty.stale,
     ordinal: ordinal,
     paceKmh: vehicle.paceKmh,
+    members: vehicle.members,
   );
 }
 

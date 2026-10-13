@@ -131,6 +131,10 @@ class UiStrings {
   /// Live summary chip, for example "3 ao vivo".
   static const String liveCount = 'ao vivo';
 
+  /// Riders aboard one bus, for example "2 a bordo". The server caps the
+  /// count at 3, so this is never exact beyond that.
+  static String aboard(int members) => '$members a bordo';
+
   /// Live summary chip when nothing is sharing. Neutral wording: no
   /// green dot reads as live while nothing is live.
   static const String homeLiveNone = 'Nenhum ao vivo';

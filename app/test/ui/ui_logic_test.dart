@@ -853,6 +853,20 @@ void main() {
       expect(vm.paceKmh, 25.5);
     });
 
+    test('rider counts ride along to the view model', () {
+      final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
+        3,
+        -18.72,
+        -39.85,
+        90,
+        29.0,
+        3,
+        4,
+        25.5,
+      ]);
+      expect(vehicleVmOf(v, lineKey: '60').members, 3);
+    });
+
     test('stale moving vehicles predict forward and are labeled', () {
       final ClientVehicle v = ClientVehicle.fromRow(<dynamic>[
         3,
