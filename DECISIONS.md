@@ -2191,3 +2191,19 @@ every live badge across home, lines, and search blanked for up to
 Fixed with a last-good holder: success refreshes it, failure serves
 it, and the very first failure still serves empty. Covered by a new
 `live_provider_test.dart` (keeps dots, starts empty).
+
+## D56-2026-10-13: cancel racing the create POST opened zombie trips (Accepted)
+
+Bug: `cancelStart` during the `POST /v1/trip` window left `_cancelled`
+set but nothing checked it after the POST returned, so the flow
+confirmed the start and opened a trip with no fixes, no pings, and no
+supervisor (rounds early-return on null). The trip screen showed a
+fake-active share; the orphan server record lingered unpublished to
+its timeout. Hittable on slow networks where the POST window is
+seconds, not milliseconds.
+
+Fix: check `aborted()` after the create POST like every other step;
+on cancel, end the fresh record best-effort via `_finish` and report
+`declined` (silent, like every other cancel). Regression test feeds a
+fix, cancels under a hanging POST, and asserts `false`, `declined`,
+idle, plus exactly one DELETE.

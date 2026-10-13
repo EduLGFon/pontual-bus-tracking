@@ -544,6 +544,16 @@ class TripController extends ChangeNotifier {
       _set(const TripIdle());
       return false;
     }
+    if (aborted()) {
+      // Cancelar raced the create POST: the server record exists but the
+      // rider already left. End it best-effort instead of opening a
+      // zombie trip that never pings and never auto-ends (the supervisor
+      // is gone, so the rounds early-return forever).
+      phase(SharePhase.start, SharePhaseStatus.failed, errorCode: 'cancel');
+      await _finish(token, TripEndKind.user, null);
+      _failReason = StartFailure.declined;
+      return false;
+    }
     phase(SharePhase.start, SharePhaseStatus.done);
     _startedAtMs = _deps.clock.nowMs();
     _supervisor?.begin(_startedAtMs!);
