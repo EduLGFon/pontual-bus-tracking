@@ -1941,3 +1941,42 @@ Deferred with rationale, each a dedicated task:
   3.0 MB (serve brotli or ADR the overage; app JS is only a third of
   first load); dedupe `ink_sparkle.frag`; document the variable-font
   weight stanza.
+
+## D44-2026-10-13: ten optimization passes, all landed green (Accepted)
+
+Follow-up to D43. Ten focused passes, each researched, implemented,
+verified, and committed separately. Server suite 88 passed 0 failed
+(throwaway PG16, up-section applied via psql after the dbmate binary
+download proved corrupt); app suite 307 passed 1 skipped; fmt, lint,
+check, and analyze clean on every pass.
+
+- P1 route bbox: bundle load wraps geometry in `RouteShape` with a
+  precomputed box; the per-ping check skips the O(segments) scan when
+  the box edge alone exceeds the max. New `geo_test` (4 tests).
+- P2 guard query: `db/guard.ts` answers block plus consent in one
+  round trip, halving ping-path queries. `db_test` covers all four
+  state combinations.
+- P3 dead tick: deleted watcher-less `nowSecondTickProvider` (1 s
+  process-lifetime wakeup).
+- P4 viewer dot: `viewerLocationProvider` is autoDispose now, matching
+  its documented per-mount lookup and fixing the stale-dot case.
+- P5 map markers: stable `ValueKey` on `Marker` plus `VehicleMarker`
+  for incremental reconciliation across the 5 s age re-sort.
+- P6 row keys: sheet vehicle rows and home live rows keyed for the
+  same re-sort reason.
+- P7 skeleton: `SkeletonHost` honors `TickerMode` like `LivePulse`.
+- P8 socket time: one `nowMs` for subscribe rate limiting plus the
+  snapshot instead of two clocks that could straddle a second.
+- P9 hex dedupe: single `hashHex` in `security/token.ts`; the auth and
+  account copies are gone. Revocation path unchanged.
+- P10 vehicle tick: `vehicleTickProvider` plus `vehiclesVmProvider`
+  are autoDispose, so the permanent 5 s isolate wakeup ends when the
+  last line screen unmounts.
+
+Still deferred (dedicated tasks): `byVehicle` index plus snapshot
+cache excluding `t` from the ETag; ETag on `/v1/live`; tick without
+spread plus index member counts; iOS `AppleSettings` per mode;
+background viewer-stream stop; web hidden-tab GPS pause; sheet/map
+rebuild memoization; `LineScreen.build` leaf split; timetable rail
+un-nesting; size-budget ADRs for arm64 (~20.8 vs 15 MB) and web
+(~3.10 vs 3.0 MB gz).
