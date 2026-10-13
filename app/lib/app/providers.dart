@@ -130,16 +130,28 @@ final FutureProvider<List<StaticLine>> linesProvider =
     });
 
 /// Live-lines indicator. Loading or error states show no dots rather than
-/// spinners: cached content never waits on the network.
+/// spinners: cached content never waits on the network. Re-fetches on
+/// [liveTickProvider] so home and line rows stop showing yesterday's dots
+/// instead of needing a reload.
 final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
   Ref ref,
 ) async {
+  ref.watch(liveTickProvider);
   final BusApi api = ref.watch(busApiProvider);
   final result = await api.getLive();
   if (result is Ok<LiveLines>) {
     return result.value;
   }
   return const LiveLines(<List<int>>[]);
+});
+
+/// Refreshes the live-lines indicator every 30 s. /v1/live is tiny and
+/// edge-cached for 10 s. Auto-disposed with the last watcher, like the
+/// vehicle tick; the app-lifetime live provider holds it while mounted.
+final StreamProvider<int> liveTickProvider = StreamProvider.autoDispose<int>((
+  Ref ref,
+) {
+  return Stream<int>.periodic(const Duration(seconds: 30), (int i) => i);
 });
 
 /// Anonymous recent arrivals per line (D30). Null while loading or on
