@@ -49,11 +49,18 @@ Future<void> startShare(
   // unmount while the app lives, unlike the dock that tapped here. Read
   // through the dock ref after an async gap throws once it is disposed.
   final ProviderContainer container = ProviderScope.containerOf(context);
-  final BuildContext rootContext =
-      Navigator.of(context, rootNavigator: true).context;
+  final BuildContext rootContext = Navigator.of(
+    context,
+    rootNavigator: true,
+  ).context;
   try {
-    await _startShare(rootContext, container, line,
-        gateway: gateway, ensureNotifications: ensureNotifications);
+    await _startShare(
+      rootContext,
+      container,
+      line,
+      gateway: gateway,
+      ensureNotifications: ensureNotifications,
+    );
   } catch (_) {
     // The sheets above already popped: without this the tap ends on an
     // empty screen with the error only in the zone.
