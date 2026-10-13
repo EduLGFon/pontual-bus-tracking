@@ -719,11 +719,14 @@ class UiStrings {
   static String lastSentAgo(String ago) => 'Última posição enviada $ago';
 
   /// Short relative time in pt-BR: "há 8 s", "há 1 min", "há 12 min".
+  /// Negative inputs clamp to zero: a success timestamp newer than the
+  /// cached render clock is "há 0 s", never "-3s". See TripHero.
   static String agoShort(int secondsS) {
-    if (secondsS < 60) {
-      return 'há $secondsS s';
+    final int s = secondsS < 0 ? 0 : secondsS;
+    if (s < 60) {
+      return 'há $s s';
     }
-    final int minutes = secondsS ~/ 60;
+    final int minutes = s ~/ 60;
     if (minutes < 60) {
       return 'há $minutes min';
     }
@@ -734,11 +737,13 @@ class UiStrings {
   static String elapsedAgo(int secondsS) => agoShort(secondsS);
 
   /// Long relative time for screen readers: "há 8 segundos".
+  /// Negative inputs clamp to zero, like [agoShort].
   static String agoLong(int secondsS) {
-    if (secondsS < 60) {
-      return secondsS == 1 ? 'há 1 segundo' : 'há $secondsS segundos';
+    final int s = secondsS < 0 ? 0 : secondsS;
+    if (s < 60) {
+      return s == 1 ? 'há 1 segundo' : 'há $s segundos';
     }
-    final int minutes = secondsS ~/ 60;
+    final int minutes = s ~/ 60;
     if (minutes < 60) {
       return minutes == 1 ? 'há 1 minuto' : 'há $minutes minutos';
     }
