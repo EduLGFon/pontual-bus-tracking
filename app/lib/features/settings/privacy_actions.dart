@@ -52,7 +52,11 @@ class PrivacyActions {
   }
 
   /// Best-effort ends any active trip and clears the local consent
-  /// flag so the next trip asks again.
+  /// flag so the next trip asks again. Also forgets the server
+  /// confirmation: the next acceptance re-posts instead of riding on
+  /// the pre-revoke record. Full server-side revocation needs a
+  /// DELETE /v1/consents endpoint (D54); until then re-posting is the
+  /// honest re-affirmation within the current contract.
   Future<void> revokeConsent() async {
     final String? token = await tokenStore.read();
     if (token != null) {
@@ -63,5 +67,6 @@ class PrivacyActions {
       }
     }
     await consentStore.clear();
+    await consentStore.clearPosted();
   }
 }

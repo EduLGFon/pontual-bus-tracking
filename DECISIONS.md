@@ -2167,3 +2167,18 @@ Fix: pop through the root navigator on success, and clear the
 user close racing a start completion cannot double-pop. Verified by
 reading only; needs a shell-harness widget test plus a device pass
 (no Flutter toolchain on this host).
+
+## D54-2026-10-13: consent revoke half-life (Accepted client half, Proposed server half)
+
+Bug: "revogar consentimento" cleared only the local acceptance key.
+The server confirmation key survived, so the next acceptance skipped
+the POST and rode on the pre-revoke server record: revocation never
+reached the server in any form. Fixed client-side: revoke now also
+forgets the confirmation, so the next acceptance re-posts
+(reaffirmation within the current contract, quota-safe).
+
+Proposed, pending owner: true server-side revocation needs a
+`DELETE /v1/consents` endpoint (device-scoped delete, no migration).
+That is a public contract addition, so it ships only with a PLAN
+amendment and owner sign-off. Until then the privacy text must not
+claim server-side revocation; it promises re-asking, which holds.
