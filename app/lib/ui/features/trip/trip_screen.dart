@@ -17,15 +17,13 @@ import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:pontual/ui/util/platform.dart';
 
 import 'trip_end_card.dart';
+import 'trip_flow.dart';
 import 'trip_hero.dart';
 import 'trip_status.dart';
-
-import 'package:pontual/ui/shell/trip_host.dart';
-
-import 'trip_flow.dart';
 
 /// /trip route: shows the active trip and attaches the started controller
 /// to the trip host. A minimised trip keeps the controller alive so the
