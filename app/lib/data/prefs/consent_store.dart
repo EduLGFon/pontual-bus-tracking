@@ -1,6 +1,7 @@
 // Local consent versioning. The accepted version is stored on device and
 // posted to the server; offline acceptance is retried before starting.
 // See PLAN.md S06 and RF14.
+// PRIVACY: only the version number is stored, never location or identity.
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// SharedPreferences key for the accepted consent version.

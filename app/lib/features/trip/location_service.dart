@@ -2,6 +2,8 @@
 // a persistent notification starts from the visible activity; swiping the
 // app away ends the trip. Fixes are filtered client-side and re-checked
 // server-side. See PLAN.md 8.6 and spike S1.
+// PRIVACY: fixes are rounded before sending and never logged; see Log
+// which has no coordinate API. Mocked fixes are rejected.
 // ignore_for_file: prefer_initializing_formals - injected fakes keep
 // stable public names while the fields stay private.
 import 'dart:async';

@@ -1,6 +1,8 @@
 // Ping sender: one request in flight, latest wins, backoff with jitter,
 // single 401 refresh, typed server outcomes. Timeouts and delays are
 // injected so tests run without waiting. See PLAN.md 8.6 and 15.3.
+// SECURITY: the bearer token goes in the Authorization header only, never
+// in URLs or logs. PRIVACY: only the latest fix is sent; nothing is kept.
 // ignore_for_file: prefer_initializing_formals - injected fakes keep
 // stable public names while the fields stay private.
 import 'dart:async';
