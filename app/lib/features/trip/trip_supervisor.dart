@@ -114,6 +114,13 @@ class TripSupervisor {
   /// Tracks slow movement for the RF16 prompt. Call per accepted fix.
   void onFix(TripFix fix, int nowMs) {
     _lastSpeedMps = fix.speedMps;
+    // An accepted fix proves location access works right now. The web
+    // Permissions API can report "prompt" for polls in a row while
+    // positions keep flowing (notably Firefox); that flap must never end
+    // a healthy trip. A real revoke stops the stream, so no fix arrives
+    // to forgive it.
+    _permissionBadPolls = 0;
+    _permissionRevoked = false;
     if (fix.speedMps < walkingSlowMaxMps) {
       _slowSinceMs ??= nowMs;
     } else {
