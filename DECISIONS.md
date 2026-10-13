@@ -1895,3 +1895,49 @@ task and owner sign-off where noted:
   `--allow-write=build`; the routes directory is the committed source
   of truth the builder reads, so the write is intentional. Propose a
   one-line PLAN clarification instead of moving the output.
+
+## D43-2026-10-13: optimization sweep, three server wins landed (Accepted)
+
+Four-track optimization audit (server hot path, client runtime, client
+rendering, build size) on 2026-10-13, every claim verified in code.
+Landed in this change set, each with suite cover (83 passed, 0 failed):
+
+- Tick events leak (HIGH, real bug): the shared `events` array passed to
+  `startJobs` was never drained; every timed-out trip appended a
+  `tripEnded` for process lifetime. `runTickGuarded` now clears the
+  scratch buffer after each tick; nothing reads it (`onTick` uses
+  `changedLines` only). Regression test asserts empty after tick.
+- Teleport double haversine (MED): `impliedSpeedMps` recomputed the
+  distance `applyPing` already had. It now takes the precomputed value.
+  One haversine per ping on that path. No behavior change.
+- Redundant prune sweep (LOW): `recordPassage` ran the full multi-line
+  TTL scan on every vehicle creation; it now prunes only the touched
+  line. The 5 s tick and the arrivals read keep the full sweep.
+
+Verified non-issues (do not fix): guard DB calls already parallel,
+WS fan-out and heartbeat share one payload string, tick has an idle
+fast-path, indexes cover the ping path, ETag/304 and keep-alive are
+correct, ping pacing (D29) holds, gallery and frame logger are
+release-stripped, `design/brand` masters are not bundled.
+
+Deferred with rationale, each a dedicated task:
+
+- Server: cache or single-query the guard (`blocked` + consent on every
+  ping, ~40 qps at 300 trips); `byVehicle` index plus a snapshot cache
+  that excludes `t` from the ETag (today every poll rebuilds and the
+  ETag turns over every second); route bbox pre-reject; tick without
+  spread plus index-based member counts; ETag on `/v1/live`.
+- Client: iOS `AppleSettings` per sampling mode (GPS never sleeps on
+  iPhones today); stop viewer stream/watchdog when backgrounded;
+  `autoDispose` on `vehicleTickProvider`/`vehiclesVmProvider`; pause
+  the web location stream while hidden; memoize the vehicle list so the
+  map plus sheet stop rebuilding every 5 s on unchanged data.
+- Rendering: split `LineScreen.build` into leaf consumers, key map
+  markers with `ValueKey`, gate pulse builders to live certainty,
+  un-nest the timetable rail scrollable, shrink the sheet shadow.
+- Size: Android arm64 is ~20.8 MB vs the 15 MB budget (structural:
+  libflutter plus libapp plus dex; confirm per-ABI split delivery,
+  audit `classes.dex`, report per-ABI in CI); web is ~3.10 MB gz vs
+  3.0 MB (serve brotli or ADR the overage; app JS is only a third of
+  first load); dedupe `ink_sparkle.frag`; document the variable-font
+  weight stanza.
