@@ -91,13 +91,21 @@ List<VehicleVM> orderVehicles(List<ClientVehicle> vehicles, String lineKey) {
 /// Slow rebuild signal for the live list: 5 s is enough for the "há N s"
 /// labels and the staleness flip, exactly like the previous map tab. No
 /// stream is opened by this provider, the repository owns the socket.
-final StreamProvider<int> vehicleTickProvider = StreamProvider<int>((Ref ref) {
-  return Stream<int>.periodic(const Duration(seconds: 5), (int i) => i);
-});
+///
+/// Auto-disposed: the tick stops when no line screen watches it, instead
+/// of waking the isolate every 5 s for the whole app lifetime.
+final StreamProvider<int> vehicleTickProvider = StreamProvider.autoDispose<int>(
+  (Ref ref) {
+    return Stream<int>.periodic(const Duration(seconds: 5), (int i) => i);
+  },
+);
 
 /// Vehicles for one line id, re-sorted on every tick. The provider family
 /// is plain, so a line consumed twice shares one instance.
-final vehiclesVmProvider = Provider.family<List<VehicleVM>, int>((
+///
+/// Auto-disposed with the screen: leaving the last watching line stops
+/// the tick above and drops the sorted copy.
+final vehiclesVmProvider = Provider.autoDispose.family<List<VehicleVM>, int>((
   Ref ref,
   int lineId,
 ) {
