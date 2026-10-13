@@ -23,7 +23,10 @@ export function recordPassage(
   }
   arr.push(nowMs);
   if (arr.length > PASSAGE_MAX) arr.splice(0, arr.length - PASSAGE_MAX);
-  prunePassages(store, nowMs);
+  // Prune only this line: the 5 s tick and the arrivals read still run
+  // the full sweep, so a per-record full scan would be pure redundancy.
+  const cutoff = nowMs - PASSAGE_TTL_MS;
+  while (arr.length > 0 && arr[0] < cutoff) arr.shift();
 }
 
 /** Drop sightings older than the TTL. Cheap: rings are tiny. */
