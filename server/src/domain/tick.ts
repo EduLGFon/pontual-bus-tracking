@@ -12,10 +12,6 @@ export interface TickResult {
   changedLines: number[];
 }
 
-export interface TickResult {
-  changedLines: number[];
-}
-
 /** Run one tick. Returns the lines whose snapshots changed. */
 export function tick(
   store: Store,

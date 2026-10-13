@@ -29,7 +29,10 @@ type Body = { kind: "json"; value: unknown } | { kind: "media" } | {
 
 async function readBody(c: Context<Vars>): Promise<Body> {
   const len = c.req.header("content-length");
-  if (len !== undefined && Number(len) > BODY_CAP) return { kind: "media" };
+  const lenNum = len !== undefined ? Number(len) : NaN;
+  if (Number.isFinite(lenNum) && lenNum > BODY_CAP) {
+    return { kind: "media" };
+  }
   const ct = c.req.header("content-type") ?? "";
   if (!ct.includes("application/json")) return { kind: "media" };
   try {

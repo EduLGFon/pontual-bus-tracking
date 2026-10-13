@@ -24,8 +24,7 @@ type Vars = {
 
 type Ctx = {
   get(n: "deviceId"): string;
-  // deno-lint-ignore no-explicit-any
-  json(o: unknown, status?: any): Response;
+  json(o: unknown, status?: number): Response;
   header(n: string, v: string): void;
 };
 
@@ -49,7 +48,10 @@ async function readBody(c: {
   req: { header(n: string): string | undefined; text(): Promise<string> };
 }): Promise<Body> {
   const len = c.req.header("content-length");
-  if (len !== undefined && Number(len) > BODY_CAP) return { kind: "media" };
+  const lenNum = len !== undefined ? Number(len) : NaN;
+  if (Number.isFinite(lenNum) && lenNum > BODY_CAP) {
+    return { kind: "media" };
+  }
   if (!(c.req.header("content-type") ?? "").includes("application/json")) {
     return { kind: "media" };
   }

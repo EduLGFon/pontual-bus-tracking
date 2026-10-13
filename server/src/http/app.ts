@@ -140,9 +140,17 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
 
   app.notFound((c) => c.json({ code: "not_found" }, 404));
   app.onError((err, c) => {
-    console.log(
-      JSON.stringify({ level: "error", msg: "unhandled", err: String(err) }),
-    );
+    // Server Error text only, never request data. RequestId correlates
+    // with the request log line above. Truncated to bound log volume.
+    // PRIVACY: String(err) must stay an Error message; never interpolate
+    // fixes, tokens, or ids here.
+    let requestId = "unknown";
+    try {
+      requestId = c.get("requestId") ?? "unknown";
+    } catch {
+      // Context may be partially initialized; keep the fallback.
+    }
+    Log.error("unhandled", { requestId, err: String(err).slice(0, 200) });
     return c.json({ code: "internal" }, 500);
   });
 

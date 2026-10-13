@@ -12,6 +12,9 @@ export interface LogFields {
   status?: number;
   durationMs?: number;
   requestId?: string;
+  // Server Error message only, truncated by callers. Never request data,
+  // coordinates, tokens, or ids. See PRIVACY note at the top of this file.
+  err?: string;
 }
 
 const order: Record<LogLevel, number> = {
