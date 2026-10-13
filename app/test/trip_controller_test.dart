@@ -762,6 +762,12 @@ void main() {
     await positions.close();
   });
 
+  test('confirming after dispose does not throw', () {
+    final TripController c = controller(happy(), feed: false);
+    c.dispose();
+    c.confirmStillRiding();
+  });
+
   testWidgets('end cards carry each reason', (WidgetTester tester) async {
     Future<void> pumpCard(TripEndKind kind, String? detail) {
       return tester.pumpWidget(
