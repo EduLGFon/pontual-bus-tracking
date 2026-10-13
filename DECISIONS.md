@@ -2124,3 +2124,30 @@ back to a stale "Última posição" row. Narrowed to live-only aging;
 scheduled never stales, predicted carries its horizon upstream.
 No production caller today; the helper plus one new test pin the
 contract for the next caller.
+
+## D52-2026-10-13: per-stop ETA and user-relative times hunt list (Proposed)
+
+Owner order: keep this list open and work it until done. Status per
+item; nothing here invents stop coordinates or line-stop mapping.
+
+- Per-stop ETA (bus arrives at stop X in N min). Needs all three:
+  (a) stop coverage (12 OSM nodes after D49; hundreds needed, owner
+  field survey mapping into OSM), (b) line-to-stop mapping (no
+  source: itineraries are street names, no GTFS, SGBus API is
+  private), (c) route geometry for along-route distance (T17
+  traces). Until then any "ETA" is straight-line distance over
+  pace, a lower bound only. No code ships until (a) plus (b)
+  exist; (c) upgrades accuracy later. Next action is owner-side:
+  survey plus outreach to the operator for the stop registry.
+- Scheduled user-relative times ("your bus in 12 min"). Same
+  blocker: timetables are per line plus origin, and without (b) no
+  departure can be attributed to a stop. Ships with the same data.
+- Home live rows read "Agora" with no distance. Verified honest:
+  `isLive` comes from the server `/v1/live` counts, so a row means
+  a bus is actually out on that line; tap leads to the live map.
+  Positions plumbing (one stream per shortcut line) is a proposed
+  enhancement, not a fix: it reintroduces multi-socket fan-out with
+  battery and data cost, so it needs an owner decision plus budget
+  measurement first. Not built here.
+- Stops layer itself (RF20 first half) is done: D46 seed, D49
+  resurvey to 12, dots on the line map, offline-first repo.
