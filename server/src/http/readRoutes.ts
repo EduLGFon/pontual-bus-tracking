@@ -125,15 +125,17 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     }
     recordWsConnect();
     socket.onmessage = (ev) => {
+      // One timestamp for rate limiting and the snapshot: two clocks
+      // could straddle a second boundary and disagree by one second.
+      const nowMs = Date.now();
       const reply = deps.hub.onMessage(
         conn,
         String(ev.data),
-        Date.now(),
+        nowMs,
         (lineId) => {
           const line = deps.lines(lineId);
           if (!line || !line.isActive) return null;
           try {
-            const nowMs = Date.now();
             return JSON.stringify({
               l: lineId,
               t: Math.floor(nowMs / 1000),
