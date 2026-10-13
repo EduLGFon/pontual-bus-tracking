@@ -9,7 +9,10 @@ import { bearerToken, tokenHash } from "./token.ts";
 
 interface CacheEntry {
   deviceId: string;
-  expiresAtMs: number;
+  // Cache entry expiry (lookup TTL). Separate from the token expiry below:
+  // a cached row must never authorize past the token's own expiresAt.
+  cacheUntilMs: number;
+  tokenExpiresAtMs: number;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -38,16 +41,21 @@ export function authMiddleware(sql: Sql) {
     const key = hashHex(hash);
     const now = Date.now();
     const hit = cache.get(key);
-    if (hit && hit.expiresAtMs > now) {
+    if (hit && hit.cacheUntilMs > now && hit.tokenExpiresAtMs > now) {
       c.set("deviceId", hit.deviceId);
       await next();
       return;
     }
+    if (hit) cache.delete(key);
     const row = await findDeviceByTokenHash(sql, hash);
     if (!row || row.expiresAt.getTime() <= now) {
       return c.json({ e: "auth" }, 401);
     }
-    cache.set(key, { deviceId: row.id, expiresAtMs: now + CACHE_TTL_MS });
+    cache.set(key, {
+      deviceId: row.id,
+      cacheUntilMs: now + CACHE_TTL_MS,
+      tokenExpiresAtMs: row.expiresAt.getTime(),
+    });
     if (cache.size > CACHE_MAX) {
       const oldest = cache.keys().next();
       if (!oldest.done) cache.delete(oldest.value);
