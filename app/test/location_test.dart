@@ -226,4 +226,32 @@ void main() {
     service.stop();
     await positions.close();
   });
+
+  test('a dead position stream restarts without waiting hysteresis', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    // Same mode inside hysteresis restarts nothing while healthy.
+    service.requestMode(SamplingMode.waiting, 100000);
+    expect(opens, 1);
+    // The OS kills the position stream when location services go off.
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    service.requestMode(SamplingMode.waiting, 100000);
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
 }

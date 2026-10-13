@@ -218,6 +218,11 @@ class LocationService {
   final int Function() _nowMs;
 
   StreamSubscription<Position>? _sub;
+
+  /// True once the OS-side position stream errored or closed (location
+  /// services toggled off mid-trip, OEM kill). The fix stream stays open,
+  /// but no fixes arrive until the position stream is recreated.
+  bool _streamDead = false;
   int _seq = 0;
   int _lastChangeMs = 0;
   SamplingMode _mode = SamplingMode.waiting;
@@ -253,6 +258,7 @@ class LocationService {
 
   void _listen(SamplingMode m, StreamController<TripFix> controller) {
     unawaited(_sub?.cancel());
+    _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) {
         void handle() async {
@@ -314,18 +320,27 @@ class LocationService {
       },
       onError: (Object e) {
         Log.w('position stream error', e.runtimeType.toString());
+        // The OS closes the position stream when location services go
+        // off. requestMode recreates it on the next supervision round.
+        _streamDead = true;
+      },
+      onDone: () {
+        _streamDead = true;
       },
     );
   }
 
   /// Requests a mode switch honoring hysteresis. Recreates the underlying
   /// position stream when the mode actually changes so offline saver drops
-  /// to low-power GPS. Returns the active mode.
+  /// to low-power GPS. A dead position stream recreates immediately, even
+  /// for the same mode and inside hysteresis: the trip has no fixes until
+  /// it does. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
-    if (mode == _mode) {
+    final bool restartDead = _streamDead;
+    if (mode == _mode && !restartDead) {
       return _mode;
     }
-    if (nowMs - _lastChangeMs < streamHysteresisMs) {
+    if (!restartDead && nowMs - _lastChangeMs < streamHysteresisMs) {
       return _mode;
     }
     _mode = mode;
