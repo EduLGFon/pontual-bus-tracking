@@ -306,10 +306,15 @@ class LineMapState extends State<LineMap> {
                   markers: <Marker>[
                     for (final VehicleVM v in widget.vehicles.take(maxMarkers))
                       Marker(
+                        // Stable keys: the age sort reorders every tick, so
+                        // reconciliation by index would attach marker state
+                        // (and repaints) to the wrong bus.
+                        key: ValueKey<int>(v.key),
                         point: LatLng(v.lat, v.lng),
                         width: markerHitDp,
                         height: markerHitDp,
                         child: VehicleMarker(
+                          key: ValueKey<String>('marker-${v.key}'),
                           vehicle: v,
                           lineKey: widget.lineKey,
                           selected: v.key == widget.selectedKey,
