@@ -38,17 +38,14 @@ export function validateFix(fix: Fix, cfg: EngineConfig): InvalidKind | null {
   return null;
 }
 
-/** Implied speed between two fixes in m/s. */
+/** Implied speed between two fixes in m/s. Takes the precomputed
+ * distance so the caller never pays for the same haversine twice. */
 export function impliedSpeedMps(
-  fromLat: number,
-  fromLng: number,
+  distM: number,
   fromMs: number,
-  toLat: number,
-  toLng: number,
   toMs: number,
-  distFn: (a: number, b: number, c: number, d: number) => number,
 ): number {
   const dtS = (toMs - fromMs) / 1000;
   if (dtS <= 0) return 0;
-  return distFn(fromLat, fromLng, toLat, toLng) / dtS;
+  return distM / dtS;
 }

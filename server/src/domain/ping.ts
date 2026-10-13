@@ -153,18 +153,11 @@ export function applyPing(
   if (validateFix(fix, cfg)) {
     return strike(store, events, trip, cfg);
   }
-  // 5. Teleport.
+  // 5. Teleport. dist is computed once and reused for the implied
+  // speed, so this path pays for exactly one haversine per ping.
   if (trip.lastSeenAtMs !== null) {
     const dist = distM(trip.lat, trip.lng, fix.lat, fix.lng);
-    const spd = impliedSpeedMps(
-      trip.lat,
-      trip.lng,
-      trip.lastSeenAtMs,
-      fix.lat,
-      fix.lng,
-      nowMs,
-      distM,
-    );
+    const spd = impliedSpeedMps(dist, trip.lastSeenAtMs, nowMs);
     if (spd > cfg.teleportSpeedMps && dist > cfg.teleportMinM) {
       return strike(store, events, trip, cfg);
     }
