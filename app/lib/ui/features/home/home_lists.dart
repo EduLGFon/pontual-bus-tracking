@@ -46,6 +46,8 @@ class LiveNowSection extends StatelessWidget {
         ),
         for (final LineVM line in lines)
           Padding(
+            // Keyed: live ordering re-sorts every minute tick.
+            key: ValueKey<String>(line.key),
             padding: const EdgeInsets.only(bottom: Space.x2),
             child: LineRow(
               line: line,

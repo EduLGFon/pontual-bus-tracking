@@ -300,6 +300,8 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       out.addAll(<Widget>[
         for (final VehicleVM v in widget.vehicles.take(5))
           Padding(
+            // Keyed: the age sort reorders rows every tick.
+            key: ValueKey<int>(v.key),
             padding: const EdgeInsets.only(bottom: Space.x2),
             child: VehicleRow(
               vehicle: v,
