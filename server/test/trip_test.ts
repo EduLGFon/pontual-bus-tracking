@@ -367,7 +367,8 @@ Deno.test("injected engine reaches the ping path: easy-publish promotes", async 
       }),
     });
     assertEquals(ping.status, 200);
-    assertEquals(await ping.json(), { r: "L", n: 15 });
+    // D45: the leader moving interval is 5 s.
+    assertEquals(await ping.json(), { r: "L", n: 5 });
     const live = await hono.request("/v1/live");
     assertEquals(live.status, 200);
     assertEquals(await live.json(), [[7, 1]]);
