@@ -11,6 +11,7 @@ import {
 } from "../src/db/devices.ts";
 import { latestConsentVersion, recordConsent } from "../src/db/consents.ts";
 import { blockDevice, isBlocked } from "../src/db/blocked.ts";
+import { guardState } from "../src/db/guard.ts";
 import {
   defaultRuntimeConfig,
   loadRuntimeConfig,
@@ -73,6 +74,35 @@ Deno.test("blocked devices flag by device id", async () => {
     assertEquals(await isBlocked(sql, device.id), false);
     await blockDevice(sql, device.id, "test");
     assertEquals(await isBlocked(sql, device.id), true);
+  } finally {
+    await sql.end();
+  }
+});
+
+Deno.test("guard state answers block plus consent together", async () => {
+  const sql = openDb(testDbUrl());
+  try {
+    await truncate(sql);
+    const hash = crypto.getRandomValues(new Uint8Array(32));
+    const device = await insertDevice(
+      sql,
+      hash,
+      new Date(Date.now() + 86400 * 1000),
+    );
+    assertEquals(
+      await guardState(sql, device.id),
+      { blocked: false, consent: null },
+    );
+    await recordConsent(sql, device.id, 1);
+    assertEquals(
+      await guardState(sql, device.id),
+      { blocked: false, consent: 1 },
+    );
+    await blockDevice(sql, device.id, "test");
+    assertEquals(
+      await guardState(sql, device.id),
+      { blocked: true, consent: 1 },
+    );
   } finally {
     await sql.end();
   }

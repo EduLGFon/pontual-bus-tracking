@@ -4,8 +4,7 @@
 import { Hono } from "@hono/hono";
 import * as v from "@valibot/valibot";
 import type { Sql } from "../db/client.ts";
-import { isBlocked } from "../db/blocked.ts";
-import { latestConsentVersion } from "../db/consents.ts";
+import { guardState } from "../db/guard.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import type { LineResolver } from "../data/lines.ts";
 import { applyPing, endTrip, isGone, startTrip } from "../domain/ping.ts";
@@ -83,20 +82,18 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
   async function guard(c: Ctx, deviceId: string): Promise<Response | null> {
     // Runtime config is cached (refreshed every 30 s), never re-read
     // per request. Kill-switch and consent bumps apply within ~30 s.
+    // Block plus consent arrive in one round trip (db/guard.ts).
     const rt = await deps.runtime();
     if (!rt.serviceEnabled) {
       c.header("Retry-After", "30");
       return c.json({ e: "maint" }, 503);
     }
-    const [blocked, consent] = await Promise.all([
-      isBlocked(deps.sql, deviceId),
-      latestConsentVersion(deps.sql, deviceId),
-    ]);
-    if (blocked) {
+    const state = await guardState(deps.sql, deviceId);
+    if (state.blocked) {
       recordHttp403();
       return c.json({ e: "blocked" }, 403);
     }
-    if (consent !== rt.consentVersion) {
+    if (state.consent !== rt.consentVersion) {
       recordHttp403();
       return c.json({ e: "consent" }, 403);
     }
