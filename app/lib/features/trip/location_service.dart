@@ -149,26 +149,26 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
     case SamplingMode.waiting:
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 20),
+        intervalDuration: const Duration(seconds: 10),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderMoving:
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        intervalDuration: const Duration(seconds: 12),
+        intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderStill:
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 30),
+        intervalDuration: const Duration(seconds: 15),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.follower:
     case SamplingMode.offlineSaver:
       return AndroidSettings(
         accuracy: LocationAccuracy.low,
-        intervalDuration: const Duration(seconds: 90),
+        intervalDuration: const Duration(seconds: 45),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.paused:

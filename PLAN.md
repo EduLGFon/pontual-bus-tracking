@@ -220,7 +220,7 @@ same `Dxx` style.
 ### Known limitations accepted for alpha
 
 - **KL1 - Promotion latency.** A follower learns it became leader only at its
-  next ping (<= ~90 s). Mitigations: staggered follower phases; two-phase
+  next ping (<= ~45 s). Mitigations: staggered follower phases; two-phase
   hand-over (no gap on planned rotation); vehicle shows "last seen N s ago".
   Improve later with a shorter follower interval when the leader looks unstable.
 - **KL2 - Lone rider = exact bus position = that rider's position.** Unavoidable
@@ -310,7 +310,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 | RF05 | App sends periodic fixes: lat, lng, speed, heading, accuracy, battery (5 % steps), charging flag.                                                                                                                                          | A   | **No client timestamp** (D08).                                                                   |
 | RF06 | Backend attaches trips of the same line that are close and coherent to one **vehicle**.                                                                                                                                                    | A   | Attach-at-ping (D04).                                                                            |
 | RF07 | Backend elects a leader per vehicle: prefers charging, then highest battery (≥ 15 % unless alone), tie → least time led.                                                                                                                   | A   |                                                                                                  |
-| RF08 | Leader reports every ~15 s while moving (~30 s still); followers every ~90 s ± jitter; waiting trips every ~20 s.                                                                                                                          | A   | Server tells the client the next interval in each response.                                      |
+| RF08 | Leader reports every ~5 s while moving (~15 s still); followers every ~45 s ± jitter; waiting trips every ~10 s.                                                                                                                            | A   | Server tells the client the next interval in each response. D45.                                      |
 | RF09 | Leadership re-evaluated every ~5 min and immediately if the leader is dead (>45 s silent). Two-phase hand-over.                                                                                                                            | A   |                                                                                                  |
 | RF10 | User sees vehicles (not individual users) of the selected line on a map and in a list.                                                                                                                                                     | A   |                                                                                                  |
 | RF11 | User can view timetables of any line without any live data.                                                                                                                                                                                | A   | Static JSON.                                                                                     |
@@ -336,7 +336,7 @@ silently relax.
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
 | RNF01 | No new recurring cost: the owner's existing VPS and PostgreSQL plus free tiers (Cloudflare, GitHub). One-time Play fee (US$25) is a separate "legal" cost.                                                                  | A   |
 | RNF02 | Battery: leader phone's extra drain ≤ ~4 %/h over idle baseline; follower ≤ ~2 %/h; viewing map ≤ a typical map app.                                                                                                        | A   |
-| RNF03 | Data (revised, D09): leader <= ~0.15 MB/h, follower <= ~0.03 MB/h; viewer stream <= ~0.05 MB/10 min; first map view <= ~1.5 MB (tiles), repeat views <= ~0.1 MB (cache).                                                    | A   |
+| RNF03 | Data (revised, D09, D45): leader <= ~0.45 MB/h at 5 s cadence, follower <= ~0.05 MB/h; viewer stream <= ~0.05 MB/10 min; first map view <= ~1.5 MB (tiles), repeat views <= ~0.1 MB (cache).                                                    | A   |
 | RNF04 | Fix → viewer map update: target < 15 s, alpha target p95 ≤ 10 s.                                                                                                                                                            | A   |
 | RNF05 | Usable on unstable 3G/4G: no blocking spinners on cached data, bounded timeouts, backoff, latest-wins semantics (§11).                                                                                                      | A   |
 | RNF06 | Data minimisation and short retention (§13.4).                                                                                                                                                                              | A   |
@@ -581,9 +581,9 @@ in; the DB only overrides.
 | `attach_base_tol_m` / `attach_speed_factor` / `attach_tol_max_m` | `80` / `0.5` / `400`                                                    | attach tolerance: `min(max, base + factor * speed * age)`         |
 | `coherence_fails_to_detach`                                      | `2`                                                                     |                                                                   |
 | `moving_speed_mps` / `moving_ticks_to_publish`                   | `3` / `2`                                                               | a new vehicle is created only after sustained movement            |
-| `leader_interval_moving_s` / `leader_interval_still_s`           | `15` / `30`                                                             |                                                                   |
-| `follower_interval_s` / `follower_jitter_s`                      | `90` / `10`                                                             |                                                                   |
-| `waiting_interval_s`                                             | `20`                                                                    |                                                                   |
+| `leader_interval_moving_s` / `leader_interval_still_s`           | `5` / `15`                                                              |                                                                   |
+| `follower_interval_s` / `follower_jitter_s`                      | `45` / `10`                                                             |                                                                   |
+| `waiting_interval_s`                                             | `10`                                                                    |                                                                   |
 | `leader_dead_after_s`                                            | `45`                                                                    |                                                                   |
 | `member_alive_s`                                                 | `300`                                                                   |                                                                   |
 | `publish_ttl_s`                                                  | `120`                                                                   | vehicle hidden if no fix for this long                            |
@@ -1138,10 +1138,10 @@ keep one request in flight; coalesce (latest wins).**
 
 | Mode           | When                                                       | Location request                                                               | Send cadence                  |
 | -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------- |
-| `waiting`      | role `W`                                                   | balanced accuracy, ~20 s                                                       | every fix (~20 s)             |
-| `leaderMoving` | role `L`, moving                                           | high accuracy, ~10–15 s interval                                               | server `n` (~15 s)            |
-| `leaderStill`  | role `L`, still ≥ 60 s                                     | balanced, ~30 s                                                                | server `n` (~30 s)            |
-| `follower`     | role `F`                                                   | low-power/balanced, ~90 s interval (stream recreated with long interval)       | server `n` (~90 s ± jitter)   |
+| `waiting`      | role `W`                                                   | balanced accuracy, ~10 s                                                       | every fix (~10 s)             |
+| `leaderMoving` | role `L`, moving                                           | high accuracy, ~5 s interval                                                   | server `n` (~5 s)             |
+| `leaderStill`  | role `L`, still ≥ 60 s                                     | balanced, ~15 s                                                                | server `n` (~15 s)            |
+| `follower`     | role `F`                                                   | low-power/balanced, ~45 s interval (stream recreated with long interval)       | server `n` (~45 s ± jitter)   |
 | `offlineSaver` | 3 failed sends or no success for 120 s                     | follower-like sampling, no uploads except **probes** (30 → 60 → 120 s, jitter) | probe only                    |
 | `paused`       | permission revoked / location services off / mock detected | stream stopped                                                                 | none; show banner (see below) |
 

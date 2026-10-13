@@ -133,14 +133,14 @@ void main() {
     expect(waiting, isA<AndroidSettings>());
     final AndroidSettings active =
         settingsFor(SamplingMode.leaderMoving, '60') as AndroidSettings;
-    expect(active.intervalDuration, const Duration(seconds: 12));
+    expect(active.intervalDuration, const Duration(seconds: 5));
     expect(
       active.foregroundNotificationConfig?.notificationTitle,
       contains('60'),
     );
     final AndroidSettings follower =
         settingsFor(SamplingMode.follower, '60') as AndroidSettings;
-    expect(follower.intervalDuration, const Duration(seconds: 90));
+    expect(follower.intervalDuration, const Duration(seconds: 45));
   });
 
   test('gateway constructs without platform calls', () {

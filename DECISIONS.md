@@ -1980,3 +1980,24 @@ background viewer-stream stop; web hidden-tab GPS pause; sheet/map
 rebuild memoization; `LineScreen.build` leaf split; timetable rail
 un-nesting; size-budget ADRs for arm64 (~20.8 vs 15 MB) and web
 (~3.10 vs 3.0 MB gz).
+
+## D45-2026-10-13: ping cadence toward 5 s map updates (Accepted)
+
+Field report: bus positions often arrived 30 s apart, sometimes 45 s,
+even on stable GPS and data. Owner order: the bus must update around
+every 5 s.
+
+Change: leader moving 15 s to 5 s, leader still 30 s to 15 s, follower
+90 s to 45 s, waiting 20 s to 10 s. Server
+`defaultEngineConfig` plus the client `settingsFor` stream intervals
+move together, so the location stream always emits at least as fast as
+the instructed `n`. PLAN.md RF08, section 6.3 table, section 8.5
+sampling table, KL1, and RNF03 updated in the same change set.
+
+Trade-offs: leader data rises to about 0.45 MB/h and follower to about
+0.05 MB/h at the measured 0.62 KB per ping (RNF03 updated, still tiny
+in absolute terms). Leader battery cost rises with 5 s high-accuracy
+GPS plus radio; RNF02 (4 percent/h) is unchanged and must be confirmed
+on phones in the T47 field test. The 4 s `min_ping_interval_s` rate
+guard is untouched, so fast web streams still sample safely. Follower
+promotion worst case halves to about 45 s (KL1).
