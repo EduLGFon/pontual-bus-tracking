@@ -3,7 +3,7 @@
   "$id": "https://pontual.local/schemas/manifest.schema.json",
   "title": "Pontual built data manifest",
   "type": "object",
-  "required": ["data_version", "lines", "routes", "generated_at"],
+  "required": ["data_version", "lines", "routes", "stops", "generated_at"],
   "additionalProperties": false,
   "properties": {
     "data_version": { "type": "string", "minLength": 1 },
@@ -12,6 +12,7 @@
       "type": "object",
       "additionalProperties": { "type": "string", "pattern": "^routes/[a-z0-9-]+\\.[0-9a-f]{12}\\.json$" }
     },
+    "stops": { "type": ["string", "null"], "pattern": "^stops\\.[0-9a-f]{12}\\.json$" },
     "generated_at": { "type": "string", "format": "date-time" }
   }
 }

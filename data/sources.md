@@ -29,3 +29,14 @@ shows an "unofficial timetable" notice.
   Sunday/holiday only. Unknown whether that reflects operation or gaps.
 - Non-pilot lines carry names only; their timetables are pending.
 - Route geometry is pending owner field traces (T17).
+
+## Stops
+
+- `osm-stops` - OpenStreetMap bus-stop nodes (`highway=bus_stop`,
+  `public_transport=platform`) inside the served area, retrieved
+  2026-10-13 via the Overpass API and stored as `data/stops.json`.
+  ODbL licence; attribution is shown in-app (map chip and About).
+  Only 8 stops are mapped in OSM for the whole city, all near the
+  center; full coverage needs an owner field survey, like route
+  geometry (T17). `public_transport=stop_position` nodes (on-road
+  stopping points, not waiting places) were excluded.
