@@ -169,10 +169,29 @@ final FutureProvider<List<StaticLine>> linesProvider =
       return repo.lines();
     });
 
-/// Live-lines indicator. Loading or error states show no dots rather than
-/// spinners: cached content never waits on the network. Re-fetches on
-/// [liveTickProvider] so home and line rows stop showing yesterday's dots
-/// instead of needing a reload.
+/// Last good live-lines payload. A failed poll keeps these dots instead
+/// of blanking every live badge for up to 30 s on any network blip.
+class LastLive extends Notifier<LiveLines> {
+  /// Creates the holder with no lines live.
+  LastLive() : super();
+
+  @override
+  LiveLines build() => const LiveLines(<List<int>>[]);
+
+  /// Remembers [live] as the last good payload.
+  void set(LiveLines live) {
+    state = live;
+  }
+}
+
+/// Holds the last good live-lines payload across failed polls.
+final NotifierProvider<LastLive, LiveLines> lastLiveProvider =
+    NotifierProvider<LastLive, LiveLines>(LastLive.new);
+
+/// Live-lines indicator. Loading or error states keep the last good dots
+/// rather than spinners or blanking: cached content never waits on the
+/// network. Re-fetches on [liveTickProvider] so home and line rows stop
+/// showing yesterday's dots instead of needing a reload.
 final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
   Ref ref,
 ) async {
@@ -180,9 +199,10 @@ final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
   final BusApi api = ref.watch(busApiProvider);
   final result = await api.getLive();
   if (result is Ok<LiveLines>) {
+    ref.read(lastLiveProvider.notifier).set(result.value);
     return result.value;
   }
-  return const LiveLines(<List<int>>[]);
+  return ref.read(lastLiveProvider);
 });
 
 /// Refreshes the live-lines indicator every 30 s. /v1/live is tiny and

@@ -2182,3 +2182,12 @@ Proposed, pending owner: true server-side revocation needs a
 That is a public contract addition, so it ships only with a PLAN
 amendment and owner sign-off. Until then the privacy text must not
 claim server-side revocation; it promises re-asking, which holds.
+
+## D55-2026-10-13: live dots survive a failed poll (Accepted)
+
+Bug: any failed `GET /v1/live` made `liveProvider` return empty, so
+every live badge across home, lines, and search blanked for up to
+30 s on any network blip (flickering dots, unstable visualization).
+Fixed with a last-good holder: success refreshes it, failure serves
+it, and the very first failure still serves empty. Covered by a new
+`live_provider_test.dart` (keeps dots, starts empty).
