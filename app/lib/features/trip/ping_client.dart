@@ -129,12 +129,24 @@ class PingClient {
         }
         if (reply.status == 401 && !_refreshed) {
           _refreshed = true;
-          await _refreshToken();
+          try {
+            await _refreshToken();
+          } catch (_) {
+            // A failing refresh is transient trouble, not a dead token:
+            // back off and retry the fix. Letting it escape would land
+            // an uncaught error in the zone and kill the pump.
+            _latest ??= fix;
+            await _backoff();
+            continue;
+          }
           _latest = fix;
           continue;
         }
-        _refreshed = false;
         if (reply.status == 200) {
+          // Only success re-arms the single refresh: a 401 after
+          // transient errors still means a dead token and must end the
+          // trip, not loop refresh calls into the registration caps.
+          _refreshed = false;
           _attempt = 0;
           onOutcome(
             PingOutcome(
