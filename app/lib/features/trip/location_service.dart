@@ -235,6 +235,14 @@ class LocationService {
   static const int batteryCacheTtlMs = 60 * 1000;
   int? _lastBatteryReadMs;
 
+  /// Silence without any accepted fix that forces a position-stream
+  /// restart even for the same mode. The OS can freeze GPS delivery
+  /// without closing the stream (notably with the screen off), and no
+  /// error ever marks it dead: without this the trip goes quiet until
+  /// the server timeout ends it.
+  static const int stallRestartMs = 60 * 1000;
+  int? _lastFixAtMs;
+
   /// Starts emitting accepted fixes for [mode]. Recreates the stream when
   /// the policy switches modes, at most once per 30 seconds.
   Stream<TripFix> fixes({
@@ -310,6 +318,7 @@ class LocationService {
                   charging: chg,
                 ),
               );
+              _lastFixAtMs = atMs;
             }
           } catch (_) {
             Log.w('fix handling failed', '');
@@ -334,13 +343,22 @@ class LocationService {
   /// position stream when the mode actually changes so offline saver drops
   /// to low-power GPS. A dead position stream recreates immediately, even
   /// for the same mode and inside hysteresis: the trip has no fixes until
-  /// it does. Returns the active mode.
+  /// it does. A silent stream (fixes flowed, then nothing for
+  /// [stallRestartMs]) recreates too, at most once per stall window: some
+  /// devices freeze delivery without ever erroring. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
     final bool restartDead = _streamDead;
-    if (mode == _mode && !restartDead) {
+    final int? fixAt = _lastFixAtMs;
+    final bool stalled =
+        _seq > 0 &&
+        fixAt != null &&
+        nowMs - fixAt > stallRestartMs &&
+        nowMs - _lastChangeMs >= stallRestartMs;
+    final bool restart = restartDead || stalled;
+    if (mode == _mode && !restart) {
       return _mode;
     }
-    if (!restartDead && nowMs - _lastChangeMs < streamHysteresisMs) {
+    if (!restart && nowMs - _lastChangeMs < streamHysteresisMs) {
       return _mode;
     }
     _mode = mode;

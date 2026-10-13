@@ -254,4 +254,52 @@ void main() {
     service.stop();
     await positions.close();
   });
+
+  test('a silent stream restarts after the stall window', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    int now = 100000;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.waiting,
+      lineLabel: 't',
+    );
+    final Future<TripFix> first = stream.first;
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+        accuracy: 10,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    await first.timeout(const Duration(seconds: 5));
+    expect(opens, 1);
+    // Inside the stall window the same mode restarts nothing.
+    now = 100000 + LocationService.stallRestartMs - 1000;
+    service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 1);
+    // Past it with no fix since, the stream recreates.
+    now = 100000 + LocationService.stallRestartMs + 1000;
+    service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
 }
