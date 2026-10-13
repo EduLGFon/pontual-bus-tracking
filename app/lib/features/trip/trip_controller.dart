@@ -210,6 +210,18 @@ class TripController extends ChangeNotifier {
   bool get lastCharging => _lastCharging;
   bool _lastCharging = false;
 
+  /// Last accepted fix, kept to re-create the server trip if its record
+  /// vanishes mid-trip. Memory only, like the accuracy above.
+  TripFix? _lastFix;
+
+  /// Whether this trip already survived one spurious `gone`. At most one
+  /// revive per trip, so a genuinely dead record still ends the trip.
+  bool _revivedOnce = false;
+
+  /// True while a revive POST is in flight. Late duplicates of the
+  /// outcome that triggered it are dropped, not finished.
+  bool _reviving = false;
+
   /// True after the permission is revoked mid-trip (3 bad polls).
   /// Read-only view of the supervisor flag.
   bool get permissionRevoked => _supervisor?.permissionRevoked ?? false;
@@ -348,6 +360,9 @@ class TripController extends ChangeNotifier {
     _lastAccuracyM = null;
     _lastBatteryPct = null;
     _lastCharging = false;
+    _lastFix = null;
+    _revivedOnce = false;
+    _reviving = false;
     _cachedSignals = null;
     _cachedHealth = null;
     _supervisor = TripSupervisor(gateway: _deps.gateway);
@@ -557,6 +572,17 @@ class TripController extends ChangeNotifier {
           role: _serverRole(),
         );
         if (res is Err<TripInstruction>) {
+          final AppFailure failure = res.failure;
+          // Terminal record states surface as outcomes so the trip ends
+          // (auth) or revives (gone); everything transient retries with
+          // backoff. Collapsing them all to status 0 left trips stuck
+          // offline forever on a deleted record.
+          if (failure is ServerFailure && failure.code == 'gone') {
+            return const PingReply(status: 404);
+          }
+          if (failure is ServerFailure && failure.code == 'auth') {
+            return const PingReply(status: 401);
+          }
           return const PingReply(status: 0);
         }
         final TripInstruction inst = (res as Ok<TripInstruction>).value;
@@ -600,6 +626,7 @@ class TripController extends ChangeNotifier {
   }
 
   void _onFix(TripFix fix) {
+    _lastFix = fix;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
       return;
@@ -645,12 +672,32 @@ class TripController extends ChangeNotifier {
     if (_disposed) {
       return;
     }
-    if (outcome.end != null) {
-      void end() async {
-        await _finish(token, _kindFor(outcome.end!), outcome.end);
+    final String? end = outcome.end;
+    if (end != null) {
+      if (end == 'gone' && _reviving) {
+        // A revive is already re-creating the record; late duplicates of
+        // the outcome that triggered it change nothing.
+        return;
+      }
+      if (end == 'gone' && !_revivedOnce) {
+        final int? line = _lineId;
+        final TripFix? fix = _lastFix;
+        if (line != null && fix != null && tripInProgress(_state)) {
+          // Our own late trip-end or a server restart can delete a live
+          // trip's record, and the next ping 404s. Re-create it once
+          // instead of dropping a healthy trip; anything else ends the
+          // trip exactly like the original outcome.
+          _revivedOnce = true;
+          _reviving = true;
+          unawaited(_revive(token, line, fix, end));
+          return;
+        }
+      }
+      void finish() async {
+        await _finish(token, _kindFor(end), end);
       }
 
-      end();
+      finish();
       return;
     }
     _nextPingAtMs = _deps.clock.nowMs() + outcome.intervalS * 1000;
@@ -668,6 +715,55 @@ class TripController extends ChangeNotifier {
       _set(tripReduce(_state, TripEvent.roleFollower));
     }
     _applyRound(supervisor);
+  }
+
+  /// Re-creates the server trip after a spurious `gone`, at most once per
+  /// trip. The ping loop keeps running meanwhile, so sharing never visibly
+  /// stops on a won race. Any failure ends the trip like the outcome that
+  /// triggered the revive. If the user ended the trip while the revive
+  /// was in flight, the orphan record is cleaned up instead of adopted.
+  Future<void> _revive(String token, int lineId, TripFix fix, String end) async {
+    try {
+      final Result<TripInstruction> res = await _deps.api.startTrip(
+        token,
+        lineId: lineId,
+        lat: fix.lat,
+        lng: fix.lng,
+        accuracyM: fix.accuracyM,
+        batteryPct: fix.batteryPct,
+        charging: fix.charging,
+        resume: true,
+      );
+      if (_disposed) {
+        return;
+      }
+      if (!tripInProgress(_state)) {
+        await _finish(token, TripEndKind.user, null);
+        return;
+      }
+      if (res is Ok<TripInstruction>) {
+        // New generation: pings sent while the record was gone return
+        // stale 404s that must not touch the revived trip.
+        _tripGen++;
+        final TripInstruction inst = res.value;
+        _onOutcome(
+          token,
+          PingOutcome(role: inst.role, intervalS: inst.intervalS),
+        );
+        return;
+      }
+      final AppFailure failure = (res as Err<TripInstruction>).failure;
+      if (failure is ServerFailure && failure.code == 'consent') {
+        await _deps.consentStore.clearPosted();
+      }
+      await _finish(token, _kindFor(end), end);
+    } catch (_) {
+      if (!_disposed) {
+        await _finish(token, _kindFor(end), end);
+      }
+    } finally {
+      _reviving = false;
+    }
   }
 
   TripEndKind _kindFor(String end) {
@@ -823,6 +919,9 @@ class TripController extends ChangeNotifier {
     }
     _locations?.stop();
     _locations = null;
+    // Invalidate the pump first: a retry parked in backoff must not wake
+    // up and apply a stale fix to the next trip's server record.
+    _ping?.close();
     _ping = null;
   }
 

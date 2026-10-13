@@ -2030,3 +2030,29 @@ it); offline-first client load with cached-then-bundle fallback that
 never breaks lines; stop dots on the line map under the vehicles;
 assets and Pages publish wired. Survey-scale hundreds will need a zoom
 gate or cap on the marker layer.
+
+## D47-2026-10-13: stale-pump poisoning, dead gone/auth, revive-once (Accepted)
+
+Field report: sharing looked active but sent nothing for minutes, and a
+second trip ended on its first pings. Code inspection proved three
+linked defects, all fixed in one change set:
+
+- The ping pump outlived the trip. `_stopLocal` dropped the client
+  without stopping a retry parked in backoff (up to 60 s), which woke
+  up and applied a stale fix to the next trip's server record: same
+  device, so the server cannot tell the trips apart. Stale seq numbers
+  got real fixes ignored as duplicates, stale positions jumped the
+  marker, and bad ones spent strikes on the innocent trip.
+  `PingClient.close()` (called on every local stop) ends all future
+  sends and outcomes.
+- Terminal record states never surfaced. The send closure collapsed
+  every HTTP error to status 0, so the designed 401-refresh and
+  404-gone outcomes were dead code: trips hung offline forever on a
+  deleted record instead of ending or resuming. `gone` and `auth`
+  codes now map to 404/401 replies; everything transient still backs
+  off. A persistently dead token now ends the trip.
+- No resume existed. A `gone` on a live trip (own late trip-end,
+  server restart per KL6) re-creates the record once with
+  `resume: true` while the loop keeps running; adoption bumps the
+  trip generation so straggler 404s cannot kill the revived trip.
+  Anything else, or a second `gone`, ends exactly like before.

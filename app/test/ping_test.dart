@@ -152,4 +152,34 @@ void main() {
       expect(got?.end, end);
     }
   });
+
+  test('close drops parked retries and late outcomes', () async {
+    int sends = 0;
+    int outcomes = 0;
+    final Completer<void> gate = Completer<void>();
+    final PingClient c = PingClient(
+      send: (_) async {
+        sends += 1;
+        throw TimeoutException('down');
+      },
+      refreshToken: () async {},
+      random: Random(1),
+      delay: (_) => gate.future,
+    );
+    c.queue(fix(1), (_) => outcomes += 1);
+    for (int i = 0; i < 20 && sends < 1; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(sends, 1);
+    // Parked in backoff: closing drops the retry even after the wait ends,
+    // and later queues are ignored.
+    c.close();
+    c.queue(fix(2), (_) => outcomes += 1);
+    gate.complete();
+    for (int i = 0; i < 20; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(sends, 1);
+    expect(outcomes, 0);
+  });
 }

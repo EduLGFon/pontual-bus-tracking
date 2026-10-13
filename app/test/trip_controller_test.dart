@@ -507,6 +507,261 @@ void main() {
     await positions.close();
   });
 
+  test('a spurious gone revives the trip once', () async {
+    final FakeClock clock = FakeClock(100000);
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int starts = 0;
+    int pings = 0;
+    bool deadOnce = true;
+    String? lastStartBody;
+    String? token;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        starts += 1;
+        lastStartBody = req.body;
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        pings += 1;
+        if (deadOnce) {
+          deadOnce = false;
+          return http.Response('{"e":"gone"}', 404);
+        }
+        return http.Response('{"r":"L","n":15}', 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => clock.nowMs(),
+        ),
+        clock: clock,
+      ),
+    );
+    Future<void> flush() async {
+      for (int i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && started == null; i++) {
+      positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+      await Future<void>.microtask(() {});
+    }
+    expect(started, isTrue);
+    expect(starts, 1);
+    // First ping slot 404s: the trip revives instead of ending.
+    clock.advance(20000);
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+    await flush();
+    for (int i = 0; i < 100 && starts < 2; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(starts, 2);
+    expect(lastStartBody, contains('"resume":true'));
+    expect(pings, 1);
+    expect(c.state, isA<TripActive>());
+    expect(c.endKind, isNull);
+    c.dispose();
+    await positions.close();
+  });
+
+  test('a persistent gone ends the trip after one revive', () async {
+    final FakeClock clock = FakeClock(100000);
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int starts = 0;
+    String? token;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        starts += 1;
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        return http.Response('{"e":"gone"}', 404);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => clock.nowMs(),
+        ),
+        clock: clock,
+      ),
+    );
+
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && started == null; i++) {
+      positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+      await Future<void>.microtask(() {});
+    }
+    expect(started, isTrue);
+    // First 404 revives (second start); the next one ends the trip, and
+    // no third start ever fires: the revive never loops.
+    clock.advance(20000);
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+    for (int i = 0; i < 100 && starts < 2; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(starts, 2);
+    expect(c.state, isA<TripActive>());
+    clock.advance(20000);
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+    for (int i = 0; i < 100 && c.endKind == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(starts, 2);
+    expect(c.state, isA<TripIdle>());
+    expect(c.endKind, TripEndKind.server);
+    c.dispose();
+    await positions.close();
+  });
+
+  test('a dead token ends the trip instead of hanging offline', () async {
+    final FakeClock clock = FakeClock(100000);
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    String? token;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        return http.Response('{"e":"auth"}', 401);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => clock.nowMs(),
+        ),
+        clock: clock,
+      ),
+    );
+
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && started == null; i++) {
+      positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+      await Future<void>.microtask(() {});
+    }
+    expect(started, isTrue);
+    // The 401 refreshes once, retries, and still 401s: the trip ends
+    // instead of retrying with backoff forever.
+    clock.advance(20000);
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+    for (int i = 0; i < 100 && c.endKind == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(c.state, isA<TripIdle>());
+    expect(c.endKind, TripEndKind.server);
+    c.dispose();
+    await positions.close();
+  });
+
   testWidgets('end cards carry each reason', (WidgetTester tester) async {
     Future<void> pumpCard(TripEndKind kind, String? detail) {
       return tester.pumpWidget(
