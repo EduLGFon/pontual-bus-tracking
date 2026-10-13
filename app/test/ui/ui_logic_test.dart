@@ -948,7 +948,7 @@ void main() {
         90,
         29.0,
         1,
-        25,
+        50,
         28.8,
       ]);
       final vm = vehicleVmOf(v, lineKey: '60');
@@ -966,7 +966,7 @@ void main() {
         90,
         29.0,
         1,
-        60,
+        80,
         28.8,
       ]);
       final vm = vehicleVmOf(v, lineKey: '60');

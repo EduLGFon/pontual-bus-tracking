@@ -2097,3 +2097,20 @@ against live OSM via Overpass plus every outside source named:
   no public API or open data, Google/Moovit are proprietary (Moovit
   scraping is a hard limit), no GTFS feed. Full coverage still
   needs the owner field survey with mapping into OSM (T17 pattern).
+
+## D50-2026-10-13: prediction horizon starts at staleness onset (Accepted)
+
+Bug: `vehicleVmOf` checked `ageS <= predictedWhileS` (30 s) after the
+live branch already took every age under `liveFreshS` (45 s), so the
+predicted branch was unreachable dead code. No bus ever rendered as a
+labeled moving prediction, and the `liveHeroOf` predicted fallback
+plus the ghost-marker chain never fired: stale buses flipped straight
+from live to gray hold, and the hero ETA vanished instead of
+degrading. The df71a38 cap (120 to 30 s) caused it by shrinking the
+window below the live threshold, and its test used age 25 (live, not
+stale), so the red test hid inside a green-file claim.
+
+Fix: the 30 s window now runs past the staleness onset
+(`ageS <= liveFreshS + predictedWhileS`, 75 s total horizon).
+Tests use genuinely stale ages: 50 for predict-forward, 80 for
+hold-at-fix. Stopped and very-old cases unchanged.
