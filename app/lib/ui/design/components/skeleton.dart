@@ -61,7 +61,8 @@ class _SkeletonHostState extends State<SkeletonHost>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    if (reduce) {
+    final bool tickerOn = TickerMode.valuesOf(context).enabled;
+    if (reduce || !tickerOn) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
       _controller.repeat(reverse: true);
