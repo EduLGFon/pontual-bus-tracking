@@ -732,7 +732,12 @@ class TripController extends ChangeNotifier {
   /// stops on a won race. Any failure ends the trip like the outcome that
   /// triggered the revive. If the user ended the trip while the revive
   /// was in flight, the orphan record is cleaned up instead of adopted.
-  Future<void> _revive(String token, int lineId, TripFix fix, String end) async {
+  Future<void> _revive(
+    String token,
+    int lineId,
+    TripFix fix,
+    String end,
+  ) async {
     try {
       final Result<TripInstruction> res = await _deps.api.startTrip(
         token,

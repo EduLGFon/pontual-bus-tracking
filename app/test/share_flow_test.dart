@@ -363,9 +363,9 @@ void main() {
       // Attach through the mounted container: the notifier cannot take
       // state before its provider initializes.
       final BuildContext ctx = tester.element(find.byType(MaterialApp));
-      ProviderScope.containerOf(
-        ctx,
-      ).read(tripHostProvider.notifier).attach(r.controller);
+      ProviderScope.containerOf(ctx)
+          .read(tripHostProvider.notifier)
+          .attach(r.controller);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.byType(TripDock).first);
@@ -393,6 +393,10 @@ void main() {
       expect(find.text('Litorâneo / Aviação'), findsOneWidget);
       expect(find.text('Guriri'), findsNothing);
       expect(tester.takeException(), isNull);
+      // Dismiss so the abandoned sheet does not hold the share-in-flight
+      // guard for the tests that follow in this file.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('dismissing the chooser starts nothing', (
@@ -459,6 +463,10 @@ void main() {
       // Title row and body share the denial copy.
       expect(find.text(UiStrings.permissionDenied), findsWidgets);
       expect(tester.takeException(), isNull);
+      // Dismiss the card so the flow finishes and releases the
+      // share-in-flight guard for the tests that follow in this file.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('share survives the caller unmounting under sheets', (
@@ -498,6 +506,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(PermissionCard), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // Dismiss the card so no sheet outlives this last test in the file.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
     });
   });
 }

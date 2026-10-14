@@ -123,7 +123,8 @@ final FutureProvider<List<StopPoint>> stopsProvider =
         final StaticDataRepository repo = await ref.watch(
           staticDataRepoProvider.future,
         );
-        return repo.stops();
+        final List<StopPoint> stops = await repo.stops();
+        return stops;
       } catch (_) {
         return const <StopPoint>[];
       }

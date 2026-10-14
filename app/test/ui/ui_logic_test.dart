@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:pontual/core/geo/geo.dart';
+import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/line_category.dart';
@@ -1017,10 +1017,10 @@ void main() {
     });
 
     test('predictPosition mirrors the server dead reckoning', () {
-      final LatLng p = predictPosition(-18.72, -39.85, 90, 8, 60);
+      final geo.LatLng p = geo.predictPosition(-18.72, -39.85, 90, 8, 60);
       expect((p.lat - -18.72).abs() < 0.0005, isTrue);
       expect(p.lng > -39.85, isTrue);
-      final LatLng still = predictPosition(-18.72, -39.85, null, 8, 60);
+      final geo.LatLng still = geo.predictPosition(-18.72, -39.85, null, 8, 60);
       expect(still.lat, -18.72);
       expect(still.lng, -39.85);
     });

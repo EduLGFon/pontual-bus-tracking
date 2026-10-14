@@ -61,10 +61,7 @@ Future<void> startShare(
     // here. Read through the dock ref after an async gap throws once it
     // is disposed.
     final ProviderContainer container = ProviderScope.containerOf(context);
-    rootContext = Navigator.of(
-      context,
-      rootNavigator: true,
-    ).context;
+    rootContext = Navigator.of(context, rootNavigator: true).context;
     await _startShare(
       rootContext,
       container,
