@@ -182,4 +182,68 @@ void main() {
     expect(sends, 1);
     expect(outcomes, 0);
   });
+
+  test('a failing refresh backs off instead of escaping to the zone', () async {
+    final List<Duration> delays = <Duration>[];
+    int calls = 0;
+    final PingClient c = PingClient(
+      send: (_) async {
+        calls += 1;
+        if (calls == 1) {
+          return const PingReply(status: 401);
+        }
+        return const PingReply(status: 200, role: 'L', intervalS: 15);
+      },
+      refreshToken: () async {
+        throw TimeoutException('register down');
+      },
+      random: Random(1),
+      delay: (Duration d) async {
+        delays.add(d);
+      },
+    );
+    PingOutcome? got;
+    c.queue(fix(1), (PingOutcome o) => got = o);
+    for (int i = 0; i < 20 && got == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    // The 401 parks in backoff, the retry succeeds: no uncaught error,
+    // and the outcome still lands.
+    expect(calls, 2);
+    expect(delays.length, 1);
+    expect(got?.role, 'L');
+  });
+
+  test('a 401 after transient errors ends the trip with one refresh',
+      () async {
+    final List<Duration> delays = <Duration>[];
+    int calls = 0;
+    int refreshes = 0;
+    final PingClient c = PingClient(
+      send: (_) async {
+        calls += 1;
+        if (calls == 2) {
+          return const PingReply(status: 500);
+        }
+        if (calls >= 3) {
+          return const PingReply(status: 401);
+        }
+        return const PingReply(status: 401);
+      },
+      refreshToken: () async {
+        refreshes += 1;
+      },
+      random: Random(1),
+      delay: (Duration d) async {
+        delays.add(d);
+      },
+    );
+    PingOutcome? got;
+    c.queue(fix(1), (PingOutcome o) => got = o);
+    for (int i = 0; i < 40 && got == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(refreshes, 1);
+    expect(got?.end, 'auth');
+  });
 }

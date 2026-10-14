@@ -2207,3 +2207,19 @@ on cancel, end the fresh record best-effort via `_finish` and report
 `declined` (silent, like every other cancel). Regression test feeds a
 fix, cancels under a hanging POST, and asserts `false`, `declined`,
 idle, plus exactly one DELETE.
+
+## D57-2026-10-14: ping refresh zone-escape and refresh loop (Accepted)
+
+Two defects in `PingClient` found by code audit:
+
+- A throwing `refreshToken` (registration transport trouble) escaped
+  `_pump` into the zone as an uncaught async error. Now it backs off
+  and retries the fix like any transient failure.
+- `_refreshed` reset on every non-first-401 reply, so an alternating
+  401/500 sequence refreshed forever, burning the registration rate
+  caps. Only a 200 re-arms the single refresh now; a later 401 ends
+  the trip via the `auth` outcome as designed.
+
+Covered by two new `ping_test` cases (failing-refresh recovery,
+single refresh across transient errors). Needs `flutter test` on a
+Flutter machine; none here.
