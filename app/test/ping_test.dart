@@ -214,8 +214,7 @@ void main() {
     expect(got?.role, 'L');
   });
 
-  test('a 401 after transient errors ends the trip with one refresh',
-      () async {
+  test('a 401 after transient errors ends the trip with one refresh', () async {
     final List<Duration> delays = <Duration>[];
     int calls = 0;
     int refreshes = 0;

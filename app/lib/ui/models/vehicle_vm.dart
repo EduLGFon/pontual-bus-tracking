@@ -53,6 +53,7 @@ class VehicleVM {
   /// Riders merged into this bus, capped at 3 by the server (never exact
   /// beyond that). 1 means a lone sharer.
   final int members;
+
   /// Recent pace along the route divided by the usual pace, kept in memory
   /// for the life of the vehicle only (UI_SPEC 13.1). Null when unknown.
   final double? paceFactor;

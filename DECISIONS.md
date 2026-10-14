@@ -2223,3 +2223,47 @@ Two defects in `PingClient` found by code audit:
 Covered by two new `ping_test` cases (failing-refresh recovery,
 single refresh across transient errors). Needs `flutter test` on a
 Flutter machine; none here.
+
+## D58-2026-10-14: CI and deploy repair (Accepted)
+
+CI (`ci.yml`) was red on branch `dev` and `deploy-static.yml` could
+not build offline tiles. Four root causes, all fixed on `dev`:
+
+- `flutter analyze` errors: `test/live_provider_test.dart` used
+  `<Override>` without importing it (Riverpod 3 moved `Override` to
+  `package:flutter_riverpod/misc.dart`, the pattern
+  `test/ui/line_screen_test.dart` already uses), and
+  `test/ui/ui_logic_test.dart` had an ambiguous `LatLng`
+  (latlong2 vs `core/geo`): the geo import is now prefixed as `geo`
+  like the adapter does, with the two `predictPosition` uses
+  qualified. Also fixed the `unawaited_return_in_try_block` warning
+  in `lib/app/providers.dart` (await into a local, then return).
+- `dart format` drift on 6 files: reformatted in place, no
+  semantic change.
+- `flutter test`: 3 `startShare` cases in `test/share_flow_test.dart`
+  failed only in full-file runs (each passes alone). The static
+  `_shareInFlight` guard in `lib/ui/features/trip/trip_flow.dart`
+  leaked across tests: the chooser test abandoned an open sheet, so
+  every later `startShare` returned immediately. Production is
+  unaffected (a flow always resolves while the process lives), so
+  the fix is test-side only: each test dismisses its sheet at the
+  end, letting the flow finish and release the guard.
+- Deploy tiles: `tools/deno.json` `map-extract` and `map-verify`
+  could not touch their output (`../build/sao_mateus.pmtiles`):
+  the tasks allowed reads of `./map`, `../data/routes` and `.`
+  only, so `Deno.stat` failed with `NotCapable` (proven with a stub
+  `pmtiles` on PATH). Added `../build` to the allow-read lists;
+  no allow-write needed (the child process writes, Deno only
+  stats). Verified with the stub: extract and verify exit 0.
+
+Verified on this host: `flutter analyze` clean, `dart format`
+clean, full app suite green (331 passed, 1 skipped),
+`deno fmt`/`lint`/`check` clean, server suite 88 green on a
+throwaway docker PG 16 (migrated with dbmate 2.36.0, dropped
+afterwards), tools `data-test`/`map-test`/`data-validate` green,
+`data-build` 10,546 bytes inside the 100 KB gate, manifest audit
+PASS, `flutter build web --release` exit 0, and the CI-shaped
+server smoke (60 s sim, line 7) clean. All three workflows parse.
+Owner side unchanged: `API_ORIGIN` repo var plus Pages setup for
+`deploy-static`, keystore secrets plus a `v*` tag for
+`release-android`.

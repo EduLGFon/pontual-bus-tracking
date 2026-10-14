@@ -134,11 +134,9 @@ void main() {
         throw StateError('offline');
       }),
       staticBaseUrl: () => 'https://static.example',
-      bundleManifestJson:
-          '{"data_version":"b1","lines":"lines.b1.json","stops":"stops.s1.json"}',
+      bundleManifestJson: '{"data_version":"b1","lines":"lines.b1.json","stops":"stops.s1.json"}',
       bundleLinesJson: bundleLines,
-      bundleStopsJson:
-          '[{"id":"s1","lat":-18.72,"lng":-39.85,"src":"osm"}]',
+      bundleStopsJson: '[{"id":"s1","lat":-18.72,"lng":-39.85,"src":"osm"}]',
       prefs: SharedPreferences.getInstance,
       nowMs: () => nowMs,
     );
