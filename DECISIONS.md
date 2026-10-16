@@ -2579,3 +2579,39 @@ Verified: `flutter analyze` clean, `dart format` clean, controller
 widget green (card copy plus settings action, no GPS hang),
 supervisor plus location 30 green, manifest audit PASS (no manifest
 change).
+
+## D68-2026-10-16: native GNSS quality channel, plumbing only (Accepted)
+
+Phase 1 step 1 of the GPS plan (Phase 0 was D63-D67). No behavior
+changes: nothing listens to the channel yet, so sampling, gating, and
+publishing are byte-for-byte what they were.
+
+What it is: `GnssQualityPlugin.kt` (EventChannel
+`pontual/gnss_quality`, registered from MainActivity) forwards
+`GnssStatus` at most 1 Hz as `{satsUsed, satsView, meanSnrDb}`.
+`lib/platform/android/gnss_quality.dart` parses it into `GnssQuality`
+and exposes `watchGnssQuality()` behind an injectable reader seam.
+No coordinates cross the channel, so it carries no location data and
+needs no permission beyond the location grant the trip already holds;
+no manifest change.
+
+API and scope choices, all verified against the pinned sources:
+`registerGnssStatusCallback` plus `getUsedInFix`/`getCn0DbHz` are
+API 24 members, guarded by an SDK check for older devices;
+`getLocationAccuracy`-style unknowns do not exist here (counts are
+counts). True HDOP needs NMEA (GGA sentences), whose registration
+is version-dependent and deprecated on newer APIs: deliberately
+deferred to a follow-up with device verification instead of
+half-supported now. D66 already recorded why unverified
+accuracy-field thresholds stay out.
+
+Limits of this verification: no Android SDK on this host, so the
+Kotlin compiles only on the release machine or CI (`assembleDebug`
+plus merged-manifest audit plus install-launch per T45). The Dart
+side is fully green: analyze clean, 6 new tests (contract, parsing,
+malformed events, seam, lazy creation). Wiring the stream into trip
+health and smoothing is the next step and gets its own ADR.
+
+Verified: `flutter analyze` clean, `dart format` clean,
+`gnss_quality` 6 green plus location 17 plus controller 22 green,
+manifest audit PASS (no manifest change).
