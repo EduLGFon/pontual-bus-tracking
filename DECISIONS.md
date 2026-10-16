@@ -2661,3 +2661,35 @@ Failing gates produce fix plans, never silent relaxes.
 
 Verified: em-dash scan clean; thresholds re-checked against code;
 docs-only, so no test suite re-run (previous greens stand).
+
+## D71-2026-10-16: mid-trip approximate downgrade detected, sends held (Accepted)
+
+Gap found on review: D67 failed fast only at the permission grant.
+`TripSupervisor.pollEnvironment` never re-checked accuracy, so a user
+flipping to Approximate mid-trip starved silently at the 60 m gate
+until the server 10-minute timeout ended the trip.
+
+Change (client only, no server contract change, no new permission):
+the supervisor polls `preciseAccuracy()` each round with the same
+3-poll debounce as revocation (fail-open on broken reads; accepted
+fixes cannot forgive it because coarse fixes never reach `onFix`)
+and reports `Supervision.imprecise`. While set, sampling drops to
+low-power like paused (GPS stays warm for a fast resume), outgoing
+pings hold (fixes that pass the gate are still too coarse to publish
+as a bus position), and the trip screen shows the D67 Precise
+guidance as tile plus banner. Deliberately no client auto-end: the
+server no-ping timeout bounds the zombie, and a fixed grant resumes
+without a restart. Health model gains `SharingIssue.imprecise`
+(outranking offline, next to permission) and `GpsValue.imprecise`
+("Aproximada"); PLAN.md 8.6 updated in the same change set.
+
+Real bug caught by existing tests while building this: the D68
+channel touched `EventChannel` unconditionally, which throws without
+a Flutter binding in plain unit tests (`trip_auto_end_test` failed
+with a binding error). `watchGnssQuality` now returns an empty
+stream with no binding, and that suite is the regression cover.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app
+suite green (362 passed, 1 skipped: supervisor debounce plus
+forgiveness, controller hold-and-resume with ping counts, health
+priority, banner widget), manifest audit PASS (no manifest change).

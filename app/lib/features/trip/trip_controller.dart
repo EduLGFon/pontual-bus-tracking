@@ -210,6 +210,10 @@ class TripController extends ChangeNotifier {
   /// True while location services are off (stream paused, banner shown).
   bool get isPaused => _supervisor?.paused ?? false;
 
+  /// True while the grant is approximate-only (Precise guidance shown,
+  /// sends held). Read-only view of the supervisor flag. See D71.
+  bool get isImprecise => _supervisor?.imprecise ?? false;
+
   /// Last successful ping in ms, null before the first success.
   /// Read-only view of the supervisor clock; never changes behavior.
   int? get lastSuccessMs => _supervisor?.lastSuccessMs;
@@ -265,6 +269,7 @@ class TripController extends ChangeNotifier {
       offline: isOffline,
       servicesOn: servicesOn,
       permissionGranted: !permissionRevoked,
+      imprecise: isImprecise,
       nowMs: nowMs,
       accuracyM: _lastAccuracyM,
       lastSuccessMs: _supervisor?.lastSuccessMs,
@@ -300,6 +305,7 @@ class TripController extends ChangeNotifier {
         a.offline == b.offline &&
         a.servicesOn == b.servicesOn &&
         a.permissionGranted == b.permissionGranted &&
+        a.imprecise == b.imprecise &&
         a.accuracyM == b.accuracyM &&
         a.lastSuccessMs == b.lastSuccessMs &&
         a.startedAtMs == b.startedAtMs &&
@@ -691,7 +697,11 @@ class TripController extends ChangeNotifier {
       // watchPosition) would otherwise ping per fix and collect rate
       // strikes. Skipped fixes are redundant by latest-wins anyway.
       _onFix(fix);
-      if (_deps.clock.nowMs() < _nextPingAtMs) {
+      // While the grant is approximate-only, fixes that pass the gate
+      // are still too coarse to publish as a bus position, so they are
+      // recorded for health but never sent. See D71.
+      if ((_supervisor?.imprecise ?? false) ||
+          _deps.clock.nowMs() < _nextPingAtMs) {
         return;
       }
       final int gen = _tripGen;
@@ -934,6 +944,7 @@ class TripController extends ChangeNotifier {
       return;
     }
     final bool hadPrompt = supervisor.promptVisible;
+    final bool hadImprecise = supervisor.imprecise;
     final Supervision round = supervisor.evaluate(
       role: _serverRole(),
       failures: _ping?.consecutiveFailures ?? 0,
@@ -958,7 +969,8 @@ class TripController extends ChangeNotifier {
     if (locations != null) {
       _samplingMode = locations.requestMode(round.wanted, _deps.clock.nowMs());
     }
-    if (supervisor.promptVisible != hadPrompt) {
+    if (supervisor.promptVisible != hadPrompt ||
+        supervisor.imprecise != hadImprecise) {
       notifyListeners();
     }
   }

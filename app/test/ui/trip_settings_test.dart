@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
@@ -263,6 +264,56 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       hanging.complete(http.Response('{"r":"W","n":5}', 200));
       await tester.pump();
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('mid-trip approximate downgrade shows the precise banner', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      // The grant flips to approximate mid-trip: three supervision
+      // rounds flag it without ending the trip.
+      r.gateway.precise = false;
+      await r.controller.checkAutoEndForTest();
+      await r.controller.checkAutoEndForTest();
+      await r.controller.checkAutoEndForTest();
+      expect(r.controller.isImprecise, isTrue);
+      expect(r.controller.state, isA<TripActive>());
+      await tester.pumpWidget(
+        wrapApp(
+          Scaffold(
+            body: StatusBlock(
+              controller: r.controller,
+              wakeUnsupported: false,
+              nowMs: () => r.clock.nowMs(),
+              requestExemption: () async => false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // The banner debouncer holds a new issue for 2 s: rebuild past
+      // the hold so the imprecise issue actually shows.
+      r.clock.advance(3000);
+      await tester.pumpWidget(
+        wrapApp(
+          Scaffold(
+            body: StatusBlock(
+              controller: r.controller,
+              wakeUnsupported: false,
+              nowMs: () => r.clock.nowMs(),
+              requestExemption: () async => false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.impreciseLocation), findsOneWidget);
+      expect(find.text(UiStrings.openSettings), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();

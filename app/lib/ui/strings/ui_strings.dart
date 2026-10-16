@@ -708,6 +708,9 @@ class UiStrings {
   /// Short GPS value when the permission was revoked.
   static const String gpsNoPermission = 'Sem permissão';
 
+  /// Short GPS value while the grant is approximate-only.
+  static const String gpsImprecise = 'Aproximada';
+
   /// Short GPS value while waiting for the first fix.
   static const String gpsSearching = 'Procurando sinal';
 

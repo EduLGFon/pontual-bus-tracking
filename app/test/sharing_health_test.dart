@@ -10,6 +10,7 @@ SharingSignals base() {
     offline: false,
     servicesOn: true,
     permissionGranted: true,
+    imprecise: false,
     nowMs: 100000,
     accuracyM: 10,
     lastSuccessMs: 99000,
@@ -38,6 +39,7 @@ void main() {
         offline: true,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 10,
         lastSuccessMs: 0,
@@ -59,6 +61,7 @@ void main() {
         offline: true,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 1000,
         startedAtMs: 0,
       ),
@@ -77,6 +80,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         startedAtMs: 100000,
       ),
@@ -94,6 +98,7 @@ void main() {
         offline: true,
         servicesOn: false,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         startedAtMs: 0,
         batteryPct: 80,
@@ -112,6 +117,7 @@ void main() {
         offline: true,
         servicesOn: false,
         permissionGranted: false,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 50,
         lastSuccessMs: 0,
@@ -124,6 +130,48 @@ void main() {
     expect(h.overall, SharingOverall.paused);
   });
 
+  test('approximate-only grant pauses with the precise banner', () {
+    final SharingHealth h = resolveSharingHealth(
+      const SharingSignals(
+        ended: false,
+        isStarting: false,
+        offline: false,
+        servicesOn: true,
+        permissionGranted: true,
+        imprecise: true,
+        nowMs: 100000,
+        accuracyM: 10,
+        lastSuccessMs: 99000,
+        startedAtMs: 0,
+        batteryPct: 80,
+      ),
+    );
+    expect(h.issue, SharingIssue.imprecise);
+    expect(h.gpsValue, GpsValue.imprecise);
+    expect(h.gpsLevel, SharingLevel.error);
+    expect(h.overall, SharingOverall.paused);
+  });
+
+  test('imprecise outranks the offline banner', () {
+    final SharingHealth h = resolveSharingHealth(
+      const SharingSignals(
+        ended: false,
+        isStarting: false,
+        offline: true,
+        servicesOn: true,
+        permissionGranted: true,
+        imprecise: true,
+        nowMs: 100000,
+        accuracyM: 10,
+        lastSuccessMs: 0,
+        startedAtMs: 0,
+        batteryPct: 80,
+      ),
+    );
+    expect(h.issue, SharingIssue.imprecise);
+    expect(h.overall, SharingOverall.paused);
+  });
+
   test('weak GPS pauses with the weak banner', () {
     final SharingHealth h = resolveSharingHealth(
       const SharingSignals(
@@ -132,6 +180,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 45,
         lastSuccessMs: 99000,
@@ -152,6 +201,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         startedAtMs: 0,
         batteryPct: 80,
@@ -169,6 +219,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 10,
         lastSuccessMs: 99000,
@@ -189,6 +240,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 10,
         lastSuccessMs: 99000,
@@ -209,6 +261,7 @@ void main() {
         offline: false,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         accuracyM: 10,
         lastSuccessMs: 0,
@@ -228,6 +281,7 @@ void main() {
         offline: true,
         servicesOn: false,
         permissionGranted: false,
+        imprecise: false,
         nowMs: 100000,
         startedAtMs: 0,
       ),
@@ -244,6 +298,7 @@ void main() {
         offline: true,
         servicesOn: true,
         permissionGranted: true,
+        imprecise: false,
         nowMs: 100000,
         startedAtMs: 0,
         batteryPct: 80,

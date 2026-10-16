@@ -22,6 +22,9 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeGateway implements PermissionGateway {
+  /// Precise-accuracy answer. Flip mid-test for the D71 path.
+  bool precise = true;
+
   @override
   Future<LocationPermissionState> check() async =>
       LocationPermissionState.granted;
@@ -34,7 +37,7 @@ class FakeGateway implements PermissionGateway {
   Future<bool> servicesOn() async => true;
 
   @override
-  Future<bool> preciseAccuracy() async => true;
+  Future<bool> preciseAccuracy() async => precise;
 
   @override
   Future<void> openSettings() async {}
@@ -468,6 +471,136 @@ void main() {
     c.dispose();
     await positions.close();
     await quality.close();
+  });
+
+  test('mid-trip approximate downgrade holds sends and resumes', () async {
+    final FakeClock clock = FakeClock(100000);
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    final FakeGateway gateway = FakeGateway();
+    int pings = 0;
+    String? token;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        pings += 1;
+        return http.Response('{"r":"W","n":20}', 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: gateway,
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => clock.nowMs(),
+        ),
+        clock: clock,
+      ),
+    );
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    Future<void> feed(int n) async {
+      // Realistic gaps: back-to-back adds backlog multi-hop stream
+      // delivery, and stragglers arrive under later clock readings.
+      // Production fixes are seconds apart; 5 ms flushes each fully.
+      for (int i = 0; i < n; i++) {
+        positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    Future<void> feedOne() async {
+      positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+
+    /// Waits until the last ping outcome is applied (slot updated, pump
+    /// idle, nothing parked). Polls the observable success clock.
+    Future<void> drainAfter(int previousSuccessMs) async {
+      for (
+        int i = 0;
+        i < 50 && (c.lastSuccessMs ?? 0) <= previousSuccessMs;
+        i++
+      ) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    await feed(100);
+    for (int i = 0; i < 50 && started == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(started, isTrue);
+    // Open the first send slot and prove the healthy path sends.
+    clock.advance(21000);
+    await feedOne();
+    for (int i = 0; i < 50 && pings == 0; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(pings, 1);
+    await drainAfter(100000);
+    expect(c.isImprecise, isFalse);
+    // Three approximate polls flag the trip imprecise.
+    gateway.precise = false;
+    await c.checkAutoEndForTest();
+    await c.checkAutoEndForTest();
+    expect(c.isImprecise, isFalse);
+    await c.checkAutoEndForTest();
+    expect(c.isImprecise, isTrue);
+    // Sends hold while imprecise: fixes still record, nothing publishes.
+    clock.advance(21000);
+    await feed(20);
+    for (int i = 0; i < 20; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(pings, 1);
+    expect(c.state, isA<TripActive>());
+    // Precise returns: the trip resumes without a restart.
+    gateway.precise = true;
+    await c.checkAutoEndForTest();
+    expect(c.isImprecise, isFalse);
+    clock.advance(21000);
+    await feedOne();
+    for (int i = 0; i < 50 && pings == 1; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(pings, 2);
+    await drainAfter(121000);
+    c.dispose();
+    await positions.close();
   });
 
   test('registration failure reports offline', () async {
