@@ -1158,6 +1158,8 @@ Rules:
 - Round before sending: lat/lng to 5 decimals, speed to 0.1 m/s, battery to 5 %
   steps.
 - `seq` increments per **accepted fix** (not per attempt).
+- Start anchors on the first fix at or under 30 m when one arrives
+  inside the 60 s GPS window, else the best-seen accepted fix (D65).
 - Never queue history. If offline, keep only the **latest** fix. After reconnect
   send the latest only.
 

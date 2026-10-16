@@ -2489,3 +2489,33 @@ Verified: `flutter analyze` clean, `dart format` clean,
 `location_test` 17 green (3 new: degraded hold, good-accuracy guard,
 saver plus paused exemption), supervisor plus controller plus health
 45 green, manifest audit PASS (no manifest change).
+
+## D65-2026-10-16: trip start anchors on the first good fix (Accepted)
+
+Phase 0 step 3 of the GPS plan (D63 step 1, D64 step 2). Owner
+constraint holds: the 60 m publish gate is untouched on both ends.
+
+Problem: `startTrip` published the first accepted fix, even a 59 m
+one, as the trip anchor. That coarse point seeds the server vehicle
+(wrong attach, coherence fail) when a sub-30 m fix follows seconds
+later on the same 5 s waiting stream.
+
+Change (client only, no server contract change, no new permission):
+the GPS phase waits for the first fix at or under 30 m
+(`firstFixGoodAccuracyM`) inside the existing 60 s window and falls
+back to the best-seen (lowest accuracy) accepted fix. Worst case is
+today plus nothing: same window bound, accuracy equal or better.
+Cancel and dispose paths are unchanged (stream close still reports
+declined; nothing seen still reports noGps). PLAN.md 8.6 updated in
+the same change set.
+
+Found while testing: the first draft looped on real-time timeouts
+against a fixed fake clock without terminating. Timeouts now end the
+window (break) instead of retrying, so the loop terminates under both
+clocks; the fake-clock deadline stays the bound.
+
+Verified: `flutter analyze` clean, `dart format` clean,
+`trip_controller_test` 21 green (2 new: good-fix preference with
+start-body coordinates, best-seen fallback with start-body
+coordinates), location plus supervisor plus auto-end plus share-flow
+plus health 62 green, manifest audit PASS (no manifest change).

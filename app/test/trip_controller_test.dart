@@ -53,12 +53,17 @@ class _DeniedGateway implements PermissionGateway {
   Future<void> openSettings() async {}
 }
 
-Position pos(double lat, double lng, {int timestampMs = 100000}) {
+Position pos(
+  double lat,
+  double lng, {
+  int timestampMs = 100000,
+  double accuracyM = 10,
+}) {
   return Position(
     latitude: lat,
     longitude: lng,
     timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
-    accuracy: 10,
+    accuracy: accuracyM,
     altitude: 0,
     heading: 90,
     speed: 8,
@@ -165,6 +170,179 @@ void main() {
     expect(c.state, isA<TripIdle>());
     c.dispose();
   });
+
+  test(
+    'start anchors on the first good fix, not the first coarse one',
+    () async {
+      final FakeClock clock = FakeClock(100000);
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      String? lastStartBody;
+      String? token;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          lastStartBody = req.body;
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          return http.Response('{"r":"L","n":15}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final TripController c = TripController(
+        TripDeps(
+          api: BusApi(
+            client: client,
+            baseUrl: () => 'http://127.0.0.1:8080',
+            readToken: () async => token,
+            writeToken: (String t) async => token = t,
+          ),
+          gateway: FakeGateway(),
+          consentStore: const ConsentStore(),
+          consentVersion: 1,
+          locations: () => LocationService(
+            positionStream: (_) => positions.stream,
+            batteryLevel: () async => 80,
+            charging: () async => false,
+            nowMs: () => clock.nowMs(),
+          ),
+          clock: clock,
+        ),
+      );
+      bool? started;
+      unawaited(
+        c
+            .startTrip(
+              lineId: 7,
+              lineLabel: '7',
+              showConsent: () async => true,
+              showPermissions: () async {},
+            )
+            .then((bool v) => started = v),
+      );
+      // Coarse fixes keep the start waiting: nothing is published yet.
+      for (int i = 0; i < 20; i++) {
+        positions.add(
+          pos(-18.70, -39.85, timestampMs: clock.nowMs(), accuracyM: 50),
+        );
+        await Future<void>.microtask(() {});
+      }
+      for (int i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(started, isNull);
+      expect(lastStartBody, isNull);
+      // The first good fix anchors the trip.
+      for (int i = 0; i < 100 && started == null; i++) {
+        positions.add(
+          pos(-18.72, -39.85, timestampMs: clock.nowMs(), accuracyM: 10),
+        );
+        await Future<void>.microtask(() {});
+      }
+      expect(started, isTrue);
+      expect(lastStartBody, contains('"lat":-18.72'));
+      c.dispose();
+      await positions.close();
+    },
+  );
+
+  test(
+    'start falls back to the best-seen fix when no good fix arrives',
+    () async {
+      final FakeClock clock = FakeClock(100000);
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      String? lastStartBody;
+      String? token;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          lastStartBody = req.body;
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          return http.Response('{"r":"L","n":15}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final TripController c = TripController(
+        TripDeps(
+          api: BusApi(
+            client: client,
+            baseUrl: () => 'http://127.0.0.1:8080',
+            readToken: () async => token,
+            writeToken: (String t) async => token = t,
+          ),
+          gateway: FakeGateway(),
+          consentStore: const ConsentStore(),
+          consentVersion: 1,
+          locations: () => LocationService(
+            positionStream: (_) => positions.stream,
+            batteryLevel: () async => 80,
+            charging: () async => false,
+            nowMs: () => clock.nowMs(),
+          ),
+          clock: clock,
+        ),
+      );
+      bool? started;
+      unawaited(
+        c
+            .startTrip(
+              lineId: 7,
+              lineLabel: '7',
+              showConsent: () async => true,
+              showPermissions: () async {},
+              firstFixTimeout: const Duration(milliseconds: 100),
+            )
+            .then((bool v) => started = v),
+      );
+      // Only coarse fixes inside the window: the start uses the best one.
+      // Keep feeding while waiting: the 100 ms window is real time, and
+      // fixes sent before the service subscribes are lost on broadcast.
+      // After feeding stops, one last window elapses before the fallback
+      // fires, so the test waits past it.
+      for (int i = 0; i < 10; i++) {
+        positions.add(
+          pos(
+            i.isEven ? -18.70 : -18.71,
+            -39.85,
+            timestampMs: clock.nowMs(),
+            accuracyM: i.isEven ? 50 : 45,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      for (int i = 0; i < 30 && started == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(started, isTrue);
+      expect(lastStartBody, contains('"lat":-18.71'));
+      c.dispose();
+      await positions.close();
+    },
+  );
 
   test('registration failure reports offline', () async {
     final MockClient client = MockClient((http.Request req) async {
