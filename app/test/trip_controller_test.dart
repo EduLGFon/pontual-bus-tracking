@@ -410,6 +410,95 @@ void main() {
     await positions.close();
   });
 
+  test('forcePingNow sends immediately past the pacing slot', () async {
+    String? token;
+    final FakeClock clock = FakeClock(100000);
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int pings = 0;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        pings += 1;
+        return http.Response('{"r":"L","n":15}', 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => clock.nowMs(),
+        ),
+        clock: clock,
+      ),
+    );
+    Future<void> flush() async {
+      for (int i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && started == null; i++) {
+      positions.add(pos(-18.72, -39.85));
+      await Future<void>.microtask(() {});
+    }
+    expect(started, isTrue);
+    // Start (n:20) arms the next slot 20 s out: nothing sent yet. One more
+    // fix flows through the run loop (tracked for health, pacing-skipped)
+    // so there is a latest fix to force out.
+    positions.add(pos(-18.72, -39.85, timestampMs: clock.nowMs()));
+    await flush();
+    expect(pings, 0);
+    // The test button bypasses the slot and sends the latest fix at once.
+    expect(c.forcePingNow(), isTrue);
+    await flush();
+    expect(pings, 1);
+    c.dispose();
+    await positions.close();
+  });
+
+  test('forcePingNow is false with no trip running', () async {
+    final TripController c = controller(happy(), feed: false);
+    expect(c.forcePingNow(), isFalse);
+    c.dispose();
+  });
+
   test('late outcome from a previous trip is ignored', () async {
     final Completer<http.Response> hanging = Completer<http.Response>();
     String? token;

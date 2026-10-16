@@ -1,5 +1,6 @@
 {
   "API_BASE_URL": "http://127.0.0.1:8080",
   "STATIC_BASE_URL": "http://127.0.0.1:8080/data",
-  "FIX_ACCURACY_MAX_M": 60
+  "FIX_ACCURACY_MAX_M": 60,
+  "FORCE_PING_BUTTON": false
 }

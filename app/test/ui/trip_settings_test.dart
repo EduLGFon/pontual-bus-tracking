@@ -120,6 +120,66 @@ void main() {
       await r.positions.close();
     });
 
+    testWidgets('force-ping button hidden without the flag', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
+      await tester.pump();
+      // Default build has no dart-define: the test button never renders.
+      expect(find.text(UiStrings.forcePingTest), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('force-ping button sends one ping on tap', (
+      WidgetTester tester,
+    ) async {
+      int pings = 0;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          pings += 1;
+          return http.Response('{"r":"L","n":15}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final rig.Rig r = rig.rig(client);
+      await rig.start(r);
+      await tester.pumpWidget(
+        wrapApp(TripScreen(controller: r.controller, showForcePing: true)),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.forcePingTest), findsOneWidget);
+      final int before = pings;
+      await tester.tap(find.text(UiStrings.forcePingTest));
+      await tester.pump();
+      expect(pings, before + 1);
+      expect(find.text(UiStrings.forcePingSent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      ScaffoldMessenger.of(tester.element(find.byType(TripScreen)))
+          .hideCurrentSnackBar();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
     testWidgets('offline trip shows the battery exemption card', (
       WidgetTester tester,
     ) async {

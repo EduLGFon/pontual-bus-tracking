@@ -678,6 +678,34 @@ class TripController extends ChangeNotifier {
     };
   }
 
+  /// Test-only: queues the last accepted fix for immediate send, bypassing
+  /// the server-interval pacing slot. The button that calls this exists
+  /// only behind the `FORCE_PING_BUTTON` dart-define (default false), so
+  /// production builds never expose it. Returns false when no trip runs
+  /// or no fix arrived yet. A tap with no newer fix resends the latest
+  /// one, which the server answers as a duplicate without changing state,
+  /// so the full HTTP path is still exercised. Do not spam it: the
+  /// per-device ping bucket (30/min) still applies.
+  bool forcePingNow() {
+    final TripFix? fix = _lastFix;
+    final PingClient? ping = _ping;
+    final String? token = _activeToken;
+    if (fix == null || ping == null || token == null) {
+      return false;
+    }
+    if (!tripInProgress(_state)) {
+      return false;
+    }
+    _nextPingAtMs = 0;
+    final int gen = _tripGen;
+    ping.queue(_fixBody(fix), (PingOutcome o) {
+      if (gen == _tripGen) {
+        _onOutcome(token, o);
+      }
+    });
+    return true;
+  }
+
   void _onOutcome(String token, PingOutcome outcome) {
     if (_disposed) {
       return;

@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Banner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/web/visibility.dart';
@@ -76,13 +77,23 @@ class _TripRouteState extends ConsumerState<TripRoute> {
 /// no setState ever carries controller data.
 class TripScreen extends StatefulWidget {
   /// Creates a screen driven by [controller].
-  const TripScreen({required this.controller, this.nowMs, super.key});
+  const TripScreen({
+    required this.controller,
+    this.nowMs,
+    this.showForcePing = forcePingButton,
+    super.key,
+  });
 
   /// Trip controller owning the trip.
   final TripController controller;
 
   /// Clock in milliseconds, injectable for deterministic tests.
   final int Function()? nowMs;
+
+  /// Shows the test-only force-ping button. Defaults to the
+  /// FORCE_PING_BUTTON dart-define (false), so production builds never
+  /// render it. Tests pass true explicitly.
+  final bool showForcePing;
 
   @override
   State<TripScreen> createState() => _TripScreenState();
@@ -319,7 +330,31 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           semanticLabel: UiStrings.tripStopSemantic,
           onPressed: () => unawaited(c.endTrip()),
         ),
+        // Test-only force-ping button. Gated by showForcePing (dart-define
+        // FORCE_PING_BUTTON, default false), so it never renders in
+        // production builds.
+        if (widget.showForcePing) ...<Widget>[
+          const SizedBox(height: Space.x2),
+          SecondaryButton(
+            key: const ValueKey<String>('forcePing'),
+            label: UiStrings.forcePingTest,
+            compact: true,
+            onPressed: () => _forcePing(context, c),
+          ),
+        ],
       ],
+    );
+  }
+
+  /// Queues one immediate ping and toasts the result. Test builds only.
+  void _forcePing(BuildContext context, TripController c) {
+    final bool sent = c.forcePingNow();
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          sent ? UiStrings.forcePingSent : UiStrings.forcePingNoFix,
+        ),
+      ),
     );
   }
 
