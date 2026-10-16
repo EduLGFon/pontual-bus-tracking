@@ -14,6 +14,7 @@ import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/trip/trip_end_card.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
@@ -388,6 +389,86 @@ void main() {
       c.dispose();
     },
   );
+
+  test('trip records GNSS quality and drops it on stop', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<GnssQuality> quality =
+        StreamController<GnssQuality>();
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    String? token;
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        return http.Response('{"r":"W","n":20}', 201);
+      }
+      if (path == '/v1/trip/ping') {
+        return http.Response('{"r":"L","n":15}', 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: client,
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 1,
+        locations: () => LocationService(
+          positionStream: (_) => positions.stream,
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => 100000,
+        ),
+        clock: FakeClock(100000),
+        gnssReader: () => quality.stream,
+      ),
+    );
+    bool? started;
+    unawaited(
+      c
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && started == null; i++) {
+      positions.add(pos(-18.72, -39.85));
+      await Future<void>.microtask(() {});
+    }
+    expect(started, isTrue);
+    expect(c.lastGnssQuality, isNull);
+    quality.add(const GnssQuality(satsUsed: 3, satsView: 9, meanSnrDb: 28));
+    for (int i = 0; i < 20 && c.lastGnssQuality == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(c.lastGnssQuality?.satsUsed, 3);
+    expect(c.lastGnssQuality?.satsView, 9);
+    expect(quality.hasListener, isTrue);
+    await c.endTrip();
+    expect(c.lastGnssQuality, isNull);
+    expect(quality.hasListener, isFalse);
+    c.dispose();
+    await positions.close();
+    await quality.close();
+  });
 
   test('registration failure reports offline', () async {
     final MockClient client = MockClient((http.Request req) async {

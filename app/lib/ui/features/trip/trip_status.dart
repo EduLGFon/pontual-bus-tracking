@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/android/battery_optimization.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/components/banner.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
@@ -104,7 +105,7 @@ class _StatusBlockState extends State<StatusBlock> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        StatusTiles(health: health),
+        StatusTiles(health: health, gnss: c.lastGnssQuality),
         if (_bannerOf(shown) != null) ...<Widget>[
           const SizedBox(height: Space.x3),
           _IssueBanner(
@@ -322,10 +323,15 @@ class _IssueBanner extends StatelessWidget {
 /// narrow screens and large text stack full-width rows.
 class StatusTiles extends StatelessWidget {
   /// Creates the tiles for [health].
-  const StatusTiles({required this.health, super.key});
+  const StatusTiles({required this.health, this.gnss, super.key});
 
   /// Resolved health to render.
   final SharingHealth health;
+
+  /// Latest GNSS quality, if any. Shown as a satellite subtitle on the
+  /// GPS tile while weak or unfixed: it tells sky-blocked apart from
+  /// permission or services problems at a glance. See D69.
+  final GnssQuality? gnss;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +347,7 @@ class StatusTiles extends StatelessWidget {
         key: const ValueKey<String>('tileGps'),
         icon: _gpsIcon(health.gpsValue),
         label: UiStrings.gps,
-        value: _gpsText(health.gpsValue),
+        value: _gpsText(health.gpsValue, gnss),
         level: health.gpsLevel,
       ),
       _HealthTile(
@@ -407,8 +413,8 @@ class StatusTiles extends StatelessWidget {
     };
   }
 
-  String _gpsText(GpsValue value) {
-    return switch (value) {
+  String _gpsText(GpsValue value, GnssQuality? gnss) {
+    final String base = switch (value) {
       GpsValue.good => UiStrings.gpsGood,
       GpsValue.weak => UiStrings.gpsWeak,
       GpsValue.noFix => UiStrings.noSignal,
@@ -416,6 +422,13 @@ class StatusTiles extends StatelessWidget {
       GpsValue.noPermission => UiStrings.gpsNoPermission,
       GpsValue.searching => UiStrings.gpsSearching,
     };
+    if (gnss == null) {
+      return base;
+    }
+    if (value != GpsValue.weak && value != GpsValue.noFix) {
+      return base;
+    }
+    return '$base, ${UiStrings.satsInFix(gnss.satsUsed)}';
   }
 
   IconData _deviceIcon(DeviceValue value) {

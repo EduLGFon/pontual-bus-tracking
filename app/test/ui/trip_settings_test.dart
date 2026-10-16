@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:pontual/domain/trip/sharing_health.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/settings/about_screen.dart';
@@ -264,6 +266,40 @@ void main() {
       await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
+    });
+
+    testWidgets('weak GPS shows the satellite subtitle', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth weak = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.warn,
+        gpsValue: GpsValue.weak,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.gpsWeak,
+        overall: SharingOverall.paused,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusTiles(
+            health: weak,
+            gnss: GnssQuality(satsUsed: 3, satsView: 9, meanSnrDb: 28),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.text('${UiStrings.gpsWeak}, ${UiStrings.satsInFix(3)}'),
+        findsOneWidget,
+      );
+      // No sample, no subtitle: the tile keeps its short value.
+      await tester.pumpWidget(wrapApp(const StatusTiles(health: weak)));
+      await tester.pump();
+      expect(find.text(UiStrings.gpsWeak), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

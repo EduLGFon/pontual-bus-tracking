@@ -2615,3 +2615,49 @@ health and smoothing is the next step and gets its own ADR.
 Verified: `flutter analyze` clean, `dart format` clean,
 `gnss_quality` 6 green plus location 17 plus controller 22 green,
 manifest audit PASS (no manifest change).
+
+## D69-2026-10-16: GNSS quality wired into the trip screen (Accepted)
+
+Phase 1 step 2 (D68 built the channel). Owner constraint holds: the
+signal only displays, it never gates, drops, or smooths a fix, and
+the 60 m gate is untouched.
+
+Change (client only, no server contract change, no new permission):
+`TripController` subscribes to `watchGnssQuality` in `_runLoop`
+(behind the injectable `TripDeps.gnssReader`, production default uses
+the real channel), keeps the latest sample in `lastGnssQuality`, and
+unsubscribes plus clears it in `_stopLocal` and `dispose`. It
+notifies only when the displayed satellite count changes, so the
+1 Hz native stream does not rebuild the screen every second.
+`StatusTiles` takes an optional `gnss` and appends "N satélites" to
+the GPS tile while weak or unfixed; every other tile and state is
+unchanged. PLAN.md 8.6 updated in the same change set.
+
+Test finding: a rig-driven widget variant of this hung in teardown
+under FakeAsync and was replaced with direct `StatusTiles` tests
+plus a real-async controller lifecycle test. Production teardown is
+the same audited path as the fix stream (cancel in `_stopLocal` and
+`dispose`); the race is test-side. If it recurs on another machine,
+suspect unawaited-cancel versus awaited-close ordering in FakeAsync
+before suspecting production code.
+
+Verified: `flutter analyze` clean, `dart format` clean, controller
+23 green (new record-and-drop lifecycle case), trip-settings 11
+green (new subtitle plus no-subtitle cases), location plus gnss
+plus supervisor plus share-flow 72 green across the runs, manifest
+audit PASS (no manifest change).
+
+## D70-2026-10-16: GPS acceptance protocol (docs only, Accepted)
+
+No code changed in this step. The remaining code items (SNR-weighted
+smoothing, NMEA true HDOP) need field numbers by the project's own
+VERIFY discipline, so this step writes down what passing looks like:
+`docs/field-tests/gps-acceptance.md` with the accuracy tiers as
+built, per-step gates for D63-D69 each measured open-sky and
+weak-GPS, the two-phone collection procedure on
+production-equivalent builds, and a checklist. Thresholds cited in
+the doc were re-verified against the constants (60, 40, 30, 0.5).
+Failing gates produce fix plans, never silent relaxes.
+
+Verified: em-dash scan clean; thresholds re-checked against code;
+docs-only, so no test suite re-run (previous greens stand).

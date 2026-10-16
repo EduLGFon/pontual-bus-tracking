@@ -1162,10 +1162,11 @@ Rules:
   inside the 60 s GPS window, else the best-seen accepted fix (D65).
 - Never queue history. If offline, keep only the **latest** fix. After reconnect
   send the latest only.
-- Android GNSS quality (D68): satellites in view/in fix plus mean SNR stream
-  on the `pontual/gnss_quality` native channel while a trip listens. No
-  coordinates cross it. It feeds quality tiers and field diagnosis only and
-  never gates a fix; true HDOP via NMEA stays future work with device
+- Android GNSS quality (D68, wired in D69): satellites in view/in fix
+  plus mean SNR stream on the `pontual/gnss_quality` native channel
+  while a trip listens. No coordinates cross it. The trip screen shows
+  the satellite count next to a weak or missing GPS tile; the signal
+  never gates a fix. True HDOP via NMEA stays future work with device
   verification.
 
 **Android foreground service:**
