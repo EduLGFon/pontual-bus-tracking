@@ -29,6 +29,13 @@ abstract class PermissionGateway {
   /// True when device location services are on.
   Future<bool> servicesOn();
 
+  /// True when the grant includes precise (full-accuracy) location.
+  /// Approximate-only grants report coarse fixes that never pass the
+  /// publish gate, so the flow can ask for Precise instead of stalling
+  /// at "waiting for GPS". Fail-open: unknown status or any error
+  /// answers true and sharing proceeds as today. See D67.
+  Future<bool> preciseAccuracy();
+
   /// Opens the app settings page.
   Future<void> openSettings();
 }

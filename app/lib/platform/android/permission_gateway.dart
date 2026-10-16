@@ -24,6 +24,18 @@ class GeolocatorPermissionGateway implements PermissionGateway {
   }
 
   @override
+  Future<bool> preciseAccuracy() async {
+    try {
+      // Web has no accuracy-status API and throws UnimplementedError;
+      // browsers grant precise-or-nothing, so fail-open is correct there.
+      return await Geolocator.getLocationAccuracy() ==
+          LocationAccuracyStatus.precise;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  @override
   Future<void> openSettings() async {
     await Geolocator.openAppSettings();
   }

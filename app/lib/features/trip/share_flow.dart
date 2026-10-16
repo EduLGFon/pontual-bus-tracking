@@ -276,6 +276,11 @@ Future<void> _shareTrip(
     }
     return;
   }
+  if (reason == StartFailure.imprecise && !legacySheets) {
+    // The new UI maps this to its own permission card; the snackbar
+    // below only serves the legacy flow.
+    return;
+  }
   _tell(context, _messageFor(reason));
 }
 
@@ -290,6 +295,8 @@ String _messageFor(StartFailure? reason) {
       return UiStrings.shareBusy;
     case StartFailure.outsideArea:
       return UiStrings.shareOutsideArea;
+    case StartFailure.imprecise:
+      return UiStrings.impreciseLocation;
     case StartFailure.permission:
     case StartFailure.declined:
     case StartFailure.failed:

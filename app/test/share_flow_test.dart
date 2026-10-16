@@ -469,6 +469,38 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets('approximate-only grant renders the precise card', (
+      WidgetTester tester,
+    ) async {
+      final RecordingGateway gateway = RecordingGateway()..precise = false;
+      const LineVM line = LineVM(
+        key: '60-litoraneo-aviacao',
+        name: 'Litorâneo / Aviação',
+        short: '60',
+        supportsSharing: true,
+      );
+      await tester.pumpWidget(flowButton(line, gateway));
+      await tester.tap(find.text('share'));
+      await tester.pumpAndSettle();
+      expect(find.text(UiStrings.consentTitle), findsOneWidget);
+      await tester.scrollUntilVisible(find.text(UiStrings.consentAccept), 200);
+      await tester.tap(find.text(UiStrings.consentAccept));
+      await tester.pumpAndSettle();
+      expect(find.text(UiStrings.permissionPrompt), findsOneWidget);
+      await tester.tap(find.text(UiStrings.permissionContinue));
+      await tester.pumpAndSettle();
+      // Granted but approximate-only: the start fails fast with
+      // imprecise (no 60 s GPS wait), and the card asks for Precise.
+      expect(find.byType(PermissionCard), findsOneWidget);
+      expect(find.text(UiStrings.impreciseLocation), findsOneWidget);
+      expect(find.text(UiStrings.openSettings), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      // Dismiss the card so the flow finishes and releases the
+      // share-in-flight guard for the tests that follow in this file.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('share survives the caller unmounting under sheets', (
       WidgetTester tester,
     ) async {

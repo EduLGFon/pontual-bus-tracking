@@ -450,6 +450,11 @@ class UiStrings {
   /// Permission permanently denied action.
   static const String openSettings = 'Abrir ajustes';
 
+  /// Approximate-location message: sharing needs Precise.
+  static const String impreciseLocation =
+      'A localização está aproximada. Para compartilhar a viagem, ative a '
+      'localização precisa nas informações do app.';
+
   /// Location services off message.
   static const String locationOff = 'Ative a localização do aparelho.';
 

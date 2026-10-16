@@ -33,7 +33,16 @@ class FakeGateway implements PermissionGateway {
   Future<bool> servicesOn() async => true;
 
   @override
+  Future<bool> preciseAccuracy() async => true;
+
+  @override
   Future<void> openSettings() async {}
+}
+
+/// Gateway that grants approximate-only location, for the D67 path.
+class _ImpreciseGateway extends FakeGateway {
+  @override
+  Future<bool> preciseAccuracy() async => false;
 }
 
 /// Gateway that always denies permission, for the denial path test.
@@ -48,6 +57,9 @@ class _DeniedGateway implements PermissionGateway {
 
   @override
   Future<bool> servicesOn() async => true;
+
+  @override
+  Future<bool> preciseAccuracy() async => true;
 
   @override
   Future<void> openSettings() async {}
@@ -341,6 +353,39 @@ void main() {
       expect(lastStartBody, contains('"lat":-18.71'));
       c.dispose();
       await positions.close();
+    },
+  );
+
+  test(
+    'approximate-only grant reports imprecise before any trip call',
+    () async {
+      int starts = 0;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          starts += 1;
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        return http.Response('{}', 404);
+      });
+      final TripController c = controller(client, gateway: _ImpreciseGateway());
+      final bool started = await c.startTrip(
+        lineId: 7,
+        lineLabel: '7',
+        showConsent: () async => true,
+        showPermissions: () async {},
+      );
+      expect(started, isFalse);
+      expect(c.failReason, StartFailure.imprecise);
+      expect(c.state, isA<TripIdle>());
+      expect(starts, 0);
+      c.dispose();
     },
   );
 

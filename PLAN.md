@@ -1156,7 +1156,7 @@ Rules:
 - **Drop** a fix on the client if: `isMocked` (VERIFY), accuracy > 60 m, outside
   the bounding box, or timestamp older than 20 s. (Server re-checks everything.)
 - Round before sending: lat/lng to 5 decimals, speed to 0.1 m/s, battery to 5 %
-  steps.
+  steps. Heading is null under 0.5 m/s (bearings need motion, D66).
 - `seq` increments per **accepted fix** (not per attempt).
 - Start anchors on the first fix at or under 30 m when one arrives
   inside the 60 s GPS window, else the best-seen accepted fix (D65).
@@ -1190,7 +1190,9 @@ Rules:
   where the dialog is not enough.
 
 **Permission denied / revoked mid-trip:** stop stream, send `DELETE /v1/trip`
-best-effort, show S07 (with "Abrir ajustes"). **GPS toggled off:** `paused` +
+best-effort, show S07 (with "Abrir ajustes"). **Approximate-only grant:**
+fail fast with `imprecise` and the Precise-location card (D67); coarse
+fixes would never pass the publish gate. **GPS toggled off:** `paused` +
 banner "Ative a localização"; auto-resume when it returns; if > 5 min paused →
 end trip. **Mock location detected:** drop fixes, show "Localização simulada
 detectada - desative para compartilhar".

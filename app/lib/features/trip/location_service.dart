@@ -134,9 +134,21 @@ String? dropReason(RawFix fix, int nowMs) {
 double normalizeSpeed(double speedMps) =>
     speedMps < 0 ? 0 : (speedMps * 10).round() / 10;
 
+/// Still threshold in m/s under which a GPS bearing is noise. Matches
+/// the server still-tick threshold: below this the chip derives no
+/// direction from motion, so the fix carries no heading instead of a
+/// random one. The server holds position on null headings and widens
+/// attach tolerance. See D66.
+const double stillSpeedMaxMps = 0.5;
+
 /// Folds a heading into the server range of 0 to 359 or null.
 /// Geolocator can report 360 for north and negatives for unknown.
-double? normalizeHeading(double heading) {
+/// Bearings at standstill are noise, so they are nulled instead of
+/// published.
+double? normalizeHeading(double heading, double speedMps) {
+  if (speedMps < stillSpeedMaxMps) {
+    return null;
+  }
   if (heading == 360) {
     return 0;
   }
@@ -334,14 +346,15 @@ class LocationService {
         final int seq = _seq;
         final int level = _lastBatteryPct;
         final bool chg = _lastCharging;
+        final double speed = normalizeSpeed(p.speed);
         if (!controller.isClosed) {
           controller.add(
             TripFix(
               seq: seq,
               lat: round5(raw.lat),
               lng: round5(raw.lng),
-              speedMps: normalizeSpeed(p.speed),
-              heading: normalizeHeading(p.heading),
+              speedMps: speed,
+              heading: normalizeHeading(p.heading, speed),
               accuracyM: raw.accuracyM,
               batteryPct: batteryBucket(level),
               charging: chg,
