@@ -15,6 +15,7 @@ import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 
 /// Controllable permission gateway for trip tests.
 class MutableGateway implements PermissionGateway {
@@ -46,12 +47,12 @@ class MutableGateway implements PermissionGateway {
 /// One raw position at [speed] m/s inside the accepted area. Pass the
 /// fake [timestampMs] when the test advances its clock past the 20 s
 /// freshness window, or the stale filter correctly drops the fix.
-Position pos(double speed, {int timestampMs = 100000}) {
+Position pos(double speed, {int timestampMs = 100000, double accuracyM = 10}) {
   return Position(
     latitude: -18.72,
     longitude: -39.85,
     timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
-    accuracy: 10,
+    accuracy: accuracyM,
     altitude: 0,
     heading: 90,
     speed: speed,
@@ -95,7 +96,12 @@ class Rig {
 }
 
 /// Builds a rig answering HTTP with [client].
-Rig rig(MockClient client, {MutableGateway? gateway, FakeClock? clock}) {
+Rig rig(
+  MockClient client, {
+  MutableGateway? gateway,
+  FakeClock? clock,
+  GnssQualityReader? gnssReader,
+}) {
   String? token;
   final MutableGateway gw = gateway ?? MutableGateway();
   final FakeClock clk = clock ?? FakeClock(100000);
@@ -120,6 +126,7 @@ Rig rig(MockClient client, {MutableGateway? gateway, FakeClock? clock}) {
         nowMs: () => 100000,
       ),
       clock: clk,
+      gnssReader: gnssReader,
     ),
   );
   return Rig(controller, clk, gw, positions);

@@ -22,6 +22,7 @@ import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/ping_client.dart';
 import 'package:pontual/features/trip/trip_supervisor.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 
 /// Why the last [TripController.startTrip] returned false. Null when the
 /// last start succeeded or none ran. Read by the share flow to explain
@@ -88,6 +89,7 @@ class TripDeps {
     required this.consentVersion,
     required this.locations,
     required this.clock,
+    this.gnssReader,
   });
 
   /// Typed API client.
@@ -107,6 +109,11 @@ class TripDeps {
 
   /// Clock for durations.
   final Clock clock;
+
+  /// GNSS quality reader. Null production default uses the real native
+  /// channel on Android and an empty stream elsewhere. Tests inject a
+  /// fake so no platform channel is ever touched. See D69.
+  final GnssQualityReader? gnssReader;
 }
 
 /// Controls one trip from consent to end states.
@@ -220,6 +227,13 @@ class TripController extends ChangeNotifier {
   /// Last accepted fix charging flag. Read-only.
   bool get lastCharging => _lastCharging;
   bool _lastCharging = false;
+
+  /// Last GNSS quality sample, null before the first one or off-trip.
+  /// Read-only; drives the satellite subtitle on the trip screen.
+  /// Signal quality only, never location. See D69.
+  GnssQuality? get lastGnssQuality => _lastGnssQuality;
+  GnssQuality? _lastGnssQuality;
+  StreamSubscription<GnssQuality>? _gnssSub;
 
   /// Last accepted fix, kept to re-create the server trip if its record
   /// vanishes mid-trip. Memory only, like the accuracy above.
@@ -693,6 +707,21 @@ class TripController extends ChangeNotifier {
     _autoEndTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       unawaited(_checkAutoEnd(token));
     });
+    // GNSS quality rides along for diagnosis only: it never gates a fix
+    // and never reaches the server. Notifies only when the displayed
+    // satellite count changes, so the 1 Hz native stream does not
+    // rebuild the trip screen every second. See D69.
+    _gnssSub = watchGnssQuality(reader: _deps.gnssReader)
+        .listen((GnssQuality q) {
+          if (_disposed) {
+            return;
+          }
+          final int? prev = _lastGnssQuality?.satsUsed;
+          _lastGnssQuality = q;
+          if (prev != q.satsUsed) {
+            notifyListeners();
+          }
+        });
   }
 
   void _onFix(TripFix fix) {
@@ -1026,6 +1055,12 @@ class TripController extends ChangeNotifier {
     }
     _locations?.stop();
     _locations = null;
+    final StreamSubscription<GnssQuality>? gnss = _gnssSub;
+    _gnssSub = null;
+    _lastGnssQuality = null;
+    if (gnss != null) {
+      unawaited(gnss.cancel());
+    }
     // Invalidate the pump first: a retry parked in backoff must not wake
     // up and apply a stale fix to the next trip's server record.
     _ping?.close();
@@ -1061,6 +1096,7 @@ class TripController extends ChangeNotifier {
     // cancel below stays: the linter only recognizes it in dispose.
     _autoEndTimer?.cancel();
     unawaited(_fixSub?.cancel());
+    unawaited(_gnssSub?.cancel());
     unawaited(_stopLocal());
     super.dispose();
   }

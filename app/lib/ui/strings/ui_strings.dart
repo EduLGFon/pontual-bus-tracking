@@ -711,6 +711,9 @@ class UiStrings {
   /// Short GPS value while waiting for the first fix.
   static const String gpsSearching = 'Procurando sinal';
 
+  /// Satellite count subtitle on the GPS tile, for example "3 satélites".
+  static String satsInFix(int n) => n == 1 ? '1 satélite' : '$n satélites';
+
   /// Short device value when the phone is fine.
   static const String deviceScreenOn = 'Tela ligada';
 
