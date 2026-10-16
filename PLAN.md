@@ -1149,8 +1149,10 @@ Rules:
 
 - Change mode only on a role/state change, with **hysteresis on downgrades**
   (don't recreate the location stream more than once per 30 s when slowing
-  down). Upgrades to a faster cadence or to high accuracy apply immediately
-  (D59, D60).
+  down; 60 s while the last accepted fix is degraded at or above 40 m, so
+  GPS stays powered through brief coarse patches - offline saver and paused
+  keep the 30 s guard). Upgrades to a faster cadence or to high accuracy
+  apply immediately (D59, D60).
 - **Drop** a fix on the client if: `isMocked` (VERIFY), accuracy > 60 m, outside
   the bounding box, or timestamp older than 20 s. (Server re-checks everything.)
 - Round before sending: lat/lng to 5 decimals, speed to 0.1 m/s, battery to 5 %

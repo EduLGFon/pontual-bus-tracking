@@ -27,6 +27,20 @@ const BBox fixArea = BBox(
 /// Maximum fix age in milliseconds.
 const int fixMaxAgeMs = 20000;
 
+/// Fix accuracy at or above which the signal counts as degraded for the
+/// downgrade guard. Well under the 60 m publish gate: this never drops
+/// a fix, it only keeps the faster GPS stream a little longer so the
+/// next good fix arrives sooner. See DECISIONS.md D64.
+const double degradedAccuracyM = 40;
+
+/// Downgrade guard in milliseconds while the last accepted fix is
+/// degraded. Dropping from high accuracy to a 45 s cadence right when
+/// fixes turn coarse powers down GPS exactly when it is needed most;
+/// holding the faster stream up to 60 s costs a bounded amount of
+/// battery for more chances at a sub-60 m fix. Offline saver and paused
+/// keep the normal guard: with no uploads, faster GPS buys nothing.
+const int degradedHoldMs = 60 * 1000;
+
 /// One accepted fix ready to send.
 class TripFix {
   /// Creates a fix.
@@ -267,6 +281,11 @@ class LocationService {
   static const int stallRestartMs = 30 * 1000;
   int? _lastFixAtMs;
 
+  /// Accuracy of the last accepted fix, null before the first one.
+  /// Drives the degraded downgrade guard in [requestMode] only; it
+  /// never drops a fix (the 60 m gate owns that).
+  double? _lastAccuracyM;
+
   /// Starts emitting accepted fixes for [mode]. Recreates the stream when
   /// the policy switches modes, at most once per 30 seconds.
   Stream<TripFix> fixes({
@@ -329,6 +348,7 @@ class LocationService {
             ),
           );
           _lastFixAtMs = atMs;
+          _lastAccuracyM = raw.accuracyM;
         }
         final int? lastRead = _lastBatteryReadMs;
         if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
@@ -373,11 +393,16 @@ class LocationService {
   /// changes so offline saver drops to low-power GPS. Upgrades to a faster
   /// cadence or to high accuracy bypass hysteresis: a fresh leader must
   /// reach high accuracy on the next fix, not after 30 s at the old
-  /// waiting rate. A dead position stream recreates immediately, even for
-  /// the same mode and inside hysteresis: the trip has no fixes until it
-  /// does. A silent stream (fixes flowed, then nothing for
-  /// [stallRestartMs]) recreates too, at most once per stall window: some
-  /// devices freeze delivery without ever erroring. Returns the active mode.
+  /// waiting rate. While the last accepted fix is degraded (at or above
+  /// [degradedAccuracyM]) role-driven downgrades wait [degradedHoldMs]
+  /// instead of the normal window, so GPS stays powered through brief
+  /// coarse patches; offline saver and paused keep the normal guard
+  /// because faster GPS buys nothing with no uploads. A dead position
+  /// stream recreates immediately, even for the same mode and inside
+  /// hysteresis: the trip has no fixes until it does. A silent stream
+  /// (fixes flowed, then nothing for [stallRestartMs]) recreates too, at
+  /// most once per stall window: some devices freeze delivery without
+  /// ever erroring. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
     final bool restartDead = _streamDead;
     final int? fixAt = _lastFixAtMs;
@@ -394,7 +419,14 @@ class LocationService {
         intervalSForMode(mode) < intervalSForMode(_mode) ||
         (mode == SamplingMode.leaderMoving &&
             _mode != SamplingMode.leaderMoving);
-    if (!restart && !upgrade && nowMs - _lastChangeMs < streamHysteresisMs) {
+    final double? lastAccuracy = _lastAccuracyM;
+    final bool degradedHold =
+        lastAccuracy != null &&
+        lastAccuracy >= degradedAccuracyM &&
+        mode != SamplingMode.offlineSaver &&
+        mode != SamplingMode.paused;
+    final int guardMs = degradedHold ? degradedHoldMs : streamHysteresisMs;
+    if (!restart && !upgrade && nowMs - _lastChangeMs < guardMs) {
       return _mode;
     }
     if (stalled && !restartDead) {
