@@ -37,8 +37,8 @@ Future<bool> requestIgnoreBatteryOptimizations() async {
     if (await Permission.ignoreBatteryOptimizations.isGranted) {
       return true;
     }
-    final PermissionStatus after =
-        await Permission.ignoreBatteryOptimizations.request();
+    final PermissionStatus after = await Permission.ignoreBatteryOptimizations
+        .request();
     if (!after.isGranted) {
       Log.w('battery exemption denied', 'trip continues');
     }

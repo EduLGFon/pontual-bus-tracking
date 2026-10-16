@@ -557,7 +557,6 @@ class UiStrings {
   static const String batteryExemptionKept =
       'Tudo bem. O compartilhamento continua tentando.';
 
-
   /// Share start failed: could not reach the server.
   static const String shareNoConnection =
       'Sem conexão com o servidor. Verifique a internet e tente de novo.';
