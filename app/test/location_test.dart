@@ -129,8 +129,9 @@ void main() {
   });
 
   test('settings carry the foreground notification', () {
-    final LocationSettings waiting = settingsFor(SamplingMode.waiting, '60');
-    expect(waiting, isA<AndroidSettings>());
+    final AndroidSettings waiting =
+        settingsFor(SamplingMode.waiting, '60') as AndroidSettings;
+    expect(waiting.intervalDuration, const Duration(seconds: 5));
     final AndroidSettings active =
         settingsFor(SamplingMode.leaderMoving, '60') as AndroidSettings;
     expect(active.intervalDuration, const Duration(seconds: 5));
@@ -143,8 +144,100 @@ void main() {
     expect(follower.intervalDuration, const Duration(seconds: 45));
   });
 
+  test('foreground notification is ongoing and paused keeps the service', () {
+    // Background survival: the notification must be persistent and even
+    // the paused mode must keep the foreground service, otherwise the OS
+    // can kill the process while waiting for GPS to return.
+    for (final SamplingMode mode in SamplingMode.values) {
+      final LocationSettings settings = settingsFor(mode, '60');
+      expect(settings, isA<AndroidSettings>());
+      final AndroidSettings android = settings as AndroidSettings;
+      expect(
+        android.foregroundNotificationConfig,
+        isNotNull,
+        reason: 'mode $mode must keep the foreground service',
+      );
+      expect(
+        android.foregroundNotificationConfig?.setOngoing,
+        isTrue,
+        reason: 'mode $mode notification must be persistent',
+      );
+    }
+    final AndroidSettings paused =
+        settingsFor(SamplingMode.paused, '60') as AndroidSettings;
+    expect(paused.intervalDuration, const Duration(seconds: 45));
+  });
+
+  test('upgrades to faster cadence bypass hysteresis', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    // Waiting (10 s) to leaderMoving (5 s) is an upgrade: it recreates
+    // immediately even inside the 30 s window.
+    service.requestMode(SamplingMode.leaderMoving, 100000 + 1000);
+    expect(opens, 2);
+    // LeaderMoving (5 s) to follower (45 s) is a downgrade: it waits out
+    // the hysteresis window.
+    service.requestMode(SamplingMode.follower, 100000 + 2000);
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
+
   test('gateway constructs without platform calls', () {
     expect(const GeolocatorPermissionGateway(), isNotNull);
+  });
+
+  test('slow battery reads never delay fixes', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    final LocationService service = LocationService(
+      positionStream: (_) => positions.stream,
+      batteryLevel: () async {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        return 80;
+      },
+      charging: () async {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        return false;
+      },
+      nowMs: () => 100000,
+    );
+    final Future<TripFix> first = service
+        .fixes(mode: SamplingMode.waiting, lineLabel: 't')
+        .first;
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+        accuracy: 10,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    // Would timeout if the fix waited for the 3 s battery reads.
+    final TripFix fix = await first.timeout(const Duration(seconds: 1));
+    expect(fix.seq, 1);
+    service.stop();
+    await positions.close();
   });
 
   test('notification permission request never throws off-device', () async {
@@ -216,13 +309,25 @@ void main() {
       altitudeAccuracy: 1,
       headingAccuracy: 1,
     );
+    // Fixes emit immediately with the last known bucket and refresh the
+    // cache in the background: the first fix carries the 100 default while
+    // the refresh lands, later fixes carry the refreshed 80.
     final Future<List<TripFix>> two = stream.take(2).toList();
     positions.add(atMs(100000));
     positions.add(atMs(100000));
     final List<TripFix> fixes = await two.timeout(const Duration(seconds: 5));
     expect(fixes.length, 2);
+    // Let the background refresh finish before asserting the read count.
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
     expect(reads, 1);
-    expect(fixes[0].batteryPct, 80);
+    expect(fixes[0].batteryPct, 100);
+    // The next fix after the refresh carries the new bucket.
+    final Future<TripFix> third = stream.first;
+    positions.add(atMs(100000));
+    final TripFix next = await third.timeout(const Duration(seconds: 5));
+    expect(next.batteryPct, 80);
+    expect(reads, 1);
     service.stop();
     await positions.close();
   });

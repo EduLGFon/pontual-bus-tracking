@@ -137,7 +137,7 @@ void main() {
     await channel.dispose();
   });
 
-  test('watchdog resyncs after 45 s without messages', () async {
+  test('watchdog resyncs after 30 s without messages', () async {
     final FakeClock clock = FakeClock(100000);
     final FakeChannel channel = FakeChannel();
     int fetches = 0;
@@ -153,7 +153,8 @@ void main() {
     );
     await r.start(7);
     expect(fetches, 1);
-    clock.advance(46000);
+    // 31 s past the last snapshot resyncs under the 30 s watchdog.
+    clock.advance(31000);
     r.debugWatchdogTick();
     await Future<void>.delayed(Duration.zero);
     expect(fetches, 2);
@@ -161,7 +162,7 @@ void main() {
     await channel.dispose();
   });
 
-  test('polling fallback arms after 30 s socket-down', () async {
+  test('polling fallback arms after 15 s socket-down', () async {
     final FakeClock clock = FakeClock(100000);
     final FakeChannel channel = FakeChannel();
     final VehicleRepository r = repo(
@@ -174,7 +175,8 @@ void main() {
     r.debugSocketDown();
     // No immediate poller: reconnect covers transient blips first.
     expect(r.debugPolling, isFalse);
-    clock.advance(31000);
+    // 16 s down arms the 15 s fallback instead of waiting 30 s.
+    clock.advance(16000);
     r.debugWatchdogTick();
     expect(r.debugPolling, isTrue);
     await r.stop();

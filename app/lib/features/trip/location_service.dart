@@ -140,16 +140,21 @@ int batteryBucket(int pct) => (pct ~/ 5) * 5;
 
 /// Location settings per sampling mode.
 LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
+  // The notification is ongoing and persistent: the foreground service
+  // must survive screen-off and background on OEM skins that aggressively
+  // kill background work. setOngoing needs no extra permission and does
+  // not request background location, wake locks, or exemptions.
   final ForegroundNotificationConfig notification =
       ForegroundNotificationConfig(
         notificationTitle: 'Compartilhando viagem - $lineLabel',
         notificationText: 'Toque para abrir ou encerrar',
+        setOngoing: true,
       );
   switch (mode) {
     case SamplingMode.waiting:
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 10),
+        intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderMoving:
@@ -172,7 +177,15 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.paused:
-      return const LocationSettings(accuracy: LocationAccuracy.low);
+      // Keep the foreground service while paused (GPS off, permission
+      // flap): dropping to a bare LocationSettings would release the
+      // service and let the OS kill the process while waiting for GPS
+      // to return. Low power with the same persistent notification.
+      return AndroidSettings(
+        accuracy: LocationAccuracy.low,
+        intervalDuration: const Duration(seconds: 45),
+        foregroundNotificationConfig: notification,
+      );
   }
 }
 
@@ -237,10 +250,12 @@ class LocationService {
 
   /// Silence without any accepted fix that forces a position-stream
   /// restart even for the same mode. The OS can freeze GPS delivery
-  /// without closing the stream (notably with the screen off), and no
-  /// error ever marks it dead: without this the trip goes quiet until
-  /// the server timeout ends it.
-  static const int stallRestartMs = 60 * 1000;
+  /// without closing the stream (notably with the screen off on OEM
+  /// skins), and no error ever marks it dead: without this the trip goes
+  /// quiet until the server timeout ends it. 30 s matches the hysteresis
+  /// window, so a frozen background stream recovers within ~30 s instead
+  /// of a full minute of silence.
+  static const int stallRestartMs = 30 * 1000;
   int? _lastFixAtMs;
 
   /// Starts emitting accepted fixes for [mode]. Recreates the stream when
@@ -269,63 +284,49 @@ class LocationService {
     _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) {
-        void handle() async {
-          try {
-            final RawFix raw = RawFix(
-              lat: p.latitude,
-              lng: p.longitude,
-              accuracyM: p.accuracy,
-              isMocked: p.isMocked,
-              timestampMs: p.timestamp.millisecondsSinceEpoch,
-            );
-            final String? reason = dropReason(raw, _nowMs());
-            if (reason != null) {
-              Log.d('fix dropped', reason);
-              return;
-            }
-            _seq += 1;
-            int level = _lastBatteryPct;
-            bool chg = _lastCharging;
-            final int atMs = _nowMs();
-            final int? lastRead = _lastBatteryReadMs;
-            if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
-              // Reserve first: concurrent fixes share one read.
-              _lastBatteryReadMs = atMs;
-              try {
-                // Parallel and bounded: a stuck battery read must never
-                // starve location. Failures keep the last known values.
-                final List<Object> parts = await Future.wait<Object>(
-                  <Future<Object>>[_batteryLevel(), _charging()],
-                );
-                level = (parts[0] as int).clamp(0, 100);
-                chg = parts[1] as bool;
-                _lastBatteryPct = level;
-                _lastCharging = chg;
-              } catch (_) {
-                Log.w('battery read failed', 'last kept');
-              }
-            }
-            if (!controller.isClosed) {
-              controller.add(
-                TripFix(
-                  seq: _seq,
-                  lat: round5(raw.lat),
-                  lng: round5(raw.lng),
-                  speedMps: normalizeSpeed(p.speed),
-                  heading: normalizeHeading(p.heading),
-                  accuracyM: raw.accuracyM,
-                  batteryPct: batteryBucket(level),
-                  charging: chg,
-                ),
-              );
-              _lastFixAtMs = atMs;
-            }
-          } catch (_) {
-            Log.w('fix handling failed', '');
-          }
+        // Battery reads are platform channels that can stall for seconds
+        // in the background: never block the fix on them. Emit immediately
+        // with the last known bucket and refresh the cache in the
+        // background for the next fix. The previous code awaited up to
+        // 3 s per fix before sending, adding seconds to every ping.
+        final RawFix raw = RawFix(
+          lat: p.latitude,
+          lng: p.longitude,
+          accuracyM: p.accuracy,
+          isMocked: p.isMocked,
+          timestampMs: p.timestamp.millisecondsSinceEpoch,
+        );
+        final int atMs = _nowMs();
+        final String? reason = dropReason(raw, atMs);
+        if (reason != null) {
+          Log.d('fix dropped', reason);
+          return;
         }
-
-        handle();
+        _seq += 1;
+        final int seq = _seq;
+        final int level = _lastBatteryPct;
+        final bool chg = _lastCharging;
+        if (!controller.isClosed) {
+          controller.add(
+            TripFix(
+              seq: seq,
+              lat: round5(raw.lat),
+              lng: round5(raw.lng),
+              speedMps: normalizeSpeed(p.speed),
+              heading: normalizeHeading(p.heading),
+              accuracyM: raw.accuracyM,
+              batteryPct: batteryBucket(level),
+              charging: chg,
+            ),
+          );
+          _lastFixAtMs = atMs;
+        }
+        final int? lastRead = _lastBatteryReadMs;
+        if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
+          // Reserve first: concurrent fixes share one refresh.
+          _lastBatteryReadMs = atMs;
+          unawaited(_refreshBattery());
+        }
       },
       onError: (Object e) {
         Log.w('position stream error', e.runtimeType.toString());
@@ -339,11 +340,33 @@ class LocationService {
     );
   }
 
-  /// Requests a mode switch honoring hysteresis. Recreates the underlying
-  /// position stream when the mode actually changes so offline saver drops
-  /// to low-power GPS. A dead position stream recreates immediately, even
-  /// for the same mode and inside hysteresis: the trip has no fixes until
-  /// it does. A silent stream (fixes flowed, then nothing for
+  /// Refreshes the cached battery bucket in the background. Failures keep
+  /// the last known values; a stuck read never delays a fix.
+  Future<void> _refreshBattery() async {
+    try {
+      // Parallel and bounded: a stuck battery read must never starve
+      // location. Failures keep the last known values.
+      final List<Object> parts = await Future.wait<Object>(<Future<Object>>[
+        _batteryLevel().timeout(const Duration(seconds: 3)),
+        _charging().timeout(const Duration(seconds: 3)),
+      ]);
+      final int level = (parts[0] as int).clamp(0, 100);
+      final bool chg = parts[1] as bool;
+      _lastBatteryPct = level;
+      _lastCharging = chg;
+    } catch (_) {
+      Log.w('battery read failed', 'last kept');
+    }
+  }
+
+  /// Requests a mode switch honoring hysteresis for downgrades only.
+  /// Recreates the underlying position stream when the mode actually
+  /// changes so offline saver drops to low-power GPS. Upgrades to a faster
+  /// cadence or to high accuracy bypass hysteresis: a fresh leader must
+  /// reach high accuracy on the next fix, not after 30 s at the old
+  /// waiting rate. A dead position stream recreates immediately, even for
+  /// the same mode and inside hysteresis: the trip has no fixes until it
+  /// does. A silent stream (fixes flowed, then nothing for
   /// [stallRestartMs]) recreates too, at most once per stall window: some
   /// devices freeze delivery without ever erroring. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
@@ -358,8 +381,15 @@ class LocationService {
     if (mode == _mode && !restart) {
       return _mode;
     }
-    if (!restart && nowMs - _lastChangeMs < streamHysteresisMs) {
+    final bool upgrade =
+        intervalSForMode(mode) < intervalSForMode(_mode) ||
+        (mode == SamplingMode.leaderMoving &&
+            _mode != SamplingMode.leaderMoving);
+    if (!restart && !upgrade && nowMs - _lastChangeMs < streamHysteresisMs) {
       return _mode;
+    }
+    if (stalled && !restartDead) {
+      Log.w('position stream stalled', 'restarting');
     }
     _mode = mode;
     _lastChangeMs = nowMs;
