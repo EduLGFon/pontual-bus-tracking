@@ -142,10 +142,10 @@ void main() {
       });
       final rig.Rig r = rig.rig(client);
       await rig.start(r);
-      r.positions.add(rig.pos(8));
-      for (int i = 0; i < 20; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      // No ping ever succeeds (hanging) and the clock jumps past the
+      // 120 s silence threshold, so the next round enters offline saver.
+      // No delayed loops: this runs in FakeAsync where zero timers never
+      // fire without pumped time; microtask yields suffice.
       r.clock.advance(121 * 1000);
       await r.controller.checkAutoEndForTest();
       expect(r.controller.isOffline, isTrue);
@@ -156,6 +156,26 @@ void main() {
             body: StatusBlock(
               controller: r.controller,
               wakeUnsupported: false,
+              nowMs: () => r.clock.nowMs(),
+              requestExemption: () async {
+                called = true;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // The banner debouncer holds a new issue for 2 s: rebuild past the
+      // hold so the offline issue (and the card) actually shows.
+      r.clock.advance(3000);
+      await tester.pumpWidget(
+        wrapApp(
+          Scaffold(
+            body: StatusBlock(
+              controller: r.controller,
+              wakeUnsupported: false,
+              nowMs: () => r.clock.nowMs(),
               requestExemption: () async {
                 called = true;
                 return true;
@@ -166,11 +186,22 @@ void main() {
       );
       await tester.pump();
       expect(find.text(UiStrings.batteryExemptionTitle), findsOneWidget);
+      expect(find.text(UiStrings.batteryExemptionAction), findsOneWidget);
       await tester.tap(find.text(UiStrings.batteryExemptionAction));
       await tester.pump();
       expect(called, isTrue);
       expect(find.text(UiStrings.batteryExemptionGranted), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // Dismiss the snackbar (cancels its auto-dismiss timer), then
+      // complete the parked ping: its 10 s request timeout is a FakeAsync
+      // timer that outlives the test otherwise. Unmount, then stop the
+      // controller and its timers inline.
+      ScaffoldMessenger.of(tester.element(find.byType(StatusBlock)))
+          .hideCurrentSnackBar();
+      await tester.pump(const Duration(milliseconds: 500));
+      hanging.complete(http.Response('{"r":"W","n":5}', 200));
+      await tester.pump();
+      await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
     });

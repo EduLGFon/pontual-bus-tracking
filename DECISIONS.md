@@ -2363,3 +2363,39 @@ background location, no WAKE_LOCK). Server `deno fmt`, `lint`, `check`
 clean; pure suites green (engine 28 including the updated distant-rider
 second-vehicle case, arrivals, geo, config: 41 passed). DB-backed server
 suites need a throwaway PG plus migrate and stay for CI.
+
+## D61-2026-10-16: battery exemption requested from the offline card (Accepted)
+
+Owner order: request the battery-optimization exemption at the right
+moment. This is the approved exception to the AGENTS.md 15 hard limit
+and the PLAN 8.6 ban (both name this permission explicitly): field
+tests on Samsung and Xiaomi skins show background sharing stopping in
+all three forms even with the location-type foreground service plus an
+ongoing notification (D59), so the spike is proven by field evidence,
+not theory.
+
+Design (what "right moment" means):
+
+- Never at startup, never automatically, never while healthy. The card
+  renders only when the trip health issue is already offline (3 failed
+  sends or 120 s without success) on Android. That is exactly the stall
+  the exemption fixes, so only at-risk users ever see it.
+- User-tapped only. The "Manter ativo" action fires the system dialog
+  through `permission_handler`; denial only toasts and sharing keeps
+  retrying. No background-location wording anywhere, no
+  ACCESS_BACKGROUND_LOCATION, no boot receiver, no WAKE_LOCK.
+- One code path: `platform/android/battery_optimization.dart`
+  (best-effort, Android-only, never throws, injectable seam for tests).
+  The trip screen card owns the request; Settings keeps the existing
+  manual "Sem restrições" help row unchanged.
+
+Change: manifest declares REQUEST_IGNORE_BATTERY_OPTIMIZATIONS with an
+owner-order comment; `manifest_audit.sh` and the release merged-manifest
+audit moved it from forbidden to expected; PLAN.md 8.6 updated in the
+same change set.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app suite
+green (337 passed, 1 skipped: battery helper plus offline-card tap),
+manifest source audit PASS with the exemption declared. Merged-manifest
+proof and the release AAB stay for the release machine (no Android SDK
+on this host).

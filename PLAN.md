@@ -1163,9 +1163,10 @@ Rules:
 
 - Permissions (merged manifest must contain exactly these location/FGS ones):
   `INTERNET`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`,
-  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`.
-  **Not allowed:** `ACCESS_BACKGROUND_LOCATION`, `RECEIVE_BOOT_COMPLETED`,
-  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `WAKE_LOCK` unless a spike proves it
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`,
+  plus `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (owner order D61, trip
+  foreground service only). **Not allowed:** `ACCESS_BACKGROUND_LOCATION`,
+  `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` unless a spike proves it
   is indispensable (wake locks cost battery). Audit the **merged** manifest in
   CI and strip stray plugin permissions with `tools:node="remove"`.
 - Service type `location`; start it **only from the visible activity after a
@@ -1178,9 +1179,11 @@ Rules:
   out in ≤ 10 min, usually sooner via no-ping end). Document this in the Help
   text.
 - Doze/OEM battery killers: a moving bus rarely enters Doze, but some OEMs kill
-  background work aggressively. Provide a one-time help card (S08) telling users
-  to set the app's battery use to "Unrestricted/Sem restrições" if the trip
-  stops. Do **not** request the battery-optimisation exemption permission.
+  background work aggressively. While a trip is offline the trip screen shows
+  a "Manter ativo" card (D61) that fires the system battery-exemption dialog
+  **only from that user tap**, never at startup and never automatically. The
+  help text still documents the manual "Sem restrições" path for devices
+  where the dialog is not enough.
 
 **Permission denied / revoked mid-trip:** stop stream, send `DELETE /v1/trip`
 best-effort, show S07 (with "Abrir ajustes"). **GPS toggled off:** `paused` +
