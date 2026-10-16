@@ -2418,3 +2418,41 @@ Test builds set `--dart-define=FORCE_PING_BUTTON=true`.
 Verified: `flutter analyze` clean, `dart format` clean, full app suite
 green (341 passed, 1 skipped: 2 controller plus 2 widget cases),
 manifest audit PASS (no manifest change).
+
+## D63-2026-10-16: follower stream uses balanced accuracy (Accepted)
+
+Owner order: most accurate, precise, fast and reliable GPS without
+tightening the meter gate in weak-GPS areas. This is Phase 0 step 1 of
+that plan; the rest (smoothing tiers, speed/heading accuracy use,
+native HDOP channel) stays as dedicated tasks.
+
+Problem: `settingsFor` put followers on `LocationAccuracy.low`
+(`PRIORITY_LOW_POWER`, cell/WiFi, often 50 m to 1 km). Follower fixes
+must pass the same 60 m gate as leader fixes (client `fixAccuracyMaxM`,
+server `accuracyMaxM`), so in weak-GPS areas followers starved exactly
+when the next leader handover needed a live candidate. Promotion then
+waited for the next 45 s ping of a phone with nothing usable.
+
+Change (client only, no server contract change, no new permission):
+`SamplingMode.follower` now requests `LocationAccuracy.medium`
+(balanced) at the same 45 s interval. `offlineSaver` and `paused`
+stay low: probes and GPS-off waits carry no handover duty and must
+cost the least battery.
+
+Not changed and why: the 60 m gate is untouched on both ends per the
+owner constraint; `distanceFilter` stays unset per the D43 deferral
+(it would starve still detection and the server timeout); leader and
+waiting modes are unchanged (D59/D60 already fixed their hysteresis
+and cadence); web behavior is unchanged (browsers ignore these
+settings; pacing per D29 still guards fast streams).
+
+Trade-off: follower battery cost rises from low-power to balanced
+radio use. RNF02 (follower 2 percent/h) is unchanged and must be
+confirmed on phones in the T47 field test, split by open-sky vs
+weak-GPS so low-GPS areas prove no regression.
+
+Verified: `flutter analyze` clean, `dart format` clean (0 changed),
+`location_test` 14 green, supervisor plus controller plus health
+45 green, manifest audit PASS (no manifest change). Full app suite
+not re-run (tree carries unrelated uncommitted battery plus
+force-ping work); stays for the owner machine and CI.

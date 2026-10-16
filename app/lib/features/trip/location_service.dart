@@ -170,6 +170,15 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.follower:
+      // Balanced, not low power: follower fixes must pass the same 60 m
+      // gate as leader fixes, and low power (cell/WiFi, often 50 m to
+      // 1 km) starves followers exactly in weak-GPS areas where the
+      // next handover needs them. Interval stays 45 s. See D63.
+      return AndroidSettings(
+        accuracy: LocationAccuracy.medium,
+        intervalDuration: const Duration(seconds: 45),
+        foregroundNotificationConfig: notification,
+      );
     case SamplingMode.offlineSaver:
       return AndroidSettings(
         accuracy: LocationAccuracy.low,
