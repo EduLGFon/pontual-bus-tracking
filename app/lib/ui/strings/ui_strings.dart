@@ -678,6 +678,16 @@ class UiStrings {
   static const String tripStopSemantic =
       'Encerrar viagem e parar de compartilhar';
 
+  /// Test-only force-ping button label. Shown only behind the
+  /// FORCE_PING_BUTTON dart-define, never in production builds.
+  static const String forcePingTest = 'Enviar ping agora (teste)';
+
+  /// Toast after a forced ping is queued.
+  static const String forcePingSent = 'Ping enviado.';
+
+  /// Toast when there is nothing to send yet.
+  static const String forcePingNoFix = 'Sem posição ainda.';
+
   /// Short connection value while steady offline.
   static const String connOffline = 'Sem conexão';
 

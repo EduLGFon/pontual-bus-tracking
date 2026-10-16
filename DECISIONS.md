@@ -2399,3 +2399,22 @@ green (337 passed, 1 skipped: battery helper plus offline-card tap),
 manifest source audit PASS with the exemption declared. Merged-manifest
 proof and the release AAB stay for the release machine (no Android SDK
 on this host).
+
+## D62-2026-10-16: test-only force-ping button on the trip screen (Accepted)
+
+Owner order: add a button to force-send a location ping while sharing,
+for testing only.
+
+Design: `TripController.forcePingNow()` queues the last accepted fix
+past the pacing slot and returns false when no trip runs or no fix
+arrived yet. A tap with no newer fix resends the latest one (the server
+answers it as a duplicate), so the full HTTP path is still exercised.
+The per-device ping bucket (30/min) still applies, so it cannot be
+spammed into an abuse end. The button renders only behind the
+`FORCE_PING_BUTTON` dart-define (default false, `env.dart` plus
+`env/example.json`, PLAN.md 17.1): production builds never include it.
+Test builds set `--dart-define=FORCE_PING_BUTTON=true`.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app suite
+green (341 passed, 1 skipped: 2 controller plus 2 widget cases),
+manifest audit PASS (no manifest change).

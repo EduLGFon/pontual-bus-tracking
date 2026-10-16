@@ -1,7 +1,8 @@
 // Client environment. Values come from
 // --dart-define-from-file=env/<env>.json and contain only API_BASE_URL,
-// STATIC_BASE_URL, and the optional FIX_ACCURACY_MAX_M test override.
-// No secrets exist for clients. See PLAN.md 17.1.
+// STATIC_BASE_URL, the optional FIX_ACCURACY_MAX_M test override, and the
+// optional FORCE_PING_BUTTON test override. No secrets exist for clients.
+// See PLAN.md 17.1.
 
 /// Base URL of the Deno API.
 const String apiBaseUrl = String.fromEnvironment(
@@ -21,4 +22,12 @@ const String staticBaseUrl = String.fromEnvironment(
 const int fixAccuracyMaxM = int.fromEnvironment(
   'FIX_ACCURACY_MAX_M',
   defaultValue: 60,
+);
+
+/// Shows the test-only force-ping button on the trip screen. Default
+/// false: production builds never include it. Test builds set it through
+/// `--dart-define=FORCE_PING_BUTTON=true` (or the env JSON file).
+const bool forcePingButton = bool.fromEnvironment(
+  'FORCE_PING_BUTTON',
+  defaultValue: false,
 );
