@@ -142,6 +142,17 @@ void main() {
     final AndroidSettings follower =
         settingsFor(SamplingMode.follower, '60') as AndroidSettings;
     expect(follower.intervalDuration, const Duration(seconds: 45));
+    // D63: followers need balanced accuracy so their fixes pass the 60 m
+    // gate in weak-GPS areas; low power would starve handovers.
+    expect(follower.accuracy, LocationAccuracy.medium);
+    // Probes and paused waits stay low power: they carry no handover
+    // duty and must cost the least battery.
+    final AndroidSettings saver =
+        settingsFor(SamplingMode.offlineSaver, '60') as AndroidSettings;
+    expect(saver.accuracy, LocationAccuracy.low);
+    final AndroidSettings paused =
+        settingsFor(SamplingMode.paused, '60') as AndroidSettings;
+    expect(paused.accuracy, LocationAccuracy.low);
   });
 
   test('foreground notification is ongoing and paused keeps the service', () {
