@@ -133,6 +133,32 @@ void main() {
     );
   });
 
+  test('upgrades to faster cadence bypass hysteresis', () {
+    // Waiting (10 s) to leaderMoving (5 s) applies immediately: holding a
+    // fresh leader at the old rate was the steady-state latency behind the
+    // 15-25 s map delays.
+    const TripModeInput leader = TripModeInput(
+      role: 'L',
+      speedMps: 8,
+      offline: false,
+      stillS: 0,
+      paused: false,
+    );
+    expect(
+      decideMode(
+        current: SamplingMode.waiting,
+        input: leader,
+        nowMs: 1000,
+        lastChangeMs: 0,
+      ),
+      SamplingMode.leaderMoving,
+    );
+    expect(intervalSForMode(SamplingMode.leaderMoving), 5);
+    expect(intervalSForMode(SamplingMode.waiting), 5);
+    expect(intervalSForMode(SamplingMode.leaderStill), 15);
+    expect(intervalSForMode(SamplingMode.follower), 45);
+  });
+
   test('auto-end fires in priority order', () {
     AutoEndInput base(int now) => AutoEndInput(
       startedAtMs: now - 1000,
