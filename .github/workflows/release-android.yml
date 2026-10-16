@@ -64,7 +64,9 @@ jobs:
           test -n "$MANIFEST"
           ! grep -q "ACCESS_BACKGROUND_LOCATION" "$MANIFEST"
           ! grep -q "RECEIVE_BOOT_COMPLETED" "$MANIFEST"
-          ! grep -q "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" "$MANIFEST"
+          # D61: REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is owner-approved and
+          # expected in the merged manifest.
+          grep -q "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" "$MANIFEST"
           ! grep -q "WAKE_LOCK" "$MANIFEST"
           grep -q 'allowBackup="false"' "$MANIFEST"
           grep -q "android:debuggable" "$MANIFEST" && exit 1 || true

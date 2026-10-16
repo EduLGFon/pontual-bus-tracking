@@ -537,6 +537,27 @@ class UiStrings {
   static const String batteryTip =
       'Se parar sozinho, defina a bateria do app como "Sem restrições".';
 
+  /// Battery exemption card shown on the trip screen while offline.
+  static const String batteryExemptionTitle =
+      'O sistema pausou o GPS em segundo plano';
+
+  /// Battery exemption card body.
+  static const String batteryExemptionBody =
+      'Em alguns celulares o compartilhamento para com a tela apagada. '
+      'Liberar a bateria mantém o envio ligado até você descer.';
+
+  /// Battery exemption card action.
+  static const String batteryExemptionAction = 'Manter ativo';
+
+  /// Toast after the exemption is granted.
+  static const String batteryExemptionGranted =
+      'Pronto. O compartilhamento continua com a tela apagada.';
+
+  /// Toast when the exemption is not granted. Sharing continues anyway.
+  static const String batteryExemptionKept =
+      'Tudo bem. O compartilhamento continua tentando.';
+
+
   /// Share start failed: could not reach the server.
   static const String shareNoConnection =
       'Sem conexão com o servidor. Verifique a internet e tente de novo.';

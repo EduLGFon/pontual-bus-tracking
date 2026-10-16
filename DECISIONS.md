@@ -2267,3 +2267,99 @@ server smoke (60 s sim, line 7) clean. All three workflows parse.
 Owner side unchanged: `API_ORIGIN` repo var plus Pages setup for
 `deploy-static`, keystore secrets plus a `v*` tag for
 `release-android`.
+
+## D59-2026-10-16: background survival plus 5 s map latency (Accepted)
+
+Field report on two phones (sharer plus viewer, moving bus, Samsung and
+Xiaomi OEM skins): background sharing stops in all three forms
+(notification gone and trip ended, trip active but no pings, viewer map
+frozen), and steady-state bus positions arrive every 15-25 s instead of
+the D45 5 s target.
+
+Root causes, each verified in code:
+
+- Hysteresis blocked the 5 s rate. `decideMode` and
+  `LocationService.requestMode` held every mode switch for 30 s, so a
+  fresh leader stayed on the 10 s waiting stream for up to 30 s after
+  promotion. Effective leader cadence was 10 s, not 5 s, for the first
+  half minute of every trip.
+- Battery reads blocked every fix. `_listen` awaited two platform
+  channels (up to 3 s each in the background) before emitting the fix,
+  adding seconds to every ping on the exact path that must be fastest.
+- The foreground notification was dismissible and the paused mode
+  dropped the service. `setOngoing` defaulted to false, and `paused`
+  returned a bare `LocationSettings` with no notification, so a GPS gap
+  released the foreground service and let OEM skins kill the process.
+- A frozen position stream waited 60 s. The stall restart matched no
+  other window, so a screen-off freeze without an error cost a full
+  minute of silence.
+- The viewer waited too long when the socket dropped. Fallback polling
+  armed after 30 s down and polled every 15 s, with a 45 s watchdog, so
+  a mobile-data socket drop froze the map for 15-30 s. Heartbeats every
+  25 s prove liveness, so the tighter windows add no steady-state cost.
+
+Change (client only, no server contract change, no new permission):
+
+- `setOngoing: true` on every `settingsFor` notification; `paused`
+  keeps the same low-power foreground service instead of a bare
+  settings object. No `WAKE_LOCK`, no background location, no
+  exemption: manifest audit still PASS.
+- Fixes emit immediately with the last known battery bucket and refresh
+  the cache in the background with 3 s timeouts. First fix carries the
+  100 default, the next fix after the refresh carries the real bucket.
+- Upgrades to a faster cadence bypass hysteresis in both `decideMode`
+  (new `intervalSForMode` table: 5, 10, 15, 45) and `requestMode`;
+  downgrades still wait 30 s. Stall restart 60 s to 30 s with a restart
+  log for field diagnosis.
+- Viewer: watchdog 45 s to 30 s, socket-down fallback 30 s to 15 s,
+  poll interval 15 s to 10 s. Polling runs only while the socket is
+  down; heartbeats still suppress resyncs on quiet connected lines.
+  `staleAfterS` stays 45 s.
+
+Not changed and why: cold publish still needs 2 moving pings at the
+10 s waiting rate (about 20 s to first vehicle). Cutting it to 1 tick
+or a 5 s waiting rate would halve cold start but raises the phantom-bus
+risk PLAN 6.6 step 9 deliberately blocks, so it needs an owner decision
+plus budget updates, not a drive-by. `WAKE_LOCK` and battery-exemption
+fixes are rejected by the AGENTS.md 15 hard limit and PLAN 14.7 unless
+a spike proves them indispensable; the FGS type location plus an
+ongoing notification is the compliant path. OEM manual steps stay
+owner-side: set Pontual battery to Unrestricted, lock it in recents,
+start sharing from the visible trip screen outdoors while moving.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app suite
+green (335 passed, 1 skipped), manifest source audit PASS (no
+background location, no WAKE_LOCK). Server pure suites green here
+(engine, arrivals, geo, config, health); DB-backed suites need a
+throwaway PG 16 plus dbmate migrate and stay for CI or a capable host
+(no local DB on this run).
+
+## D60-2026-10-16: cold start removed, first vehicle on the first moving ping (Accepted)
+
+Owner order: remove the cold start.
+
+Change: `movingTicksToPublish` 2 to 1 and `waitingIntervalS` 10 s to
+5 s in `server/src/domain/types.ts`; client waiting stream 10 s to 5 s
+in `settingsFor` so the stream always emits at least as fast as the
+instructed `n`. First vehicle now publishes one interval (about 5 s)
+after motion starts instead of two intervals (about 20 s). Waiting and
+leaderMoving share the 5 s rate; the W to L switch still bypasses
+hysteresis on accuracy (medium to high) in both `decideMode` and
+`requestMode`, so the fresh leader reaches high accuracy on the next
+fix.
+
+Trade-offs: a single GPS speed glitch can now create a vehicle where
+two consecutive moving fixes were needed before. Mitigations kept: the
+3 m/s speed gate, 60 m accuracy gate, bbox, teleport and route checks,
+and 5-strike abuse end all still apply, and a stopped lone trip still
+never publishes. Waiting data doubles while waiting (transient only,
+still tiny in absolute terms); leader, follower, and viewer budgets in
+RNF03 are untouched. PLAN.md RF08, 6.3 table, and 8.5 sampling table
+updated in the same change set.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app suite
+green (335 passed, 1 skipped), manifest source audit PASS (no
+background location, no WAKE_LOCK). Server `deno fmt`, `lint`, `check`
+clean; pure suites green (engine 28 including the updated distant-rider
+second-vehicle case, arrivals, geo, config: 41 passed). DB-backed server
+suites need a throwaway PG plus migrate and stay for CI.
