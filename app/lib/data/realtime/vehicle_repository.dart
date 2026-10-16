@@ -81,14 +81,21 @@ enum StreamStatus {
 /// Maximum snapshot age before the status row turns stale, in seconds.
 const int staleAfterS = 45;
 
-/// Watchdog resync delay without stream messages, in seconds.
-const int watchdogResyncS = 45;
+/// Watchdog resync delay without stream messages, in seconds. 30 s keeps
+/// quiet-but-connected lines (heartbeats every 25 s prove the socket) from
+/// resyncing while recovering a truly quiet socket twice as fast as before.
+const int watchdogResyncS = 30;
 
-/// Socket-down delay before the polling fallback starts, in seconds.
-const int pollFallbackAfterS = 30;
+/// Socket-down delay before the polling fallback starts, in seconds. 15 s
+/// covers one missed heartbeat plus one reconnect attempt (5 s) instead of
+/// leaving viewers without data for 30 s when the socket drops on mobile
+/// data or NAT timeouts.
+const int pollFallbackAfterS = 15;
 
-/// Polling interval while the socket is down, in seconds.
-const int pollIntervalS = 15;
+/// Polling interval while the socket is down, in seconds. 10 s halves the
+/// worst-case viewer gap when the stream is down; polling runs only while
+/// the socket is down, so steady-state cost is unchanged.
+const int pollIntervalS = 10;
 
 /// Opens a WebSocket channel. Injectable for tests.
 typedef ChannelFactory = Future<WebSocketChannel> Function(Uri url);

@@ -8,8 +8,11 @@ import 'package:flutter/material.dart' hide Banner;
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/platform/android/battery_optimization.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/components/banner.dart';
+import 'package:pontual/ui/design/components/buttons.dart';
+import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -61,6 +64,7 @@ class StatusBlock extends StatefulWidget {
     required this.controller,
     required this.wakeUnsupported,
     this.nowMs,
+    this.requestExemption = requestIgnoreBatteryOptimizations,
     super.key,
   });
 
@@ -72,6 +76,11 @@ class StatusBlock extends StatefulWidget {
 
   /// Clock in milliseconds, injectable for deterministic tests.
   final int Function()? nowMs;
+
+  /// Battery exemption request, injectable so widget tests never touch a
+  /// platform channel. Production fires the system dialog. Called only
+  /// from the card action while the trip is offline.
+  final RequestExemption requestExemption;
 
   @override
   State<StatusBlock> createState() => _StatusBlockState();
@@ -102,6 +111,17 @@ class _StatusBlockState extends State<StatusBlock> {
             issue: shown,
             onOpenLocation: () => unawaited(_openLocationSettings()),
             onOpenApp: () => unawaited(_openAppSettings()),
+          ),
+        ],
+        // Battery exemption card: the right moment is a visible stall.
+        // Offline means 3 failed sends or 120 s without success, which is
+        // exactly when OEM skins pause background GPS. User-tapped only,
+        // Android only, never blocks sharing.
+        if (shown == SharingIssue.offline &&
+            PlatformInfo.isAndroid) ...<Widget>[
+          const SizedBox(height: Space.x3),
+          _BatteryExemptionCard(
+            onRequest: () => unawaited(_requestExemption()),
           ),
         ],
         if (PlatformInfo.isWeb) ...<Widget>[
@@ -168,6 +188,24 @@ class _StatusBlockState extends State<StatusBlock> {
     } on Object {
       // No settings page on this device: the banner text stays on screen.
     }
+  }
+
+  /// Fires the battery exemption dialog from the card action. Best effort:
+  /// denial only toasts and sharing continues. Never throws.
+  Future<void> _requestExemption() async {
+    final bool granted = await widget.requestExemption();
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          granted
+              ? UiStrings.batteryExemptionGranted
+              : UiStrings.batteryExemptionKept,
+        ),
+      ),
+    );
   }
 }
 
@@ -448,6 +486,64 @@ class _HealthTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Battery exemption card shown while the trip is offline on Android.
+/// Title plus body plus one action. Never blocks sharing: denial only
+/// toasts and the trip keeps retrying.
+class _BatteryExemptionCard extends StatelessWidget {
+  /// Creates the card with the tap handler.
+  const _BatteryExemptionCard({required this.onRequest});
+
+  /// Fires the system exemption dialog. User-tapped only.
+  final VoidCallback onRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      semanticLabel:
+          '${UiStrings.batteryExemptionTitle}. ${UiStrings.batteryExemptionBody}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                Icons.battery_saver_rounded,
+                size: 20,
+                color: context.colors.inkMuted,
+              ),
+              const SizedBox(width: Space.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      UiStrings.batteryExemptionTitle,
+                      style: context.text.bodyStrong,
+                    ),
+                    const SizedBox(height: Space.x1),
+                    Text(
+                      UiStrings.batteryExemptionBody,
+                      style: context.text.caption,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.x3),
+          SecondaryButton(
+            label: UiStrings.batteryExemptionAction,
+            icon: Icons.battery_saver_rounded,
+            compact: true,
+            onPressed: onRequest,
           ),
         ],
       ),

@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/settings/about_screen.dart';
@@ -15,6 +17,7 @@ import 'package:pontual/ui/features/settings/privacy_screen.dart';
 import 'package:pontual/ui/features/settings/settings_screen.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
+import 'package:pontual/ui/features/trip/trip_status.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -113,6 +116,61 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('home-marker'), findsOneWidget);
       expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('offline trip shows the battery exemption card', (
+      WidgetTester tester,
+    ) async {
+      final Completer<http.Response> hanging = Completer<http.Response>();
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip' && req.method == 'POST') {
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          return hanging.future;
+        }
+        return http.Response('', 204);
+      });
+      final rig.Rig r = rig.rig(client);
+      await rig.start(r);
+      r.positions.add(rig.pos(8));
+      for (int i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      r.clock.advance(121 * 1000);
+      await r.controller.checkAutoEndForTest();
+      expect(r.controller.isOffline, isTrue);
+      bool called = false;
+      await tester.pumpWidget(
+        wrapApp(
+          Scaffold(
+            body: StatusBlock(
+              controller: r.controller,
+              wakeUnsupported: false,
+              requestExemption: () async {
+                called = true;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.batteryExemptionTitle), findsOneWidget);
+      await tester.tap(find.text(UiStrings.batteryExemptionAction));
+      await tester.pump();
+      expect(called, isTrue);
+      expect(find.text(UiStrings.batteryExemptionGranted), findsOneWidget);
+      expect(tester.takeException(), isNull);
       r.controller.dispose();
       await r.positions.close();
     });

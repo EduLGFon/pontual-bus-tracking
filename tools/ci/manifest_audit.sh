@@ -8,10 +8,12 @@ MANIFEST_DIR="$ROOT/app/android"
 FORBIDDEN=(
   "android.permission.ACCESS_BACKGROUND_LOCATION"
   "android.permission.RECEIVE_BOOT_COMPLETED"
-  "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
   "android.permission.WAKE_LOCK"
   "android.permission.SYSTEM_ALERT_WINDOW"
 )
+# D61: REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is owner-approved for the trip
+# foreground service (requested only from a user tap while offline). It is
+# checked in ALLOWED below, not here.
 
 ALLOWED=(
   "android.permission.INTERNET"
@@ -20,6 +22,7 @@ ALLOWED=(
   "android.permission.FOREGROUND_SERVICE"
   "android.permission.FOREGROUND_SERVICE_LOCATION"
   "android.permission.POST_NOTIFICATIONS"
+  "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
 )
 
 fail=0

@@ -37,7 +37,7 @@ function fix(over: Partial<Fix> = {}): Fix {
   };
 }
 
-/** Start plus two moving pings. Creates a vehicle led by device at t0+10s. */
+/** Start plus moving pings. First moving ping creates a vehicle (D60 single-tick publish) led by device; second confirms. */
 function movingTrip(
   store: Store,
   events: EngineEvent[],
@@ -141,11 +141,12 @@ Deno.test("3: second rider within tolerance attaches", () => {
   assertEquals(store.vehicles.size, 1);
 });
 
-// 4. A rider 600 m away does not attach.
+// 4. A rider 600 m away does not attach to the first bus.
 Deno.test("4: rider 600 m away does not attach", () => {
   const store = createStore();
   const events: EngineEvent[] = [];
   movingTrip(store, events, "a", 0);
+  const firstId = vehicleId(store);
   startTrip(
     store,
     events,
@@ -165,8 +166,12 @@ Deno.test("4: rider 600 m away does not attach", () => {
     cfg,
     0,
   );
-  assert(!isGone(r) && r.role === "W");
-  assertEquals(store.trips.get("b")?.vehicleId, null);
+  // With single-tick publish (D60) the distant moving rider opens its own
+  // vehicle at once instead of waiting for a second ping. It must never
+  // join the first bus 600 m away.
+  assert(!isGone(r) && r.role === "L");
+  assert(store.trips.get("b")?.vehicleId !== firstId);
+  assertEquals(store.vehicles.size, 2);
 });
 
 // 5. Dead-reckoned follower fix 60 s later still attaches.
