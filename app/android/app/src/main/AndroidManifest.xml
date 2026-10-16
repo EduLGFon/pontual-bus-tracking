@@ -1,12 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Location and foreground-service permissions per PLAN 8.6. Never add
-         ACCESS_BACKGROUND_LOCATION, boot receivers, or battery exemptions. -->
+    <!-- Location and foreground-service permissions per PLAN 8.6. Owner
+         order D61 adds the battery exemption so the trip foreground
+         service survives screen-off on Samsung/Xiaomi skins. Requested
+         only from a user tap while a trip is offline, never at startup.
+         Still never add ACCESS_BACKGROUND_LOCATION or boot receivers. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
         android:allowBackup="false"
         android:label="pontual"
