@@ -2456,3 +2456,36 @@ Verified: `flutter analyze` clean, `dart format` clean (0 changed),
 45 green, manifest audit PASS (no manifest change). Full app suite
 not re-run (tree carries unrelated uncommitted battery plus
 force-ping work); stays for the owner machine and CI.
+
+## D64-2026-10-16: degraded downgrade hold keeps GPS on (Accepted)
+
+Phase 0 step 2 of the GPS plan (D63 was step 1). Owner constraint
+holds: the 60 m publish gate is untouched on both ends.
+
+Problem: the 30 s downgrade hysteresis treated all downgrades alike.
+Dropping from high accuracy to a 45 s cadence right when fixes turn
+coarse powers down GPS exactly when it is needed most, so the next
+sub-60 m fix arrives a full slow interval later and weak-GPS patches
+cost more map gaps than they should.
+
+Change (client only, no server contract change, no new permission):
+`LocationService.requestMode` tracks the last accepted fix accuracy
+and extends the downgrade guard from 30 s to 60 s while that accuracy
+is at or above 40 m (`degradedAccuracyM`, `degradedHoldMs`). Upgrades,
+dead-stream restarts, and stall restarts bypass unchanged; offline
+saver and paused keep the 30 s guard because faster GPS buys nothing
+with no uploads. PLAN.md 8.6 updated in the same change set.
+
+Not changed and why: no fix is dropped or kept by this (the 60 m gate
+owns that); `distanceFilter` stays unset per the D43 deferral;
+follower medium from D63 is the stream the hold protects on
+handover demotions.
+
+Trade-off: up to 30 s of extra faster-cadence GPS per degraded
+episode. Bounded per episode and self-clearing on the next good fix;
+RNF02 confirmation stays with the T47 field test.
+
+Verified: `flutter analyze` clean, `dart format` clean,
+`location_test` 17 green (3 new: degraded hold, good-accuracy guard,
+saver plus paused exemption), supervisor plus controller plus health
+45 green, manifest audit PASS (no manifest change).

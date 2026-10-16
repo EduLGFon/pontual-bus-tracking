@@ -371,6 +371,177 @@ void main() {
     await positions.close();
   });
 
+  test('degraded accuracy extends the downgrade guard', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.leaderMoving,
+      lineLabel: 't',
+    );
+    expect(opens, 1);
+    Position fixWith(double acc) => Position(
+      latitude: -18.72,
+      longitude: -39.85,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+      accuracy: acc,
+      altitude: 0,
+      heading: 90,
+      speed: 8,
+      speedAccuracy: 1,
+      altitudeAccuracy: 1,
+      headingAccuracy: 1,
+    );
+    Future<void> emitDegraded() async {
+      final Future<TripFix> next = stream.first;
+      positions.add(fixWith(50));
+      await next.timeout(const Duration(seconds: 5));
+    }
+
+    await emitDegraded();
+    // Past the normal 30 s window but inside the 60 s degraded hold:
+    // the faster stream stays up so the next good fix arrives sooner.
+    now = 100000 + 31000;
+    await emitDegraded();
+    expect(
+      service.requestMode(SamplingMode.follower, now),
+      SamplingMode.leaderMoving,
+    );
+    expect(opens, 1);
+    now = 100000 + 45000;
+    await emitDegraded();
+    expect(
+      service.requestMode(SamplingMode.follower, now),
+      SamplingMode.leaderMoving,
+    );
+    expect(opens, 1);
+    // Past the degraded hold: the downgrade recreates the stream.
+    now = 100000 + 61000;
+    await emitDegraded();
+    expect(
+      service.requestMode(SamplingMode.follower, now),
+      SamplingMode.follower,
+    );
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
+
+  test('good accuracy keeps the normal downgrade guard', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.leaderMoving,
+      lineLabel: 't',
+    );
+    // Just under the 40 m degraded line: normal 30 s guard applies.
+    now = 100000 + 30000;
+    final Future<TripFix> next = stream.first;
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+        accuracy: 39,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    await next.timeout(const Duration(seconds: 5));
+    now = 100000 + 31000;
+    expect(
+      service.requestMode(SamplingMode.follower, now),
+      SamplingMode.follower,
+    );
+    expect(opens, 2);
+    service.stop();
+    await positions.close();
+  });
+
+  test('degraded hold never delays offline saver or paused', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.leaderMoving,
+      lineLabel: 't',
+    );
+    Future<void> emitDegraded() async {
+      final Future<TripFix> next = stream.first;
+      positions.add(
+        Position(
+          latitude: -18.72,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+          accuracy: 50,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await next.timeout(const Duration(seconds: 5));
+    }
+
+    // Inside the degraded 60 s hold but past the normal 30 s window:
+    // saver and paused still switch on the normal guard.
+    now = 100000 + 44000;
+    await emitDegraded();
+    now = 100000 + 45000;
+    expect(
+      service.requestMode(SamplingMode.offlineSaver, now),
+      SamplingMode.offlineSaver,
+    );
+    expect(opens, 2);
+    now = 100000 + 75000;
+    await emitDegraded();
+    now = 100000 + 76000;
+    expect(service.requestMode(SamplingMode.paused, now), SamplingMode.paused);
+    expect(opens, 3);
+    service.stop();
+    await positions.close();
+  });
+
   test('a silent stream restarts after the stall window', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
