@@ -15,6 +15,9 @@ class FakeGateway implements PermissionGateway {
   /// Location services answer.
   bool services = true;
 
+  /// Precise-accuracy answer. False models an approximate-only grant.
+  bool precise = true;
+
   /// When true, both probes throw.
   bool throwing = false;
 
@@ -38,7 +41,7 @@ class FakeGateway implements PermissionGateway {
   }
 
   @override
-  Future<bool> preciseAccuracy() async => true;
+  Future<bool> preciseAccuracy() async => precise;
 
   @override
   Future<void> openSettings() async {}
@@ -212,6 +215,48 @@ void main() {
       nowMs: 3000,
     );
     expect(round.endReason, isNull);
+  });
+
+  test(
+    'three approximate polls flag imprecise with low-power sampling',
+    () async {
+      final FakeGateway gateway = FakeGateway()..precise = false;
+      final TripSupervisor supervisor = TripSupervisor(gateway: gateway);
+      supervisor.begin(0);
+      await supervisor.pollEnvironment(1000);
+      await supervisor.pollEnvironment(2000);
+      expect(supervisor.imprecise, isFalse);
+      await supervisor.pollEnvironment(3000);
+      expect(supervisor.imprecise, isTrue);
+      final Supervision round = supervisor.evaluate(
+        role: 'L',
+        failures: 0,
+        wasOffline: false,
+        startedAtMs: 0,
+        nowMs: 3000,
+      );
+      expect(round.imprecise, isTrue);
+      expect(round.wanted, SamplingMode.paused);
+      // Sampling matches paused, but the reported flag stays false so
+      // the UI shows the Precise guidance, not the location-off banner.
+      expect(round.paused, isFalse);
+      // Never ends the trip by itself: the server timeout bounds the
+      // zombie, and a fixed grant resumes without a restart.
+      expect(round.endReason, isNull);
+    },
+  );
+
+  test('a precise poll forgives imprecise', () async {
+    final FakeGateway gateway = FakeGateway()..precise = false;
+    final TripSupervisor supervisor = TripSupervisor(gateway: gateway);
+    supervisor.begin(0);
+    await supervisor.pollEnvironment(1000);
+    await supervisor.pollEnvironment(2000);
+    await supervisor.pollEnvironment(3000);
+    expect(supervisor.imprecise, isTrue);
+    gateway.precise = true;
+    await supervisor.pollEnvironment(4000);
+    expect(supervisor.imprecise, isFalse);
   });
 
   test('flowing fixes forgive permission flaps', () async {

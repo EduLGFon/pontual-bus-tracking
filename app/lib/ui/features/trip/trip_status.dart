@@ -165,6 +165,12 @@ class _StatusBlockState extends State<StatusBlock> {
         icon: Icons.block_rounded,
         action: _BannerAction.openSettings,
       ),
+      SharingIssue.imprecise => const _BannerSpec(
+        message: UiStrings.impreciseLocation,
+        tone: BannerTone.danger,
+        icon: Icons.block_rounded,
+        action: _BannerAction.openSettings,
+      ),
       SharingIssue.lowBattery => const _BannerSpec(
         message: UiStrings.lowBatteryBanner,
         tone: BannerTone.warning,
@@ -304,6 +310,12 @@ class _IssueBanner extends StatelessWidget {
         icon: Icons.block_rounded,
         action: _BannerAction.openSettings,
       ),
+      SharingIssue.imprecise => const _BannerSpec(
+        message: UiStrings.impreciseLocation,
+        tone: BannerTone.danger,
+        icon: Icons.block_rounded,
+        action: _BannerAction.openSettings,
+      ),
       SharingIssue.lowBattery => const _BannerSpec(
         message: UiStrings.lowBatteryBanner,
         tone: BannerTone.warning,
@@ -409,6 +421,7 @@ class StatusTiles extends StatelessWidget {
       GpsValue.noFix => Icons.gps_not_fixed_rounded,
       GpsValue.off => Icons.location_disabled_rounded,
       GpsValue.noPermission => Icons.block_rounded,
+      GpsValue.imprecise => Icons.block_rounded,
       GpsValue.searching => Icons.location_searching_rounded,
     };
   }
@@ -420,6 +433,7 @@ class StatusTiles extends StatelessWidget {
       GpsValue.noFix => UiStrings.noSignal,
       GpsValue.off => UiStrings.gpsOffShort,
       GpsValue.noPermission => UiStrings.gpsNoPermission,
+      GpsValue.imprecise => UiStrings.gpsImprecise,
       GpsValue.searching => UiStrings.gpsSearching,
     };
     if (gnss == null) {

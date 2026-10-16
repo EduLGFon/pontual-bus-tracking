@@ -67,6 +67,13 @@ Stream<GnssQuality> watchGnssQuality({GnssQualityReader? reader}) {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
     return const Stream.empty();
   }
+  try {
+    // Plain unit tests have no binding; behave like a non-Android
+    // platform instead of throwing when the channel is touched (D71).
+    ServicesBinding.instance;
+  } catch (_) {
+    return const Stream.empty();
+  }
   return const EventChannel(gnssQualityChannel)
       .receiveBroadcastStream()
       .map(GnssQuality.fromMap)

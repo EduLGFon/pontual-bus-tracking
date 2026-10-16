@@ -1196,9 +1196,7 @@ Rules:
   where the dialog is not enough.
 
 **Permission denied / revoked mid-trip:** stop stream, send `DELETE /v1/trip`
-best-effort, show S07 (with "Abrir ajustes"). **Approximate-only grant:**
-fail fast with `imprecise` and the Precise-location card (D67); coarse
-fixes would never pass the publish gate. **GPS toggled off:** `paused` +
+best-effort, show S07 (with "Abrir ajustes"). **Approximate-only grant:** fail fast with `imprecise` and the Precise-location card at start (D67); mid-trip downgrades are caught by supervision rounds with the same card, sends held, no client auto-end (D71). **GPS toggled off:** `paused` +
 banner "Ative a localização"; auto-resume when it returns; if > 5 min paused →
 end trip. **Mock location detected:** drop fixes, show "Localização simulada
 detectada - desative para compartilhar".

@@ -65,6 +65,9 @@ enum GpsValue {
   /// OS permission revoked.
   noPermission,
 
+  /// Granted but approximate-only.
+  imprecise,
+
   /// Waiting for the first fix during startup.
   searching,
 }
@@ -93,6 +96,9 @@ enum SharingIssue {
 
   /// Sends failing.
   offline,
+
+  /// Approximate-only grant: sharing needs Precise.
+  imprecise,
 
   /// Weak GPS accuracy.
   gpsWeak,
@@ -128,6 +134,7 @@ class SharingSignals {
     required this.offline,
     required this.servicesOn,
     required this.permissionGranted,
+    required this.imprecise,
     required this.nowMs,
     this.accuracyM,
     this.lastSuccessMs,
@@ -150,6 +157,10 @@ class SharingSignals {
 
   /// False after the permission is revoked mid-trip.
   final bool permissionGranted;
+
+  /// True while the grant is approximate-only. Outranks offline: it
+  /// explains why sends fail and tells the rider the one fix. See D71.
+  final bool imprecise;
 
   /// Last accepted fix accuracy in meters, null when unknown.
   final double? accuracyM;
@@ -258,6 +269,21 @@ SharingHealth resolveSharingHealth(SharingSignals s) {
       lastSendStale: false,
     );
   }
+  if (s.imprecise) {
+    return SharingHealth(
+      connectionLevel: SharingLevel.warn,
+      connectionValue: s.offline
+          ? ConnectionValue.offline
+          : ConnectionValue.connected,
+      gpsLevel: SharingLevel.error,
+      gpsValue: GpsValue.imprecise,
+      deviceLevel: _deviceOf(s),
+      deviceValue: _deviceValueOf(s),
+      issue: SharingIssue.imprecise,
+      overall: SharingOverall.paused,
+      lastSendStale: false,
+    );
+  }
   final bool inGrace =
       s.startedAtMs != null && s.nowMs - s.startedAtMs! < startupGraceMs;
   if (s.isStarting || (inGrace && s.lastSuccessMs == null)) {
@@ -360,6 +386,7 @@ SharingLevel _gpsLevelOnline(SharingSignals s) {
     GpsValue.noFix => SharingLevel.warn,
     GpsValue.off => SharingLevel.error,
     GpsValue.noPermission => SharingLevel.error,
+    GpsValue.imprecise => SharingLevel.error,
     GpsValue.searching => SharingLevel.neutral,
   };
 }

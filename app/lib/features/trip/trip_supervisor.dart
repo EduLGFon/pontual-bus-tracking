@@ -18,6 +18,12 @@ const int offlineAfterFailures = 3;
 /// a healthy trip. A real revoke persists and still ends it. See D29.
 const int permissionRevokedAfterPolls = 3;
 
+/// Consecutive approximate-only polls before treating the grant as
+/// imprecise. Same flap protection as the permission debounce: one bad
+/// poll only reflects a momentary status read, persistence means the
+/// user flipped to Approximate mid-trip. See D71.
+const int impreciseAfterPolls = 3;
+
 /// Milliseconds without a successful ping before offline saver.
 const int offlineAfterMs = 120 * 1000;
 
@@ -28,6 +34,7 @@ class Supervision {
     required this.promptVisible,
     required this.offline,
     required this.paused,
+    required this.imprecise,
     required this.endReason,
     required this.wanted,
   });
@@ -40,6 +47,11 @@ class Supervision {
 
   /// True while location services are off (stream paused).
   final bool paused;
+
+  /// True while the grant is approximate-only. Sampling drops to
+  /// low-power like paused, but the UI shows the Precise guidance,
+  /// not the location-off banner. See D71.
+  final bool imprecise;
 
   /// Set when the trip must end now.
   final AutoEndReason? endReason;
@@ -58,6 +70,8 @@ class TripSupervisor {
   int? _gpsOffSinceMs;
   bool _permissionRevoked = false;
   int _permissionBadPolls = 0;
+  bool _imprecise = false;
+  int _impreciseBadPolls = 0;
   int? _walkingPromptAtMs;
   int? _slowSinceMs;
   int? _lastSuccessMs;
@@ -75,6 +89,11 @@ class TripSupervisor {
 
   /// True after 3 consecutive non-granted polls. Read-only.
   bool get permissionRevoked => _permissionRevoked;
+
+  /// True after 3 consecutive approximate-only polls. Read-only.
+  /// Forgiven by a precise poll; accepted fixes cannot forgive it
+  /// because coarse fixes never pass the filter to reach onFix.
+  bool get imprecise => _imprecise;
 
   /// Seeds the success clock at trip start.
   void begin(int nowMs) {
@@ -105,6 +124,23 @@ class TripSupervisor {
         _gpsOffSinceMs = null;
       } else {
         _gpsOffSinceMs ??= nowMs;
+      }
+    } catch (_) {
+      // Keep the previous value.
+    }
+    try {
+      // Fail-open like the start path (D67): a broken status read must
+      // never strand a healthy trip, and coarse fixes cannot arrive to
+      // forgive a flap, so persistence is the only signal.
+      final bool precise = await _gateway.preciseAccuracy();
+      if (precise) {
+        _impreciseBadPolls = 0;
+        _imprecise = false;
+      } else {
+        _impreciseBadPolls += 1;
+        if (_impreciseBadPolls >= impreciseAfterPolls) {
+          _imprecise = true;
+        }
       }
     } catch (_) {
       // Keep the previous value.
@@ -180,13 +216,19 @@ class TripSupervisor {
         speedMps: _lastSpeedMps,
         offline: offline,
         stillS: stillS,
-        paused: paused,
+        // Imprecise sampling matches paused (low-power foreground
+        // service kept): accepted fixes are near zero anyway, so GPS
+        // stays warm for a quick resume without burning power. The
+        // reported paused flag stays false so the UI shows the Precise
+        // guidance, not the location-off banner.
+        paused: paused || _imprecise,
       ),
     );
     return Supervision(
       promptVisible: promptVisible,
       offline: offline,
       paused: paused,
+      imprecise: _imprecise,
       endReason: endReason,
       wanted: wanted,
     );
@@ -204,6 +246,8 @@ class TripSupervisor {
     _gpsOffSinceMs = null;
     _permissionRevoked = false;
     _permissionBadPolls = 0;
+    _imprecise = false;
+    _impreciseBadPolls = 0;
     _walkingPromptAtMs = null;
     _slowSinceMs = null;
     _lastSuccessMs = null;
