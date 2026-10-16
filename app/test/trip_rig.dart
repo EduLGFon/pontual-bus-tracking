@@ -24,6 +24,9 @@ class MutableGateway implements PermissionGateway {
   /// Location services answer.
   bool services = true;
 
+  /// Precise-accuracy answer. False models an approximate-only grant.
+  bool precise = true;
+
   @override
   Future<LocationPermissionState> check() async => permission;
 
@@ -32,6 +35,9 @@ class MutableGateway implements PermissionGateway {
 
   @override
   Future<bool> servicesOn() async => services;
+
+  @override
+  Future<bool> preciseAccuracy() async => precise;
 
   @override
   Future<void> openSettings() async {}

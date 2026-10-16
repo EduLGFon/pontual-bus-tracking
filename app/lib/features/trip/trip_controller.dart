@@ -33,6 +33,10 @@ enum StartFailure {
   /// OS permission denied; the flow shows the permission sheets.
   permission,
 
+  /// Granted but approximate-only; the flow asks for Precise instead
+  /// of stalling at "waiting for GPS". See D67.
+  imprecise,
+
   /// Network or registration failure.
   offline,
 
@@ -443,6 +447,25 @@ class TripController extends ChangeNotifier {
         errorCode: 'denied',
       );
       _failReason = StartFailure.permission;
+      _set(tripReduce(_state, TripEvent.permissionsDenied));
+      return false;
+    }
+    // Approximate-only grants report coarse fixes that never pass the
+    // publish gate, so fail here with guidance instead of stalling 60 s
+    // at "waiting for GPS". Fail-open on a broken check. See D67.
+    bool precise = true;
+    try {
+      precise = await _deps.gateway.preciseAccuracy();
+    } catch (_) {
+      precise = true;
+    }
+    if (!precise) {
+      phase(
+        SharePhase.permission,
+        SharePhaseStatus.failed,
+        errorCode: 'imprecise',
+      );
+      _failReason = StartFailure.imprecise;
       _set(tripReduce(_state, TripEvent.permissionsDenied));
       return false;
     }

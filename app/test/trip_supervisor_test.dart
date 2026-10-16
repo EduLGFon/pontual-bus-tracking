@@ -38,6 +38,9 @@ class FakeGateway implements PermissionGateway {
   }
 
   @override
+  Future<bool> preciseAccuracy() async => true;
+
+  @override
   Future<void> openSettings() async {}
 }
 

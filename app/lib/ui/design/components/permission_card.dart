@@ -18,6 +18,9 @@ enum PermissionCardState {
   /// Denied with "don't ask again": only settings help.
   blocked,
 
+  /// Granted but approximate-only: sharing needs Precise.
+  imprecise,
+
   /// Device location services are off.
   servicesOff,
 
@@ -117,6 +120,9 @@ class PermissionCard extends StatelessWidget {
     if (state == PermissionCardState.servicesOff) {
       return web ? UiStrings.locationOffWeb : UiStrings.locationOff;
     }
+    if (state == PermissionCardState.imprecise) {
+      return UiStrings.impreciseLocation;
+    }
     if (state == PermissionCardState.notificationsDenied) {
       return UiStrings.notificationNote;
     }
@@ -139,7 +145,8 @@ class PermissionCard extends StatelessWidget {
 
   String _primaryLabelOf(PermissionCardState state, bool web) {
     if (state == PermissionCardState.blocked ||
-        state == PermissionCardState.servicesOff) {
+        state == PermissionCardState.servicesOff ||
+        state == PermissionCardState.imprecise) {
       return web ? UiStrings.retry : UiStrings.openSettings;
     }
     return UiStrings.retry;
@@ -147,7 +154,8 @@ class PermissionCard extends StatelessWidget {
 
   VoidCallback? _primaryAction(PermissionCardState state, bool web) {
     if (state == PermissionCardState.blocked ||
-        state == PermissionCardState.servicesOff) {
+        state == PermissionCardState.servicesOff ||
+        state == PermissionCardState.imprecise) {
       return web ? onRetry : onOpenSettings;
     }
     return onRetry;

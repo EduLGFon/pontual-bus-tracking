@@ -121,11 +121,17 @@ void main() {
     expect(normalizeSpeed(8.34), closeTo(8.3, 1e-9));
     expect(normalizeSpeed(0), 0);
     expect(normalizeSpeed(-1), 0);
-    expect(normalizeHeading(90), 90);
-    expect(normalizeHeading(0), 0);
-    expect(normalizeHeading(360), 0);
-    expect(normalizeHeading(-1), isNull);
-    expect(normalizeHeading(720), isNull);
+    expect(normalizeHeading(90, 8), 90);
+    expect(normalizeHeading(0, 8), 0);
+    expect(normalizeHeading(360, 8), 0);
+    expect(normalizeHeading(-1, 8), isNull);
+    expect(normalizeHeading(720, 8), isNull);
+    // D66: bearings at standstill are noise, so they are nulled.
+    // The 0.5 boundary matches the server still-tick threshold.
+    expect(normalizeHeading(90, 0), isNull);
+    expect(normalizeHeading(90, 0.4), isNull);
+    expect(normalizeHeading(90, 0.5), 90);
+    expect(normalizeHeading(360, 0), isNull);
   });
 
   test('settings carry the foreground notification', () {

@@ -2519,3 +2519,63 @@ Verified: `flutter analyze` clean, `dart format` clean,
 start-body coordinates, best-seen fallback with start-body
 coordinates), location plus supervisor plus auto-end plus share-flow
 plus health 62 green, manifest audit PASS (no manifest change).
+
+## D66-2026-10-16: no heading published at standstill (Accepted)
+
+Phase 0 step 4 of the GPS plan (D63 step 1, D64 step 2, D65 step 3).
+Owner constraint holds: no fix is dropped by this; the 60 m gate is
+untouched.
+
+Problem: the client forwarded the chip bearing at any speed,
+including at stops where GPS bearings are pure noise (bearing is
+derived from motion). The server then dead-reckoned the vehicle along
+a random direction for the publish TTL and the map arrow spun.
+
+Change (client only, no server contract change, no new permission):
+`normalizeHeading` takes the normalized speed and returns null under
+0.5 m/s (`stillSpeedMaxMps`, the same threshold the server uses for
+still ticks). Verified null-safe end to end before changing: the ping
+schema accepts nullable `hdg`, attach skips projection on null
+headings, and null headings widen attach tolerance instead. PLAN.md
+8.6 updated in the same change set.
+
+Not changed and why: moving bearings pass through exactly as before;
+`speedAccuracy`/`headingAccuracy` fields stay unused because their
+unknown-value semantics are unverified on the target skins (a wrong
+threshold there would silently drop or corrupt fixes, against the
+owner constraint). They stay a candidate for the native HDOP task
+with device evidence.
+
+Verified: `flutter analyze` clean, `dart format` clean, location
+plus controller plus supervisor 51 green (extended heading cases
+including the 0.5 boundary), manifest audit PASS (no manifest
+change).
+
+## D67-2026-10-16: approximate-only grants fail fast with guidance (Accepted)
+
+Phase 0 step 5 of the GPS plan (D63-D66 before it). Owner constraint
+holds: no gate changed; this only explains a state that could never
+share.
+
+Problem: an approximate-location grant reports granted, then every
+fix lands at kilometer accuracy and dies at the 60 m gate. The trip
+stalled 60 s at "waiting for GPS" with no actionable guidance, and
+field support could not tell it apart from weak GPS.
+
+Change (client only, no server contract change, no new permission):
+`PermissionGateway.preciseAccuracy()` wraps
+`Geolocator.getLocationAccuracy()` (verified: real API on Android,
+`UnimplementedError` on web where browsers grant precise-or-nothing)
+and fail-opens to true on unknown status or any error, so a broken
+check never blocks sharing. `startTrip` fails fast with
+`StartFailure.imprecise` right after the permission grant, before any
+GPS wait or trip call. The legacy flow shows the guidance as a
+snackbar; the new UI maps it to a `PermissionCardState.imprecise`
+card opening settings (UI_SPEC 7.7 gains one matrix row; spec text
+update stays owner-side).
+
+Verified: `flutter analyze` clean, `dart format` clean, controller
+22 green (new fail-fast case asserting no trip call), share-flow
+widget green (card copy plus settings action, no GPS hang),
+supervisor plus location 30 green, manifest audit PASS (no manifest
+change).

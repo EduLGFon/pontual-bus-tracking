@@ -292,8 +292,14 @@ PermissionCardState? _cardStateOf(_PermissionRecorder recorder) {
     return PermissionCardState.servicesOff;
   }
   if (!recorder.requested ||
-      recorder.answer == LocationPermissionState.granted) {
+      (recorder.answer == LocationPermissionState.granted &&
+          recorder.precise)) {
     return null;
+  }
+  if (recorder.answer == LocationPermissionState.granted) {
+    // Granted but approximate-only: no browser variant exists (web
+    // fail-opens to precise), so this card is Android settings only.
+    return PermissionCardState.imprecise;
   }
   if (PlatformInfo.isWeb) {
     // Browsers expose no settings page: the card walks the rider through
@@ -344,6 +350,11 @@ class _PermissionRecorder implements PermissionGateway {
   /// True while device location services are on.
   bool services = true;
 
+  /// True when the grant includes precise location. Recorded at prompt
+  /// time: an approximate-only grant reports coarse fixes that never
+  /// pass the publish gate, so the card asks for Precise instead.
+  bool precise = true;
+
   @override
   Future<LocationPermissionState> check() async {
     final LocationPermissionState state = await gateway.check();
@@ -356,6 +367,15 @@ class _PermissionRecorder implements PermissionGateway {
     requested = true;
     final LocationPermissionState state = await gateway.request();
     answer = state;
+    if (state == LocationPermissionState.granted) {
+      try {
+        precise = await gateway.preciseAccuracy();
+      } catch (_) {
+        // Fail-open like the gateway: a broken check must not invent
+        // a permission failure.
+        precise = true;
+      }
+    }
     return state;
   }
 
@@ -364,6 +384,9 @@ class _PermissionRecorder implements PermissionGateway {
     services = await gateway.servicesOn();
     return services;
   }
+
+  @override
+  Future<bool> preciseAccuracy() => gateway.preciseAccuracy();
 
   @override
   Future<void> openSettings() => gateway.openSettings();
