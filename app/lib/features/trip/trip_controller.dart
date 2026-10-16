@@ -49,6 +49,13 @@ enum StartFailure {
   failed,
 }
 
+/// Preferred first-fix accuracy in meters for a trip start. The start
+/// waits for a fix this good inside the GPS window when one arrives and
+/// falls back to the best-seen accepted fix, so a lone coarse fix never
+/// anchors the vehicle when a good one follows seconds later. Well
+/// under the 60 m publish gate: this never drops a fix. See D65.
+const double firstFixGoodAccuracyM = 30;
+
 /// Trip end reasons shown on the S09 end card.
 enum TripEndKind {
   /// User tapped Desci.
@@ -483,20 +490,50 @@ class TripController extends ChangeNotifier {
       lineLabel: _lineLabel,
     );
     phase(SharePhase.gps, SharePhaseStatus.active);
-    TripFix first;
+    // Anchor on the first good fix (at or under [firstFixGoodAccuracyM])
+    // when one arrives inside the GPS window, else the best-seen
+    // accepted fix. A lone coarse fix no longer anchors the vehicle when
+    // a good one follows seconds later; the window bound is unchanged.
+    TripFix? first;
+    TripFix? best;
+    final int gpsDeadlineMs =
+        _deps.clock.nowMs() + firstFixTimeout.inMilliseconds;
     try {
-      first = await stream.first.timeout(firstFixTimeout);
-    } on TimeoutException {
-      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'gps-timeout');
-      await _stopLocal();
-      _failReason = StartFailure.noGps;
-      _set(const TripIdle());
-      return false;
+      while (first == null) {
+        final int remainingMs = gpsDeadlineMs - _deps.clock.nowMs();
+        if (remainingMs <= 0) {
+          break;
+        }
+        TripFix next;
+        try {
+          next = await stream.first.timeout(
+            Duration(milliseconds: remainingMs),
+          );
+        } on TimeoutException {
+          // Window elapsed with no further fix: fall through to the
+          // best-seen fallback below.
+          break;
+        }
+        if (best == null || next.accuracyM < best.accuracyM) {
+          best = next;
+        }
+        if (next.accuracyM <= firstFixGoodAccuracyM) {
+          first = next;
+        }
+      }
     } on StateError {
       // The stream closed without a fix: Cancelar or dispose.
       phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'cancel');
       await _stopLocal();
       _failReason = StartFailure.declined;
+      _set(const TripIdle());
+      return false;
+    }
+    first ??= best;
+    if (first == null) {
+      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'gps-timeout');
+      await _stopLocal();
+      _failReason = StartFailure.noGps;
       _set(const TripIdle());
       return false;
     }
