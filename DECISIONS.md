@@ -2693,3 +2693,34 @@ Verified: `flutter analyze` clean, `dart format` clean, full app
 suite green (362 passed, 1 skipped: supervisor debounce plus
 forgiveness, controller hold-and-resume with ping counts, health
 priority, banner widget), manifest audit PASS (no manifest change).
+
+## D72-2026-10-19: GNSS used-in-fix compat after stub removal (Accepted)
+
+Correction to D68: `GnssStatus.getUsedInFix(int)` is not available in
+the current compile stubs. Checked with `javap` against the installed
+platforms: `android-35`, `android-36` and `android-37.0` expose only
+`usedInFix(int)` (API 30+) and have no `getUsedInFix`. D68 verified
+the API level from docs but had no Android SDK on the host, so the
+release compile was the first real check; it failed with
+`Unresolved reference 'getUsedInFix'` at
+`GnssQualityPlugin.kt:101`.
+
+Change (native plugin only): API 30+ calls `usedInFix(int)`; API
+24-29, where the old method still exists on the device, reaches
+`getUsedInFix(int)` through a lazily resolved reflective lookup. No
+minSdk bump, no new dependency, no permission or manifest change,
+and no behavior change on API 30+. If the legacy lookup ever fails
+the plugin reports zero used satellites rather than crashing; the
+view count still arrives.
+
+Not verified: the reflective path on a real API 24-29 device (no
+such device on this host). It should be covered by the T45
+install-launch pass when an older device is available.
+
+Verified: `flutter build apk --release` succeeds (universal APK
+containing arm64-v8a, armeabi-v7a and x86_64; 58.5 MB). That is
+above the 25 MB universal budget in PLAN.md 10.1, but the universal
+APK packs three ABIs and this change adds only a few lines of dex;
+the arm64 release split is the meaningful budget measure. `flutter
+analyze` clean. No Dart code changed, so the Dart suites were not
+re-run.

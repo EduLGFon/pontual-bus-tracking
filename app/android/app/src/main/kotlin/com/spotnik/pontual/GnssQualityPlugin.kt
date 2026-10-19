@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
+import java.lang.reflect.Method
 
 // Streams GNSS signal quality (satellites in view and in fix, mean
 // carrier-to-noise density) to Dart while a trip listens. No coordinates
@@ -20,6 +21,32 @@ class GnssQualityPlugin : FlutterPlugin, EventChannel.StreamHandler {
     companion object {
         const val CHANNEL = "pontual/gnss_quality"
         private const val MIN_INTERVAL_MS = 1000L
+
+        // usedInFix(int) exists since API 30. On API 24-29 the only public
+        // spelling is getUsedInFix(int), which was dropped from the API 35+
+        // compile stubs, so it is reached reflectively there.
+        // See DECISIONS.md#D72.
+        private val legacyUsedInFix: Method? by lazy {
+            try {
+                GnssStatus::class.java.getMethod("getUsedInFix", Integer.TYPE)
+            } catch (e: NoSuchMethodException) {
+                null
+            } catch (e: SecurityException) {
+                null
+            }
+        }
+
+        private fun isUsedInFix(status: GnssStatus, index: Int): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                return status.usedInFix(index)
+            }
+            val method = legacyUsedInFix ?: return false
+            return try {
+                method.invoke(status, index) as? Boolean ?: false
+            } catch (e: ReflectiveOperationException) {
+                false
+            }
+        }
     }
 
     private var channel: EventChannel? = null
@@ -98,7 +125,7 @@ class GnssQualityPlugin : FlutterPlugin, EventChannel.StreamHandler {
             var snrSum = 0.0
             val total = status.satelliteCount
             for (i in 0 until total) {
-                if (status.getUsedInFix(i)) {
+                if (isUsedInFix(status, i)) {
                     used += 1
                     snrSum += status.getCn0DbHz(i)
                 }
