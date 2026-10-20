@@ -1,33 +1,33 @@
 // Report creation sheet. Four closed kinds, no free text. Waiting and
-// blocked require a stop; broken and full are line-level. One report and
-// one retract operation only; there are no votes in this alpha.
-// See DECISIONS.md#D82.
-import 'package:flutter/material.dart' hide Chip;
+// blocked use a one-shot location read converted on-device to a ~150 m
+// cell; broken and full are line-level. One report and one retract only.
+// No votes in this alpha. See DECISIONS.md#D82 and D83.
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/dto.dart';
-import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/data/prefs/report_location_notice.dart';
 import 'package:pontual/domain/reporting/report_kind.dart';
+import 'package:pontual/features/reports/report_location.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
-import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/reports/report_actions.dart';
+import 'package:pontual/ui/features/reports/report_location_notice.dart';
 import 'package:pontual/ui/features/reports/report_style.dart';
 import 'package:pontual/ui/features/reports/reports_providers.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/util/platform.dart';
 
 /// Opens the report sheet as a root modal.
 Future<void> showReportSheet(
   BuildContext context, {
   required int lineId,
   required String lineName,
-  required List<StopPoint> stops,
-  StopPoint? initialStop,
   Future<void> Function()? onSubmitted,
 }) {
   return showModalBottomSheet<void>(
@@ -40,23 +40,9 @@ Future<void> showReportSheet(
     builder: (BuildContext context) => ReportSheet(
       lineId: lineId,
       lineName: lineName,
-      stops: stops,
-      initialStop: initialStop,
       onSubmitted: onSubmitted,
     ),
   );
-}
-
-/// Stop label used only inside the picker. Unnamed OSM nodes get a local
-/// ordinal; this is a UI locator, never written back to the data.
-String stopPickerLabel(StopPoint stop, int index) {
-  final String? name = stop.name?.trim();
-  if (name != null &&
-      name.isNotEmpty &&
-      name.toLowerCase() != UiStrings.reportStopGeneric.toLowerCase()) {
-    return name;
-  }
-  return '${UiStrings.reportStopGeneric} ${index + 1}';
 }
 
 /// Modal body of the report sheet.
@@ -65,8 +51,6 @@ class ReportSheet extends ConsumerStatefulWidget {
   const ReportSheet({
     required this.lineId,
     required this.lineName,
-    required this.stops,
-    this.initialStop,
     this.onSubmitted,
     super.key,
   });
@@ -77,12 +61,6 @@ class ReportSheet extends ConsumerStatefulWidget {
   /// Line name shown as context.
   final String lineName;
 
-  /// Stops available for stop-level kinds.
-  final List<StopPoint> stops;
-
-  /// Stop preselected by the stop sheet.
-  final StopPoint? initialStop;
-
   /// Called after a successful send so the line screen can refresh.
   final Future<void> Function()? onSubmitted;
 
@@ -92,26 +70,21 @@ class ReportSheet extends ConsumerStatefulWidget {
 
 class _ReportSheetState extends ConsumerState<ReportSheet> {
   ReportKind? _kind;
-  StopPoint? _stop;
   bool _sending = false;
+  bool _locating = false;
   String? _error;
+  ReportLocationFailure? _locationFailure;
 
-  @override
-  void initState() {
-    super.initState();
-    _stop = widget.initialStop;
-  }
+  bool get _busy => _sending || _locating;
 
   bool get _canSubmit {
     final ReportKind? kind = _kind;
-    if (kind == null || !kind.isKnown || _sending) return false;
-    if (kind.requiresStop && _stop == null) return false;
-    return true;
+    return kind != null && kind.isKnown && !_busy;
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool hasStops = widget.stops.isNotEmpty;
+    final bool usesLocation = _kind?.usesLocation ?? false;
     return PontualSheet(
       title: UiStrings.reportSheetTitle,
       scrollable: true,
@@ -130,43 +103,28 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
             _KindOption(
               kind: kind,
               selected: _kind == kind,
-              enabled: !kind.requiresStop || hasStops,
               onTap: () => setState(() {
                 _kind = kind;
                 _error = null;
+                _locationFailure = null;
               }),
             ),
             const SizedBox(height: Space.x2),
           ],
-          if (_kind?.requiresStop ?? false) ...<Widget>[
-            const SizedBox(height: Space.x3),
-            Text(UiStrings.reportChooseStop, style: context.text.label),
+          if (usesLocation) ...<Widget>[
             const SizedBox(height: Space.x2),
-            if (!hasStops)
-              Text(UiStrings.reportNoStops, style: context.text.caption)
-            else
-              Wrap(
-                spacing: Space.x2,
-                runSpacing: Space.x2,
-                children: <Widget>[
-                  for (int i = 0; i < widget.stops.length; i++)
-                    Chip(
-                      label: stopPickerLabel(widget.stops[i], i),
-                      selected: _stop?.id == widget.stops[i].id,
-                      onTap: () => setState(() {
-                        _stop = widget.stops[i];
-                        _error = null;
-                      }),
-                    ),
-                ],
-              ),
-            if (_kind?.requiresStop ?? false) ...<Widget>[
-              const SizedBox(height: Space.x1),
-              Text(UiStrings.reportChooseStopHint, style: context.text.caption),
-            ],
+            const _LocationNote(),
           ],
           const SizedBox(height: Space.x4),
           Text(UiStrings.reportPrivacy, style: context.text.caption),
+          if (_locationFailure != null) ...<Widget>[
+            const SizedBox(height: Space.x3),
+            _ReportLocationCard(
+              failure: _locationFailure!,
+              onRetry: _busy ? null : _submit,
+              onOpenSettings: _openSettings,
+            ),
+          ],
           if (_error != null) ...<Widget>[
             const SizedBox(height: Space.x3),
             Text(
@@ -178,8 +136,12 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
           ],
           const SizedBox(height: Space.x4),
           PrimaryButton(
-            label: _sending ? UiStrings.reportSending : UiStrings.reportSubmit,
-            loading: _sending,
+            label: _locating
+                ? UiStrings.reportLocating
+                : _sending
+                ? UiStrings.reportSending
+                : UiStrings.reportSubmit,
+            loading: _busy,
             onPressed: _canSubmit ? _submit : null,
           ),
           const SizedBox(height: Space.x2),
@@ -195,9 +157,38 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
 
   Future<void> _submit() async {
     final ReportKind? kind = _kind;
-    final StopPoint? stop = _stop;
     if (kind == null || !_canSubmit) return;
+    String? area;
+    if (kind.usesLocation) {
+      final bool accepted = await _ensureLocationNotice();
+      if (!accepted) {
+        if (mounted) {
+          setState(() => _locationFailure = ReportLocationFailure.denied);
+        }
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _locating = true;
+        _error = null;
+        _locationFailure = null;
+      });
+      final ReportAreaResult result = await ref
+          .read(reportLocationServiceProvider)
+          .acquire();
+      if (!mounted) return;
+      if (result is ReportAreaError) {
+        setState(() {
+          _locating = false;
+          _locationFailure = result.reason;
+        });
+        return;
+      }
+      area = (result as ReportAreaOk).areaId;
+    }
+    if (!mounted) return;
     setState(() {
+      _locating = false;
       _sending = true;
       _error = null;
     });
@@ -206,13 +197,13 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
       op: 'report',
       kind: kind,
       lineId: widget.lineId,
-      stop: kind.requiresStop ? stop?.id : null,
+      area: area,
     );
     if (!mounted) return;
     if (result is Ok<List<ReportDTO>>) {
       ref
           .read(myReportsProvider.notifier)
-          .mark(reportKeyOf(widget.lineId, kind, stop?.id));
+          .mark(reportKeyOf(widget.lineId, kind, area));
       ref.read(toastControllerProvider.notifier).show(UiStrings.reportSent);
       await widget.onSubmitted?.call();
       if (mounted) Navigator.of(context).pop();
@@ -223,54 +214,174 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
       _error = reportFailureMessage((result as Err<List<ReportDTO>>).failure);
     });
   }
+
+  Future<bool> _ensureLocationNotice() async {
+    const ReportLocationNoticeStore store = ReportLocationNoticeStore();
+    try {
+      if (await store.accepted()) return true;
+    } on Object {
+      // A prefs failure must not skip the disclosure.
+    }
+    if (!mounted) return false;
+    final bool accepted = await showReportLocationNotice(context);
+    if (accepted) {
+      try {
+        await store.accept();
+      } on Object {
+        // The report can proceed; the notice is transparency, not a key.
+      }
+    }
+    return accepted;
+  }
+
+  Future<void> _openSettings() async {
+    try {
+      await ref.read(reportLocationServiceProvider).gateway.openSettings();
+    } on Object {
+      // The browser or platform may not expose app settings; retry stays.
+    }
+  }
 }
 
 class _KindOption extends StatelessWidget {
   const _KindOption({
     required this.kind,
     required this.selected,
-    required this.enabled,
     required this.onTap,
   });
 
   final ReportKind kind;
   final bool selected;
-  final bool enabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final Color ink = enabled
-        ? reportInk(context, kind)
-        : context.colors.inkSubtle;
     return Semantics(
       selected: selected,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.5,
-        child: SurfaceCard(
-          selected: selected,
-          onTap: enabled ? onTap : null,
-          semanticLabel: '${reportLabel(kind)}. ${reportHint(kind)}',
-          child: Row(
+      child: SurfaceCard(
+        selected: selected,
+        onTap: onTap,
+        semanticLabel: '${reportLabel(kind)}. ${reportHint(kind)}',
+        child: Row(
+          children: <Widget>[
+            Icon(reportIcon(kind), color: reportInk(context, kind), size: 22),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(reportLabel(kind), style: context.text.bodyStrong),
+                  const SizedBox(height: Space.x1),
+                  Text(reportHint(kind), style: context.text.caption),
+                ],
+              ),
+            ),
+            if (selected)
+              Icon(Icons.check_circle_rounded, color: context.colors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LocationNote extends StatelessWidget {
+  const _LocationNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      sunken: true,
+      semanticLabel: UiStrings.reportLocationNote,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.location_on_outlined, color: context.colors.inkMuted),
+          const SizedBox(width: Space.x2),
+          Expanded(
+            child: Text(
+              UiStrings.reportLocationNote,
+              style: context.text.caption,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportLocationCard extends StatelessWidget {
+  const _ReportLocationCard({
+    required this.failure,
+    required this.onRetry,
+    required this.onOpenSettings,
+  });
+
+  final ReportLocationFailure failure;
+  final VoidCallback? onRetry;
+  final VoidCallback onOpenSettings;
+
+  String get _message {
+    return switch (failure) {
+      ReportLocationFailure.servicesOff => UiStrings.reportLocationServicesOff,
+      ReportLocationFailure.denied => UiStrings.reportLocationDenied,
+      ReportLocationFailure.blocked => UiStrings.reportLocationBlocked,
+      ReportLocationFailure.timeout => UiStrings.reportLocationTimeout,
+      ReportLocationFailure.imprecise => UiStrings.reportLocationImprecise,
+      ReportLocationFailure.outsideArea => UiStrings.reportLocationOutsideArea,
+      ReportLocationFailure.unknown => UiStrings.reportLocationUnknown,
+    };
+  }
+
+  bool get _settingsHelp =>
+      failure == ReportLocationFailure.blocked ||
+      failure == ReportLocationFailure.servicesOff;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool showSettings = _settingsHelp && !PlatformInfo.isWeb;
+    return SurfaceCard(
+      semanticLabel: '${UiStrings.reportLocationUnavailable}. $_message',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
             children: <Widget>[
-              Icon(reportIcon(kind), color: ink, size: 22),
-              const SizedBox(width: Space.x3),
+              Icon(
+                Icons.location_off_outlined,
+                size: 20,
+                color: context.colors.warningText,
+              ),
+              const SizedBox(width: Space.x2),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(reportLabel(kind), style: context.text.bodyStrong),
-                    const SizedBox(height: Space.x1),
-                    Text(reportHint(kind), style: context.text.caption),
-                  ],
+                child: Text(
+                  UiStrings.reportLocationUnavailable,
+                  style: context.text.bodyStrong,
                 ),
               ),
-              if (selected)
-                Icon(Icons.check_circle_rounded, color: context.colors.primary),
             ],
           ),
-        ),
+          const SizedBox(height: Space.x2),
+          Text(_message, style: context.text.body),
+          if (onRetry != null) ...<Widget>[
+            const SizedBox(height: Space.x2),
+            SecondaryButton(
+              label: UiStrings.retry,
+              compact: true,
+              onPressed: onRetry,
+            ),
+          ],
+          if (showSettings) ...<Widget>[
+            const SizedBox(height: Space.x2),
+            SecondaryButton(
+              label: UiStrings.openSettings,
+              compact: true,
+              onPressed: onOpenSettings,
+            ),
+          ],
+        ],
       ),
     );
   }

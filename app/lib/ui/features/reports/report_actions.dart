@@ -1,6 +1,6 @@
 // Report submission helpers. The device token is created on demand, the
 // server owns timestamps and TTLs, and failures map to short pt-BR copy.
-// See DECISIONS.md#D82.
+// See DECISIONS.md#D82/D83.
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/api/dto.dart';
@@ -13,7 +13,7 @@ Future<Result<List<ReportDTO>>> sendReport({
   required String op,
   required ReportKind kind,
   required int lineId,
-  String? stop,
+  String? area,
 }) async {
   final Result<String> token = await api.ensureRegistered();
   if (token is Err<String>) return Err<List<ReportDTO>>(token.failure);
@@ -22,7 +22,7 @@ Future<Result<List<ReportDTO>>> sendReport({
     op: op,
     kind: kind,
     lineId: lineId,
-    stop: stop,
+    area: area,
   );
 }
 

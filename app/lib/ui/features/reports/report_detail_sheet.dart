@@ -1,19 +1,17 @@
 // Report detail sheet: what was reported, when, and how many devices
 // reported it. No votes in this alpha; only the reporter can retract.
-// See DECISIONS.md#D82.
+// See DECISIONS.md#D82/D83.D83.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/dto.dart';
-import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/reports/report_actions.dart';
-import 'package:pontual/ui/features/reports/report_sheet.dart';
 import 'package:pontual/ui/features/reports/report_style.dart';
 import 'package:pontual/ui/features/reports/reports_providers.dart';
 import 'package:pontual/ui/models/report_vm.dart';
@@ -24,7 +22,6 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 Future<void> showReportDetailSheet(
   BuildContext context, {
   required List<ReportVM> reports,
-  required List<StopPoint> stops,
   Future<void> Function()? onChanged,
 }) {
   return showModalBottomSheet<void>(
@@ -35,34 +32,17 @@ Future<void> showReportDetailSheet(
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (BuildContext context) =>
-        ReportDetailSheet(reports: reports, stops: stops, onChanged: onChanged),
+        ReportDetailSheet(reports: reports, onChanged: onChanged),
   );
-}
-
-/// Stop label for a report, using the same picker fallback as the sheet.
-String stopLabelFor(String? stopId, List<StopPoint> stops) {
-  if (stopId == null) return '';
-  for (int i = 0; i < stops.length; i++) {
-    if (stops[i].id == stopId) return stopPickerLabel(stops[i], i);
-  }
-  return UiStrings.reportStopGeneric;
 }
 
 /// Modal body listing one or more active reports.
 class ReportDetailSheet extends ConsumerStatefulWidget {
   /// Creates the sheet.
-  const ReportDetailSheet({
-    required this.reports,
-    required this.stops,
-    this.onChanged,
-    super.key,
-  });
+  const ReportDetailSheet({required this.reports, this.onChanged, super.key});
 
   /// Reports to show.
   final List<ReportVM> reports;
-
-  /// Stops used to resolve report targets.
-  final List<StopPoint> stops;
 
   /// Called after a successful retract so the line screen can refresh.
   final Future<void> Function()? onChanged;
@@ -88,7 +68,6 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
           for (final ReportVM report in widget.reports) ...<Widget>[
             _ReportCard(
               report: report,
-              stopLabel: stopLabelFor(report.stop, widget.stops),
               mine: mine.contains(report.key),
               busy: _busy,
               onRetract: () => _retract(report),
@@ -125,7 +104,7 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
       op: 'retract',
       kind: report.kind,
       lineId: report.lineId,
-      stop: report.stop,
+      area: report.area,
     );
     if (!mounted) return;
     if (result is Ok<List<ReportDTO>>) {
@@ -147,14 +126,12 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
 class _ReportCard extends StatelessWidget {
   const _ReportCard({
     required this.report,
-    required this.stopLabel,
     required this.mine,
     required this.busy,
     required this.onRetract,
   });
 
   final ReportVM report;
-  final String stopLabel;
   final bool mine;
   final bool busy;
   final VoidCallback onRetract;
@@ -184,10 +161,6 @@ class _ReportCard extends StatelessWidget {
               if (mine) Text(UiStrings.reportMine, style: context.text.caption),
             ],
           ),
-          if (stopLabel.isNotEmpty) ...<Widget>[
-            const SizedBox(height: Space.x1),
-            Text(stopLabel, style: context.text.caption),
-          ],
           const SizedBox(height: Space.x2),
           for (final String line in reportDetailLines(report))
             Padding(

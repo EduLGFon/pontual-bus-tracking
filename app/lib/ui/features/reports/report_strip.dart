@@ -1,6 +1,6 @@
 // Horizontal-wrap strip of active reports. At most two chips plus an
 // overflow chip keep the line sheet calm; the full list lives in a sheet.
-// See DECISIONS.md#D82.
+// See DECISIONS.md#D82/D83.
 import 'package:flutter/material.dart' hide Chip;
 import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -8,7 +8,7 @@ import 'package:pontual/ui/features/reports/report_chip.dart';
 import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
-/// Strip of active reports for a line or stop.
+/// Strip of active reports for a line.
 class ReportStrip extends StatelessWidget {
   /// Creates the strip.
   const ReportStrip({

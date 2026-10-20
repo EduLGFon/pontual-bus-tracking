@@ -1,6 +1,6 @@
 // Passenger report kinds. Closed API contract shared by the wire parser
 // and the UI. Unknown values from a newer server render a neutral
-// fallback instead of crashing. See DECISIONS.md#D82.
+// fallback instead of crashing. See DECISIONS.md#D82/D83.
 /// Passenger report kinds shared by the wire parser and the UI.
 enum ReportKind {
   /// Someone is waiting at a stop for this line.
@@ -41,9 +41,12 @@ enum ReportKind {
   /// True for the presence family (waiting), false for incidents.
   bool get isPresence => this == ReportKind.waiting;
 
-  /// True when the kind must target a stop.
-  bool get requiresStop =>
+  /// True when the kind must carry a coarse area.
+  bool get requiresArea =>
       this == ReportKind.waiting || this == ReportKind.blocked;
+
+  /// True when the kind needs a one-shot location read.
+  bool get usesLocation => requiresArea;
 
   /// True for a kind this app can send.
   bool get isKnown => this != ReportKind.unknown;
