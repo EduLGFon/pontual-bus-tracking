@@ -251,6 +251,83 @@ void main() {
     await channel.dispose();
   });
 
+  test(
+    'last position survives a dropped socket with its age ticking',
+    () async {
+      final FakeClock clock = FakeClock(100000);
+      final FakeChannel channel = FakeChannel();
+      final VehicleRepository r = repo(
+        clock,
+        channel,
+        snapshot: <ClientVehicle>[one],
+      );
+      await r.start(7);
+      expect(r.vehicles.single.ageS, 4);
+      // The server said 4 s at receipt; local elapsed time moves it on.
+      clock.advance(10000);
+      expect(r.vehicles.single.ageS, 14);
+      r.debugSocketDown();
+      clock.advance(50000);
+      // Age evaluation does not fetch: the last known fix stays put.
+      r.evaluateAge();
+      // The socket is gone, the last fix stays, and its ping age is honest.
+      expect(r.vehicles, hasLength(1));
+      expect(r.vehicles.single.id, 3);
+      expect(r.vehicles.single.ageS, 64);
+      expect(r.status, StreamStatus.stale);
+      await r.stop();
+      await channel.dispose();
+    },
+  );
+
+  test('a fresh frame resets the locally advanced age', () async {
+    final FakeClock clock = FakeClock(100000);
+    final FakeChannel channel = FakeChannel();
+    final VehicleRepository r = repo(clock, channel);
+    await r.start(7);
+    channel.incoming.add('{"l":7,"t":100,"v":[[3,-18.72,-39.85,90,29,1,4]]}');
+    await Future<void>.delayed(Duration.zero);
+    clock.advance(12000);
+    expect(r.vehicles.single.ageS, 16);
+    channel.incoming.add('{"l":7,"t":115,"v":[[3,-18.72,-39.85,90,29,1,2]]}');
+    await Future<void>.delayed(Duration.zero);
+    expect(r.vehicles.single.ageS, 2);
+    clock.advance(3000);
+    expect(r.vehicles.single.ageS, 5);
+    await r.stop();
+    await channel.dispose();
+  });
+
+  test('a failed refresh keeps the last known positions', () async {
+    final FakeClock clock = FakeClock(100000);
+    final FakeChannel channel = FakeChannel();
+    bool fail = false;
+    final VehicleRepository r = VehicleRepository(
+      fetchSnapshot: (_) async {
+        if (fail) {
+          throw StateError('offline');
+        }
+        return <ClientVehicle>[one];
+      },
+      openChannel: (_) async => channel,
+      wsBaseUrl: () => 'ws://127.0.0.1:8080',
+      clock: clock,
+      launch: (Future<void> task) => unawaited(task),
+    );
+    await r.start(7);
+    expect(r.vehicles, hasLength(1));
+    fail = true;
+    r.debugSocketDown();
+    clock.advance(31000);
+    r.debugWatchdogTick();
+    await Future<void>.delayed(Duration.zero);
+    expect(r.vehicles, hasLength(1));
+    expect(r.vehicles.single.ageS, 35);
+    expect(r.status, StreamStatus.offline);
+    await r.stop();
+    await channel.dispose();
+  });
+
   test('reconnects after socket down and resyncs', () async {
     final FakeClock clock = FakeClock(100000);
     final List<FakeChannel> channels = <FakeChannel>[

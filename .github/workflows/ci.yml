@@ -137,7 +137,9 @@ jobs:
         run: |
           deno task data-build
           ls -la ../build/
-          SIZE=$(du -sb ../build | cut -f1)
+          # The budget covers the data bundle, not the separately built map
+          # extract that a local deploy dry run may leave in build/.
+          SIZE=$(find ../build -type f ! -name '*.pmtiles' -printf '%s\n' | awk '{s+=$1} END {print s+0}')
           echo "bundle bytes: $SIZE (budget 102400)"
           test "$SIZE" -le 102400
   gitleaks:

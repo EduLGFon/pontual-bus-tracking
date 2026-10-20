@@ -61,6 +61,13 @@ enum StartFailure {
 /// under the 60 m publish gate: this never drops a fix. See D65.
 const double firstFixGoodAccuracyM = 30;
 
+/// Server trip timeout fallback in milliseconds. PLAN.md RF04 and the
+/// server default are 10 minutes. The client never uses this to end a
+/// trip; it only recognizes that a long web hide probably outlived the
+/// server record, so the first `gone` after returning is shown as a
+/// timeout instead of silently reviving with a stale fix.
+const int webTripTimeoutFallbackMs = 10 * 60 * 1000;
+
 /// Trip end reasons shown on the S09 end card.
 enum TripEndKind {
   /// User tapped Desci.
@@ -192,14 +199,56 @@ class TripController extends ChangeNotifier {
   bool _webHidden = false;
 
   /// Marks the web page hidden or visible. Notifies listeners so the
-  /// banner updates. No-op on repeated values.
-  void setWebHidden(bool hidden) {
-    if (_webHidden == hidden || _disposed) {
+  /// banner updates. No-op on repeated values, but a visible transition
+  /// still records [hiddenForMs] and may flag a likely server timeout.
+  void setWebHidden(bool hidden, {int? hiddenForMs}) {
+    if (_disposed) {
       return;
     }
-    _webHidden = hidden;
+    if (hidden) {
+      _webHiddenSinceMs ??= _deps.clock.nowMs();
+      if (_webHidden) {
+        return;
+      }
+      _webHidden = true;
+      notifyListeners();
+      return;
+    }
+    final int? since = _webHiddenSinceMs;
+    final int hiddenMs =
+        hiddenForMs ?? (since == null ? 0 : _deps.clock.nowMs() - since);
+    _webHiddenSinceMs = null;
+    if (tripInProgress(_state) && hiddenMs >= webTripTimeoutFallbackMs) {
+      _webTimeoutLikely = true;
+    }
+    if (!_webHidden) {
+      return;
+    }
+    _webHidden = false;
     notifyListeners();
   }
+
+  /// Web gap recovery after the page becomes visible again. Clears the
+  /// pause, then asks the location service for one fresh fix and a stream
+  /// restart when it is dead or silent. The accepted fix flows through
+  /// the normal paced ping path, so the server interval still wins.
+  Future<void> recoverWebSharing({required int hiddenForMs}) async {
+    if (_disposed) {
+      return;
+    }
+    setWebHidden(false, hiddenForMs: hiddenForMs);
+    if (!tripInProgress(_state)) {
+      return;
+    }
+    await _locations?.recoverNow();
+  }
+
+  int? _webHiddenSinceMs;
+
+  /// Set when the page returns after a hide long enough to outlive the
+  /// server timeout. Consumed by the next ping outcome: success clears it,
+  /// `gone` is shown as a timeout instead of reviving.
+  bool _webTimeoutLikely = false;
 
   /// True while the RF16 walking prompt should be on screen.
   bool get walkingPromptVisible => _supervisor?.promptVisible ?? false;
@@ -394,6 +443,9 @@ class TripController extends ChangeNotifier {
     _lastFix = null;
     _revivedOnce = false;
     _reviving = false;
+    _webHidden = false;
+    _webHiddenSinceMs = null;
+    _webTimeoutLikely = false;
     _cachedSignals = null;
     _cachedHealth = null;
     _supervisor = TripSupervisor(gateway: _deps.gateway);
@@ -693,6 +745,12 @@ class TripController extends ChangeNotifier {
       if (_webHidden) {
         return;
       }
+      // A fix accepted before a hidden period can sit in the stream queue
+      // and surface after recovery. Do not publish a position that is
+      // already past the freshness gate.
+      if (_deps.clock.nowMs() - fix.acceptedAtMs > fixMaxAgeMs) {
+        return;
+      }
       // Paced to the server interval: faster streams (notably web
       // watchPosition) would otherwise ping per fix and collect rate
       // strikes. Skipped fixes are redundant by latest-wins anyway.
@@ -816,6 +874,14 @@ class TripController extends ChangeNotifier {
         // the outcome that triggered it change nothing.
         return;
       }
+      if (end == 'gone' && _webTimeoutLikely) {
+        // The page returned after a hide long enough for the server
+        // timeout. The record is gone, and reviving it with the last fix
+        // would present a new trip as if sharing had continued.
+        _webTimeoutLikely = false;
+        unawaited(_finish(token, TripEndKind.automatic, 'timeout'));
+        return;
+      }
       if (end == 'gone' && !_revivedOnce) {
         final int? line = _lineId;
         final TripFix? fix = _lastFix;
@@ -838,6 +904,7 @@ class TripController extends ChangeNotifier {
       return;
     }
     _nextPingAtMs = _deps.clock.nowMs() + outcome.intervalS * 1000;
+    _webTimeoutLikely = false;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
       return;
@@ -1058,6 +1125,8 @@ class TripController extends ChangeNotifier {
     _activeToken = null;
     _tripGen++;
     _webHidden = false;
+    _webHiddenSinceMs = null;
+    _webTimeoutLikely = false;
     _supervisor?.reset();
     _supervisor = null;
     final StreamSubscription<TripFix>? sub = _fixSub;

@@ -73,6 +73,7 @@ TripFix fix(double speed) {
     accuracyM: 10,
     batteryPct: 80,
     charging: false,
+    acceptedAtMs: 100000,
   );
 }
 
@@ -101,6 +102,7 @@ Rig rig(
   MutableGateway? gateway,
   FakeClock? clock,
   GnssQualityReader? gnssReader,
+  Future<Position> Function(LocationSettings settings)? oneShotPosition,
 }) {
   String? token;
   final MutableGateway gw = gateway ?? MutableGateway();
@@ -123,7 +125,8 @@ Rig rig(
         positionStream: (_) => positions.stream,
         batteryLevel: () async => 80,
         charging: () async => false,
-        nowMs: () => 100000,
+        nowMs: () => clk.nowMs(),
+        oneShotPosition: oneShotPosition,
       ),
       clock: clk,
       gnssReader: gnssReader,

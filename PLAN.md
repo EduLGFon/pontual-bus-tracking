@@ -1297,6 +1297,15 @@ the token from being cloned through cloud backup).
   user to lower brightness); if unsupported show text.
 - Banner (always visible during a web trip): "Mantenha esta tela aberta e o
   celular desbloqueado." Pause/stop on `visibilitychange` hidden for > 60 s.
+- On visible after a hidden period, re-request the wake lock, request one
+  high-accuracy one-shot, restart a dead or silent position stream, and let
+  the accepted fix use the normal ping pacing. Drop a queued fix that is
+  already stale by delivery. This is best-effort recovery, never background
+  coverage.
+- If the hide lasted at least the server timeout (10 min default), show the
+  first `gone` as an explicit timeout end instead of reviving with a stale
+  fix. A shorter gap keeps the one-time revive path for a server restart or
+  lost record. The client never ends the trip on its own.
 - iOS: show a one-time "Adicionar à Tela de Início" hint (Safari share sheet)
   for a better PWA experience.
 - Service worker/offline shell: VERIFY the current Flutter default behaviour

@@ -1,0 +1,11 @@
+# Gitleaks configuration. Keep the default rules and allow only the
+# SharedPreferences storage-key constants that the generic-api-key rule
+# mistakes for credentials because their identifiers end in "Key".
+[extend]
+useDefault = true
+
+[allowlist]
+description = "UI SharedPreferences storage keys are not secrets"
+regexes = [
+  '''ui_(?:coachmark_seen|recents|favorites)_v1''',
+]

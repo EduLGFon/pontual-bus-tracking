@@ -548,6 +548,117 @@ void main() {
     await positions.close();
   });
 
+  test(
+    'recovery restarts a silent stream and accepts a one-shot fix',
+    () async {
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      int opens = 0;
+      int now = 100000;
+      int oneShots = 0;
+      final LocationService service = LocationService(
+        positionStream: (_) {
+          opens += 1;
+          return positions.stream;
+        },
+        oneShotPosition: (_) async {
+          oneShots += 1;
+          return Position(
+            latitude: -18.72,
+            longitude: -39.85,
+            timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+            accuracy: 10,
+            altitude: 0,
+            heading: 90,
+            speed: 8,
+            speedAccuracy: 1,
+            altitudeAccuracy: 1,
+            headingAccuracy: 1,
+          );
+        },
+        batteryLevel: () async => 80,
+        charging: () async => false,
+        nowMs: () => now,
+      );
+      final Stream<TripFix> stream = service.fixes(
+        mode: SamplingMode.waiting,
+        lineLabel: 't',
+      );
+      Position atNow() => Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+        accuracy: 10,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      );
+      final Future<TripFix> first = stream.first;
+      positions.add(atNow());
+      await first.timeout(const Duration(seconds: 5));
+      expect(opens, 1);
+      now += LocationService.stallRestartMs + 1000;
+      final Future<TripFix> recovered = stream.first;
+      expect(await service.recoverNow(), isTrue);
+      expect(oneShots, 1);
+      expect(opens, 2);
+      final TripFix fix = await recovered.timeout(const Duration(seconds: 5));
+      expect(fix.seq, 2);
+      service.stop();
+      await positions.close();
+    },
+  );
+
+  test(
+    'recovery keeps a healthy stream and ignores a failing one-shot',
+    () async {
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      int opens = 0;
+      final LocationService service = LocationService(
+        positionStream: (_) {
+          opens += 1;
+          return positions.stream;
+        },
+        oneShotPosition: (_) async => throw StateError('no fix'),
+        batteryLevel: () async => 80,
+        charging: () async => false,
+        nowMs: () => 100000,
+      );
+      final Stream<TripFix> stream = service.fixes(
+        mode: SamplingMode.waiting,
+        lineLabel: 't',
+      );
+      final Future<TripFix> first = stream.first;
+      positions.add(
+        Position(
+          latitude: -18.72,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(100000),
+          accuracy: 10,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await first.timeout(const Duration(seconds: 5));
+      // Last fix is fresh, so no restart is needed; the failed one-shot is
+      // swallowed and the regular stream keeps working.
+      expect(await service.recoverNow(), isFalse);
+      expect(opens, 1);
+      service.stop();
+      await positions.close();
+    },
+  );
+
   test('a silent stream restarts after the stall window', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =

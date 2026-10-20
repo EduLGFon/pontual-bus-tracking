@@ -155,7 +155,7 @@ if want tools; then
   run bash -c "cd '$ROOT/tools' && deno task data-test"
   run bash -c "cd '$ROOT/tools' && deno task map-test"
   run bash -c "cd '$ROOT/tools' && deno task data-validate"
-  run bash -c "cd '$ROOT/tools' && deno task data-build && SIZE=\$(du -sb ../build | cut -f1) && echo \"bundle bytes: \$SIZE (budget 102400)\" && test \"\$SIZE\" -le 102400"
+  run bash -c "cd '$ROOT/tools' && deno task data-build && SIZE=\$(find ../build -type f ! -name '*.pmtiles' -printf '%s\\n' | awk '{s+=\$1} END {print s+0}') && echo \"bundle bytes: \$SIZE (budget 102400)\" && test \"\$SIZE\" -le 102400"
 fi
 
 if want deploy; then
@@ -180,7 +180,7 @@ if want deploy; then
         https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
       tar xzf "$TMPBASE/go-pmtiles.tar.gz" -C "$TMPBASE/pmtiles-bin" pmtiles
     fi
-    run bash -c "cd '$ROOT/tools' && export PATH='$TMPBASE/pmtiles-bin:\$PATH' && deno task map-bbox && deno task map-extract ../build/sao_mateus.pmtiles && deno task map-verify ../build/sao_mateus.pmtiles"
+    run bash -c "cd '$ROOT/tools' && export PATH=\"$TMPBASE/pmtiles-bin:\$PATH\" && deno task map-bbox && deno task map-extract ../build/sao_mateus.pmtiles && deno task map-verify ../build/sao_mateus.pmtiles"
   fi
   PAGES="$(mktemp -d "$TMPBASE/pages-dryrun.XXXXXX")"
   # Same globs as the workflow assemble step; nullglob-style failure

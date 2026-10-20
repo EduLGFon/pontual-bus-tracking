@@ -2,7 +2,6 @@
 // page is hidden for more than 60 s the controller pauses sends until
 // the page is visible again. Pure Dart so it is unit testable; the
 // widget layer feeds lifecycle events. See PLAN.md 8.12.
-import 'package:flutter/foundation.dart';
 
 /// Milliseconds of hidden time before a web trip pauses.
 const int webHiddenPauseMs = 60 * 1000;
@@ -45,8 +44,8 @@ class WebVisibilityTracker {
     }
   }
 
-  /// Hidden duration in ms, or 0 while visible. Visible for tests.
-  @visibleForTesting
+  /// Hidden duration in ms, or 0 while visible. Read on resume to pass
+  /// the real gap to the controller even when the pause timer was frozen.
   int hiddenFor(int nowMs) {
     final int? since = _hiddenSinceMs;
     if (since == null) {

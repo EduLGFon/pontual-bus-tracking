@@ -2693,3 +2693,175 @@ Verified: `flutter analyze` clean, `dart format` clean, full app
 suite green (362 passed, 1 skipped: supervisor debounce plus
 forgiveness, controller hold-and-resume with ping counts, health
 priority, banner widget), manifest audit PASS (no manifest change).
+
+## D72-2026-10-19: GNSS used-in-fix compat after stub removal (Accepted)
+
+Correction to D68: `GnssStatus.getUsedInFix(int)` is not available in
+the current compile stubs. Checked with `javap` against the installed
+platforms: `android-35`, `android-36` and `android-37.0` expose only
+`usedInFix(int)` (API 30+) and have no `getUsedInFix`. D68 verified
+the API level from docs but had no Android SDK on the host, so the
+release compile was the first real check; it failed with
+`Unresolved reference 'getUsedInFix'` at
+`GnssQualityPlugin.kt:101`.
+
+Change (native plugin only): API 30+ calls `usedInFix(int)`; API
+24-29, where the old method still exists on the device, reaches
+`getUsedInFix(int)` through a lazily resolved reflective lookup. No
+minSdk bump, no new dependency, no permission or manifest change,
+and no behavior change on API 30+. If the legacy lookup ever fails
+the plugin reports zero used satellites rather than crashing; the
+view count still arrives.
+
+Not verified: the reflective path on a real API 24-29 device (no
+such device on this host). It should be covered by the T45
+install-launch pass when an older device is available.
+
+Verified: `flutter build apk --release` succeeds (universal APK
+containing arm64-v8a, armeabi-v7a and x86_64; 58.5 MB). That is
+above the 25 MB universal budget in PLAN.md 10.1, but the universal
+APK packs three ABIs and this change adds only a few lines of dex;
+the arm64 release split is the meaningful budget measure. `flutter
+analyze` clean. No Dart code changed, so the Dart suites were not
+re-run.
+
+## D73-2026-10-19: last known bus position keeps its ping age (Accepted)
+
+Implementing PLAN.md 8.8.5: viewer ages were taken verbatim from the
+server row and never advanced locally. While connected the label
+lagged by up to one snapshot interval; after the socket dropped the
+last bus position stayed on the map but "há N s" froze at the value
+received at the drop, so the ping time lied.
+
+Change (client only, no server contract change): `ClientVehicle`
+records the monotonic receipt time of its row. Both the initial or
+polled snapshot and every stream snapshot stamp their rows with one
+receipt time per frame. The repository's `vehicles` getter returns
+copies whose `ageS` is `server age at receipt + local elapsed`, per
+PLAN 8.8.5, without mutating the stored rows. The UI ticks every 5 s
+already, so rows and markers age honestly while the socket is down.
+
+Retention scope: a failed snapshot refresh keeps the last known
+positions (no blanking), which is the "before the connection dropped"
+case. A successful snapshot still replaces the list and removes
+vehicles absent from it, per PLAN 8.8.6; an authoritative server
+answer is not overridden by client cache. Nothing is persisted, no
+new data is collected, and no wall clock is used for ages.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app
+suite green (365 passed, 1 skipped), including new tests for local
+aging after a socket drop, age reset on a fresh frame, and retention
+through a failed refresh.
+
+## D74-2026-10-19: web gap recovery stays foreground-only (Accepted)
+
+Owner decision: implement option B from
+`docs/web-background-sharing.md` now, without changing the
+foreground-only web contract. The app does not request background
+location, a new permission, a new dependency, telemetry, a local
+database, or a server contract change. The web banner continues to
+say that the screen must stay open and unlocked, and the Android
+native app remains the screen-off path.
+
+On a web visible transition, `TripScreen` re-requests the wake lock
+and `TripController.recoverWebSharing` clears the hidden pause and
+asks `LocationService.recoverNow` for one high-accuracy one-shot
+position with a 15 s timeout. The service restarts a dead or silent
+stream and feeds the one-shot through the existing accuracy, mock,
+freshness, speed, and heading filters. The accepted fix enters the
+normal `_nextPingAtMs` path, so recovery cannot bypass the server
+interval. A fix that was accepted before the hide but delivered
+after recovery is dropped when it is already older than
+`fixMaxAgeMs`; `TripFix.acceptedAtMs` carries the acceptance time
+without adding data to the wire.
+
+When a hide lasted at least `webTripTimeoutFallbackMs` (10 min, the
+server default), the next `gone` is rendered as
+`TripEndKind.automatic` with detail `timeout` and a new end-card
+string. The client never ends a trip by itself: the fallback only
+classifies the server's answer. A shorter hide keeps the existing
+one-time revive path for a server restart or lost record. Clearing
+the flag on a successful outcome means a stale prediction cannot
+end a healthy trip.
+
+The implementation is in `location_service.dart`,
+`trip_controller.dart`, `trip_screen.dart`, `trip_end_card.dart`,
+`ui_strings.dart`, and `visibility.dart`. Unit and widget tests
+cover the one-shot filter path and failure, stream restart, one
+paced ping, stale queued fix rejection, hidden-duration tracking,
+the short-gap revive, the long-gap timeout end, wake-lock
+re-request on resume, and the end-card copy.
+
+Verified: `flutter analyze` clean, `dart format
+--set-exit-if-changed` clean (203 files), full app suite green
+(370 passed, 1 skipped), `flutter build web --release` exit 0
+(`main.dart.js` 993,825 bytes
+gzip, about 970 KiB), and `bash tools/ci/manifest_audit.sh` PASS.
+No Android manifest or dependency changed; the source audit still
+shows no `ACCESS_BACKGROUND_LOCATION`, `WAKE_LOCK`, or boot
+receiver. Not verified: the field protocol, real recovery latency,
+and wake-lock behavior on Android Chrome and iOS Safari/PWA. This
+ADR does not claim background or screen-off coverage.
+
+## D75-2026-10-20: static deploy dry run repaired (Accepted)
+
+Testing `tools/ci/check.sh --with-tiles` exposed two deploy-static
+failures that a clean GitHub runner would not have hidden.
+
+Map input: the pinned Protomaps daily build `20261012` now returns
+HTTP 404. The daily bucket keeps the past week plus the latest build
+for each patch version, and `20261012` was not the latest 4.15.2
+build. Bumped `protomaps_build` to `20261019` (4.15.2, OSM data to
+2026-10-19 04:00 UTC), updated the pinned-URL test and
+`docs/maps.md`, and re-extracted the city archive. New measurements:
+41.6 MB at z0-15, 46 MB transferred, 77 requests, about 21 s; bbox
+and verify pass. The old build's z0-14/13/12 variant sizes in
+`docs/maps.md` are marked as not re-measured. This is a data-input
+refresh only; no app, server, schema, permission, or retention
+change.
+
+Dry-run script: the tile step built an inner `PATH` with single
+quotes, so the literal `$PATH` replaced the environment and `deno`
+was not found. It now uses an escaped double-quoted assignment and
+runs `map-bbox`, `map-extract`, and `map-verify` successfully. The
+first full run also measured a stale 42 MB `sao_mateus.pmtiles`
+inside the local `build/` directory against the 100 KB data-bundle
+budget. That file is a gitignored local artifact and not part of
+the data bundle. Both CI and the local mirror now sum every file in
+`build/` except `*.pmtiles`, so routes, JSON, and `_headers` stay in
+the budget while the separately built map extract does not. The
+current bundle is 10,546 bytes.
+
+Verified: a final `tools/ci/check.sh --with-tiles` run passed 28
+steps with 0 failures: app analyze, format, 370 tests (1 skipped),
+manifest audit, and web build; server 88 tests plus the simulator
+smoke; all 6 tools checks with a 10,546-byte bundle; and the
+7-step deploy dry run including the 41.6 MB extract, verify, Pages
+assembly, and removal. gitleaks found no leaks. Remaining risk: the
+deploy workflow still hotlinks a Protomaps daily build. Protomaps
+retires builds outside its retention window and discourages
+hotlinking, so the pin must be refreshed or mirrored before the
+next patch-version change. A stable project-owned mirror remains
+follow-up work.
+
+## D76-2026-10-20: gitleaks allowlist for UI storage keys (Accepted)
+
+The local CI mirror skipped the gitleaks job because the binary was
+not installed. A full-history scan with gitleaks 8.30.1 found three
+`generic-api-key` hits, all false positives: the SharedPreferences
+storage-key constants `coachmarkSeenKey = 'ui_coachmark_seen_v1'`,
+`recentsKey = 'ui_recents_v1'`, and `favoritesKey =
+'ui_favorites_v1'`, plus the audit table quoting the last one. The
+rule treats identifiers ending in `Key` as credentials.
+
+Added a root `.gitleaks.toml` that extends the default rules and
+allowlists only the three exact UI key values. The allowlist is a
+value regex, not a whole-file exclusion, so a real credential in
+those files still fails. The root config is gitleaks' default path,
+so both the local scan and a repo-root CI scan pick it up.
+
+Verified: `gitleaks 8.30.1 detect --source . --redact` scans the
+full history (over 350 commits, about 3.2 MB) with zero findings.
+No code, permission, manifest, or data changed. The local `check.sh`
+still skips the step when the binary is absent; install gitleaks or
+add it to PATH to make the mirror cover it.

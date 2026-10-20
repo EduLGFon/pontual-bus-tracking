@@ -58,6 +58,7 @@ TripFix fix(double speed) {
     accuracyM: 10,
     batteryPct: 80,
     charging: false,
+    acceptedAtMs: 0,
   );
 }
 
