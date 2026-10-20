@@ -2802,3 +2802,66 @@ shows no `ACCESS_BACKGROUND_LOCATION`, `WAKE_LOCK`, or boot
 receiver. Not verified: the field protocol, real recovery latency,
 and wake-lock behavior on Android Chrome and iOS Safari/PWA. This
 ADR does not claim background or screen-off coverage.
+
+## D75-2026-10-20: static deploy dry run repaired (Accepted)
+
+Testing `tools/ci/check.sh --with-tiles` exposed two deploy-static
+failures that a clean GitHub runner would not have hidden.
+
+Map input: the pinned Protomaps daily build `20261012` now returns
+HTTP 404. The daily bucket keeps the past week plus the latest build
+for each patch version, and `20261012` was not the latest 4.15.2
+build. Bumped `protomaps_build` to `20261019` (4.15.2, OSM data to
+2026-10-19 04:00 UTC), updated the pinned-URL test and
+`docs/maps.md`, and re-extracted the city archive. New measurements:
+41.6 MB at z0-15, 46 MB transferred, 77 requests, about 21 s; bbox
+and verify pass. The old build's z0-14/13/12 variant sizes in
+`docs/maps.md` are marked as not re-measured. This is a data-input
+refresh only; no app, server, schema, permission, or retention
+change.
+
+Dry-run script: the tile step built an inner `PATH` with single
+quotes, so the literal `$PATH` replaced the environment and `deno`
+was not found. It now uses an escaped double-quoted assignment and
+runs `map-bbox`, `map-extract`, and `map-verify` successfully. The
+first full run also measured a stale 42 MB `sao_mateus.pmtiles`
+inside the local `build/` directory against the 100 KB data-bundle
+budget. That file is a gitignored local artifact and not part of
+the data bundle. Both CI and the local mirror now sum every file in
+`build/` except `*.pmtiles`, so routes, JSON, and `_headers` stay in
+the budget while the separately built map extract does not. The
+current bundle is 10,546 bytes.
+
+Verified: `tools/ci/check.sh --only tools` 6 passed with the 41.6 MB
+tile present; `--only deploy --with-tiles` 7 passed, including
+the 41.6 MB extract, verify, Pages assembly, and removal; `deno
+fmt --check`, `deno lint`, and `deno task map-test` green. The
+earlier full run had already passed the app, server, and data
+jobs except for the stale local tile size. Remaining risk: the
+deploy workflow still hotlinks a Protomaps daily build. Protomaps
+retires builds outside its retention window and discourages
+hotlinking, so the pin must be refreshed or mirrored before the
+next patch-version change. A stable project-owned mirror remains
+follow-up work.
+
+## D76-2026-10-20: gitleaks allowlist for UI storage keys (Accepted)
+
+The local CI mirror skipped the gitleaks job because the binary was
+not installed. A full-history scan with gitleaks 8.30.1 found three
+`generic-api-key` hits, all false positives: the SharedPreferences
+storage-key constants `coachmarkSeenKey = 'ui_coachmark_seen_v1'`,
+`recentsKey = 'ui_recents_v1'`, and `favoritesKey =
+'ui_favorites_v1'`, plus the audit table quoting the last one. The
+rule treats identifiers ending in `Key` as credentials.
+
+Added a root `.gitleaks.toml` that extends the default rules and
+allowlists only the three exact UI key values. The allowlist is a
+value regex, not a whole-file exclusion, so a real credential in
+those files still fails. The root config is gitleaks' default path,
+so both the local scan and a repo-root CI scan pick it up.
+
+Verified: `gitleaks 8.30.1 detect --source . --redact` scans 350
+commits and 3.23 MB with zero findings. No code, permission,
+manifest, or data changed. The local `check.sh` still skips the
+step when the binary is absent; install gitleaks or add it to PATH
+to make the mirror cover it.

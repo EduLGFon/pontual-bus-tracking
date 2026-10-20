@@ -87,11 +87,11 @@ data file, not a tile endpoint), so no bulk tile download is involved.
 ```sh
 # from tools/
 deno task map-bbox     # coverage check: municipality + app bounds + routes
-deno task map-extract  # builds sao_mateus.pmtiles (~17 s, ~46 MB transfer)
+deno task map-extract  # builds sao_mateus.pmtiles (~21 s, ~46 MB transfer)
 deno task map-verify   # pmtiles verify + header + size report
 ```
 
-Pinned inputs live in `tools/map/bbox.json`: Protomaps build `20261012`,
+Pinned inputs live in `tools/map/bbox.json`: Protomaps build `20261019`,
 extract bbox `-40.46,-19.20,-39.50,-18.39` (municipality relation
 1834958 plus buffer, extended east to cover the app pan bounds over
 Guriri waters). Bump the build date for a refresh; the bbox changes only
@@ -114,19 +114,21 @@ third-party host.
 
 ## 5. Hosting and runtime
 
-- File: `sao_mateus.pmtiles`, 43.6 MB at z0-15 (measured 2026-10-12).
+- File: `sao_mateus.pmtiles`, 41.6 MB at z0-15 (measured 2026-10-20).
   CI builds it on every static deploy (`deploy-static.yml`: installs
   pmtiles 1.31.2, runs `map-bbox`, `map-extract`, `map-verify`) and
   publishes it at `maps/sao_mateus.pmtiles`. Never commit the file to
   git (`*.pmtiles` is gitignored); a local `deno task map-extract` is
-  for verification and size checks only.
+  for verification and size checks only. The pinned daily build is
+  hotlinked and must be refreshed within Protomaps' retention window;
+  see D75.
 - Web: serve from our Pages host at `maps/sao_mateus.pmtiles`, read with
   HTTP range requests so the browser fetches only needed chunks. Verify
   ranges work after deploy: `curl -s -r 0-100 -o /dev/null -w "%{http_code}" \
   https://<static>/maps/sao_mateus.pmtiles` must print `206`. If it does
   not, the client falls back to a one-time full download with progress
   (documented graceful path), and ranges stay VERIFY.
-- Android: fully offline. The file is NOT bundled in the APK (43.6 MB
+- Android: fully offline. The file is NOT bundled in the APK (41.6 MB
   would break the 15 MB RNF14 budget); it is fetched once from our own
   host on first map use and stored in app storage (native renderers need
   a file path, never a flutter asset). Missing or corrupt file falls back
@@ -144,12 +146,12 @@ third-party host.
   ADR with APK size delta, merged-manifest audit and a low-end device
   render test, plus owner approval for the new dependency.
 
-## 6. Measurements (2026-10-12, this host unless noted)
+## 6. Measurements (z0-15 measured 2026-10-20; other rows 2026-10-12 unless noted)
 
 | Item | Value |
 | ---- | ----- |
-| PMTiles z0-15 (shipped range) | **43.6 MB** (46 MB transferred, overfetch 0.05, 77 requests, ~17 s) |
-| z0-14 / z0-13 / z0-12 variants | 28.1 / 17.8 / 10.6 MB |
+| PMTiles z0-15 (shipped range) | **41.6 MB** (46 MB transferred, overfetch 0.05, 77 requests, ~21 s) |
+| z0-14 / z0-13 / z0-12 variants | 28.1 / 17.8 / 10.6 MB (2026-10-12 build; not re-measured) |
 | Tile probe, centro z14 (36.6 KB decoded) | roads, places, `name`, `name:pt` present |
 | Tile probe, Guriri z14 (2.1 KB decoded) | roads + `name` present, covered |
 | Municipality + app bounds + routes coverage | pass (`deno task map-bbox`) |
@@ -167,7 +169,7 @@ for bus tracking (street names and stop context are present at 14-15).
 
 Pre-rendered raster light+dark sets for the same bbox at z12-16 would be
 roughly 37k tiles per theme (~28k at z16 alone), i.e. hundreds of MB per
-theme at typical PNG sizes, times two for both themes, versus one 43.6 MB
+theme at typical PNG sizes, times two for both themes, versus one 41.6 MB
 vector file serving both themes. Raster also needs a tile server or a
 bulk prefetch (against OSM policy when self-rendered infra is absent),
 while vector range reads stay lazy. Verdict: vector wins by an order of

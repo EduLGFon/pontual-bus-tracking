@@ -43,7 +43,7 @@ Deno.test("extract command uses bbox order lon,lat and pinned build", async () =
   assertEquals(cmd.slice(0, 3), [
     "pmtiles",
     "extract",
-    "https://build.protomaps.com/20261012.pmtiles",
+    "https://build.protomaps.com/20261019.pmtiles",
   ]);
   assert(cmd.some((a) => a.startsWith("--bbox=-40.46,-19.2,-39.5,-18.39")));
   const capped = extractCommand(bbox, "out.pmtiles", 14);
