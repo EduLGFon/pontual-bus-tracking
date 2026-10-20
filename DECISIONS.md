@@ -2724,3 +2724,31 @@ APK packs three ABIs and this change adds only a few lines of dex;
 the arm64 release split is the meaningful budget measure. `flutter
 analyze` clean. No Dart code changed, so the Dart suites were not
 re-run.
+
+## D73-2026-10-19: last known bus position keeps its ping age (Accepted)
+
+Implementing PLAN.md 8.8.5: viewer ages were taken verbatim from the
+server row and never advanced locally. While connected the label
+lagged by up to one snapshot interval; after the socket dropped the
+last bus position stayed on the map but "há N s" froze at the value
+received at the drop, so the ping time lied.
+
+Change (client only, no server contract change): `ClientVehicle`
+records the monotonic receipt time of its row. Both the initial or
+polled snapshot and every stream snapshot stamp their rows with one
+receipt time per frame. The repository's `vehicles` getter returns
+copies whose `ageS` is `server age at receipt + local elapsed`, per
+PLAN 8.8.5, without mutating the stored rows. The UI ticks every 5 s
+already, so rows and markers age honestly while the socket is down.
+
+Retention scope: a failed snapshot refresh keeps the last known
+positions (no blanking), which is the "before the connection dropped"
+case. A successful snapshot still replaces the list and removes
+vehicles absent from it, per PLAN 8.8.6; an authoritative server
+answer is not overridden by client cache. Nothing is persisted, no
+new data is collected, and no wall clock is used for ages.
+
+Verified: `flutter analyze` clean, `dart format` clean, full app
+suite green (365 passed, 1 skipped), including new tests for local
+aging after a socket drop, age reset on a fresh frame, and retention
+through a failed refresh.

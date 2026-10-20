@@ -21,6 +21,7 @@ class ClientVehicle {
     required this.members,
     required this.ageS,
     this.paceKmh,
+    this.receivedAtMs,
   });
 
   /// Vehicle id from the snapshot row.
@@ -41,11 +42,43 @@ class ClientVehicle {
   /// Member count capped at 3.
   final int members;
 
-  /// Snapshot age in seconds.
+  /// Snapshot age in seconds when the client accepted this fix.
   final int ageS;
+
+  /// Monotonic client time in ms when this fix was accepted, null when the
+  /// vehicle was built outside the repository (tests, manual copies).
+  final int? receivedAtMs;
 
   /// Smoothed live pace in km/h (D30). Null on old servers or 7-field rows.
   final double? paceKmh;
+
+  /// Age of the position at monotonic [nowMs]: the server age at receipt
+  /// plus the time elapsed on this device. Keeps the last ping time moving
+  /// when the socket drops instead of freezing it at the received value.
+  /// PLAN 8.8.5: never use the device wall clock for ages.
+  int ageSAt(int nowMs) {
+    final int? receivedAt = receivedAtMs;
+    if (receivedAt == null) {
+      return ageS;
+    }
+    final int elapsedS = (nowMs - receivedAt) ~/ 1000;
+    return ageS + (elapsedS < 0 ? 0 : elapsedS);
+  }
+
+  /// Copy with overrides applied. [receivedAtMs] is only ever set here.
+  ClientVehicle copyWith({int? ageS, int? receivedAtMs}) {
+    return ClientVehicle(
+      id: id,
+      lat: lat,
+      lng: lng,
+      heading: heading,
+      kmh: kmh,
+      members: members,
+      ageS: ageS ?? this.ageS,
+      paceKmh: paceKmh,
+      receivedAtMs: receivedAtMs ?? this.receivedAtMs,
+    );
+  }
 
   /// Parses a snapshot row [id, lat, lng, hdg, kmh, n, age, paceKmh?].
   /// The 8th field is additive: 7-field rows still parse.
@@ -138,9 +171,17 @@ class VehicleRepository {
   int? get lineId => _lineId;
   int? _lineId;
 
-  /// Latest vehicles.
-  List<ClientVehicle> get vehicles =>
-      List<ClientVehicle>.unmodifiable(_vehicles);
+  /// Latest vehicles with ages advanced to now. The stored rows keep their
+  /// server age at receipt; each read adds the monotonic time elapsed so a
+  /// dropped connection still shows the last position and its last ping
+  /// age keeps ticking. PLAN 8.8.5.
+  List<ClientVehicle> get vehicles {
+    final int now = _clock.monotonicMs();
+    return List<ClientVehicle>.unmodifiable(
+      _vehicles.map((ClientVehicle v) => v.copyWith(ageS: v.ageSAt(now))),
+    );
+  }
+
   List<ClientVehicle> _vehicles = <ClientVehicle>[];
 
   /// Current stream status.
@@ -224,14 +265,28 @@ class VehicleRepository {
     }
     _resyncing = true;
     try {
-      _vehicles = await _fetchSnapshot(line);
-      _lastSnapshotAtMs = _clock.monotonicMs();
+      final List<ClientVehicle> fetched = await _fetchSnapshot(line);
+      if (_stopped || _lineId != line) {
+        return;
+      }
+      final int now = _clock.monotonicMs();
+      _vehicles = _stamped(fetched, now);
+      _lastSnapshotAtMs = now;
       evaluateAge();
     } catch (_) {
+      // Keep the last known positions: a failed refresh must not blank
+      // the map while the connection is down.
       _status = StreamStatus.offline;
     } finally {
       _resyncing = false;
     }
+  }
+
+  /// Stamps every row with the same receipt time, so ages share one clock.
+  static List<ClientVehicle> _stamped(List<ClientVehicle> rows, int nowMs) {
+    return rows
+        .map((ClientVehicle v) => v.copyWith(receivedAtMs: nowMs))
+        .toList(growable: false);
   }
 
   Future<void> _connect() async {
@@ -282,12 +337,14 @@ class VehicleRepository {
       if (rows == null) {
         return;
       }
-      _vehicles = rows
+      final int now = _clock.monotonicMs();
+      final List<ClientVehicle> parsed = rows
           .map(
             (dynamic r) => ClientVehicle.fromRow((r as List<dynamic>).toList()),
           )
           .toList();
-      _lastSnapshotAtMs = _clock.monotonicMs();
+      _vehicles = _stamped(parsed, now);
+      _lastSnapshotAtMs = now;
       evaluateAge();
     } catch (_) {
       // Ignore malformed frames; the watchdog resyncs.
