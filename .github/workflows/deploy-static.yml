@@ -1,5 +1,5 @@
 # Static deploy to GitHub Pages. See PLAN.md 17.2.
-# Needs repo var: API_BASE_URL (e.g. https://api.example.com); the web build
+# Needs repo var: API_ORIGIN (e.g. https://api.example.com); the web build
 # bakes it in via --dart-define. STATIC_ORIGIN defaults to this repo's Pages
 # URL and only needs a var for a custom domain.
 # One-time owner setup: repo Settings > Pages > Source: GitHub Actions.

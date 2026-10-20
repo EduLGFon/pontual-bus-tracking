@@ -97,6 +97,10 @@ database; the suite truncates device rows and toggles the kill switch.
   dbmate migrations applied).
 - From `tools/`: `deno task data-validate`, `deno task data-build`,
   `deno task sim -- --base <api> --line <id> ...`.
+- From the repo root: `deno task check-workflows` lint-checks
+  `.github/workflows` and verifies every external action is pinned to a
+  resolvable full commit SHA. Pass `--offline` to skip GitHub lookups
+  (`bash tools/ci/check_workflows.sh --offline`).
 - Release follows PLAN.md 17.3 and 17.5. Deploys are manual by the owner in
   alpha. Release workflows need repo vars `API_ORIGIN` and `STATIC_ORIGIN`
   (baked in via `--dart-define`); without them prod builds call localhost.

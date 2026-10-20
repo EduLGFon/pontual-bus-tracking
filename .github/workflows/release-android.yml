@@ -7,7 +7,7 @@
 # encrypted secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEY_ALIAS,
 # ANDROID_KEY_PASSWORD, ANDROID_STORE_PASSWORD. Until then the
 # build uses debug signing and is install-test only.
-# Also needs repo var API_BASE_URL (e.g. https://api.example.com); the AAB
+# Also needs repo var API_ORIGIN (e.g. https://api.example.com); the AAB
 # bakes it in via --dart-define. STATIC_ORIGIN defaults to this repo's
 # GitHub Pages URL (where deploy-static.yml publishes /data) and only
 # needs a var for a custom domain.
