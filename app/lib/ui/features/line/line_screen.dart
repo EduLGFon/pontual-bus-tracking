@@ -54,6 +54,14 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
   bool _streamStarted = false;
   VehicleRepository? _repo;
 
+  /// Invalidates post-frame starts scheduled before a cover closed the
+  /// stream, so returning quickly cannot open two sockets.
+  int _streamGeneration = 0;
+
+  /// The last stop future. A start waits for it, so a fast cover-then-back
+  /// cannot overlap a close with a reconnect on the same repository.
+  Future<void> _streamStopped = Future<void>.value();
+
   /// False while a full page covers this screen. The viewer socket is
   /// closed then (PLAN.md 8.8.4 and 10.4.6) and reopened on return.
   bool _routeVisible = true;
@@ -352,14 +360,19 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
       return;
     }
     _streamStarted = true;
+    final int generation = ++_streamGeneration;
     final VehicleRepository repo = ref.read(vehicleRepoProvider(lineId));
     _repo = repo;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final Future<void> stopped = _streamStopped;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       // A cover pushed between this build and the callback must not be
-      // reconnected by a stale post-frame start.
-      if (mounted && _routeVisible) {
-        unawaited(repo.start(lineId));
+      // reconnected by a stale post-frame start, and a fast cover-then-back
+      // must not overlap the close with the reconnect.
+      await stopped;
+      if (!mounted || !_routeVisible || generation != _streamGeneration) {
+        return;
       }
+      unawaited(repo.start(lineId));
     });
   }
 
@@ -369,8 +382,11 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
     final VehicleRepository? repo = _repo;
     _repo = null;
     _streamStarted = false;
+    _streamGeneration += 1;
     if (repo != null) {
-      unawaited(repo.stop());
+      final Future<void> stopped = repo.stop();
+      _streamStopped = stopped;
+      unawaited(stopped);
     }
   }
 

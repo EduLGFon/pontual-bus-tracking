@@ -4,6 +4,11 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Trip minimize and system back now return to the screen that started
+  sharing (line details, map tab, search) with its state intact, instead
+  of replacing the stack with home. The line viewer socket closes while a
+  full page covers it and reopens on return; bottom sheets and dialogs do
+  not pause it. See DECISIONS.md D77.
 - D30 momentum anônimo (ordem do dono): ritmo por veículo (um número
   suavizado, sem motorista nem histórico) no snapshot, passagens
   recentes por linha (só instantes, anel de 32, 4 h) com

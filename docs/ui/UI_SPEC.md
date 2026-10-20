@@ -578,6 +578,13 @@ unknown keys (show "Linha não encontrada" with a way back). Transitions:
 fade-through 200 ms with 8 dp upward slide; the line badge uses a `Hero`; **no
 Hero involving the map**.
 
+`/trip` is pushed over the current route. The minimize chevron and system back
+pop back to the screen that started sharing (line details, map tab, search)
+with its state intact; home is the fallback when there is no route below. The
+line screen closes its viewer socket while a full page covers it and reopens it
+on return; bottom sheets and dialogs do not pause it. See
+`DECISIONS.md#D77-2026-10-20`.
+
 ### 6.7 State rules
 
 - Riverpod (or the project's state manager): fine-grained providers, `select`
@@ -996,7 +1003,7 @@ soft ring pulse; CPU ~0):
 
 ```
 ┌────────────────────────────────────┐
-│ ⌄  Compartilhando viagem           │  minimize chevron (returns to the app, dock stays)
+│ ⌄  Compartilhando viagem           │  minimize chevron (pops back to the previous screen, dock stays)
 │                                    │
 │            ((  ●  ))               │  LiveDot hero (static if reduced motion)
 │        Você está ajudando          │
@@ -1113,7 +1120,7 @@ shared code). Anything not listed behaves identically.
 | Location permission settings | `openAppSettings` / `openLocationSettings` through the project's location plugin (VERIFY the exact calls); re-check on `AppLifecycleState.resumed` | **cannot open settings**: show browser-specific steps and a "Tentar de novo" button (7.7)                                                                                                                                                                                         |
 | Trip while screen is off     | yes (foreground service, existing logic)                                                                                                           | **no**: needs screen on + page open; show the foreground banner, request a Screen Wake Lock if supported, pause after the page is hidden for 60 s                                                                                                                                 |
 | Notifications                | trip notification (existing); Android 13+ runtime permission                                                                                       | none for trips; future arrival alerts need Web Push + installed PWA on iOS (see 13.4)                                                                                                                                                                                             |
-| Back navigation              | system back and **predictive back** (Android 14+): use `PopScope`; back from `/trip` minimises instead of ending; back closes sheets first         | browser back/forward and URL must work; the app updates the URL for line routes; `Esc` closes sheets and search                                                                                                                                                                   |
+| Back navigation              | system back and **predictive back** (Android 14+): use `PopScope`; back from `/trip` minimises to the screen that opened it (home when there is none) instead of ending; back closes sheets first | browser back/forward and URL must work; the app updates the URL for line routes; `Esc` closes sheets and search                                                                                                                                                                   |
 | System bars                  | edge-to-edge, transparent status/navigation bars, correct icon brightness per theme (`SystemUiOverlayStyle`), safe-area aware                      | `<meta name="theme-color">` for light and dark; no safe-area except iOS notch (`viewport-fit=cover` + `env(safe-area-inset-*)` handled by `MediaQuery.padding`)                                                                                                                   |
 | Input                        | touch gestures, haptics                                                                                                                            | mouse + keyboard + touch: hover tint, `SystemMouseCursors.click`, visible focus ring, shortcuts (`/` search, `Esc` close, arrows in lists, `Enter` activate), mouse-wheel scroll, draggable scrollbars on desktop, click-and-drag scrolling enabled via a custom `ScrollBehavior` |
 | Pull to refresh              | yes                                                                                                                                                | desktop has no pull gesture: show a small refresh `IconBtn` in the header on pointer devices                                                                                                                                                                                      |

@@ -379,13 +379,9 @@ void main() {
 
       // Minimizing pops back to the shell and keeps sharing alive.
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
-      debugPrint(
-        'DEBUG loc=${router.routerDelegate.currentConfiguration.uri} '
-        'canPop=${router.canPop()} '
-        'tripScreens=${find.byType(TripScreen).evaluate().length}',
-      );
       expect(find.byType(TripScreen), findsNothing);
       expect(r.controller.endKind, isNull);
       expect(tester.takeException(), isNull);

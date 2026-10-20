@@ -121,6 +121,7 @@ void main() {
       unawaited(router.push('/trip'));
       await tester.pump();
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
       // No settle: the hero pulse never settles by design.
       await tester.pump(const Duration(milliseconds: 500));
       // One more frame removes the popped route from the tree.
@@ -150,6 +151,7 @@ void main() {
       unawaited(router.push('/trip'));
       await tester.pump();
       await tester.binding.handlePopRoute();
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
@@ -176,6 +178,7 @@ void main() {
       );
       await tester.pump();
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
@@ -205,6 +208,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.text(UiStrings.endTitle), findsOneWidget);
       await tester.tap(find.text(UiStrings.endDone));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);

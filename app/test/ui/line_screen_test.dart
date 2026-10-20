@@ -142,6 +142,41 @@ class RecordingRepo extends VehicleRepository {
   }
 }
 
+/// Repository whose stop stays pending until the test releases it.
+class SlowStopRepo extends RecordingRepo {
+  /// Released by the test to let the close finish.
+  final Completer<void> stopGate = Completer<void>();
+
+  @override
+  Future<void> stop() async {
+    stops += 1;
+    await stopGate.future;
+  }
+}
+
+/// App with the line screen and the page observer attached, for route tests.
+Widget routeApp(VehicleRepository repo) {
+  return ProviderScope(
+    overrides: <Override>[
+      linesProvider.overrideWith(
+        (Ref ref) async => const <StaticLine>[pilotLine],
+      ),
+      liveProvider.overrideWith(
+        (Ref ref) async => const LiveLines(<List<int>>[]),
+      ),
+      tileUrlProvider.overrideWith(
+        (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
+      ),
+      currentNowProvider.overrideWithValue(fixedNow),
+      vehicleRepoProvider(7).overrideWithValue(repo),
+    ],
+    child: MaterialApp(
+      navigatorObservers: <NavigatorObserver>[appPageRouteObserver],
+      home: const LineScreen(lineKey: 'seven'),
+    ),
+  );
+}
+
 /// Builds a repository that answers with [vehicles].
 VehicleRepository repoOf(List<ClientVehicle> vehicles) {
   return VehicleRepository(
@@ -294,27 +329,7 @@ void main() {
   ) async {
     await _useCompactView(tester);
     final RecordingRepo repo = RecordingRepo();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: <Override>[
-          linesProvider.overrideWith(
-            (Ref ref) async => const <StaticLine>[pilotLine],
-          ),
-          liveProvider.overrideWith(
-            (Ref ref) async => const LiveLines(<List<int>>[]),
-          ),
-          tileUrlProvider.overrideWith(
-            (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
-          ),
-          currentNowProvider.overrideWithValue(fixedNow),
-          vehicleRepoProvider(7).overrideWithValue(repo),
-        ],
-        child: MaterialApp(
-          navigatorObservers: <NavigatorObserver>[appPageRouteObserver],
-          home: const LineScreen(lineKey: 'seven'),
-        ),
-      ),
-    );
+    await tester.pumpWidget(routeApp(repo));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(repo.starts, 1);
@@ -344,27 +359,7 @@ void main() {
   ) async {
     await _useCompactView(tester);
     final RecordingRepo repo = RecordingRepo();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: <Override>[
-          linesProvider.overrideWith(
-            (Ref ref) async => const <StaticLine>[pilotLine],
-          ),
-          liveProvider.overrideWith(
-            (Ref ref) async => const LiveLines(<List<int>>[]),
-          ),
-          tileUrlProvider.overrideWith(
-            (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
-          ),
-          currentNowProvider.overrideWithValue(fixedNow),
-          vehicleRepoProvider(7).overrideWithValue(repo),
-        ],
-        child: MaterialApp(
-          navigatorObservers: <NavigatorObserver>[appPageRouteObserver],
-          home: const LineScreen(lineKey: 'seven'),
-        ),
-      ),
-    );
+    await tester.pumpWidget(routeApp(repo));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(repo.starts, 1);
@@ -385,6 +380,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(repo.starts, 1);
     expect(repo.stops, 0);
+  });
+
+  testWidgets('fast cover and return waits for the close before reconnecting', (
+    WidgetTester tester,
+  ) async {
+    await _useCompactView(tester);
+    final SlowStopRepo repo = SlowStopRepo();
+    await tester.pumpWidget(routeApp(repo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 1);
+
+    final BuildContext ctx = tester.element(find.byType(LineScreen));
+    unawaited(
+      Navigator.of(ctx).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) =>
+              const Scaffold(body: Text('cover')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.stops, 1);
+
+    Navigator.of(ctx).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    // The return start is waiting on the close, so no second socket yet.
+    expect(repo.starts, 1);
+
+    repo.stopGate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 2);
+    expect(repo.stops, 1);
   });
 
   group('timetable tab', () {

@@ -2865,3 +2865,44 @@ full history (over 350 commits, about 3.2 MB) with zero findings.
 No code, permission, manifest, or data changed. The local `check.sh`
 still skips the step when the binary is absent; install gitleaks or
 add it to PATH to make the mirror cover it.
+
+## D77-2026-10-20: Trip minimize returns to the previous screen (Accepted)
+
+`shareTrip` and the active dock both opened `/trip` with `go`, which
+replaced the navigation stack. The minimize chevron and system back then
+called `go('/')`, so a rider who started sharing from line details lost
+the line, its sheet position, and its map state on return.
+
+`/trip` is now pushed over the current route. Minimize and system back
+pop it, so the screen that started sharing (line details, a tab, search)
+returns with its state intact; home remains the fallback when there is no
+route below (a deep link or a bare test harness). The back handler uses
+`PopScope.canPop` with `Navigator.of(context)` so plain `MaterialApp`
+harnesses keep working, while minimize and the end card use go_router's
+`context.pop()` to keep the router's location in sync.
+
+A `RouteObserver<PageRoute<dynamic>>` (`appPageRouteObserver`) is attached
+to the root navigator. The line screen subscribes to it, closes its viewer
+repository in `didPushNext`, and reopens it in `didPopNext` (PLAN.md 8.8.4
+and 10.4.6). The observer is deliberately typed to `PageRoute`: modal
+bottom sheets and dialogs are `PopupRoute`s, so the share flow's consent,
+progress, and permission sheets do not stop the stream. Closing and
+reopening are serialized through a pending-stop future and a generation
+counter, so a fast cover-then-back cannot overlap a close with a reconnect
+or start two sockets.
+
+Consequences: one extra route stays on the stack while sharing, which is
+the intent; the line socket is closed while covered, while its 5 s vehicle
+tick still rebuilds the mounted screen (a small accepted residual). The
+trip's own state and the foreground service are unchanged, so the dock
+keeps sharing after minimizing.
+
+Rejected: storing a return location and keeping `go`. It would lose the
+line screen's sheet and map state and need extra state plumbing.
+Rejected: pausing through `ModalRoute.isCurrent`, because modal sheets
+would stop the stream while the rider is still on the line screen.
+
+Verified: `flutter analyze` reports no issues; targeted trip, line, and
+share-flow widget tests pass, including minimize, system back, the
+no-previous-route fallback, the end-card return, and cover/modal stream
+lifecycle; the full `flutter test` suite passes 375 tests with 1 skipped.
