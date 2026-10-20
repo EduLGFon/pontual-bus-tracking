@@ -147,7 +147,8 @@ possible but not built.
 - Vehicle merging, leader election, live map, static timetables,
   offline-tolerant behaviour.
 - Passenger reports ("Sinalizações"): waiting, full, broken, blocked, with a
-  server timestamp and a short TTL; no coordinates and no free text (D82).
+  server timestamp and a short TTL; a coarse ~150 m area for waiting/blocked,
+  never an exact coordinate, and no free text (D82/D83).
 - Privacy center: policy, terms, "delete my data".
 
 **Out:** see §1.3.
@@ -327,7 +328,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 | RF20 | Stops layer / next-bus-at-stop ETA.                                                                                                                                                                                                        | A   | Layer ships with mapped stops; per-stop ETA follows coverage (D46). |
 | RF21 | Community timetable corrections form.                                                                                                                                                                                                      | L   | Report §12.3.                                                                                    |
 | RF22 | Notifications, favourites, history, delay stats.                                                                                                                                                                                           | L   | Out of scope (report §4).                                                                        |
-| RF23 | Passenger reports ("Sinalizações"): waiting at a stop, bus full, bus broken, access blocked, with a server timestamp, short TTL and no free text. Reads ride on the line snapshot; writes use one authenticated endpoint. | A | D82. No votes in the alpha. In-memory only; no coordinates. |
+| RF23 | Passenger reports ("Sinalizações"): waiting near the current location, bus full, bus broken, access blocked, with a server timestamp, short TTL and no free text. The app sends a coarse ~150 m area cell, never a coordinate; no stop picker. Reads ride on the line snapshot; writes use one authenticated endpoint. | A | D82, D83. Available to any viewer; no votes in the alpha. In-memory only. |
 
 ### 4.2 Non-functional requirements (RNF)
 
@@ -597,7 +598,7 @@ in; the DB only overrides.
 | `device_ttl_days`                                                | `30`                                                                    | sliding token expiry and purge                                    |
 | `register_per_ip_per_hour` / `register_global_per_hour`          | `60` / `600`                                                            | registration limits (CGNAT-aware)                                 |
 | `ws_max_connections` / `ws_max_per_ip`                           | `1000` / `20`                                                           | stream caps                                                       |
-| `reports_enabled`                                                | `true`                                                                  | passenger report kill switch (D82)                                |
+| `reports_enabled`                                                | `true`                                                                  | passenger report kill switch (D82/D83)                            |
 | `reports_max_per_line` / `reports_max_total`                     | `8` / `2000`                                                            | report caps; a new report over the cap returns `429 quota`        |
 | `reports_ttl_{waiting,full,broken,blocked}_s`                    | `600` / `900` / `1800` / `1800`                                         | freshness window from the latest report                           |
 | `reports_max_age_{waiting,full,broken,blocked}_s`                | `1800` / `2700` / `7200` / `7200`                                       | hard cap from the first report, even with refreshes               |
@@ -678,7 +679,7 @@ object-id attacks and keeps ids out of proxy logs).
 | `GET /v1/live`                | no                                       | none                                                                                        | `200 [[line_id,count],...]` (only lines with a published vehicle); `Cache-Control: public, max-age=10`                       | IP 60/min                                                 |
 | `GET /v1/stream` (WebSocket)  | no                                       | see 6.8                                                                                     | stream of snapshots                                                                                                          | IP `ws_max_per_ip`, global `ws_max_connections`           |
 | `DELETE /v1/me`               | yes                                      | none                                                                                        | `204`                                                                                                                        | device 5/h                                                |
-| `POST /v1/reports`            | yes                                      | `{"op":"report" or "retract","kind":"waiting" or "full" or "broken" or "blocked","line":7,"stop":"osm-..."?}` | `200/201 {"t":<epoch_s>,"r":[...]}` (refreshed line reports)                                                                 | device 12/min, IP 60/min; `429 quota` per line/global cap |
+| `POST /v1/reports`            | yes                                      | `{"op":"report" or "retract","kind":"waiting" or "full" or "broken" or "blocked","line":7,"area":"g52902_98514"?}` | `200/201 {"t":<epoch_s>,"r":[...]}` (refreshed line reports)                                                                 | device 12/min, IP 60/min; `429 quota` per line/global cap |
 
 **Error codes** (body `{"e":"<code>"}`):
 
@@ -698,20 +699,20 @@ object-id attacks and keeps ids out of proxy logs).
 `abuse` (the trip no longer exists afterwards). The `idle` code is
 recognized by clients but no longer emitted.
 
-**Report row (additive, D82):**
+**Report row (additive, D82/D83):**
 
 ```json
-{"kind":"broken","stop":null,"count":2,"created_age_s":120,"updated_age_s":10,"expires_in_s":1700}
+{"kind":"broken","area":null,"count":2,"created_age_s":120,"updated_age_s":10,"expires_in_s":1700}
 ```
 
-No report id, no device id, no coordinates and no free text. `count` is the
-number of distinct devices that reported the target, capped at 5, not a vote
-count. An empty
-`r` array is always present when reports are enabled; when the kill switch is
-off the array is empty so clients clear stale chips. `waiting` and `blocked`
-require `stop`; `broken` and `full` forbid it. The server derives the vehicle
-from the authenticated device's active trip and never accepts a vehicle id from
-the client.
+No report id, no device id, no coordinates and no free text. `area` is a coarse
+~150 m grid cell, not a position. `count` is the number of distinct devices that
+reported the target, capped at 5, not a vote count. An empty `r` array is always
+present when reports are enabled; when the kill switch is off the array is
+empty so clients clear stale chips. `waiting` and `blocked` require `area`;
+`broken` and `full` forbid it. The client computes the cell on-device. The
+server validates the id and its bbox and never accepts a coordinate or vehicle
+id from the client.
 
 ### 6.6 Domain engine (pure TypeScript)
 
@@ -756,7 +757,7 @@ interface Vehicle {
 interface Report { // one active target per line; never serialised raw, never persisted
   kind: "waiting" | "full" | "broken" | "blocked";
   lineId: number;
-  stopId: string | null; // waiting/blocked only
+  areaId: string | null; // coarse ~150 m cell; waiting/blocked only
   createdAtMs: number;
   updatedAtMs: number;
   expiresAtMs: number;
@@ -871,9 +872,9 @@ when there are no trips or vehicles):
 **Snapshot format** (REST and WebSocket):
 `{"t":<epoch_s>,"v":[[id, lat5, lng5, heading, kmh, min(n,3), age_s], ...],"r":[...]}`.
 Coordinates rounded to 5 decimals (about 1.1 m). `n` is the member count
-**capped at 3**. The optional-if-empty `r` array carries passenger reports
-(D82): kind, stop, distinct count, ages and remaining TTL. No device ids, trip
-ids, battery or exact counts ever leave the server.
+**capped at 3**. The `r` array carries passenger reports (D82/D83): kind, coarse
+area cell, distinct count, ages and remaining TTL. No device ids, trip ids,
+battery, exact counts or exact report positions ever leave the server.
 
 ### 6.7 In-memory state and capacity
 
@@ -926,11 +927,15 @@ ids, battery or exact counts ever leave the server.
 - **Registration abuse:** per-IP and global limits (finite but CGNAT-aware),
   Cloudflare Turnstile on the web client when abuse appears, Play Integrity
   attestation as a later hardening **[L]**.
-- **Passenger reports (D82):** auth required; no consent prompt because no
-  location is collected. The stop id is validated against the static bundle;
-  the client never sends a vehicle id. Per-device and per-IP limits plus
-  per-line/global caps bound abuse. There is no free text. Reports are in
-  memory only, and `DELETE /v1/me` clears the device from reporter sets.
+- **Passenger reports (D82/D83):** auth required. The client reads location
+  once, converts it to a coarse ~150 m cell on-device, and sends only the cell
+  id; exact coordinates never reach the server. The server validates the id and
+  that its center is inside the served bbox. The client never sends a vehicle
+  id. Per-device and per-IP limits plus per-line/global caps bound abuse. There
+  is no free text. Reports are in memory only, never logged with the cell, and
+  `DELETE /v1/me` clears the device from reporter sets. A one-time in-app
+  notice and the OS permission gate the first location read; legal review must
+  confirm whether a server consent record is required before release.
 - **Deno permissions** (VERIFY exact flags):
   `--allow-net=<bind addr>,<db host:port>`, `--allow-env=<listed vars>`,
   `--allow-read=<DATA_DIR>`; **no** `--allow-write`, `--allow-run`,
@@ -1737,39 +1742,44 @@ Entry points:
 
 - Line sheet, Agora tab: a `Sinalizar` ghost action, plus a strip of at most
   two report chips and a `+N` overflow chip. Only on pilot lines, where the
-  line stream exists.
-- Stop sheet: tapping a stop dot on the line map opens the stop name, its
-  active reports and a primary `Estou esperando aqui`. This is the one-tap
-  waiting path. A secondary `Sinalizar` opens the four-kind sheet with the stop
-  preselected.
-- Trip screen: one AppBar flag icon opens the sheet with the current line and
-  rider context.
+  line stream exists. Any viewer can use it; no trip or bus presence is
+  required.
+- Trip screen: one AppBar flag icon opens the sheet with the current line.
+- Stop dots on the map stay decorative. There is no stop sheet and no stop
+  picker (D83).
 
 Report sheet: four closed options (`Ainda estou esperando`, `Ônibus lotado`,
-`Ônibus quebrado`, `Acesso bloqueado`), a stop picker for the stop-level kinds,
-one primary `Enviar sinalização`, a public/anonymous disclosure, and the
-honesty footnote `Relatos de passageiros. Podem estar desatualizados.` No free
-text, no photos, no confirm/deny votes in the alpha.
+`Ônibus quebrado`, `Acesso bloqueado`). Waiting and blocked show a location
+card: the app reads the device location once, converts it on-device to a coarse
+~150 m cell and sends only the cell id. Exact coordinates never leave the
+device. The first use shows a one-time notice before the OS permission prompt:
+one read, approximate area, exact position not sent or stored, can decline and
+keep using the map. Denied, blocked, services-off, imprecise (>150 m) and
+timeout states get a report-specific card with retry and, on Android, "Abrir
+ajustes". No free text, no photos, no confirm/deny votes.
 
 Report rows: label, relative age, and a count that never exposes a single
 person as a number (`Alguém está esperando aqui`, `2 pessoas esperando`,
-`1 relato recente`, `2 pessoas relataram`). Incidents use the warning role;
-waiting stays neutral so it never reads as an alert. Green stays reserved for
-live. The detail sheet can retract the device's own report; it does not offer
-"still true" or "resolved" actions.
+`1 relato recente`, `2 pessoas relataram`). The detail sheet shows a rounded
+distance to the area ("cerca de 100 m") when the viewer location is known, or
+"Área aproximada de 150 m" otherwise. Waiting reports sort by distance when
+available. Incidents use the warning role; waiting stays neutral so it never
+reads as an alert. Green stays reserved for live. The detail sheet can retract
+the device's own report; it does not offer "still true" or "resolved" actions.
 
 States: no reports renders nothing; offline creation fails honestly and is not
 queued; `429` maps to a short wait message; the kill switch hides the entry
 points; a report that expires while the sheet is open shows `expired` and
 closes. 200 % text wraps chips and rows; icons never stand alone.
 
-Copy lives in `UiStrings` and follows the privacy rule: the report is public
-and anonymous, no location is sent, and it disappears within 2 hours.
+Copy lives in `UiStrings`: the report is public and anonymous, the app sends
+only a ~150 m area, the exact position is never sent or stored, and the report
+disappears within 2 hours.
 
 Known alpha limits: reports are line-scoped, so a broken bus in one direction
-shows for both, and a blocked stop reported from line 7 does not appear on line
-8 until stop-line associations exist, and the picker lists all mapped stops.
-No votes: a report disappears by TTL or when its reporters retract.
+shows for both. The area is a ~150 m grid cell, not a stop or a pin. No votes:
+a report disappears by TTL or when its reporters retract. The local notice plus
+OS permission is not yet a server-recorded consent; legal review is pending.
 
 ### 9.6 Notification (Android, trip active)
 
@@ -1924,8 +1934,8 @@ models in `docs/field-tests/devices.md`.
 | T13 | Account/infra takeover                         | stolen VPS-provider, Cloudflare, GitHub or SSH credentials     | 2FA everywhere, key-only SSH, least-privilege tokens, rotate secrets, no shared accounts                                                                                                                                               |
 | T14 | Host compromise                                | exploit in OS, proxy or runtime                                | automatic security updates, non-root sandboxed service, default-deny firewall, minimal packages, no coordinates at rest, backups encrypted, monitoring                                                                                 |
 | T15 | Abuse of static data pipeline                  | malicious PR changing timetables                               | PR review + schema validation + CI; protected `main` branch                                                                                                                                                                            |
-| T16 | False or brigaded passenger reports             | fake "bus broken" reports, token farms, a lone device refreshing a report | closed kinds, no free text, per-device and per-IP limits, per-line/global caps, distinct-reporter display capped, short TTL and hard max age, public "relato" wording, kill switch; counts are soft signals, never verified facts (D82) |
-| T17 | Presence inference from a report                | "someone is waiting at this stop" revealing a lone person      | no coordinates, stop granularity only, counts of one shown as "alguém", public by the reporter's own action, memory only, TTL <= 2 h, no history, `DELETE /v1/me` clears reporter sets (D82)                                      |
+| T16 | False or brigaded passenger reports             | fake "bus broken" reports, token farms, a lone device refreshing a report | closed kinds, no free text, per-device and per-IP limits, per-line/global caps, distinct-reporter display capped, short TTL and hard max age, public "relato" wording, kill switch; counts are soft signals, never verified facts (D82/D83) |
+| T17 | Presence inference from a report                | "someone is waiting" in a small area revealing a lone person   | only a coarse ~150 m cell, never an exact coordinate; counts of one shown as "alguém"; public by the reporter's own action; memory only; TTL <= 2 h; no history; `DELETE /v1/me` clears reporter sets (D82/D83)                   |
 
 ### 12.2 Server rules (MUST)
 
@@ -2159,7 +2169,7 @@ Because the owner operates the server, these are part of the product's security
 | Latest fix: lat, lng, speed, heading, accuracy                       | place the bus                         | **API process memory only**                                                    | until the trip ends (<= 10 min after the last ping at most) | **Yes** (location)                       |
 | Battery % (5 % steps) + charging                                     | choose a leader                       | **API process memory only**                                                    | until the trip ends                                         | Yes (device state)                       |
 | Vehicle position (merged)                                            | show the bus                          | **API process memory only**                                                    | <= 2 min after last fix; removed when no member alive       | May reveal a lone rider's position (KL2) |
-| Passenger report (kind, line, stop id, server timestamps, distinct count) | short-lived public crowd signal | **API process memory only** | TTL <= 2 h; dropped on expiry, restart or kill switch | Potentially personal (presence at a stop), public, no durable identifier |
+| Passenger report (kind, line, coarse ~150 m area cell, server timestamps, distinct count) | short-lived public crowd signal | **API process memory only** | TTL <= 2 h; dropped on expiry, restart or kill switch | Potentially personal (approximate presence), public, memory-only, no durable identifier and no exact coordinate |
 | In-memory rate-limit buckets (IP, device)                            | abuse control                         | **API process memory only**                                                    | minutes; never persisted or logged                          | Yes (IP), ephemeral                      |
 | Infra logs (IP, user-agent)                                          | security/operation                    | Cloudflare, OSM tile servers, VPS provider; own proxy logs disabled or IP-free | per provider (short)                                        | Yes (IP), provider-side                  |
 | Encrypted backups of the four tables                                 | recovery                              | off-host storage                                                               | 30 days                                                     | Yes (pseudonymous), encrypted            |
@@ -2190,7 +2200,7 @@ report creates the same pseudonymous device record used for abuse control
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | Location in a trip | exists only in memory; dropped on end (user, idle, timeout, max duration, abuse, permission) and on process restart             | engine `endTrip`/tick; nothing is persisted |
 | Vehicle            | hidden after 120 s without a fix, removed when no member alive (<= ~5 min)                                                      | tick                                        |
-| Passenger report   | memory only; TTL 10-30 min, hard max 2 h; removed on expiry, restart or kill switch; `DELETE /v1/me` removes the device from reporter sets | tick; account route                         |
+| Passenger report   | memory only; TTL 10-30 min, hard max 2 h; only a coarse ~150 m cell, never an exact coordinate; removed on expiry, restart or kill switch; `DELETE /v1/me` removes the device from reporter sets | tick; account route                         |
 | Device record      | deleted after 30 days without activity (cascades consents and blocks)                                                           | `devicePurge` job                           |
 | Local data         | cleared by "Apagar meus dados"                                                                                                  | client + `DELETE /v1/me`                    |
 | Backups            | encrypted, 30-day retention; deletions reach them by expiry                                                                     | backup script; disclosed in the policy      |
@@ -2240,8 +2250,12 @@ and counsel must confirm the mechanism. Providers with global infrastructure
 - [ ] Policy + terms in-app and on the web; contact channel works.
 - [ ] RIPD (relatório de impacto, DPIA-lite) written in `docs/privacy/ripd.md`
       before Phase 2 (threats, controls, residual risk, KL2).
-- [ ] Passenger reports carry no coordinates and no free text, live in memory
-      only, expire within 2 h, and are public by design (D82).
+- [ ] Passenger reports carry a coarse ~150 m area cell, never an exact
+      coordinate, and no free text; they live in memory only, expire within
+      2 h, and are public by design (D82/D83).
+- [ ] The first location-based report shows the one-time notice before the OS
+      permission prompt; legal review confirms whether a server consent record
+      is required before release.
 - [ ] The first report discloses the pseudonymous device record created for
       abuse control; the report is not stored with that record.
 - [ ] `DELETE /v1/me` removes the device from in-memory reporter sets.
@@ -2644,7 +2658,7 @@ touches money-like risk (data leaks).
 | T48  | Distribution: register Android developer account (limited-distribution ≤ 20 devices for Phase 1, or Play Console for wider testing - §17.4); internal testing track; PWA live | testers install successfully on certified devices | owner + S5.5/L |
 | T49  | Pilot kit: 1-page user guide (pt-BR), feedback form, known limitations list, contact                                                                                          | handed to classmates                              | H4.5/L         |
 | T50  | Ops: runbooks (§18), dashboards checklist, kill-switch drill                                                                                                                  | drill executed once                               | S5.5/M         |
-| T51  | S15 passenger reports: in-memory report store, `POST /v1/reports`, additive `r` on the line snapshot/stream, line strip, report sheet, stop sheet and trip entry (D82)          | no coordinates/free text; TTL and caps tested; full app suite green | S5.5/H         |
+| T51  | S15 passenger reports: in-memory report store, `POST /v1/reports`, additive `r` on the line snapshot/stream, line strip, report sheet with one-shot coarse area, trip entry (D82/D83) | no exact coordinates/free text; TTL, caps and area tests green; full app suite green | S5.5/H         |
 
 ### Critical path
 

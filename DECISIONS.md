@@ -3055,7 +3055,8 @@ Verified: `dart format` clean, `flutter analyze` clean, targeted
 `flutter test test/web_prompts_test.dart test/ui/trip_settings_test.dart`
 passes (28 tests).
 
-## D82-2026-10-20: passenger reports ("Sinalizações")
+## D82-2026-10-20: passenger reports ("Sinalizações") (target model superseded by D83)
+
 
 Owner order: add a flag system for "still waiting at this stop", "bus broken",
 "gate blocked", "at max capacity", with a timestamp. Owner answers during the
@@ -3119,3 +3120,61 @@ delete-me cleanup, TTL/count/retract). `dart format`, `flutter analyze` and the
 full `flutter test` suite (388 tests, 1 skipped) pass. The Android
 manifest audit, size measurement and device checks were not run on this host.
 No database migration was added.
+
+## D83-2026-10-20: reports use a coarse location area, not a stop picker
+
+Owner order after reviewing D82: manually choosing a bus stop is a bad flow
+because the app already has the user's location and the mapped stop set is
+incomplete and not always correct. Use the current location instead. A person
+does not need to be on the bus to report that they are waiting, so the flow
+must be available to any viewer, not only to riders. Refactor the feature.
+
+Decision:
+
+- Waiting and blocked reports target a **coarse ~150 m grid cell**, not a stop
+  id and not a coordinate. The app reads the device location once, converts it
+  to the cell on-device, and sends only the cell id. Exact coordinates never
+  leave the device.
+- The grid is deterministic: 150 m cells, fixed reference latitude -18.7,
+  id `g<latIndex>_<lngIndex>`. The server validates the id and that its center
+  is inside the served bbox with one cell of margin. The Dart and TypeScript
+  implementations share test vectors.
+- The server keeps the cell in memory only for the report TTL, never logs it,
+  and never writes it to the database or metrics. `DELETE /v1/me` still removes
+  the device from reporter sets.
+- The manual stop picker and the stop sheet are removed. Stop dots stay on the
+  map as decorative information. There is no stop dependency in the report
+  API, and `server/src/data/stops.ts` is deleted.
+- Waiting is available to any viewer on a pilot line, without a trip, consent
+  for location sharing, or a device relationship to the bus. The line sheet's
+  `Sinalizar` action is the entry point; the trip screen keeps its shortcut.
+- Location UX: a one-time in-app notice explains that one location read becomes
+  a ~150 m area, not a pin, and that the exact position is not sent or stored.
+  Acceptance is stored locally (`report_location_notice_v1`), then the OS
+  permission prompt runs. Denied, blocked, services-off, imprecise (>150 m) and
+  timeout states get a report-specific card with retry and, on Android,
+  "Abrir ajustes". A decline leaves the map usable.
+- The report chip shows the count and age; the detail sheet shows the rounded
+  distance to the area ("cerca de 100 m") when the viewer location is known, or
+  "Área aproximada de 150 m" otherwise. Waiting reports sort by distance when
+  available. No precise coordinate is ever rendered.
+- No votes remains: a report disappears by TTL or when its reporters retract.
+- API contract change: `area` replaces `stop`. This feature has not shipped, so
+  the break is accepted pre-release; there is no installed-client compatibility
+  obligation for a feature that only exists in the current build.
+
+Privacy: the report is a public coarse presence claim chosen by the user. The
+cell is location data, but it is approximate, ephemeral, memory-only, and never
+logged. The data inventory, policy, terms, RIPD and UI spec are updated. The
+one-time notice plus OS permission is not a server-recorded consent yet; before
+public release, legal review must confirm whether a versioned server consent
+record is required. Until then the app remains a draft alpha and the policy
+status stays "minuta". No exact coordinates are persisted, logged or sent.
+
+Verification: `deno fmt --check`, `deno check src/main.ts test/*.ts`,
+`deno lint` and the full server suite against a throwaway PostgreSQL 16
+container (94 passed, 0 failed). `dart format`, `flutter analyze`, the report
+area/location unit tests and the full app suite pass (397 passed, 1 skipped).
+`flutter build web --release` passes and the source-manifest audit passes
+(no new permission). The merged Android manifest, size measurement and device
+checks were not run on this host.
