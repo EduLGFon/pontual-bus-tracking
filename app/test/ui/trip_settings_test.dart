@@ -123,6 +123,8 @@ void main() {
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
       // No settle: the hero pulse never settles by design.
       await tester.pump(const Duration(milliseconds: 500));
+      // One more frame removes the popped route from the tree.
+      await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
       expect(find.byType(TripScreen), findsNothing);
       expect(r.controller.endKind, isNull);
@@ -149,6 +151,7 @@ void main() {
       await tester.pump();
       await tester.binding.handlePopRoute();
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
       expect(find.byType(TripScreen), findsNothing);
       expect(r.controller.endKind, isNull);
@@ -174,6 +177,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
       expect(r.controller.endKind, isNull);
       r.controller.dispose();
@@ -202,6 +206,7 @@ void main() {
       expect(find.text(UiStrings.endTitle), findsOneWidget);
       await tester.tap(find.text(UiStrings.endDone));
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
       expect(find.byType(TripScreen), findsNothing);
       r.controller.dispose();

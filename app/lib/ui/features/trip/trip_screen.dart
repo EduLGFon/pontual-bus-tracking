@@ -292,7 +292,9 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
       // pops to it instead of ending, and the dock keeps sharing
       // (UI_SPEC 8, DECISIONS.md#D77). Without a previous route (test
       // harness, future deep link) the handler falls back to home.
-      canPop: context.canPop(),
+      // Navigator, not the go_router helper: TripScreen is also mounted
+      // in plain MaterialApp harnesses that have no GoRouter above them.
+      canPop: Navigator.of(context).canPop(),
       onPopInvokedWithResult: (bool didPop, Object? _) {
         if (didPop) {
           return;
@@ -417,8 +419,9 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   /// Leaves the trip screen without ending the trip. Pops when there is a
   /// screen to return to; a deep link or a bare harness falls back home.
   void _minimize() {
-    if (context.canPop()) {
-      context.pop();
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
     } else {
       context.go('/');
     }
