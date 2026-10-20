@@ -824,6 +824,10 @@ class UiStrings {
   /// Automatic end reason: maximum duration.
   static const String endMax = 'Encerramos por tempo máximo ou falta de sinal.';
 
+  /// Automatic end reason: server timeout after a long web gap.
+  static const String endTimeout =
+      'Encerramos porque a viagem ficou sem sinal por muito tempo.';
+
   /// Automatic end reason: GPS off.
   static const String endGps =
       'Encerramos porque a localização ficou desligada.';

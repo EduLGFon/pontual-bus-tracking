@@ -1394,6 +1394,9 @@ void main() {
     await pumpCard(TripEndKind.automatic, 'idle');
     expect(find.textContaining('parado por 10 minutos'), findsOneWidget);
 
+    await pumpCard(TripEndKind.automatic, 'timeout');
+    expect(find.textContaining('sem sinal por muito tempo'), findsOneWidget);
+
     await pumpCard(TripEndKind.abuse, null);
     expect(find.textContaining('inconsistentes'), findsOneWidget);
 

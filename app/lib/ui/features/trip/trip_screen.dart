@@ -81,6 +81,8 @@ class TripScreen extends StatefulWidget {
     required this.controller,
     this.nowMs,
     this.showForcePing = forcePingButton,
+    this.isWeb,
+    this.wakeLock,
     super.key,
   });
 
@@ -94,6 +96,12 @@ class TripScreen extends StatefulWidget {
   /// FORCE_PING_BUTTON dart-define (false), so production builds never
   /// render it. Tests pass true explicitly.
   final bool showForcePing;
+
+  /// Overrides web detection for tests. Null follows the real platform.
+  final bool? isWeb;
+
+  /// Wake lock implementation, injectable for tests.
+  final WebWakeLock? wakeLock;
 
   @override
   State<TripScreen> createState() => _TripScreenState();
@@ -109,16 +117,21 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   bool _kudosCounted = false;
   int? _helpedTrips;
   final WebVisibilityTracker _visibility = WebVisibilityTracker();
+  late final WebWakeLock _wakeLock;
+
+  bool get _isWeb => widget.isWeb ?? PlatformInfo.isWeb;
 
   @override
   void initState() {
     super.initState();
+    _wakeLock = widget.wakeLock ?? const ProdWebWakeLock();
     widget.controller.addListener(_maybePrompt);
-    if (PlatformInfo.isWeb) {
+    if (_isWeb) {
       WidgetsBinding.instance.addObserver(this);
       unawaited(_holdWakeLock());
       _visibilityTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        _visibility.check(DateTime.now().millisecondsSinceEpoch);
+        final int nowMs = _nowMs();
+        _visibility.check(nowMs);
         if (_visibility.paused && !widget.controller.isWebHidden) {
           widget.controller.setWebHidden(true);
         }
@@ -127,37 +140,56 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _holdWakeLock() async {
-    const WebWakeLock lock = ProdWebWakeLock();
-    await lock.enable();
-    final bool held = await lock.enabled;
-    if (mounted && !held) {
+    if (!tripInProgress(widget.controller.state)) {
+      return;
+    }
+    await _wakeLock.enable();
+    final bool held = await _wakeLock.enabled;
+    if (!mounted) {
+      return;
+    }
+    if (!held && !_wakeUnsupported) {
       setState(() {
         _wakeUnsupported = true;
+      });
+    } else if (held && _wakeUnsupported) {
+      setState(() {
+        _wakeUnsupported = false;
       });
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!PlatformInfo.isWeb) {
+    if (!_isWeb) {
       return;
     }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
-      _visibility.onHidden(DateTime.now().millisecondsSinceEpoch);
+      _visibility.onHidden(_nowMs());
     } else if (state == AppLifecycleState.resumed) {
+      final int nowMs = _nowMs();
+      final int hiddenForMs = _visibility.hiddenFor(nowMs);
       _visibility.onVisible();
-      widget.controller.setWebHidden(false);
+      unawaited(_recoverWeb(hiddenForMs));
     }
+  }
+
+  /// Re-acquires the wake lock and asks the controller for a fresh fix.
+  /// Both are best effort: the existing stream and the stall watchdog
+  /// remain the fallback when the browser refuses either request.
+  Future<void> _recoverWeb(int hiddenForMs) async {
+    unawaited(_holdWakeLock());
+    await widget.controller.recoverWebSharing(hiddenForMs: hiddenForMs);
   }
 
   @override
   void dispose() {
-    if (PlatformInfo.isWeb) {
+    if (_isWeb) {
       WidgetsBinding.instance.removeObserver(this);
       _visibilityTimer?.cancel();
-      unawaited(const ProdWebWakeLock().disable());
+      unawaited(_wakeLock.disable());
     }
     widget.controller.removeListener(_maybePrompt);
     super.dispose();

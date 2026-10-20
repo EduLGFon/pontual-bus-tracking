@@ -53,6 +53,7 @@ class TripFix {
     required this.accuracyM,
     required this.batteryPct,
     required this.charging,
+    required this.acceptedAtMs,
   });
 
   /// Sequence number per accepted fix.
@@ -78,6 +79,11 @@ class TripFix {
 
   /// Charging flag.
   final bool charging;
+
+  /// When the filter accepted this fix, in milliseconds. Used to drop a
+  /// fix that sat in the stream queue across a hidden period and would
+  /// otherwise be published with a stale position after recovery.
+  final int acceptedAtMs;
 }
 
 /// Raw position reading for the pure filter.
@@ -164,6 +170,20 @@ double round5(double v) => (v * 100000).round() / 100000;
 /// Rounds battery to 5 percent steps.
 int batteryBucket(int pct) => (pct ~/ 5) * 5;
 
+/// Timeout for the visible-resume one-shot fix. The browser may leave a
+/// getCurrentPosition request pending while the document is not visible;
+/// the timeout keeps the trip recovery path bounded.
+const Duration oneShotFixTimeout = Duration(seconds: 15);
+
+/// Settings for the visible-resume one-shot. High accuracy is intentional:
+/// the first fix after returning is the one that restores the vehicle on the
+/// map, and no foreground notification is attached because this is a web
+/// recovery path with no Android service of its own.
+LocationSettings oneShotSettingsFor() => const LocationSettings(
+  accuracy: LocationAccuracy.high,
+  timeLimit: oneShotFixTimeout,
+);
+
 /// Location settings per sampling mode.
 LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
   // The notification is ongoing and persistent: the foreground service
@@ -234,10 +254,12 @@ class LocationService {
     required Future<int> Function() batteryLevel,
     required Future<bool> Function() charging,
     required int Function() nowMs,
+    Future<Position> Function(LocationSettings settings)? oneShotPosition,
   }) : _positionStream = positionStream,
        _batteryLevel = batteryLevel,
        _charging = charging,
-       _nowMs = nowMs;
+       _nowMs = nowMs,
+       _oneShotPosition = oneShotPosition;
 
   /// Production service backed by geolocator and battery_plus.
   factory LocationService.production() {
@@ -257,6 +279,8 @@ class LocationService {
         return state == BatteryState.charging;
       },
       nowMs: () => DateTime.now().millisecondsSinceEpoch,
+      oneShotPosition: (LocationSettings s) =>
+          Geolocator.getCurrentPosition(locationSettings: s),
     );
   }
 
@@ -264,6 +288,7 @@ class LocationService {
   final Future<int> Function() _batteryLevel;
   final Future<bool> Function() _charging;
   final int Function() _nowMs;
+  final Future<Position> Function(LocationSettings settings)? _oneShotPosition;
 
   StreamSubscription<Position>? _sub;
 
@@ -323,53 +348,7 @@ class LocationService {
     unawaited(_sub?.cancel());
     _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
-      (Position p) {
-        // Battery reads are platform channels that can stall for seconds
-        // in the background: never block the fix on them. Emit immediately
-        // with the last known bucket and refresh the cache in the
-        // background for the next fix. The previous code awaited up to
-        // 3 s per fix before sending, adding seconds to every ping.
-        final RawFix raw = RawFix(
-          lat: p.latitude,
-          lng: p.longitude,
-          accuracyM: p.accuracy,
-          isMocked: p.isMocked,
-          timestampMs: p.timestamp.millisecondsSinceEpoch,
-        );
-        final int atMs = _nowMs();
-        final String? reason = dropReason(raw, atMs);
-        if (reason != null) {
-          Log.d('fix dropped', reason);
-          return;
-        }
-        _seq += 1;
-        final int seq = _seq;
-        final int level = _lastBatteryPct;
-        final bool chg = _lastCharging;
-        final double speed = normalizeSpeed(p.speed);
-        if (!controller.isClosed) {
-          controller.add(
-            TripFix(
-              seq: seq,
-              lat: round5(raw.lat),
-              lng: round5(raw.lng),
-              speedMps: speed,
-              heading: normalizeHeading(p.heading, speed),
-              accuracyM: raw.accuracyM,
-              batteryPct: batteryBucket(level),
-              charging: chg,
-            ),
-          );
-          _lastFixAtMs = atMs;
-          _lastAccuracyM = raw.accuracyM;
-        }
-        final int? lastRead = _lastBatteryReadMs;
-        if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
-          // Reserve first: concurrent fixes share one refresh.
-          _lastBatteryReadMs = atMs;
-          unawaited(_refreshBattery());
-        }
-      },
+      (Position p) => _emit(p, controller),
       onError: (Object e) {
         Log.w('position stream error', e.runtimeType.toString());
         // The OS closes the position stream when location services go
@@ -380,6 +359,58 @@ class LocationService {
         _streamDead = true;
       },
     );
+  }
+
+  /// Filters one position and emits it when accepted. Shared by the
+  /// position stream and the visible-resume one-shot so both paths apply
+  /// the same age, mock, accuracy, and area gates. Returns true only when
+  /// a fix was added to an open stream.
+  bool _emit(Position p, StreamController<TripFix> controller) {
+    // Battery reads are platform channels that can stall for seconds in
+    // the background: never block the fix on them. Emit immediately with
+    // the last known bucket and refresh the cache in the background for
+    // the next fix. The previous code awaited up to 3 s per fix before
+    // sending, adding seconds to every ping.
+    final RawFix raw = RawFix(
+      lat: p.latitude,
+      lng: p.longitude,
+      accuracyM: p.accuracy,
+      isMocked: p.isMocked,
+      timestampMs: p.timestamp.millisecondsSinceEpoch,
+    );
+    final int atMs = _nowMs();
+    final String? reason = dropReason(raw, atMs);
+    if (reason != null) {
+      Log.d('fix dropped', reason);
+      return false;
+    }
+    if (controller.isClosed) {
+      return false;
+    }
+    _seq += 1;
+    final double speed = normalizeSpeed(p.speed);
+    controller.add(
+      TripFix(
+        seq: _seq,
+        lat: round5(raw.lat),
+        lng: round5(raw.lng),
+        speedMps: speed,
+        heading: normalizeHeading(p.heading, speed),
+        accuracyM: raw.accuracyM,
+        batteryPct: batteryBucket(_lastBatteryPct),
+        charging: _lastCharging,
+        acceptedAtMs: atMs,
+      ),
+    );
+    _lastFixAtMs = atMs;
+    _lastAccuracyM = raw.accuracyM;
+    final int? lastRead = _lastBatteryReadMs;
+    if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
+      // Reserve first: concurrent fixes share one refresh.
+      _lastBatteryReadMs = atMs;
+      unawaited(_refreshBattery());
+    }
+    return true;
   }
 
   /// Refreshes the cached battery bucket in the background. Failures keep
@@ -401,6 +432,57 @@ class LocationService {
     }
   }
 
+  /// True when the position stream is dead or has been silent past the
+  /// stall window. Used by both the supervision round and web recovery.
+  bool _needsRestart(int nowMs) {
+    if (_streamDead) {
+      return true;
+    }
+    final int? fixAt = _lastFixAtMs;
+    return _seq > 0 &&
+        fixAt != null &&
+        nowMs - fixAt > stallRestartMs &&
+        nowMs - _lastChangeMs >= stallRestartMs;
+  }
+
+  /// Web gap recovery: restarts a dead or silent stream and requests one
+  /// high-accuracy position through the normal filter. Never throws and
+  /// never queues more than one one-shot at a time. Returns true when the
+  /// one-shot fix was accepted; the regular stream remains the fallback.
+  Future<bool> recoverNow() async {
+    final StreamController<TripFix>? controller = _controller;
+    if (controller == null || controller.isClosed) {
+      return false;
+    }
+    final int nowMs = _nowMs();
+    if (_needsRestart(nowMs)) {
+      Log.w('position stream stalled', 'restarting on visible');
+      _lastChangeMs = nowMs;
+      _listen(_mode, controller);
+    }
+    final Future<Position> Function(LocationSettings settings)? oneShot =
+        _oneShotPosition;
+    if (oneShot == null || _oneShotInFlight) {
+      return false;
+    }
+    _oneShotInFlight = true;
+    try {
+      final Position p = await oneShot(oneShotSettingsFor())
+          .timeout(oneShotFixTimeout);
+      if (controller.isClosed) {
+        return false;
+      }
+      return _emit(p, controller);
+    } catch (e) {
+      Log.w('one-shot position failed', e.runtimeType.toString());
+      return false;
+    } finally {
+      _oneShotInFlight = false;
+    }
+  }
+
+  bool _oneShotInFlight = false;
+
   /// Requests a mode switch honoring hysteresis for downgrades only.
   /// Recreates the underlying position stream when the mode actually
   /// changes so offline saver drops to low-power GPS. Upgrades to a faster
@@ -418,12 +500,7 @@ class LocationService {
   /// ever erroring. Returns the active mode.
   SamplingMode requestMode(SamplingMode mode, int nowMs) {
     final bool restartDead = _streamDead;
-    final int? fixAt = _lastFixAtMs;
-    final bool stalled =
-        _seq > 0 &&
-        fixAt != null &&
-        nowMs - fixAt > stallRestartMs &&
-        nowMs - _lastChangeMs >= stallRestartMs;
+    final bool stalled = !restartDead && _needsRestart(nowMs);
     final bool restart = restartDead || stalled;
     if (mode == _mode && !restart) {
       return _mode;

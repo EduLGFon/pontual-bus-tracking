@@ -14,6 +14,15 @@ worker trick, or installed-app mode. The specification only delivers
 position updates to a fully active, visible document, and browsers suspend
 hidden pages. Installing the PWA does not add native privileges.
 
+Picture-in-picture and notifications do not change this on mobile. A web
+notification is a display surface, not an execution environment. Android video
+picture-in-picture keeps the video playing, but the page is hidden and
+geolocation is paused. Document Picture-in-Picture is a desktop-only
+exception: a Chromium desktop PiP window can stay visible while the user works
+in another app and can request geolocation from its own document. It is not
+available in Chrome for Android, Safari, or iOS, so it is not a mobile
+workaround. Section 5.12 covers it.
+
 The useful pure-web options are therefore:
 
 1. Keep sharing foreground-only, with the screen on and the trip screen
@@ -229,6 +238,9 @@ Source: Android Developers, "Foreground service types", Location section
 | Background Sync | Yes | No | Retries data, does not acquire location |
 | Periodic Background Sync | Yes | No | Browser-scheduled data refresh; no location |
 | Push notification | Yes | No | Wakes a worker, but the worker has no location |
+| Web notification as a keepalive | Yes | No | Display and click target only; it does not execute location code |
+| Android video picture-in-picture | Yes | No | Video keeps playing, but the page is hidden and geolocation is paused |
+| Document Picture-in-Picture (desktop Chromium) | Yes, desktop only | Only while the PiP window stays visible | A same-origin PiP document can request geolocation; unsupported in Chrome for Android, Safari, and iOS |
 | Installed PWA / WebAPK | Yes | No | Same browser engine; no native entitlement |
 | TWA + native foreground service | No | Yes, while the service runs | The host app collects and sends location natively |
 | Capacitor/WebView + native plugin | No | Yes, with native service and permissions | Native shell, not a PWA |
@@ -297,6 +309,8 @@ is designed to confirm or reject them.
 | K | Native iOS app | Yes, with Always authorization | Separate product, review, battery indicator | Separate decision |
 | L | Longer server timeout | Keeps a stale trip alive | Ghost position; contradicts freshness and retention | Reject |
 | M | Browser flags or experiments | None for users | Not shippable | Reject |
+| N | Document Picture-in-Picture (desktop) | Only while the PiP window is visible | Desktop Chromium only; needs a second location loop; not available on Android or iOS | Reject for this product |
+| O | Web notification or ongoing notification | None | Display surface only; no script, no location; a website cannot create a foreground-service notification | Reject |
 
 ### 5.1 A: foreground sharing with wake lock
 
@@ -447,6 +461,62 @@ already hides a vehicle after 120 s without a fix.
 
 Reject.
 
+### 5.12 N: Document Picture-in-Picture (desktop only)
+
+Document Picture-in-Picture (Document PiP) opens an always-on-top window
+containing arbitrary same-origin HTML. It is available in Chrome and Edge
+desktop 116 and later. It is not available in Chrome for Android, Safari, or
+iOS, and it is not the Android video PiP surface.
+
+Unlike a background tab, the PiP window can stay visible while the user works
+in another desktop application. The PiP document is a top-level, fully active,
+same-origin document, so geolocation requested from that document is not
+blocked by the visibility gate while the PiP window is visible and the origin
+already has location permission. The specification warns that the opener may
+be throttled and recommends running application logic inside the PiP window.
+A real implementation would therefore need a second location loop inside a
+small HTML and JavaScript document, with its own permission check, filtering,
+interval pacing, token use, and ping sender. Forwarding fixes to a throttled
+Flutter opener is not enough.
+
+Limits:
+
+- No Chrome for Android, Safari, or iOS. It cannot help a phone user who
+  switches to another app, which is the requirement that matters here.
+- The PiP window must stay open and visible. Closing it, covering it with a
+  fullscreen app, locking the screen, or closing the opener stops the loop.
+- It requires a user gesture to open, and only one PiP window exists.
+- It duplicates location and credential logic outside the Dart app, which is
+  a security and maintenance cost. CSP and Permissions-Policy inheritance for
+  the PiP document would need review before it handled a device token.
+- It is untested on this project and is not part of the mobile device matrix.
+
+Verdict: this is the only pure-web mechanism that can technically keep
+location updates flowing while the user works in another desktop app. It is
+not a mobile solution and not worth adding to the alpha. If desktop web
+sharing ever becomes a product requirement, prototype it separately and keep
+it explicitly best-effort.
+
+### 5.13 O: Notifications
+
+A web notification is a user-visible message, not an execution context. A page
+can display one while it is alive, and a service worker can display one from a
+push or notification event, but the notification itself runs no JavaScript.
+Clicking it is handled by the page or service worker, which can focus or open
+the app. A notification action wakes the service worker briefly; the worker
+still has no Geolocation API. Push can wake the worker, but the worker cannot
+acquire a position, and the browser shuts it down after the event.
+
+There is no web API for an ongoing or foreground-service notification. An
+installed PWA is still a website and cannot declare an Android foreground
+service. A notification displayed during a web trip would be cosmetic: it
+would not prove that pings are flowing, and it would be misleading if the page
+were hidden. The only persistent notification that keeps location alive is
+the one from the native Android foreground service, which the existing app
+already uses.
+
+Reject. Do not use a notification as a keepalive or as a sharing indicator.
+
 ## 6. Expected behavior and failure modes
 
 This table describes what the product should do when the platform stops
@@ -461,6 +531,9 @@ alive.
 | Hide over 10 min | No updates; server timeout | Next ping returns `gone`; one-time revive path may create a new trip | Show ended or explicit restart; never silent ghost |
 | Screen locked | Wake lock released; updates stop | Same as hide | Screen-off is not supported on web |
 | App switched | Page hidden or frozen | Same as hide | Same |
+| Another app, Android video PiP | Video keeps playing; the page is hidden and geolocation pauses | Not implemented | Do not treat video PiP as sharing |
+| Another app, desktop Document PiP | PiP window stays visible and can keep fixes while the opener is hidden; closing or covering it stops | Not implemented | Desktop-only best effort; never offered as mobile sharing |
+| Another app, web notification | Notification is shown, but no code runs; location stops | Not implemented | Never present a notification as proof of sharing |
 | Low battery or power saver | Wake lock may be ignored; timers throttled | Banner may say wake lock unsupported | Warn; do not promise |
 | Process killed or tab discarded | No JS; in-memory trip lost | Trip lost; server times out | Restart required; no resurrection |
 | Permission revoked | Stream errors or stops | Supervisory end | End with guidance |
@@ -654,6 +727,13 @@ the S1-S6 field cells above.
   and creates battery, policy, and trust problems.
 - Service worker, Background Sync, Periodic Sync, or push as a location
   mechanism. They cannot acquire location.
+- Document Picture-in-Picture as a mobile workaround. It is desktop Chromium
+  only, needs a second location loop inside the PiP document, and stops when
+  the window is closed, covered, or the screen locks.
+- Web notifications as a keepalive or as an "ongoing sharing" indicator. They
+  display only and cannot acquire location.
+- Android video picture-in-picture as a sharing mode. It keeps video playing
+  but not geolocation.
 - Last-fix dead reckoning as if it were live. Keep it as a stale marker only.
 - A TWA or Capacitor wrapper. It is a native app, not a web workaround, and it
   duplicates the existing Android app.
@@ -686,6 +766,9 @@ implements the service, token, retry, and notification path.
    should the product show a longer "reconnecting" state?
 6. Should the trip screen show the age of the last position on web, in
    addition to the banner?
+7. Is desktop web sharing in scope at all? If it is, is a desktop-only
+   Document PiP prototype worth the second location loop, knowing that it
+   still stops when the screen locks or the PiP window closes?
 
 No decision should be recorded in `DECISIONS.md` until the owner answers
 these. This document is evidence and a proposal, not an ADR.
@@ -698,6 +781,17 @@ All web sources accessed 2026-10-19.
   https://www.w3.org/TR/geolocation/
 - Chrome for Developers, "One-time permissions in Chrome".
   https://developer.chrome.com/blog/one-time-permissions
+- MDN, Document Picture-in-Picture API.
+  https://developer.mozilla.org/en-US/docs/Web/API/Document_Picture-in-Picture_API
+- WICG, Document Picture-in-Picture specification.
+  https://wicg.github.io/document-picture-in-picture/
+- Chrome for Developers, "Picture-in-Picture for any Element, not just
+  video".
+  https://developer.chrome.com/docs/web-platform/document-picture-in-picture
+- Can I use, DocumentPictureInPicture API.
+  https://caniuse.com/mdn-api_documentpictureinpicture
+- MDN, Notifications API.
+  https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
 - Chrome for Developers, "Page Lifecycle API".
   https://developer.chrome.com/docs/web-platform/page-lifecycle-api
 - W3C, Screen Wake Lock.

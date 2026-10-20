@@ -1,10 +1,18 @@
 // T38 web sharing tests: visibility pause policy, wake lock fake, the
 // controller hidden flag, and the always-visible web banner.
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:pontual/core/time/clock.dart';
+import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/web/visibility.dart';
 import 'package:pontual/platform/web/wake_lock.dart';
 import 'package:pontual/platform/web/web_banner.dart';
+import 'package:pontual/ui/design/theme/theme.dart';
+import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'trip_rig.dart';
@@ -89,6 +97,161 @@ void main() {
         r.controller.dispose();
         await r.positions.close();
       });
+    });
+
+    test('visible recovery sends one paced ping from a fresh fix', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final FakeClock clock = FakeClock(100000);
+      int pings = 0;
+      int oneShots = 0;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          pings += 1;
+          return http.Response('{"r":"L","n":15}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final Rig r = rig(
+        client,
+        clock: clock,
+        oneShotPosition: (LocationSettings _) async {
+          oneShots += 1;
+          return pos(8, timestampMs: clock.nowMs());
+        },
+      );
+      await start(r);
+      r.controller.setWebHidden(true);
+      clock.advance(61000);
+      await r.controller.recoverWebSharing(hiddenForMs: 61000);
+      for (int i = 0; i < 100 && pings == 0; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(oneShots, 1);
+      expect(pings, 1);
+      expect(r.controller.isWebHidden, isFalse);
+      expect(r.controller.endKind, isNull);
+      await r.controller.endTrip();
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    test('long hidden gap plus gone ends as timeout without revive', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final FakeClock clock = FakeClock(100000);
+      int starts = 0;
+      int pings = 0;
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          starts += 1;
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          pings += 1;
+          return http.Response('{"e":"gone"}', 404);
+        }
+        return http.Response('{}', 404);
+      });
+      final Rig r = rig(
+        client,
+        clock: clock,
+        oneShotPosition: (LocationSettings _) async {
+          return pos(8, timestampMs: clock.nowMs());
+        },
+      );
+      await start(r);
+      expect(starts, 1);
+      r.controller.setWebHidden(true);
+      clock.advance(600000);
+      await r.controller.recoverWebSharing(hiddenForMs: 600000);
+      for (int i = 0; i < 100 && r.controller.endKind == null; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(pings, 1);
+      expect(starts, 1);
+      expect(r.controller.endKind, TripEndKind.automatic);
+      expect(r.controller.endDetail, 'timeout');
+      r.controller.dispose();
+      await r.positions.close();
+    });
+  });
+
+  group('TripScreen web resume', () {
+    testWidgets('reacquires the wake lock and requests a fresh fix', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final FakeClock clock = FakeClock(100000);
+      final FakeWebWakeLock lock = FakeWebWakeLock();
+      int oneShots = 0;
+      final Rig r = rig(
+        happy(),
+        clock: clock,
+        oneShotPosition: (LocationSettings _) async {
+          oneShots += 1;
+          return pos(8, timestampMs: clock.nowMs());
+        },
+      );
+      await start(r);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: pontualLightTheme(),
+            home: TripScreen(
+              controller: r.controller,
+              isWeb: true,
+              nowMs: clock.nowMs,
+              wakeLock: lock,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final int enablesBefore = lock.enables;
+      final int shotsBefore = oneShots;
+      expect(enablesBefore, greaterThanOrEqualTo(1));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      clock.advance(61000);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      for (int i = 0; i < 100 && oneShots == shotsBefore; i++) {
+        await tester.pump();
+      }
+      expect(lock.enables, enablesBefore + 1);
+      expect(oneShots, shotsBefore + 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: pontualLightTheme(),
+            home: const SizedBox(),
+          ),
+        ),
+      );
+      r.controller.dispose();
+      await r.positions.close();
     });
   });
 

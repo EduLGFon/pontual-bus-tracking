@@ -43,6 +43,7 @@ class TripEndCard extends StatefulWidget {
         return switch (detail) {
           'idle' => UiStrings.endIdle,
           'walking' => UiStrings.endWalking,
+          'timeout' => UiStrings.endTimeout,
           _ => UiStrings.endMax,
         };
       case TripEndKind.permission:
