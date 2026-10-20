@@ -11,7 +11,7 @@ export interface Store {
   /** D30: anonymous vehicle-sighting millis per line (no positions/ids). */
   passages: Map<number, number[]>;
   /**
-   * Active passenger reports per line, keyed by `kind:stopId`. In memory
+   * Active passenger reports per line, keyed by `kind:areaId`. In memory
    * only, pruned on the tick. PRIVACY: never serialised or persisted.
    */
   reports: Map<number, Map<string, ReportState>>;

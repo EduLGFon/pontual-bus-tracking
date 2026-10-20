@@ -17,14 +17,14 @@ export const ConsentsBody = strictObject({
 
 /**
  * POST /v1/reports. No coordinates, no timestamps, no free text.
- * `stop` is required for waiting/blocked and forbidden for broken/full;
- * the handler enforces the kind-target rule after parsing.
+ * `area` is a coarse ~150 m grid cell, required for waiting/blocked and
+ * forbidden for broken/full; the handler enforces the kind-target rule.
  */
 export const ReportBody = strictObject({
   op: v.picklist(["report", "retract"]),
   kind: v.picklist(["waiting", "full", "broken", "blocked"]),
   line: v.pipe(v.number(), v.integer(), v.minValue(1)),
-  stop: v.optional(v.pipe(v.string(), v.maxLength(40))),
+  area: v.optional(v.pipe(v.string(), v.maxLength(40))),
 });
 
 /** Typed report request. */

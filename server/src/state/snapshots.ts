@@ -1,6 +1,6 @@
 // Public snapshot payloads. Vehicles plus optional passenger reports, never
 // trips or device data. Coordinates at 5 decimals, member count capped at 3.
-// See PLAN.md 6.6 and DECISIONS.md#D82.
+// See PLAN.md 6.6 and DECISIONS.md#D82/D83.
 import { buildSnapshot } from "../domain/snapshot.ts";
 import type { SnapshotRow } from "../domain/snapshot.ts";
 import { reportRows } from "../domain/reports.ts";

@@ -2,7 +2,7 @@
 // No coordinates, no free text, no votes: a report is created, refreshed by
 // the same device, or retracted. Counts are distinct reporters, not votes.
 // PRIVACY: reports live in API memory only and expire with their TTL.
-// See DECISIONS.md#D82 and PLAN.md 6.6.
+// See DECISIONS.md#D82/D83 and PLAN.md 6.6.
 import type { ReportKind, ReportState } from "./types.ts";
 import type { Store } from "../state/store.ts";
 
@@ -29,7 +29,7 @@ export function defaultReportsConfig(): ReportsConfig {
 /** One report as exposed by the public snapshot. */
 export interface ReportRow {
   kind: ReportKind;
-  stop: string | null;
+  area: string | null;
   count: number;
   created_age_s: number;
   updated_age_s: number;
@@ -40,7 +40,6 @@ export type ReportResult =
   | { ok: true; created: boolean; changed: boolean }
   | { ok: false; code: "quota" | "disabled" };
 
-const STOP_ID = /^[a-z0-9-]{2,40}$/;
 // Public counts are capped like the vehicle member count: enough to show
 // "5+ people", never an exact crowd size.
 const MAX_PUBLIC_REPORTERS = 5;
@@ -51,28 +50,23 @@ const KIND_ORDER: Record<ReportKind, number> = {
   waiting: 3,
 };
 
-/** True when [stopId] is a well-formed static-data stop id. */
-export function isValidStopId(stopId: string): boolean {
-  return STOP_ID.test(stopId);
-}
-
 /**
  * True when the target does not match the kind. Waiting and blocked are
- * stop-level; broken and full are line-level. A client-supplied vehicle id
+ * area-level; broken and full are line-level. A client-supplied vehicle id
  * is never part of the target.
  */
 export function targetMismatch(
   kind: ReportKind,
-  stopId: string | null,
+  areaId: string | null,
 ): boolean {
-  const needsStop = kind === "waiting" || kind === "blocked";
-  if (needsStop) return stopId === null;
-  return stopId !== null;
+  const needsArea = kind === "waiting" || kind === "blocked";
+  if (needsArea) return areaId === null;
+  return areaId !== null;
 }
 
 /** Stable in-memory key inside one line. */
-export function reportKey(kind: ReportKind, stopId: string | null): string {
-  return `${kind}:${stopId ?? "-"}`;
+export function reportKey(kind: ReportKind, areaId: string | null): string {
+  return `${kind}:${areaId ?? "-"}`;
 }
 
 /** Active report count, used for the global cap. */
@@ -90,7 +84,7 @@ export function applyReport(
   store: Store,
   lineId: number,
   kind: ReportKind,
-  stopId: string | null,
+  areaId: string | null,
   deviceId: string,
   nowMs: number,
   cfg: ReportsConfig,
@@ -101,7 +95,7 @@ export function applyReport(
     line = new Map<string, ReportState>();
     store.reports.set(lineId, line);
   }
-  const key = reportKey(kind, stopId);
+  const key = reportKey(kind, areaId);
   const current = line.get(key);
   if (current && nowMs < current.expiresAtMs) {
     current.reporters.add(deviceId);
@@ -120,7 +114,7 @@ export function applyReport(
   const state: ReportState = {
     kind,
     lineId,
-    stopId,
+    areaId,
     createdAtMs: nowMs,
     updatedAtMs: nowMs,
     expiresAtMs: Math.min(
@@ -141,12 +135,12 @@ export function retractReport(
   store: Store,
   lineId: number,
   kind: ReportKind,
-  stopId: string | null,
+  areaId: string | null,
   deviceId: string,
 ): { changed: boolean; removed: boolean } {
   const line = store.reports.get(lineId);
   if (!line) return { changed: false, removed: false };
-  const key = reportKey(kind, stopId);
+  const key = reportKey(kind, areaId);
   const current = line.get(key);
   if (!current) return { changed: false, removed: false };
   const had = current.reporters.delete(deviceId);
@@ -207,7 +201,7 @@ export function reportRows(
     if (nowMs >= report.expiresAtMs) continue;
     out.push({
       kind: report.kind,
-      stop: report.stopId,
+      area: report.areaId,
       count: Math.min(MAX_PUBLIC_REPORTERS, report.reporters.size),
       created_age_s: Math.max(
         0,
@@ -226,8 +220,8 @@ export function reportRows(
   out.sort((a, b) => {
     const byKind = KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
     if (byKind !== 0) return byKind;
-    const byStop = (a.stop ?? "").localeCompare(b.stop ?? "");
-    if (byStop !== 0) return byStop;
+    const byArea = (a.area ?? "").localeCompare(b.area ?? "");
+    if (byArea !== 0) return byArea;
     return a.updated_age_s - b.updated_age_s;
   });
   return out;

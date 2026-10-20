@@ -10,7 +10,6 @@ import type { RuntimeConfig } from "../config/runtime.ts";
 import { recordHealthCheck, recordRequest } from "../observability/metrics.ts";
 import { clientIp } from "../security/clientIp.ts";
 import type { LineResolver } from "../data/lines.ts";
-import type { StopResolver } from "../data/stops.ts";
 import type { Store } from "../state/store.ts";
 import { buildAccountRoutes } from "./routes.ts";
 import { buildReadRoutes } from "./readRoutes.ts";
@@ -22,7 +21,6 @@ export interface AppOptions {
   sql: Sql | null;
   store: Store | null;
   lines: LineResolver;
-  stops: StopResolver;
   hub: Hub | null;
   followerJitterS: number;
   trustCloudflare: boolean;
@@ -142,7 +140,6 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         sql,
         store: opts.store,
         lines: opts.lines,
-        stops: opts.stops,
         runtime,
         onLineChanged: opts.onLineChanged,
       }),

@@ -12,14 +12,15 @@ export type ReportKind = "waiting" | "full" | "broken" | "blocked";
 
 /**
  * One active passenger report. Lives in API memory only, for its TTL.
- * PRIVACY: `reporters` holds device ids only to count distinct reporters,
- * dedupe repeats, and let a device retract its own contribution. It is
- * never serialised, logged, or written to the database.
+ * PRIVACY: `areaId` is a coarse ~150 m grid cell, never a coordinate.
+ * `reporters` holds device ids only to count distinct reporters, dedupe
+ * repeats, and let a device retract its own contribution. Neither is ever
+ * serialised raw, logged, or written to the database.
  */
 export interface ReportState {
   kind: ReportKind;
   lineId: number;
-  stopId: string | null;
+  areaId: string | null;
   createdAtMs: number;
   updatedAtMs: number;
   expiresAtMs: number;

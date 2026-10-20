@@ -3,7 +3,6 @@
 import { loadConfig } from "./config/config.ts";
 import { defaultRuntimeConfig, loadRuntimeConfig } from "./config/runtime.ts";
 import { loadLinesFromDir, registryResolver } from "./data/lines.ts";
-import { loadStopsFromDir, registryStopResolver } from "./data/stops.ts";
 import { openDb } from "./db/client.ts";
 import { reportRows } from "./domain/reports.ts";
 import { defaultEngineConfig } from "./domain/types.ts";
@@ -61,14 +60,11 @@ const registry = [
   ...seed.filter((s) => !bundled.some((b) => b.id === s.id)),
 ];
 const lines = registryResolver(registry);
-const stopIds = await loadStopsFromDir(config.dataDir);
-const stops = registryStopResolver(stopIds);
 console.log(
   JSON.stringify({
     level: registry.length === 0 ? "warn" : "info",
     msg: "lines loaded",
     count: registry.length,
-    stopCount: stopIds.length,
     dataDir: config.dataDir,
     hint: registry.length === 0
       ? "registry empty: reads 404; run the data build and set DATA_DIR"
@@ -129,7 +125,6 @@ const app = buildApp({
   sql,
   store,
   lines,
-  stops,
   hub,
   followerJitterS: 10,
   trustCloudflare: config.trustCloudflare,

@@ -1,17 +1,16 @@
 // Passenger report write endpoint. One route, two operations: report and
 // retract. No report ids, no votes, no coordinates. Reads ride on the line
 // snapshot; this route only changes in-memory state.
-// PRIVACY: no stop id, kind, or device id is logged.
-// See DECISIONS.md#D82 and PLAN.md 6.5.
+// PRIVACY: no area id, kind, or device id is logged.
+// See DECISIONS.md#D82/D83 and PLAN.md 6.5.
 import { Hono } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
 import { guardState } from "../db/guard.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import type { LineResolver } from "../data/lines.ts";
-import type { StopResolver } from "../data/stops.ts";
+import { isAreaInServedBBox, isValidAreaId } from "../domain/areas.ts";
 import {
   applyReport,
-  isValidStopId,
   reportRows,
   retractReport,
   targetMismatch,
@@ -38,7 +37,6 @@ export interface ReportDeps {
   sql: Sql;
   store: Store;
   lines: LineResolver;
-  stops: StopResolver;
   runtime: () => Promise<RuntimeConfig>;
   onLineChanged: (lineId: number) => void;
 }
@@ -80,14 +78,13 @@ export function buildReportRoutes(deps: ReportDeps): Hono<Vars> {
     if (parsed === null) return c.json({ e: "bad_request" }, 400);
     const line = deps.lines(parsed.line);
     if (!line || !line.isActive) return c.json({ e: "line" }, 404);
-    const stopId = parsed.stop ?? null;
-    if (stopId !== null && !isValidStopId(stopId)) {
-      return c.json({ e: "bad_request" }, 400);
+    const areaId = parsed.area ?? null;
+    if (areaId !== null) {
+      if (!isValidAreaId(areaId) || !isAreaInServedBBox(areaId)) {
+        return c.json({ e: "bad_request" }, 400);
+      }
     }
-    if (targetMismatch(parsed.kind, stopId)) {
-      return c.json({ e: "bad_request" }, 400);
-    }
-    if (stopId !== null && !deps.stops(stopId)) {
+    if (targetMismatch(parsed.kind, areaId)) {
       return c.json({ e: "bad_request" }, 400);
     }
     if (parsed.op === "report") {
@@ -95,7 +92,7 @@ export function buildReportRoutes(deps: ReportDeps): Hono<Vars> {
         deps.store,
         line.id,
         parsed.kind,
-        stopId,
+        areaId,
         deviceId,
         nowMs,
         rt.reports,
@@ -123,7 +120,7 @@ export function buildReportRoutes(deps: ReportDeps): Hono<Vars> {
       deps.store,
       line.id,
       parsed.kind,
-      stopId,
+      areaId,
       deviceId,
     );
     if (out.changed) deps.onLineChanged(line.id);
