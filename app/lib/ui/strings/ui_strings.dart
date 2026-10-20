@@ -698,6 +698,101 @@ class UiStrings {
   /// Toast when there is nothing to send yet.
   static const String forcePingNoFix = 'Sem posição ainda.';
 
+  // Trip metrics panel.
+
+  /// GPS metric label.
+  static const String metricLabelGps = 'GPS';
+
+  /// Phone metric label.
+  static const String metricLabelPhone = 'Celular';
+
+  /// Send metric label.
+  static const String metricLabelSend = 'Envio';
+
+  /// Accuracy value, for example "±8 m". The sign marks an estimate.
+  static String metricAccuracy(int meters) => '±$meters m';
+
+  /// Battery percentage value, for example "85%".
+  static String metricPercent(int pct) => '$pct%';
+
+  /// Send interval value, for example "15 s".
+  static String metricInterval(int seconds) => '$seconds s';
+
+  /// Satellite usage detail, for example "7 de 12 satélites".
+  static String metricSats(int used, int view) {
+    if (view > 0) {
+      return '$used de $view satélites';
+    }
+    if (used == 0) {
+      return 'Sem satélites';
+    }
+    return used == 1 ? '1 satélite' : '$used satélites';
+  }
+
+  /// GPS detail when no satellite sample exists on this platform.
+  static String metricGpsLimitDetail(int maxM) => 'Aceito até $maxM m';
+
+  /// GPS detail above the weak threshold.
+  static const String metricGpsWeakDetail = 'Precisão limitada';
+
+  /// GPS detail with no fix yet.
+  static const String metricGpsNoFixDetail = 'Vá para um lugar aberto';
+
+  /// GPS detail while waiting for the first fix.
+  static const String metricGpsSearchingDetail = 'Aguardando sinal';
+
+  /// GPS detail when location services are off.
+  static const String metricGpsOffDetail = 'Ative para continuar';
+
+  /// GPS detail when the OS permission was revoked.
+  static const String metricGpsPermissionDetail = 'Permissão desativada';
+
+  /// GPS detail for approximate-only grants.
+  static const String metricGpsImpreciseDetail = 'Ative a precisão exata';
+
+  /// Phone detail before the first accepted fix carries a battery read.
+  static const String metricBatteryUnknown = 'Sem leitura';
+
+  /// Phone detail while charging.
+  static const String metricBatteryChargingDetail = 'Carregando agora';
+
+  /// Phone detail at or below the low battery threshold.
+  static const String metricBatteryLowDetail = 'Carregue se puder';
+
+  /// Phone detail while unplugged above the low threshold.
+  static const String metricBatteryOnBatteryDetail = 'Na bateria';
+
+  /// Send value while the trip is still starting.
+  static const String metricSendStarting = 'Iniciando';
+
+  /// Send detail while the trip is still starting.
+  static const String metricSendStartingDetail = 'Preparando o envio';
+
+  /// Send detail while waiting for the bus to move.
+  static const String metricSendWaiting = 'Aguardando o ônibus';
+
+  /// Send detail on the leader role.
+  static const String metricSendLeader = 'Com mais frequência';
+
+  /// Send detail on the follower role.
+  static const String metricSendFollower = 'Modo economia';
+
+  /// Send detail when the last success is stale.
+  static const String metricSendStale = 'Envio atrasado';
+
+  /// Send detail while offline. Matches the resume wording in roleOffline.
+  static const String metricSendOfflineDetail = 'Retomamos ao voltar';
+
+  /// Send detail before the first server interval arrives.
+  static const String metricSendCalculating = 'Calculando intervalo';
+
+  /// Fallback send detail when the role is unknown but connected.
+  static const String metricSendIntervalDetail = 'Intervalo atual';
+
+  /// Combined screen-reader sentence for one metric.
+  static String metricSemantics(String label, String value, String detail) =>
+      '$label: $value. $detail';
+
   /// Short connection value while steady offline.
   static const String connOffline = 'Sem conexão';
 

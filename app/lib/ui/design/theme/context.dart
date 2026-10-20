@@ -29,6 +29,9 @@ class PontualTextStyles {
   /// ETA in rows.
   TextStyle get etaLarge => PontualText.etaLarge.withColor(ink);
 
+  /// Big numeric values in the trip metrics panel.
+  TextStyle get metric => PontualText.metric.withColor(ink);
+
   /// Screen titles on Inicio.
   TextStyle get display => PontualText.display.withColor(ink);
 

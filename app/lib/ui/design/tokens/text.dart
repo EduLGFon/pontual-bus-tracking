@@ -38,6 +38,18 @@ class PontualText {
     fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
   );
 
+  /// Big numeric values in the trip metrics panel. Tabular figures keep
+  /// accuracy, battery and interval values from shifting as they tick.
+  static const TextStyle metric = TextStyle(
+    fontFamily: pontualFontFamily,
+    fontSize: 26,
+    height: 30 / 26,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.5,
+    fontVariations: <FontVariation>[FontVariation(weightAxis, 800)],
+    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+  );
+
   /// Screen titles on Inicio (greeting).
   static const TextStyle display = TextStyle(
     fontFamily: pontualFontFamily,
