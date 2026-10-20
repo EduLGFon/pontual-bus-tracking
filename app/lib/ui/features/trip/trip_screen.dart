@@ -419,9 +419,8 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   /// Leaves the trip screen without ending the trip. Pops when there is a
   /// screen to return to; a deep link or a bare harness falls back home.
   void _minimize() {
-    final NavigatorState navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
+    if (context.canPop()) {
+      context.pop();
     } else {
       context.go('/');
     }

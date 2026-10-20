@@ -86,11 +86,8 @@ class _TripEndCardState extends State<TripEndCard> {
     }
     _gone = true;
     final BuildContext context = this.context;
-    // Navigator, not the go_router helper: the card is also mounted in
-    // plain MaterialApp harnesses that have no GoRouter above them.
-    final NavigatorState navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
+    if (context.canPop()) {
+      context.pop();
     } else {
       context.go('/');
     }
