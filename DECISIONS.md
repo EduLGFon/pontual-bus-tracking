@@ -2752,3 +2752,53 @@ Verified: `flutter analyze` clean, `dart format` clean, full app
 suite green (365 passed, 1 skipped), including new tests for local
 aging after a socket drop, age reset on a fresh frame, and retention
 through a failed refresh.
+
+## D74-2026-10-19: web gap recovery stays foreground-only (Accepted)
+
+Owner decision: implement option B from
+`docs/web-background-sharing.md` now, without changing the
+foreground-only web contract. The app does not request background
+location, a new permission, a new dependency, telemetry, a local
+database, or a server contract change. The web banner continues to
+say that the screen must stay open and unlocked, and the Android
+native app remains the screen-off path.
+
+On a web visible transition, `TripScreen` re-requests the wake lock
+and `TripController.recoverWebSharing` clears the hidden pause and
+asks `LocationService.recoverNow` for one high-accuracy one-shot
+position with a 15 s timeout. The service restarts a dead or silent
+stream and feeds the one-shot through the existing accuracy, mock,
+freshness, speed, and heading filters. The accepted fix enters the
+normal `_nextPingAtMs` path, so recovery cannot bypass the server
+interval. A fix that was accepted before the hide but delivered
+after recovery is dropped when it is already older than
+`fixMaxAgeMs`; `TripFix.acceptedAtMs` carries the acceptance time
+without adding data to the wire.
+
+When a hide lasted at least `webTripTimeoutFallbackMs` (10 min, the
+server default), the next `gone` is rendered as
+`TripEndKind.automatic` with detail `timeout` and a new end-card
+string. The client never ends a trip by itself: the fallback only
+classifies the server's answer. A shorter hide keeps the existing
+one-time revive path for a server restart or lost record. Clearing
+the flag on a successful outcome means a stale prediction cannot
+end a healthy trip.
+
+The implementation is in `location_service.dart`,
+`trip_controller.dart`, `trip_screen.dart`, `trip_end_card.dart`,
+`ui_strings.dart`, and `visibility.dart`. Unit and widget tests
+cover the one-shot filter path and failure, stream restart, one
+paced ping, stale queued fix rejection, hidden-duration tracking,
+the short-gap revive, the long-gap timeout end, wake-lock
+re-request on resume, and the end-card copy.
+
+Verified: `flutter analyze` clean, `dart format
+--set-exit-if-changed` clean (203 files), full app suite green
+(370 passed, 1 skipped), `flutter build web --release` exit 0
+(`main.dart.js` 993,825 bytes
+gzip, about 970 KiB), and `bash tools/ci/manifest_audit.sh` PASS.
+No Android manifest or dependency changed; the source audit still
+shows no `ACCESS_BACKGROUND_LOCATION`, `WAKE_LOCK`, or boot
+receiver. Not verified: the field protocol, real recovery latency,
+and wake-lock behavior on Android Chrome and iOS Safari/PWA. This
+ADR does not claim background or screen-off coverage.

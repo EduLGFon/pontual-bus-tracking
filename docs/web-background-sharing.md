@@ -1,6 +1,9 @@
 # Web/PWA background location sharing: feasibility and test plan
 
-Status: investigation only. No product decision recorded, no code changed.
+Status: option B (foreground-only gap recovery) approved by the owner and
+implemented on 2026-10-19. The field protocol in section 7 is still pending,
+so the platform behavior described here remains unverified outside unit and
+widget tests. No background coverage is claimed. See `DECISIONS.md` D74.
 Date: 2026-10-19.
 Related design: `PLAN.md` 8.12 (web/PWA specifics), D11 (no background
 location on Android), D-U24 (Android web is viewer-only), D59 (background
@@ -249,55 +252,61 @@ Source: Android Developers, "Foreground service types", Location section
 
 ## 4. What the current implementation does
 
-The current web mode is a deliberate foreground-only design:
+The current web mode is a deliberate foreground-only design with best-effort
+gap recovery:
 
-- `TripScreen` requests a wake lock while the trip screen is alive
+- `TripScreen` requests a wake lock while the trip screen is alive, returns on
+  `resumed`, and re-requests the lock on every visible transition
   (`app/lib/ui/features/trip/trip_screen.dart`).
-- `WebVisibilityTracker` pauses after 60 s hidden and clears the pause on
-  visible (`app/lib/platform/web/visibility.dart`).
-- `TripController.setWebHidden(true)` makes the fix subscription drop fixes
-  while hidden (`app/lib/features/trip/trip_controller.dart`).
+- `WebVisibilityTracker` pauses after 60 s hidden. It keeps the hidden-since
+  timestamp even if the 5 s check timer was frozen, so resume can pass the
+  real gap to the controller (`app/lib/platform/web/visibility.dart`).
+- `TripController.setWebHidden(true)` drops fixes while hidden. On visible,
+  `recoverWebSharing` clears the pause and asks `LocationService` for one
+  high-accuracy one-shot. The service also restarts the stream when it is dead
+  or silent, then emits the one-shot through the normal filter
+  (`app/lib/features/trip/trip_controller.dart`,
+  `app/lib/features/trip/location_service.dart`).
+- The accepted fix uses the existing `_nextPingAtMs` pacing, so recovery does
+  not bypass the server interval. `TripFix.acceptedAtMs` lets the controller
+  drop a fix that sat in the stream queue across the hide and would otherwise
+  be published with a stale position.
+- If the page was hidden for at least the 10-minute server-timeout fallback,
+  the next `gone` is shown as `TripEndKind.automatic` with detail `timeout`.
+  It is not revived with a stale fix. Short gaps keep the existing one-time
+  revive path for server restarts or lost records.
 - `WebTripBanner` is always visible during a web trip and says: "Mantenha esta
   tela aberta e o celular desbloqueado."
 - The server ends a trip after 600 s without a ping
   (`trip_timeout_s = 600`), and the viewer hides a vehicle after 120 s without
   a fix.
 
-This is honest and matches the platform. The gaps are around recovery, not
-background acquisition:
+This is honest and matches the platform. Remaining limits:
 
-1. **No immediate recovery on visible.** The screen becomes visible and
-   `setWebHidden(false)` runs, but no one-shot position is requested. The
-   location service's stall watchdog runs from supervision rounds, and its
-   threshold is 30 s. The first new fix after returning can therefore take up
-   to roughly the next supervision round plus GPS acquisition time.
-2. **Wake-lock reacquisition is unverified.** The app calls `enable()` once
-   when the trip screen starts. `wakelock_plus` 1.8.0 contains a web
-   visibility hook in its fallback script, but the release path has not been
-   device-tested after a hide/show cycle. The browser releases the lock on
-   hidden; the app should confirm that it is held again on visible.
-3. **Timeout semantics need a product test.** When the server ends a trip for
-   `timeout`, the next ping returns `gone`. The client has a one-time `_revive`
-   path for `gone` that calls `startTrip(resume: true)` with the last accepted
-   fix. That can be correct for a server restart or a lost record, but after a
-   deliberate 10-minute timeout it may silently create a new trip when the
-   user returns. The UI must not present that as an uninterrupted trip.
-4. **The pause flag is not a guarantee.** If the page is frozen, the 5 s
-   visibility timer does not run. The `paused` state may only be observed
-   after the page resumes, at which point `onVisible()` clears it. This is a
-   UI/policy signal, not proof that the page was running while hidden.
-5. **There is no background acquisition.** No amount of client refactoring
-   changes that while the app is a web page.
+1. **There is no background acquisition.** The page still stops receiving
+   location when hidden, frozen, discarded, or terminated. Recovery only
+   shortens the post-return gap.
+2. **The pause flag is not a guarantee.** If the page is frozen, the 5 s
+   visibility timer does not run. The tracker reports the gap on resume, but
+   nothing ran while hidden.
+3. **Wake-lock reacquisition is unverified on devices.** The app re-requests
+   the lock and re-checks `enabled`, but the browser remains free to refuse or
+   release it. The release path has not been tested after a hide/show cycle.
+4. **The timeout fallback is a prediction.** The server remains authoritative.
+   A hide of 10 minutes or more marks the next `gone` as a timeout; a shorter
+   hide keeps the revive path. The client never ends a trip on its own.
 
-These are code-reading findings, not device results. The test protocol below
-is designed to confirm or reject them.
+The unit and widget tests cover the visible transition, stream restart,
+one-shot filter path, one paced ping, stale queued fix rejection, wake-lock
+re-request, and the explicit timeout end. The device protocol below is still
+required for real latency and lifecycle behavior.
 
 ## 5. Candidate approaches
 
 | ID | Approach | Coverage while hidden | Main trade-off | Verdict |
 | --- | --- | --- | --- | --- |
 | A | Foreground sharing with wake lock | None | Screen stays on; battery; user cannot use the phone | Keep |
-| B | Immediate gap recovery on visible | None, but shortens the post-return gap | Small pure-web change; no new data | Recommend |
+| B | Immediate gap recovery on visible | None, but shortens the post-return gap | Small pure-web change; no new data | Implemented |
 | C | Silent audio or video keepalive | None or accidental | Does not override the geolocation gate; battery; policy and trust risk | Reject |
 | D | Service worker, Background Sync, Periodic Sync | None | No Geolocation API in workers | Reject |
 | E | Push notification wake-up | None | Worker still has no location | Reject |
@@ -328,28 +337,28 @@ This is the smallest useful improvement that stays pure web. It does not
 extend coverage while hidden. It reduces the period after return in which the
 map still shows the old position and no new ping has arrived.
 
-Proposed behavior:
+Implemented behavior:
 
 - On `visible` after a hidden period, clear the pause flag and, if a trip is
-  active, request one high-accuracy `getCurrentPosition()` with a short
+  active, request one high-accuracy `getCurrentPosition()` with a 15 s
   timeout. Feed the result through the existing `LocationService` filter, so
   the 60 m accuracy gate, mock rejection, and 20 s age gate still apply.
-- Restart or kick the position stream if it is dead or silent, instead of
-  waiting for the 30 s supervision round. Keep the existing stall watchdog as
-  the fallback.
+- Restart the position stream if it is dead or silent, instead of waiting for
+  the 30 s supervision round. Keep the existing stall watchdog as the
+  fallback.
 - If the fix is accepted and the server's interval allows a send, queue one
   immediate ping. Do not bypass the per-device rate limit.
-- Re-request the wake lock on visible and listen for its release event. Do not
+- Re-request the wake lock on visible and re-check `enabled`. The app does not
   assume the original sentinel is still held.
-- Show a short "retomando" state and the age of the last position. If the
-  server ended the trip, show the ended state explicitly; do not silently
-  revive it.
-- Do not queue fixes collected while hidden. There should be none, and stale
-  fixes must not be published.
+- If the server ended the trip after a long hide, show the ended state as
+  `timeout`; do not silently revive it. A short hide keeps the one-time revive
+  path for server restarts or lost records.
+- Drop a queued fix that was accepted more than 20 s before delivery, so a fix
+  collected before the hide cannot be published as fresh after recovery.
 
-This is a frontend-only change: no new permission, no new field, no server
-change, no retention change. It needs unit tests for the visible transition
-and field tests for the actual latency.
+This is a frontend-only change: no new permission, no new wire field, no
+server change, no retention change. It is covered by unit and widget tests;
+the device protocol below is still required for actual latency.
 
 ### 5.3 C: silent audio or video keepalive
 
@@ -526,11 +535,11 @@ alive.
 | Situation | Platform behavior | Current app behavior | Product requirement |
 | --- | --- | --- | --- |
 | Screen on, trip screen visible | Fixes and pings flow | Works | Keep; wake lock held; banner visible |
-| Brief hide, under 60 s | Updates may stop immediately | No pause flag; fixes may stop; return resumes | Do not claim continuity; recover promptly |
-| Hide 60 s to 10 min | No updates while hidden | Pause flag after 60 s if timers run; trip alive | Resume on return; show gap/age |
-| Hide over 10 min | No updates; server timeout | Next ping returns `gone`; one-time revive path may create a new trip | Show ended or explicit restart; never silent ghost |
-| Screen locked | Wake lock released; updates stop | Same as hide | Screen-off is not supported on web |
-| App switched | Page hidden or frozen | Same as hide | Same |
+| Brief hide, under 60 s | Updates may stop immediately | No pause flag; return triggers one-shot recovery | Do not claim continuity; recover promptly |
+| Hide 60 s to 10 min | No updates while hidden | Pause flag after 60 s if timers run; resume restarts a dead stream and one-shots | Resume on return; show gap/age |
+| Hide over 10 min | No updates; server timeout | Long-gap `gone` shows an explicit `timeout` end; no revival | Show ended or explicit restart; never silent ghost |
+| Screen locked | Wake lock released; updates stop | Same as hide; resume recovery is best effort | Screen-off is not supported on web |
+| App switched | Page hidden or frozen | Same as hide; recovery runs on visible | Same |
 | Another app, Android video PiP | Video keeps playing; the page is hidden and geolocation pauses | Not implemented | Do not treat video PiP as sharing |
 | Another app, desktop Document PiP | PiP window stays visible and can keep fixes while the opener is hidden; closing or covering it stops | Not implemented | Desktop-only best effort; never offered as mobile sharing |
 | Another app, web notification | Notification is shown, but no code runs; location stops | Not implemented | Never present a notification as proof of sharing |
@@ -542,18 +551,16 @@ alive.
 | Native Android, screen off | Foreground service continues | Works with notification | Supported path |
 | Native iOS, screen off | Core Location background mode | Not in this app | Separate product decision |
 
-Two failure modes deserve explicit tests:
+Two failure modes now have regression cover:
 
-- **Silent revival after timeout.** If the client's `gone` revive path
-  recreates a trip after the server timed out, the user may see a trip that
-  looks continuous but has a new start time and a stale first position. Test
-  it and decide whether the revive path should be limited to server-restart
-  cases, or whether the UI should always show an ended state after a long
-  gap.
-- **Stale wake-lock state.** If the wake lock is not reacquired after a
-  hide/show cycle, the screen can sleep during a supposedly foreground trip.
-  The banner says the screen stays on, so this would be a visible contract
-  violation. Test it on Android Chrome and iOS Safari/PWA.
+- **Silent revival after timeout.** The long-gap `gone` path now ends with
+  detail `timeout` instead of reviving. The controller test asserts the
+  explicit end. A short gap still revives once, which covers a server restart
+  or a lost record.
+- **Stale wake-lock state.** The widget test asserts that a visible transition
+  re-requests the lock. Device behavior on Android Chrome and iOS Safari/PWA
+  still needs the field protocol below, because the browser can refuse the
+  request or release it again.
 
 ## 7. Device test protocol
 
@@ -708,18 +715,19 @@ Keep the foreground-only product contract. The web banner already states it,
 and the Android native app already covers screen-off sharing. This is the only
 configuration that is both reliable and honest on the web.
 
-Add gap recovery as a small, pure-web improvement:
+Gap recovery is implemented as a small, pure-web improvement:
 
 - one-shot position on visible, fed through the existing filter;
-- immediate stream restart or kick when the stream is dead or silent;
+- immediate stream restart when the stream is dead or silent;
 - one paced ping when a fresh fix is accepted;
-- explicit wake-lock reacquisition and release handling;
-- an honest "retomando" or age display;
-- an explicit ended state after a server timeout, with no silent revival.
+- wake-lock re-request and `enabled` re-check on visible;
+- an explicit ended state after a server timeout, with no silent revival;
+- rejection of a queued fix that is already stale by delivery.
 
 No server change, new permission, new dependency, or new data field is needed.
-The change should be covered by unit tests for the visible transition and by
-the S1-S6 field cells above.
+Unit and widget tests cover the visible transition, one-shot path, stream
+restart, pacing, stale queued fix, wake lock, and timeout end. The S1-S6 field
+cells above are still required before claiming measured latency.
 
 ### 8.2 Do not adopt
 
@@ -770,8 +778,11 @@ implements the service, token, retry, and notification path.
    Document PiP prototype worth the second location loop, knowing that it
    still stops when the screen locks or the PiP window closes?
 
-No decision should be recorded in `DECISIONS.md` until the owner answers
-these. This document is evidence and a proposal, not an ADR.
+Questions 1, 2, and 4 are answered by D74: foreground-only sharing is
+accepted for the alpha, gap recovery is implemented now, and a long-gap
+server timeout is shown as an explicit end. Questions 3, 5, 6, and 7 remain
+open. This document is evidence; the decision itself lives in
+`DECISIONS.md`.
 
 ## 10. Sources
 
