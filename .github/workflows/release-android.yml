@@ -64,6 +64,7 @@ jobs:
         working-directory: app
         run: >
           flutter build appbundle --release --obfuscate
+          --target-platform=android-arm64
           --split-debug-info=build/debug-info
           --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }}
           --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
@@ -71,6 +72,7 @@ jobs:
         working-directory: app
         run: >
           flutter build apk --release --obfuscate
+          --target-platform=android-arm64
           --split-debug-info=build/debug-info
           --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }}
           --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
