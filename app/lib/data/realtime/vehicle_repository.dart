@@ -7,6 +7,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:pontual/core/time/clock.dart';
+import 'package:pontual/data/api/dto.dart';
+import 'package:pontual/domain/reporting/report_kind.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// One vehicle as shown on the map and in the list.
@@ -96,6 +98,113 @@ class ClientVehicle {
   }
 }
 
+/// One active passenger report as held by the line stream. Ages are
+/// relative to receipt on the monotonic clock, never the device wall
+/// clock. No device id, coordinates, or free text.
+class ClientReport {
+  /// Creates a client report.
+  const ClientReport({
+    required this.kind,
+    required this.stop,
+    required this.count,
+    required this.createdAgeS,
+    required this.updatedAgeS,
+    required this.expiresInS,
+    this.receivedAtMs,
+  });
+
+  /// Report kind; [ReportKind.unknown] for a newer server value.
+  final ReportKind kind;
+
+  /// Static stop id for stop-level kinds, null for line-level ones.
+  final String? stop;
+
+  /// Distinct devices that reported this target.
+  final int count;
+
+  /// Age of the first report at receipt, in seconds.
+  final int createdAgeS;
+
+  /// Age of the newest report at receipt, in seconds.
+  final int updatedAgeS;
+
+  /// Seconds until expiry at receipt.
+  final int expiresInS;
+
+  /// Monotonic receipt time in ms, null outside the repository.
+  final int? receivedAtMs;
+
+  /// Created age advanced to [nowMs].
+  int createdAgeAt(int nowMs) => _aged(createdAgeS, nowMs);
+
+  /// Updated age advanced to [nowMs].
+  int updatedAgeAt(int nowMs) => _aged(updatedAgeS, nowMs);
+
+  /// Remaining seconds at [nowMs], never negative.
+  int expiresInAt(int nowMs) {
+    final int? received = receivedAtMs;
+    if (received == null) return expiresInS;
+    final int elapsedS = (nowMs - received) ~/ 1000;
+    final int left = expiresInS - (elapsedS < 0 ? 0 : elapsedS);
+    return left < 0 ? 0 : left;
+  }
+
+  int _aged(int base, int nowMs) {
+    final int? received = receivedAtMs;
+    if (received == null) return base;
+    final int elapsedS = (nowMs - received) ~/ 1000;
+    return base + (elapsedS < 0 ? 0 : elapsedS);
+  }
+
+  /// Copy with ages advanced to [nowMs] and stamped at that instant.
+  ClientReport withAgesAt(int nowMs) {
+    return ClientReport(
+      kind: kind,
+      stop: stop,
+      count: count,
+      createdAgeS: createdAgeAt(nowMs),
+      updatedAgeS: updatedAgeAt(nowMs),
+      expiresInS: expiresInAt(nowMs),
+      receivedAtMs: nowMs,
+    );
+  }
+
+  /// Maps a DTO received at [receivedAtMs].
+  factory ClientReport.fromDto(ReportDTO dto, {int? receivedAtMs}) {
+    return ClientReport(
+      kind: dto.kind,
+      stop: dto.stop,
+      count: dto.count,
+      createdAgeS: dto.createdAgeS,
+      updatedAgeS: dto.updatedAgeS,
+      expiresInS: dto.expiresInS,
+      receivedAtMs: receivedAtMs,
+    );
+  }
+
+  /// Parses one stream item. Malformed items are dropped by the caller.
+  static ClientReport? fromJson(Object? raw) {
+    final ReportDTO? dto = ReportDTO.fromJson(raw);
+    return dto == null ? null : ClientReport.fromDto(dto);
+  }
+}
+
+/// One line snapshot: vehicles plus reports. Keeping both in one payload
+/// avoids a second socket and a second poll.
+class ClientSnapshot {
+  /// Creates a snapshot.
+  const ClientSnapshot({
+    required this.vehicles,
+    this.reports = const <ClientReport>[],
+  });
+
+  /// Vehicles of the line.
+  final List<ClientVehicle> vehicles;
+
+  /// Active reports of the line.
+  final List<ClientReport> reports;
+}
+
 /// Stream status shown in the status row.
 enum StreamStatus {
   /// Connecting to the stream.
@@ -133,8 +242,8 @@ const int pollIntervalS = 10;
 /// Opens a WebSocket channel. Injectable for tests.
 typedef ChannelFactory = Future<WebSocketChannel> Function(Uri url);
 
-/// Fetches one snapshot over HTTP. Injectable for tests.
-typedef SnapshotFetcher = Future<List<ClientVehicle>> Function(int lineId);
+/// Fetches one line snapshot over HTTP. Injectable for tests.
+typedef SnapshotFetcher = Future<ClientSnapshot> Function(int lineId);
 
 /// Reconnect delays in seconds: 5, 10, 20, then 30 s until the screen
 /// goes away. The socket is re-established while polling covers the data,
@@ -184,6 +293,17 @@ class VehicleRepository {
 
   List<ClientVehicle> _vehicles = <ClientVehicle>[];
 
+  /// Latest reports with ages advanced to now. Same monotonic rule as
+  /// vehicles; expired rows are filtered by the UI provider.
+  List<ClientReport> get reports {
+    final int now = _clock.monotonicMs();
+    return List<ClientReport>.unmodifiable(
+      _reports.map((ClientReport r) => r.withAgesAt(now)),
+    );
+  }
+
+  List<ClientReport> _reports = <ClientReport>[];
+
   /// Current stream status.
   StreamStatus get status => _status;
   StreamStatus _status = StreamStatus.connecting;
@@ -217,6 +337,7 @@ class VehicleRepository {
     _lineId = lineId;
     _reconnectAttempt = 0;
     _status = StreamStatus.connecting;
+    _reports = <ClientReport>[];
     await _resync();
     if (_stopped) {
       return;
@@ -224,6 +345,10 @@ class VehicleRepository {
     await _connect();
     _armWatchdog();
   }
+
+  /// Forces one snapshot fetch. Safe before start: it returns immediately
+  /// when no line is watched.
+  Future<void> refresh() => _resync();
 
   /// Stops everything: socket, watchdog, polling, reconnect. Safe to call twice.
   Future<void> stop() async {
@@ -265,12 +390,13 @@ class VehicleRepository {
     }
     _resyncing = true;
     try {
-      final List<ClientVehicle> fetched = await _fetchSnapshot(line);
+      final ClientSnapshot fetched = await _fetchSnapshot(line);
       if (_stopped || _lineId != line) {
         return;
       }
       final int now = _clock.monotonicMs();
-      _vehicles = _stamped(fetched, now);
+      _vehicles = _stamped(fetched.vehicles, now);
+      _reports = _stampedReports(fetched.reports, now);
       _lastSnapshotAtMs = now;
       evaluateAge();
     } catch (_) {
@@ -286,6 +412,26 @@ class VehicleRepository {
   static List<ClientVehicle> _stamped(List<ClientVehicle> rows, int nowMs) {
     return rows
         .map((ClientVehicle v) => v.copyWith(receivedAtMs: nowMs))
+        .toList(growable: false);
+  }
+
+  /// Stamps reports with the same receipt time.
+  static List<ClientReport> _stampedReports(
+    List<ClientReport> rows,
+    int nowMs,
+  ) {
+    return rows
+        .map(
+          (ClientReport r) => ClientReport(
+            kind: r.kind,
+            stop: r.stop,
+            count: r.count,
+            createdAgeS: r.createdAgeS,
+            updatedAgeS: r.updatedAgeS,
+            expiresInS: r.expiresInS,
+            receivedAtMs: nowMs,
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -334,16 +480,30 @@ class VehicleRepository {
       // the socket is alive, even with no vehicle rows in it.
       _lastFrameAtMs = _clock.monotonicMs();
       final List<dynamic>? rows = decoded['v'] as List<dynamic>?;
-      if (rows == null) {
+      final List<dynamic>? reportRows = decoded['r'] as List<dynamic>?;
+      if (rows == null && reportRows == null) {
         return;
       }
       final int now = _clock.monotonicMs();
-      final List<ClientVehicle> parsed = rows
-          .map(
-            (dynamic r) => ClientVehicle.fromRow((r as List<dynamic>).toList()),
-          )
-          .toList();
-      _vehicles = _stamped(parsed, now);
+      if (rows != null) {
+        final List<ClientVehicle> parsed = rows
+            .map(
+              (dynamic r) =>
+                  ClientVehicle.fromRow((r as List<dynamic>).toList()),
+            )
+            .toList();
+        _vehicles = _stamped(parsed, now);
+      }
+      // A vehicle-only frame leaves the last reports in place; an empty
+      // `r` array explicitly clears them.
+      if (reportRows != null) {
+        final List<ClientReport> parsed = <ClientReport>[];
+        for (final Object? item in reportRows) {
+          final ClientReport? report = ClientReport.fromJson(item);
+          if (report != null) parsed.add(report);
+        }
+        _reports = _stampedReports(parsed, now);
+      }
       _lastSnapshotAtMs = now;
       evaluateAge();
     } catch (_) {

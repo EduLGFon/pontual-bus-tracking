@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/dto.dart';
 import 'package:pontual/data/net/http_client.dart';
+import 'package:pontual/domain/reporting/report_kind.dart';
 
 /// Base URL provider, injectable for tests.
 typedef BaseUrlProvider = String Function();
@@ -180,6 +181,36 @@ class BusApi {
         : Err<bool>((res as Err<void>).failure);
   }
 
+  /// Creates or retracts a passenger report. No coordinates and no
+  /// client timestamp: the server owns the time. Returns the refreshed
+  /// line reports so the caller can update immediately.
+  Future<Result<List<ReportDTO>>> postReport(
+    String token, {
+    required String op,
+    required ReportKind kind,
+    required int lineId,
+    String? stop,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{
+      'op': op,
+      'kind': kind.wire,
+      'line': lineId,
+      'stop': ?stop,
+    };
+    final Result<Map<String, dynamic>> res = await _authed(
+      token,
+      'POST',
+      '/v1/reports',
+      body,
+    );
+    if (res is Err<Map<String, dynamic>>) {
+      return Err<List<ReportDTO>>(res.failure);
+    }
+    final Map<String, dynamic> payload =
+        (res as Ok<Map<String, dynamic>>).value;
+    return Ok<List<ReportDTO>>(parseReports(payload['r']));
+  }
+
   /// Fetches the public vehicle snapshot for [lineId]. Uses a
   /// conditional GET once an ETag is known; 304 answers serve the
   /// cached snapshot without re-downloading it.
@@ -216,6 +247,7 @@ class BusApi {
         vehicles: rows
             .map((dynamic r) => (r as List<dynamic>).cast<num?>())
             .toList(),
+        reports: parseReports(body['r']),
       );
       final String? newEtag = _header(res.headers, 'etag');
       if (newEtag != null) {

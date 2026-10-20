@@ -13,6 +13,7 @@ import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
+import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
@@ -59,6 +60,7 @@ class LineMap extends StatefulWidget {
     this.dashedRoute = false,
     this.selectedKey,
     this.onVehicleTap,
+    this.onStopTap,
     this.viewerPosition,
     this.panned = false,
     this.controlsBottomPadding = Space.x3,
@@ -97,6 +99,9 @@ class LineMap extends StatefulWidget {
 
   /// Called when a marker is tapped.
   final ValueChanged<VehicleVM>? onVehicleTap;
+
+  /// Called when a stop dot is tapped. Null keeps stops decorative.
+  final ValueChanged<StopPoint>? onStopTap;
 
   /// True once the user has panned away from the automatic camera.
   final bool panned;
@@ -316,9 +321,14 @@ class LineMapState extends State<LineMap> {
                         Marker(
                           key: ValueKey<String>('stop-${stop.id}'),
                           point: LatLng(stop.lat, stop.lng),
-                          width: 16,
-                          height: 16,
-                          child: _StopDot(name: stop.name),
+                          width: 44,
+                          height: 44,
+                          child: _StopDot(
+                            name: stop.name,
+                            onTap: widget.onStopTap == null
+                                ? null
+                                : () => widget.onStopTap!(stop),
+                          ),
                         ),
                     ],
                   ),
@@ -454,19 +464,29 @@ class _ViewerDot extends StatelessWidget {
 
 /// Bus stop dot: small muted circle with a surface ring. Never a bus
 /// glyph and never pulsing, so it cannot read as a vehicle. Names come
-/// from survey or OSM data, never invented.
+/// from survey or OSM data, never invented. The 44 dp hit target opens
+/// the stop sheet; the visible dot stays 10 dp.
 class _StopDot extends StatelessWidget {
   /// Creates a stop dot with the posted [name], if mapped.
-  const _StopDot({this.name});
+  const _StopDot({this.name, this.onTap});
 
   /// Posted stop name, null when unmapped.
   final String? name;
 
+  /// Opens the stop sheet.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Semantics(
-      label: name == null || name!.isEmpty ? 'Ponto de ônibus' : 'Ponto: $name',
+    final String label = name == null || name!.isEmpty
+        ? 'Ponto de ônibus'
+        : 'Ponto: $name';
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: label,
+      borderRadius: Radii.pill,
+      minSize: 44,
       child: Center(
         child: Container(
           width: 10,

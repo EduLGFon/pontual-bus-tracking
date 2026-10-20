@@ -10,6 +10,7 @@ import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
+import 'package:pontual/ui/adapters/reports_adapter.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
@@ -23,6 +24,8 @@ import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
+import 'package:pontual/ui/features/reports/stop_sheet.dart';
+import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -147,6 +150,9 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
     final bool dataSaver = ref.watch(settingsProvider).dataSaver;
     final bool showMap = _mapOpened || !dataSaver;
     final List<VehicleVM> vehicles = _vehiclesOf(staticLine);
+    final List<ReportVM> reports = staticLine.pilot
+        ? ref.watch(reportsVmProvider(staticLine.id))
+        : const <ReportVM>[];
     final bool compact = MediaQuery.sizeOf(context).width < 600;
     if (showMap) {
       _ensureInitialFit(
@@ -165,9 +171,15 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
               ? _compact(
                   staticLine: staticLine,
                   vehicles: vehicles,
+                  reports: reports,
                   map: showMap,
                 )
-              : _wide(staticLine: staticLine, vehicles: vehicles, map: showMap),
+              : _wide(
+                  staticLine: staticLine,
+                  vehicles: vehicles,
+                  reports: reports,
+                  map: showMap,
+                ),
         ),
       ),
     );
@@ -177,6 +189,7 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
   Widget _compact({
     required StaticLine staticLine,
     required List<VehicleVM> vehicles,
+    required List<ReportVM> reports,
     required bool map,
   }) {
     final bool shareable = staticLine.pilot;
@@ -216,6 +229,7 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
               line: lineVmOf(staticLine),
               staticLine: staticLine,
               vehicles: vehicles,
+              reports: reports,
               scrollController: controller,
               viewer: ref.watch(viewerLocationProvider).value,
               initialTab: widget.tab,
@@ -257,6 +271,7 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
   Widget _wide({
     required StaticLine staticLine,
     required List<VehicleVM> vehicles,
+    required List<ReportVM> reports,
     required bool map,
   }) {
     final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
@@ -267,6 +282,7 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
         line: lineVmOf(staticLine),
         staticLine: staticLine,
         vehicles: vehicles,
+        reports: reports,
         scrollController: ScrollController(),
         viewer: ref.watch(viewerLocationProvider).value,
         initialTab: widget.tab,
@@ -308,6 +324,26 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
         _mapKey.currentState?.centerOnClosestBus();
       },
       onVehicleTap: (VehicleVM v) => _focus(v, true),
+      onStopTap: (StopPoint stop) {
+        final StaticLine? line = _staticLine;
+        if (line != null) _openStop(line, stop, stops);
+      },
+    );
+  }
+
+  /// Opens the stop sheet for a tapped stop dot. The report is scoped to
+  /// the line the user is already viewing; no location permission is
+  /// requested and no coordinate leaves the device.
+  void _openStop(StaticLine line, StopPoint stop, List<StopPoint> stops) {
+    if (!line.pilot || !ref.read(appFeaturesProvider).reports) return;
+    unawaited(
+      showStopSheet(
+        context,
+        line: line,
+        stop: stop,
+        stops: stops,
+        onChanged: () => ref.read(vehicleRepoProvider(line.id)).refresh(),
+      ),
     );
   }
 
