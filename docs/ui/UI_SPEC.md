@@ -1009,12 +1009,16 @@ soft ring pulse; CPU ~0):
 │        Você está ajudando          │
 │        quem espera o ônibus        │  headline
 │    (AC) Aroeira / Cohab            │
-│        00:23:41                    │  elapsed, tabular, updates each second only here
+│        há 12 min                   │  elapsed, tabular, 5 s tick
 │                                    │
-│  Conexão     ✓ Conectado           │  rows with icon + text (never colour only)
-│  GPS         ✓ Bom                 │
-│  Seu celular  Modo economia        │  or "Enviando com mais frequência"
-│  (role copy explains rotation)     │
+│  ┌ métricas (um cartão) ─────────┐ │
+│  │ GPS            ±8 m           │ │  accuracy from the last accepted fix
+│  │ ▓▓▓▓▓▓▓▓▓░░░  7 de 12 satélites│ │  meter against the 60 m publish gate
+│  │ Celular        85%            │ │  battery bucket from the last fix
+│  │ ▓▓▓▓▓▓▓▓▓▓▓░  Carregando agora│ │  meter is the real level
+│  │ Envio          15 s           │ │  server interval, never a client guess
+│  │ Com mais frequência           │ │  role explains the cadence
+│  └───────────────────────────────┘ │
 │  ┌ dica (dismissible, Android) ┐   │
 │  │ Se parar sozinho, defina a  │   │
 │  │ bateria do app como "Sem    │   │
@@ -1025,14 +1029,21 @@ soft ring pulse; CPU ~0):
 └────────────────────────────────────┘
 ```
 
-States: _waiting_ ("Aguardando o ônibus sair…"), _leader_ ("Enviando com mais
+States: _waiting_ ("Aguardando o ônibus…"), _leader_ ("Enviando com mais
 frequência. Revezamos a cada poucos minutos para poupar a bateria de todos."),
-_follower_ ("Outras pessoas também compartilham, então enviamos menos vezes."), _offline_
-("Sem conexão. Vamos retomar assim que voltar."), _paused_ (permission/GPS
-banner with the action), _web_ (extra banner "Mantenha esta tela aberta e o
-celular desbloqueado." + tip to lower brightness + wake-lock status). Rules: the
-word "líder/seguidor/ping/cluster" never appears. The end button is the only
-large control; ending is immediate (no confirm), followed by the end card.
+_follower_ ("Outras pessoas também compartilham, então enviamos menos vezes."),
+_offline_ ("Sem conexão. Vamos retomar assim que voltar."), _paused_
+(permission/GPS banner with the action), _web_ (extra banner "Mantenha esta tela
+aberta e o celular desbloqueado." + tip to lower brightness + wake-lock status).
+Rules: the word "líder/seguidor/ping/cluster" never appears. The end button is
+the only large control; ending is immediate (no confirm), followed by the end
+card. The metrics card shows only measured values: GPS accuracy and satellites,
+the phone battery percentage and charging state, and the server send interval.
+Missing values read "Procurando sinal", "Sem leitura" or "Sem conexão"; no
+placeholder number is invented. The GPS and battery meters compare a real value
+to the publish gate (60 m) and to 100 percent; the send metric has no meter.
+On screens of 600 dp and wider the three metrics sit in one row; below that,
+and whenever the text scale is above 1.3, they stack.
 
 **Step 4 - End card** (full-screen card, 2 s of delight then calm): checkmark
 draws in (stroke animation 400 ms, skipped on reduced motion), "Viagem

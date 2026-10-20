@@ -122,6 +122,8 @@ class StatusMetrics extends StatelessWidget {
   }
 
   /// GPS: accuracy in meters plus satellites when Android reports them.
+  /// Accuracy comes from the last accepted fix; the meter compares it to
+  /// the publish gate, not to an invented quality score.
   _Metric _gpsMetric() {
     final GnssQuality? sample = gnss;
     final String sats = sample == null
@@ -144,9 +146,10 @@ class StatusMetrics extends StatelessWidget {
         final double denominator = fixAccuracyMaxM <= 0
             ? 1
             : fixAccuracyMaxM.toDouble();
+        final int meters = accuracy < 1 ? 1 : accuracy.round();
         return _Metric(
           label: UiStrings.metricLabelGps,
-          value: UiStrings.metricAccuracy(accuracy.round()),
+          value: UiStrings.metricAccuracy(meters),
           detail: health.gpsValue == GpsValue.weak && sample == null
               ? UiStrings.metricGpsWeakDetail
               : sats,
@@ -208,6 +211,8 @@ class StatusMetrics extends StatelessWidget {
   }
 
   /// Phone: real battery percentage, charging state and a level meter.
+  /// The value is the 5 percent bucket carried by the last accepted fix,
+  /// not a fresh OS read: the fix path is the only battery source here.
   _Metric _batteryMetric() {
     final int? raw = batteryPct;
     if (raw == null) {

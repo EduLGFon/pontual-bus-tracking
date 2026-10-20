@@ -754,7 +754,8 @@ class UiStrings {
   static const String metricBatteryUnknown = 'Sem leitura';
 
   /// Phone detail while the first battery read is still pending.
-  static const String metricBatteryUnknownDetail = 'Aguardando leitura';
+  static const String metricBatteryUnknownDetail =
+      'A primeira posição traz a bateria';
 
   /// Phone detail while charging.
   static const String metricBatteryChargingDetail = 'Carregando agora';

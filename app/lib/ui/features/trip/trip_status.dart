@@ -1,7 +1,8 @@
-// Trip status block: three health tiles, one banner for the primary
+// Trip status block: one metrics card, one banner for the primary
 // issue, one neutral keep-awake tip. Everything renders from the pure
-// health model, so the same sentence never appears twice and the device
-// tile never carries connectivity. PRIVACY: no coordinates, no tokens.
+// health model plus the measured values already carried by the
+// controller, so the same sentence never appears twice and the phone
+// metric never carries connectivity. PRIVACY: no coordinates, no tokens.
 import 'dart:async';
 
 import 'package:flutter/material.dart' hide Banner;
@@ -23,6 +24,10 @@ import 'trip_metrics.dart';
 /// Milliseconds a new issue must hold before the banner flips, so a
 /// flapping signal does not flicker the screen.
 const int bannerHoldMs = 2000;
+
+/// Coarse refresh for values that arrive with accepted fixes (accuracy,
+/// battery) and for the stale-send tier. One tick per 5 s, never 1 Hz.
+const Duration metricsRefresh = Duration(seconds: 5);
 
 /// Holds the visible banner issue back until a new issue is stable.
 class IssueDebouncer {
@@ -87,6 +92,26 @@ class StatusBlock extends StatefulWidget {
 
 class _StatusBlockState extends State<StatusBlock> {
   final IssueDebouncer _debouncer = IssueDebouncer();
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // The controller notifies on roles, prompts and GNSS count changes,
+    // not on every fix. This coarse tick keeps the accuracy, battery and
+    // stale-send values current without a 1 Hz rebuild.
+    _ticker = Timer.periodic(metricsRefresh, (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   int _nowMs() {
     final int Function()? injected = widget.nowMs;

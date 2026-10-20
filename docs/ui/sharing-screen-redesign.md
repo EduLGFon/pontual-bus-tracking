@@ -236,3 +236,33 @@ numbers.
 - Anything in the brief that conflicts with PLAN.md or AGENTS.md:
   none found; the brief was followed except the documented
   endpoints-chip and dim-view deviations above.
+
+## Metrics pass (2026-10-20)
+
+The trip screen now renders measured values instead of three short words.
+`ui/features/trip/trip_metrics.dart` replaces the old `StatusTiles` with a
+single `SurfaceCard` holding three metric cells:
+
+- **GPS**: accuracy from the last accepted fix (`±8 m`), satellites used
+  and in view when Android reports them (`7 de 12 satélites`), and a meter
+  against the existing 60 m publish gate (`fixAccuracyMaxM`). No fix shows
+  the searching copy; off, no permission and approximate grants keep their
+  explicit states.
+- **Celular**: the battery bucket from the last accepted fix as a
+  percentage (`85%`), the charging state, and a level meter. Low battery
+  keeps the existing 15 percent rule; charging exempts it.
+- **Envio**: the server interval in seconds (`15 s`) plus the role
+  explanation (waiting, leader, follower, offline). The stale-send tier
+  turns the caption amber after 45 s. There is no meter because no honest
+  denominator exists.
+
+Missing values are named, never filled with a placeholder number. The
+panel stacks below 600 dp and whenever the text scale exceeds 1.3; above
+that the three cells sit in one row inside the same card. Each cell has a
+combined screen-reader sentence, and colour is never the only signal.
+
+Data sources are unchanged: accuracy, battery and GNSS quality already
+existed; `TripController.role` and `TripController.intervalS` are
+read-only getters. A 5 s tick in `StatusBlock` refreshes values that
+arrive on accepted fixes without a controller notification. No new
+dependency, permission, field, log or persisted value was added.

@@ -21,6 +21,7 @@ import 'package:pontual/ui/features/settings/settings_screen.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:pontual/ui/features/trip/trip_metrics.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
+import 'package:pontual/ui/features/trip/trip_status.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

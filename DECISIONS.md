@@ -2921,3 +2921,41 @@ Android: `flutter build appbundle --release` succeeds and produces a
 permission set, `allowBackup="false"`, and no cleartext traffic. The
 universal artifact contains all ABIs, so the per-download arm64 budget
 (15 MB) is not measured from it and remains the T45 release gate.
+
+## D78-2026-10-20: Trip sharing screen shows measured metrics (Accepted)
+
+The `/trip` screen described the phone, GPS and connection with short
+words alone ("Bom", "Tela ligada", "Conectado"). That met the truth
+rules but hid values the app already has: the last accepted fix carries
+accuracy and a 5 percent battery bucket, Android reports satellites used
+and in view, and the server sends the next send interval on every trip
+and ping response. The screen now shows those values instead of
+inventing a score.
+
+One tonal card holds three metrics. GPS shows accuracy in meters and the
+satellite count, with a meter against the existing 60 m publish gate.
+Celular shows the battery percentage from the last accepted fix, the
+charging state, and a level meter. Envio shows the server interval in
+seconds plus the role explanation (waiting, leader, follower or offline);
+it deliberately has no meter because no honest denominator exists. When
+a value is missing the copy says so ("Procurando sinal", "Sem leitura",
+"Sem conexão") instead of showing a placeholder number. A 5 s tick
+refreshes values that arrive on fixes but do not notify the controller.
+
+Only read-only signals were added: `TripController.role` and
+`TripController.intervalS`. No new field is collected, stored, logged or
+sent; accuracy, battery and GNSS quality already existed. No dependency
+changed. New copy lives in `UiStrings`; the big value uses a new
+`PontualText.metric` token. Empty accuracy is treated as searching even
+if the seeded success clock would otherwise read "good".
+
+Rejected: a derived "GPS percentage". It would look precise while
+measuring nothing. Rejected: send success percentage. The ping client
+keeps no counters, and adding them would create a stat the product does
+not need. Rejected: moving coordinates or a map into this screen.
+
+Verified: `flutter analyze` clean; the trip widget tests cover accuracy
+and satellites, battery percentage and charging, server interval and
+roles, offline and stale sends; targeted `trip_controller_test` covers
+the interval getter. Full `flutter test` passes. No manifest,
+permission, retention or data change.
