@@ -7,14 +7,17 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Banner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/platform/web/visibility.dart';
 import 'package:pontual/platform/web/wake_lock.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
+import 'package:pontual/ui/features/reports/report_sheet.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -309,7 +312,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                _header(context),
+                _header(context, c),
                 const SizedBox(height: Space.x4),
                 // Single scroll region above the pinned stop action: at
                 // large text scales the content scrolls and the button
@@ -398,7 +401,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   /// stays attached to the trip host, so the dock keeps working and
   /// sharing continues. Home is only the fallback when there is no route
   /// to pop.
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, TripController c) {
     return Padding(
       key: const ValueKey<String>('tripHeader'),
       padding: const EdgeInsets.only(top: Space.x2),
@@ -411,6 +414,28 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(width: Space.x2),
           Expanded(child: Text(UiStrings.tripTitle, style: context.text.title)),
+          Consumer(
+            builder: (BuildContext context, WidgetRef ref, Widget? child) {
+              final int? lineId = c.lineId;
+              if (lineId == null || !ref.watch(appFeaturesProvider).reports) {
+                return const SizedBox.shrink();
+              }
+              return IconBtn(
+                icon: Icons.flag_outlined,
+                semanticLabel: UiStrings.reportTripSemantic,
+                onTap: () => unawaited(
+                  showReportSheet(
+                    context,
+                    lineId: lineId,
+                    lineName: c.lineLabel,
+                    stops: ref.read(stopsProvider).value ?? const <StopPoint>[],
+                    onSubmitted: () =>
+                        ref.read(vehicleRepoProvider(lineId)).refresh(),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
