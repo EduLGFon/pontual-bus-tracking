@@ -1137,8 +1137,8 @@ shared code). Anything not listed behaves identically.
 | Input                        | touch gestures, haptics                                                                                                                            | mouse + keyboard + touch: hover tint, `SystemMouseCursors.click`, visible focus ring, shortcuts (`/` search, `Esc` close, arrows in lists, `Enter` activate), mouse-wheel scroll, draggable scrollbars on desktop, click-and-drag scrolling enabled via a custom `ScrollBehavior` |
 | Pull to refresh              | yes                                                                                                                                                | desktop has no pull gesture: show a small refresh `IconBtn` in the header on pointer devices                                                                                                                                                                                      |
 | Layout                       | compact/medium/expanded by size                                                                                                                    | same breakpoints; desktop gets the side-panel map layout and centred max-width content                                                                                                                                                                                            |
-| Startup                      | native splash (Android 12 splash API: brand `#0B3D36` background + mark), `runApp` immediately                                                     | **inline HTML/CSS splash** (below) removed on the first Flutter frame; map code deferred                                                                                                                                                                                          |
-| Icons/branding               | adaptive icon (background `#0B3D36`, mint mark) + **monochrome** layer for themed icons                                                            | favicon (SVG + 32 px PNG), `apple-touch-icon`, manifest icons (192/512, maskable), `theme-color`, Open Graph title/description                                                                                                                                                    |
+| Startup                      | native splash (Android 12 splash API: brand `#0B3D36` background + the app icon), `runApp` immediately                                               | **inline HTML/CSS splash** (below) removed on the first Flutter frame; map code deferred                                                                                                                                                                                          |
+| Icons/branding               | adaptive icon (background `#0B3228`, owner-supplied bus tile), no monochrome layer                                                                   | favicon (SVG + 32 px PNG), `apple-touch-icon`, manifest icons (192/512, maskable), `theme-color`, Open Graph title/description                                                                                                                                                    |
 | Fonts                        | bundled subset                                                                                                                                     | same files; avoid FOUT by waiting for the first frame (fonts are assets)                                                                                                                                                                                                          |
 | Links                        | `url_launcher` external application                                                                                                                | same, `noopener`, never inside the app shell                                                                                                                                                                                                                                      |
 | Install                      | Play Store (and the debug/APK distribution already in use)                                                                                         | optional PWA install: do not nag; a quiet "Instalar" item in Ajustes when the browser offers it (`beforeinstallprompt` via the project's existing JS interop if present; do not add a package)                                                                                    |
@@ -1185,7 +1185,7 @@ body {
 }
 </style>
 <div id="splash" aria-hidden="true">
-  <!-- inline SVG of the brand mark (section 15) -->
+  <!-- inline SVG of the app icon (section 15) -->
 </div>
 <script>
 window.addEventListener("flutter-first-frame", function () {
@@ -1616,16 +1616,20 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 </svg>
 ```
 
-- **Android launcher icon:** adaptive icon, background `#0B3D36`, foreground =
-  the mark (dot + arcs only) scaled to fit the 66 dp safe zone, plus a
-  **monochrome** layer for themed icons. Generate with `flutter_launcher_icons`
-  (dev dependency only). Android 12 splash: background `#0B3D36`, icon = the
-  mark.
+- **App icon:** owner-supplied mint bus on a deep green tile. Sources:
+  `design/brand/app-icon.png` (raster master) and `app-icon.svg` (vector
+  trace). Tile `#0B3228`, bus `#77E9A3`. This is the launcher, PWA and splash
+  identity; the live signal mark above stays the in-app motif.
+- **Android launcher icon:** adaptive icon, background `#0B3228`, foreground =
+  the app icon tile scaled to fit the 66 dp safe zone. No monochrome layer:
+  themed icons fall back to the standard icon until a vector monochrome
+  exists. Android 12 splash: background `#0B3D36`, icon = the adaptive icon.
 - **Web:** favicon (SVG + 32 px PNG), `apple-touch-icon` (180), manifest icons
   192 and 512 + maskable, `theme-color` `#F6F5F1` (light) and `#0A1110` (dark),
   Open Graph title "Pontual - ônibus ao vivo em São Mateus".
-- **In-app use of the mark:** the HTML splash, About screen, empty states, and
-  the end-of-trip card. The live waves icon is the same two-arc motif.
+- **In-app use of the mark:** About screen, empty states, and the end-of-trip
+  card. The live waves icon is the same two-arc motif. The HTML splash and
+  launcher use the app icon.
 - Do not use operator names, colours or logos. Include the non-affiliation line
   in About and in the store/web description.
 

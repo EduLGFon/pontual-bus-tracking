@@ -4,6 +4,10 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Replaced the launcher, PWA and HTML splash icon with the owner-supplied
+  mint bus on a deep green tile. Android legacy and adaptive, web 192/512,
+  maskable 192/512, apple-touch 180, SVG and 32 px favicons all use the new
+  artwork; see DECISIONS.md D80.
 - Copy pass on the pt-BR UI strings: fixed typos and agreement ("Baixe"
   to "Abaixe", "Linha favoritada", "Atualizado" to "Atualizados"),
   made the wake-lock, permission, favorites, and empty-live texts

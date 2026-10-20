@@ -2986,3 +2986,50 @@ in the hero proof line.
 Verified: `flutter analyze` clean; trip widget tests cover satellites used,
 in view, none and unavailable, plus accuracy, send interval, roles, offline
 and stale sends. Full `flutter test` passes.
+
+## D80-2026-10-20: second owner-supplied app icon applied (launcher + PWA)
+
+The owner placed a new `icon.png` (161x157 RGBA, rounded corners
+transparent) and `icon.svg` (161x157 monochrome trace) at the repo root and
+asked to replace the launcher and website icon and the loading screen icon.
+The PNG is the visual master. The SVG is not a full-colour source: it draws
+the rounded tile minus the bus, so a mint layer behind its dark paths
+produces the mint bus. That negative was used to rebuild the icon as a
+vector instead of upscaling the 161 px PNG to 512 px and 432 px.
+
+Sources: `design/brand/app-icon.png` (master) and `app-icon.svg` (trace)
+replaced the previous files. The stale `app-icon.jpeg` from the previous
+icon was removed; Git history keeps it. Root copies removed. The live
+signal mark `design/brand/pontual-mark.svg` and the theme tokens are
+unchanged: the app icon is the bus tile, while the in-app motif remains the
+mint dot and arcs. The launcher tile is `#0B3228` and the bus is `#77E9A3`,
+sampled from the new master; the UI brand pine `#0B3D36` is still the
+splash background, so the icon tile sits on a slightly different green.
+
+Generated with the host's ImageMagick and rsvg-convert (throwaway commands
+outside the repo, no dependency added):
+
+- Android legacy: `mipmap-mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi/ic_launcher.png`
+  at 48/72/96/144/192, rounded corners transparent.
+- Android adaptive: `drawable-<dpi>/ic_launcher_foreground.png` at
+  108/162/216/324/432 with the tile at 60 percent of the canvas and the
+  rest transparent; `mipmap-anydpi-v26/ic_launcher.xml` and
+  `ic_launcher_round.xml` use `@color/pontual_icon_bg` (`#0B3228`). No
+  monochrome layer was added.
+- Web: `icons/Icon-192.png` and `icons/Icon-512.png` (rounded, transparent
+  corners), `icons/Icon-maskable-192.png` and `Icon-maskable-512.png`
+  (tile at 80 percent on `#0B3228`), `Icon-apple-touch-180.png` (tile at
+  92 percent on `#0B3228`), `favicon.png` (32 px) and a new
+  `favicon.svg` with the coloured vector. `index.html` links the SVG
+  favicon before the PNG, keeps the manifest icon names, and replaces the
+  inline splash SVG with the app icon at the same 88 px pulsing size. The
+  splash still paints from the first frame with no network request.
+
+Verified: `identify` dimensions and alpha on all generated PNGs; visual
+check of the 512 web and maskable icons, the 180 apple touch, the 32
+favicon, the xxxhdpi foreground and the 88 px inline splash; the inline SVG
+was extracted from `index.html` and rendered at 88 px, matching the source.
+`flutter build web --release` passed and the built `index.html` and icon
+files in `app/build/web/` match the sources (only the base href differs).
+No Dart code changed. Android SDK is not installed on this host, so the
+merged-manifest and install-launch checks were not run.
