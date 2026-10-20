@@ -1,9 +1,8 @@
-// Passenger reports: pure TTL/count rules, auth, target validation, the
-// snapshot field, retraction and DELETE /v1/me cleanup.
-// See DECISIONS.md#D82.
+// Passenger reports: pure TTL/count rules, coarse area validation, auth,
+// the snapshot field, retraction and DELETE /v1/me cleanup.
+// See DECISIONS.md#D82/D83 and D83.
 import { assert, assertEquals } from "@std/assert";
 import { registryResolver } from "../src/data/lines.ts";
-import { registryStopResolver } from "../src/data/stops.ts";
 import { openDb } from "../src/db/client.ts";
 import { defaultRuntimeConfig } from "../src/config/runtime.ts";
 import {
@@ -15,10 +14,13 @@ import {
   retractReport,
   targetMismatch,
 } from "../src/domain/reports.ts";
+import { areaIdOf, isAreaInServedBBox } from "../src/domain/areas.ts";
 import { buildApp } from "../src/http/app.ts";
 import { createStore } from "../src/state/store.ts";
 import { Hub } from "../src/ws/hub.ts";
 import { defaultEngineConfig } from "../src/domain/types.ts";
+
+const AREA = "g52902_98514";
 
 function testDbUrl(): string {
   const url = Deno.env.get("TEST_DATABASE_URL");
@@ -39,7 +41,6 @@ function app() {
     sql,
     store,
     lines: registryResolver([{ id: 7, isActive: true, route: null }]),
-    stops: registryStopResolver(["s1"]),
     hub: new Hub(),
     followerJitterS: 0,
     onLineChanged: (lineId) => changes.push(lineId),
@@ -78,42 +79,46 @@ function postReport(
   });
 }
 
-Deno.test("reports domain: kind-target rules and target mismatch", () => {
+Deno.test("reports domain: kind-target rules and area encoding", () => {
   assertEquals(targetMismatch("waiting", null), true);
   assertEquals(targetMismatch("blocked", null), true);
-  assertEquals(targetMismatch("broken", "s1"), true);
-  assertEquals(targetMismatch("full", "s1"), true);
-  assertEquals(targetMismatch("waiting", "s1"), false);
+  assertEquals(targetMismatch("broken", AREA), true);
+  assertEquals(targetMismatch("full", AREA), true);
+  assertEquals(targetMismatch("waiting", AREA), false);
   assertEquals(targetMismatch("broken", null), false);
+  assertEquals(areaIdOf(-18.7156, -39.8568), AREA);
+  assertEquals(isAreaInServedBBox(AREA), true);
+  assertEquals(isAreaInServedBBox("g0_0"), false);
 });
 
 Deno.test("reports domain: count, refresh, cap, expiry and retract", () => {
   const store = createStore();
   const cfg = defaultReportsConfig();
   const t0 = 1_000_000;
-  const first = applyReport(store, 7, "waiting", "s1", "d1", t0, cfg);
+  const first = applyReport(store, 7, "waiting", AREA, "d1", t0, cfg);
   assert(first.ok && first.created);
   let rows = reportRows(store, 7, t0);
   assertEquals(rows.length, 1);
   assertEquals(rows[0].count, 1);
+  assertEquals(rows[0].area, AREA);
 
-  const second = applyReport(store, 7, "waiting", "s1", "d2", t0 + 1000, cfg);
+  const second = applyReport(store, 7, "waiting", AREA, "d2", t0 + 1000, cfg);
   assert(second.ok && !second.created);
   rows = reportRows(store, 7, t0 + 1000);
   assertEquals(rows[0].count, 2);
 
-  const repeat = applyReport(store, 7, "waiting", "s1", "d1", t0 + 2000, cfg);
+  const repeat = applyReport(store, 7, "waiting", AREA, "d1", t0 + 2000, cfg);
   assert(repeat.ok);
   rows = reportRows(store, 7, t0 + 2000);
   assertEquals(rows[0].count, 2);
   assertEquals(rows[0].updated_age_s, 0);
 
-  const retract = retractReport(store, 7, "waiting", "s1", "d2");
+  const retract = retractReport(store, 7, "waiting", AREA, "d2");
   assertEquals(retract.changed, true);
   assertEquals(retract.removed, false);
   assertEquals(reportRows(store, 7, t0 + 3000)[0].count, 1);
 
-  const gone = retractReport(store, 7, "waiting", "s1", "d1");
+  const gone = retractReport(store, 7, "waiting", AREA, "d1");
   assertEquals(gone.removed, true);
   assertEquals(reportRows(store, 7, t0 + 3000).length, 0);
 
@@ -134,8 +139,8 @@ Deno.test("reports domain: per-line cap rejects a new report", () => {
 Deno.test("reports domain: delete-me cleanup removes the device", () => {
   const store = createStore();
   const cfg = defaultReportsConfig();
-  assert(applyReport(store, 7, "waiting", "s1", "d1", 1000, cfg).ok);
-  assert(applyReport(store, 7, "waiting", "s1", "d2", 1000, cfg).ok);
+  assert(applyReport(store, 7, "waiting", AREA, "d1", 1000, cfg).ok);
+  assert(applyReport(store, 7, "waiting", AREA, "d2", 1000, cfg).ok);
   const changed = removeDeviceFromReports(store, "d2");
   assertEquals(changed, [7]);
   assertEquals(reportRows(store, 7, 1000)[0].count, 1);
@@ -143,7 +148,7 @@ Deno.test("reports domain: delete-me cleanup removes the device", () => {
   assertEquals(reportRows(store, 7, 1000).length, 0);
 });
 
-Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", async () => {
+Deno.test("POST /v1/reports: auth, schema, area validation and snapshot", async () => {
   const { sql, hono, store, changes } = app();
   try {
     await truncate(sql);
@@ -162,16 +167,20 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
     assertEquals(created.status, 201);
     const createdBody = await created.json() as {
       t: number;
-      r: { kind: string; count: number }[];
+      r: { kind: string; count: number; area: string | null }[];
     };
     assertEquals(createdBody.r[0].kind, "broken");
     assertEquals(createdBody.r[0].count, 1);
+    assertEquals(createdBody.r[0].area, null);
     assertEquals(changes, [7]);
 
     const snap = await hono.request("/v1/lines/7/vehicles");
     assertEquals(snap.status, 200);
-    const snapBody = await snap.json() as { r: { kind: string }[] };
+    const snapBody = await snap.json() as {
+      r: { kind: string; area: string | null }[];
+    };
     assertEquals(snapBody.r[0].kind, "broken");
+    assertEquals(snapBody.r[0].area, null);
 
     // Unknown keys (including coordinates) are rejected at the boundary.
     assertEquals(
@@ -196,7 +205,7 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
         op: "report",
         kind: "broken",
         line: 7,
-        stop: "s1",
+        area: AREA,
       })).status,
       400,
     );
@@ -205,7 +214,16 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
         op: "report",
         kind: "waiting",
         line: 7,
-        stop: "nope",
+        area: "nope",
+      })).status,
+      400,
+    );
+    assertEquals(
+      (await postReport(hono, token, {
+        op: "report",
+        kind: "waiting",
+        line: 7,
+        area: "g0_0",
       })).status,
       400,
     );
@@ -214,7 +232,7 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
         op: "report",
         kind: "waiting",
         line: 999,
-        stop: "s1",
+        area: AREA,
       })).status,
       404,
     );
@@ -223,7 +241,7 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
       op: "report",
       kind: "waiting",
       line: 7,
-      stop: "s1",
+      area: AREA,
     });
     assertEquals(waiting.status, 201);
     assertEquals(reportRows(store, 7, Date.now()).length, 2);
@@ -232,7 +250,7 @@ Deno.test("POST /v1/reports: auth, schema, target validation and snapshot", asyn
       op: "retract",
       kind: "waiting",
       line: 7,
-      stop: "s1",
+      area: AREA,
     });
     assertEquals(retracted.status, 200);
     assertEquals(reportRows(store, 7, Date.now()).length, 1);

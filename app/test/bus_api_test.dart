@@ -210,7 +210,7 @@ void main() {
         if (req.url.path.endsWith('/vehicles')) {
           return http.Response(
             '{"t":100,"v":[[7,-18.72,-39.85,90,29,1,4]],'
-            '"r":[{"kind":"broken","stop":null,"count":2,'
+            '"r":[{"kind":"broken","area":null,"count":2,'
             '"created_age_s":120,"updated_age_s":10,"expires_in_s":1700}]}',
             200,
           );
@@ -236,7 +236,7 @@ void main() {
       final MockClient client = MockClient((http.Request req) async {
         seen = req;
         return http.Response(
-          '{"t":100,"r":[{"kind":"waiting","stop":"s1","count":1,'
+          '{"t":100,"r":[{"kind":"waiting","area":"g52902_98514","count":1,'
           '"created_age_s":0,"updated_age_s":0,"expires_in_s":600}]}',
           201,
         );
@@ -246,18 +246,19 @@ void main() {
         op: 'report',
         kind: ReportKind.waiting,
         lineId: 7,
-        stop: 's1',
+        area: 'g52902_98514',
       );
       expect(result, isA<Ok<List<ReportDTO>>>());
       final List<ReportDTO> reports = (result as Ok<List<ReportDTO>>).value;
-      expect(reports.single.stop, 's1');
+      expect(reports.single.area, 'g52902_98514');
       final Map<String, dynamic> body =
           jsonDecode(seen.body) as Map<String, dynamic>;
       expect(body['op'], 'report');
       expect(body['kind'], 'waiting');
       expect(body['line'], 7);
-      expect(body['stop'], 's1');
+      expect(body['area'], 'g52902_98514');
       expect(body.containsKey('lat'), isFalse);
+      expect(body.containsKey('lng'), isFalse);
       expect(body.containsKey('at'), isFalse);
     });
 

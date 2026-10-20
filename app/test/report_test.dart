@@ -1,11 +1,10 @@
-// Passenger report parsing, age/count copy, and the calm chip strip.
-// No network: pure models plus widget rendering.
+// Passenger report parsing, area distances, age/count copy, and the calm
+// chip strip. No network: pure models plus widget rendering.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/data/api/dto.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
-import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/reporting/report_kind.dart';
 import 'package:pontual/ui/features/reports/report_chip.dart';
 import 'package:pontual/ui/features/reports/report_sheet.dart';
@@ -14,22 +13,26 @@ import 'package:pontual/ui/features/reports/report_strip.dart';
 import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
+const String area = 'g52902_98514';
+
 ReportVM report({
   ReportKind kind = ReportKind.broken,
-  String? stop,
+  String? areaId,
   int count = 1,
   int created = 120,
   int updated = 60,
   int expires = 600,
+  double? distanceM,
 }) {
   return ReportVM(
     lineId: 7,
     kind: kind,
-    stop: stop,
+    area: areaId,
     count: count,
     createdAgeS: created,
     updatedAgeS: updated,
     expiresInS: expires,
+    distanceM: distanceM,
   );
 }
 
@@ -37,7 +40,7 @@ void main() {
   test('wire parsing keeps unknown kinds neutral and drops bad rows', () {
     final ReportDTO? known = ReportDTO.fromJson(<String, dynamic>{
       'kind': 'waiting',
-      'stop': 's1',
+      'area': area,
       'count': 2,
       'created_age_s': 30,
       'updated_age_s': 5,
@@ -45,10 +48,11 @@ void main() {
     });
     expect(known?.kind, ReportKind.waiting);
     expect(known?.count, 2);
+    expect(known?.area, area);
 
     final ReportDTO? unknown = ReportDTO.fromJson(<String, dynamic>{
       'kind': 'flood',
-      'stop': null,
+      'area': null,
       'count': 1,
       'created_age_s': 1,
       'updated_age_s': 1,
@@ -60,7 +64,7 @@ void main() {
       parseReports(<Object?>[
         <String, dynamic>{
           'kind': 'waiting',
-          'stop': 's1',
+          'area': area,
           'count': 2,
           'created_age_s': 30,
           'updated_age_s': 5,
@@ -75,7 +79,7 @@ void main() {
   test('client report ages advance on the monotonic clock', () {
     const ClientReport r = ClientReport(
       kind: ReportKind.broken,
-      stop: null,
+      area: null,
       count: 1,
       createdAgeS: 10,
       updatedAgeS: 5,
@@ -119,16 +123,30 @@ void main() {
     );
   });
 
-  test('stop picker labels unnamed nodes with a local ordinal', () {
-    const StopPoint named = StopPoint(
-      id: 's1',
-      lat: -18.72,
-      lng: -39.85,
-      name: 'Guriri',
+  test('area copy rounds to 50 m and hides exact positions', () {
+    expect(
+      reportAreaLine(
+        report(kind: ReportKind.waiting, areaId: area, distanceM: 0),
+      ),
+      UiStrings.reportAreaNear(50),
     );
-    const StopPoint unnamed = StopPoint(id: 's2', lat: -18.72, lng: -39.85);
-    expect(stopPickerLabel(named, 0), 'Guriri');
-    expect(stopPickerLabel(unnamed, 2), 'Ponto de ônibus 3');
+    expect(
+      reportAreaLine(
+        report(kind: ReportKind.waiting, areaId: area, distanceM: 120),
+      ),
+      UiStrings.reportAreaNear(100),
+    );
+    expect(
+      reportAreaLine(report(kind: ReportKind.waiting, areaId: area)),
+      UiStrings.reportAreaApprox,
+    );
+    expect(reportAreaLine(report(kind: ReportKind.broken)), isNull);
+    expect(
+      reportDetailLines(
+        report(kind: ReportKind.waiting, areaId: area, distanceM: 120),
+      ),
+      contains(UiStrings.reportAreaNear(100)),
+    );
   });
 
   testWidgets('strip shows two chips plus overflow and stays readable', (
@@ -141,9 +159,9 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
     final List<ReportVM> reports = <ReportVM>[
-      report(kind: ReportKind.blocked, stop: 's1'),
+      report(kind: ReportKind.blocked, areaId: area),
       report(kind: ReportKind.broken),
-      report(kind: ReportKind.waiting, stop: 's1', count: 3),
+      report(kind: ReportKind.waiting, areaId: area, count: 3),
     ];
     int more = 0;
     await tester.pumpWidget(
@@ -168,7 +186,7 @@ void main() {
     expect(more, 1);
   });
 
-  testWidgets('report sheet renders the four kinds and the stop picker', (
+  testWidgets('report sheet renders the four kinds and the location note', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(360, 800);
@@ -177,10 +195,6 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    const List<StopPoint> stops = <StopPoint>[
-      StopPoint(id: 's1', lat: -18.72, lng: -39.85, name: 'Guriri'),
-      StopPoint(id: 's2', lat: -18.72, lng: -39.85),
-    ];
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -195,7 +209,6 @@ void main() {
                       context,
                       lineId: 7,
                       lineName: 'Sete / Centro',
-                      stops: stops,
                     ),
                     child: const Text('open'),
                   ),
@@ -216,8 +229,8 @@ void main() {
     expect(find.text(UiStrings.reportPrivacy), findsOneWidget);
     await tester.tap(find.text(UiStrings.reportWaiting));
     await tester.pumpAndSettle();
-    expect(find.text('Guriri'), findsOneWidget);
-    expect(find.text('Ponto de ônibus 2'), findsOneWidget);
+    expect(find.text(UiStrings.reportLocationNote), findsOneWidget);
+    expect(find.text(UiStrings.reportSubmit), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

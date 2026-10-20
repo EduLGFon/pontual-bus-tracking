@@ -150,7 +150,7 @@ void main() {
       reports: const <ClientReport>[
         ClientReport(
           kind: ReportKind.waiting,
-          stop: 's1',
+          area: 'g52902_98514',
           count: 2,
           createdAgeS: 30,
           updatedAgeS: 5,

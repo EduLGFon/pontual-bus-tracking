@@ -51,7 +51,6 @@ function app() {
     hub: new Hub(),
     followerJitterS: 0,
     onLineChanged: () => {},
-    stops: () => true,
     reportsEnabled: () => false,
     trustCloudflare: false,
     allowedOrigins: [],
