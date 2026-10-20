@@ -100,12 +100,12 @@ class ClientVehicle {
 
 /// One active passenger report as held by the line stream. Ages are
 /// relative to receipt on the monotonic clock, never the device wall
-/// clock. No device id, coordinates, or free text.
+/// clock. No device id, exact coordinates, or free text.
 class ClientReport {
   /// Creates a client report.
   const ClientReport({
     required this.kind,
-    required this.stop,
+    required this.area,
     required this.count,
     required this.createdAgeS,
     required this.updatedAgeS,
@@ -116,8 +116,8 @@ class ClientReport {
   /// Report kind; [ReportKind.unknown] for a newer server value.
   final ReportKind kind;
 
-  /// Static stop id for stop-level kinds, null for line-level ones.
-  final String? stop;
+  /// Coarse ~150 m cell for area-level kinds, null for line-level ones.
+  final String? area;
 
   /// Distinct devices that reported this target.
   final int count;
@@ -160,7 +160,7 @@ class ClientReport {
   ClientReport withAgesAt(int nowMs) {
     return ClientReport(
       kind: kind,
-      stop: stop,
+      area: area,
       count: count,
       createdAgeS: createdAgeAt(nowMs),
       updatedAgeS: updatedAgeAt(nowMs),
@@ -173,7 +173,7 @@ class ClientReport {
   factory ClientReport.fromDto(ReportDTO dto, {int? receivedAtMs}) {
     return ClientReport(
       kind: dto.kind,
-      stop: dto.stop,
+      area: dto.area,
       count: dto.count,
       createdAgeS: dto.createdAgeS,
       updatedAgeS: dto.updatedAgeS,
@@ -424,7 +424,7 @@ class VehicleRepository {
         .map(
           (ClientReport r) => ClientReport(
             kind: r.kind,
-            stop: r.stop,
+            area: r.area,
             count: r.count,
             createdAgeS: r.createdAgeS,
             updatedAgeS: r.updatedAgeS,

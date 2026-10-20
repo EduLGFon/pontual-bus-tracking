@@ -48,7 +48,7 @@ shows an "unofficial timetable" notice.
   `Guriri`, `Entrada do Jaguaré` (two nodes) and the generic
   "Ponto de ônibus" (two nodes) have names; seven nodes have no
   `name`. No new posted names were found, so none were invented.
-  A field survey is still needed for the unnamed stops (D82).
+  A field survey is still needed for the unnamed stops; reports no longer depend on them (D83).
 - Other sources checked 2026-10-13, none usable for coordinates:
   the operator site lists street itineraries only (no coordinates);
   the Prefeitura page links to the SGBus app; onibus.online lists

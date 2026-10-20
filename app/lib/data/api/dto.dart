@@ -44,12 +44,12 @@ class VehiclesSnapshot {
 }
 
 /// One active passenger report from the line snapshot. No coordinates,
-/// no device or reporter id, no free text.
+/// no device or reporter id, no free text. `area` is a coarse grid cell.
 class ReportDTO {
   /// Creates a report DTO.
   const ReportDTO({
     required this.kind,
-    required this.stop,
+    required this.area,
     required this.count,
     required this.createdAgeS,
     required this.updatedAgeS,
@@ -59,8 +59,8 @@ class ReportDTO {
   /// Report kind, [ReportKind.unknown] when this app is older.
   final ReportKind kind;
 
-  /// Static stop id for waiting/blocked, null for line-level incidents.
-  final String? stop;
+  /// Coarse ~150 m cell for waiting/blocked, null for line-level kinds.
+  final String? area;
 
   /// Distinct devices that reported this target. One is a single source.
   final int count;
@@ -80,13 +80,13 @@ class ReportDTO {
     if (raw is! Map<dynamic, dynamic>) return null;
     final Map<String, dynamic> json = raw.cast<String, dynamic>();
     final Object? kind = json['kind'];
-    final Object? stop = json['stop'];
+    final Object? area = json['area'];
     final Object? count = json['count'];
     final Object? created = json['created_age_s'];
     final Object? updated = json['updated_age_s'];
     final Object? expires = json['expires_in_s'];
     if (kind is! String ||
-        (stop != null && stop is! String) ||
+        (area != null && area is! String) ||
         count is! num ||
         created is! num ||
         updated is! num ||
@@ -95,7 +95,7 @@ class ReportDTO {
     }
     return ReportDTO(
       kind: ReportKind.fromWire(kind),
-      stop: stop as String?,
+      area: area as String?,
       count: count.toInt(),
       createdAgeS: created.toInt(),
       updatedAgeS: updated.toInt(),

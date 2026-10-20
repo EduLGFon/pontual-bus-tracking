@@ -181,21 +181,21 @@ class BusApi {
         : Err<bool>((res as Err<void>).failure);
   }
 
-  /// Creates or retracts a passenger report. No coordinates and no
-  /// client timestamp: the server owns the time. Returns the refreshed
-  /// line reports so the caller can update immediately.
+  /// Creates or retracts a passenger report. `area` is a coarse grid
+  /// cell, never a coordinate; the server owns the timestamp. Returns the
+  /// refreshed line reports so the caller can update immediately.
   Future<Result<List<ReportDTO>>> postReport(
     String token, {
     required String op,
     required ReportKind kind,
     required int lineId,
-    String? stop,
+    String? area,
   }) async {
     final Map<String, dynamic> body = <String, dynamic>{
       'op': op,
       'kind': kind.wire,
       'line': lineId,
-      'stop': ?stop,
+      'area': ?area,
     };
     final Result<Map<String, dynamic>> res = await _authed(
       token,
