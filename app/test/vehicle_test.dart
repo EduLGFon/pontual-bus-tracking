@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
+import 'package:pontual/domain/reporting/report_kind.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -80,9 +81,11 @@ VehicleRepository repo(
   FakeClock clock,
   FakeChannel channel, {
   List<ClientVehicle> snapshot = const <ClientVehicle>[],
+  List<ClientReport> reports = const <ClientReport>[],
 }) {
   return VehicleRepository(
-    fetchSnapshot: (_) async => snapshot,
+    fetchSnapshot: (_) async =>
+        ClientSnapshot(vehicles: snapshot, reports: reports),
     openChannel: (_) async => channel,
     wsBaseUrl: () => 'ws://127.0.0.1:8080',
     clock: clock,
@@ -137,6 +140,37 @@ void main() {
     await channel.dispose();
   });
 
+  test('reports ride on snapshots and survive vehicle-only frames', () async {
+    final FakeClock clock = FakeClock(100000);
+    final FakeChannel channel = FakeChannel();
+    final VehicleRepository r = repo(
+      clock,
+      channel,
+      snapshot: <ClientVehicle>[one],
+      reports: const <ClientReport>[
+        ClientReport(
+          kind: ReportKind.waiting,
+          area: 'g52902_98514',
+          count: 2,
+          createdAgeS: 30,
+          updatedAgeS: 5,
+          expiresInS: 570,
+        ),
+      ],
+    );
+    await r.start(7);
+    expect(r.reports, hasLength(1));
+    expect(r.reports.single.count, 2);
+    channel.incoming.add('{"l":7,"t":100,"v":[]}');
+    await Future<void>.delayed(Duration.zero);
+    expect(r.reports, hasLength(1));
+    channel.incoming.add('{"l":7,"t":101,"v":[],"r":[]}');
+    await Future<void>.delayed(Duration.zero);
+    expect(r.reports, isEmpty);
+    await r.stop();
+    await channel.dispose();
+  });
+
   test('watchdog resyncs after 30 s without messages', () async {
     final FakeClock clock = FakeClock(100000);
     final FakeChannel channel = FakeChannel();
@@ -144,7 +178,7 @@ void main() {
     final VehicleRepository r = VehicleRepository(
       fetchSnapshot: (_) async {
         fetches += 1;
-        return <ClientVehicle>[one];
+        return const ClientSnapshot(vehicles: <ClientVehicle>[one]);
       },
       openChannel: (_) async => channel,
       wsBaseUrl: () => 'ws://127.0.0.1:8080',
@@ -191,7 +225,7 @@ void main() {
     final VehicleRepository r = VehicleRepository(
       fetchSnapshot: (_) async {
         fetches += 1;
-        return const <ClientVehicle>[];
+        return const ClientSnapshot(vehicles: <ClientVehicle>[]);
       },
       openChannel: (_) async => channel,
       wsBaseUrl: () => 'ws://127.0.0.1:8080',
@@ -307,7 +341,7 @@ void main() {
         if (fail) {
           throw StateError('offline');
         }
-        return <ClientVehicle>[one];
+        return const ClientSnapshot(vehicles: <ClientVehicle>[one]);
       },
       openChannel: (_) async => channel,
       wsBaseUrl: () => 'ws://127.0.0.1:8080',
@@ -339,7 +373,7 @@ void main() {
     final VehicleRepository r = VehicleRepository(
       fetchSnapshot: (_) async {
         fetches += 1;
-        return <ClientVehicle>[one];
+        return const ClientSnapshot(vehicles: <ClientVehicle>[one]);
       },
       openChannel: (_) async => channels[opens++],
       wsBaseUrl: () => 'ws://127.0.0.1:8080',
@@ -367,7 +401,8 @@ void main() {
     final FakeChannel channel = FakeChannel();
     int opens = 0;
     final VehicleRepository r = VehicleRepository(
-      fetchSnapshot: (_) async => const <ClientVehicle>[],
+      fetchSnapshot: (_) async =>
+          const ClientSnapshot(vehicles: <ClientVehicle>[]),
       openChannel: (_) async {
         opens += 1;
         return channel;

@@ -1,7 +1,7 @@
 # Política de Privacidade do Pontual (minuta)
 
 Status: MINUTA para revisão do responsável e de advogado. Não publicar
-antes da revisão. Versão 2026-10-03, texto do consentimento v1.
+antes da revisão. Versão 2026-10-20 (minuta), texto do consentimento v1.
 
 Itens marcados com [DEFINIR] dependem de decisão do responsável
 (identidade e contato, domínio, região do VPS). Ver DECISIONS.md
@@ -31,11 +31,17 @@ Coletamos somente:
   no mesmo ônibus viram um só ponto no mapa).
 - Para segurança: limites de uso por aparelho e por rede (só na
   memória, por minutos, sem registro permanente).
+- Sinalizações que você envia: tipo, linha, uma área aproximada de
+  cerca de 150 m, horário do servidor e contagem de aparelhos. A
+  posição exata não é enviada nem guardada. São públicas, ficam só
+  na memória do servidor e somem em até 2 horas.
 
 Nunca coletamos: nome, e-mail, telefone, contatos, fotos,
 microfone, histórico de viagens, IMEI ou identificadores de
-publicidade. Quem só olha o mapa ou os horários não cria
-registro nenhum.
+publicidade. Quem só olha o mapa ou os horários, sem compartilhar
+viagem e sem sinalizar, não cria registro nenhum. A primeira
+sinalização cria o mesmo código anônimo de aparelho usado para
+limitar abuso; a sinalização não é guardada junto desse código.
 
 ## 3. Para que usamos (finalidades)
 
@@ -43,6 +49,7 @@ registro nenhum.
 - Escolher qual celular envia com mais frequência (economia de
   bateria de todos).
 - Provar o seu consentimento e proteger o serviço contra abuso.
+- Mostrar sinalizações públicas de passageiros por alguns minutos.
 
 ## 4. Base legal (LGPD)
 
@@ -52,12 +59,21 @@ registro nenhum.
 - Só olhar o mapa: nenhum dado seu é coletado pelo app;
   registros de rede dos provedores seguem o legítimo interesse
   (art. 7, IX).
+- Sinalizações: você escolhe enviar. Para espera ou acesso
+  bloqueado, o app lê sua localização uma vez e envia só uma área
+  aproximada de ~150 m; a posição exata não sai do aparelho. A
+  base legal e o texto final serão confirmados pelo responsável e
+  pelo advogado. A sinalização é pública e pode ser vista por
+  outras pessoas.
 
 ## 5. Por quanto tempo guardamos
 
 - Posição: some da memória ao fim da viagem.
 - Código do aparelho e consentimento: até você apagar ou 30 dias
   sem uso.
+- Sinalizações: no máximo 2 horas, só na memória, guardando no
+  máximo uma célula de ~150 m; somem ao reiniciar o serviço ou ao
+  usar "Apagar meus dados".
 - Cópias de segurança cifradas: 30 dias.
 
 ## 6. Quem recebe os dados

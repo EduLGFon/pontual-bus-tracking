@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 import 'package:pontual/platform/web/install_hint.dart';
+import 'package:pontual/ui/features/settings/android_app_download_row.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -143,6 +144,26 @@ void main() {
       expect(opened, Uri.parse(androidApkUrl));
       await tester.tap(find.text(UiStrings.installHintDismiss));
       expect(dismissed, isTrue);
+    });
+  });
+
+  group('AndroidAppDownloadRow', () {
+    testWidgets('opens the APK URL from Settings', (WidgetTester tester) async {
+      Uri? opened;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AndroidAppDownloadRow(
+              openUrl: (Uri uri) async {
+                opened = uri;
+              },
+            ),
+          ),
+        ),
+      );
+      expect(find.text(UiStrings.androidAppDownloadRow), findsOneWidget);
+      await tester.tap(find.text(UiStrings.androidAppDownloadRow));
+      expect(opened, Uri.parse(androidApkUrl));
     });
   });
 

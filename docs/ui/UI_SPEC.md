@@ -1094,6 +1094,9 @@ it).
   Prefeitura de São Mateus.", data sources list, "© OpenStreetMap contributors"
   link, open-source licences screen (own simple list from `LicenseRegistry`,
   lazily loaded, tokens applied), contact link, repository link, version.
+- **Baixar app para Android (web only):** permanent row in "Sobre" that
+  opens the latest release APK; the native Android app hides it. The one-time
+  Android web card on Home and Settings stays.
 - No login, no avatar, no promotional content.
 
 ### 7.9 System screens and states
@@ -1460,6 +1463,68 @@ limits). That is a backend/architecture decision; the UI only needs
   many ("1 ônibus", "2 ônibus").
 - Feature flags and `ArrivalsSource`/`SearchProvider` composition are the only
   extension points; do not branch on feature names inside widgets.
+
+### 13.6 Passenger reports ("Sinalizações", D82/D83)
+
+The UI receives reports as an optional `r` array on the line snapshot and the
+WebSocket frame. No second socket, no second poll.
+
+Placement:
+
+- Line sheet, Agora: a `ReportStrip` of at most two `ReportChip`s plus a `+N`
+  chip, and a `Sinalizar` GhostLink. Only on pilot lines. Any viewer can use
+  it; no trip or bus presence is required.
+- Trip screen: one AppBar `IconBtn` with `flag_outlined`, semantic label
+  `Sinalizar problema neste ônibus`.
+- Stop dots are decorative. There is no stop sheet and no stop picker.
+- Report sheet: four `SurfaceCard` options with icon, label and one-line hint.
+  Waiting and blocked show a location note: one read becomes a coarse ~150 m
+  area; the exact position is not sent or stored. The first use shows a
+  one-time notice before the OS permission prompt. A failed read renders a
+  report-specific card with retry and, on Android, `Abrir ajustes`.
+- Detail sheet: label, `Sinalizado há ...`, `Atualizado há ...`, count sentence,
+  a rounded distance to the area (`cerca de 100 m`) or `Área aproximada de
+  150 m`, and `Remover minha sinalização` only for this session's own report.
+  No confirm/deny in the alpha.
+
+Visual roles:
+
+- Incidents (`full`, `broken`, `blocked`): `warning` at 12 % fill,
+  `warningText` icon/text. `blocked` first in severity.
+- Waiting: `surfaceSunken` fill, `inkMuted` icon/text. Never `live` green.
+- Unknown kind: neutral `flag_outlined`, label `Sinalização`, no actions.
+- Chips keep a 48 dp hit target, wrap instead of truncating at 200 % text, and
+  carry the full semantic sentence. No pulse, no motion beyond a 150 ms fade.
+- The strip renders nothing when there are no reports. It rebuilds with the
+  line's 5 s tick so stream updates land promptly; the age labels themselves
+  are minute-granular, never a per-second timer.
+
+Copy:
+
+| Context | pt-BR |
+| --- | --- |
+| Entry | `Sinalizar` |
+| Sheet title | `O que está acontecendo?` |
+| Waiting | `Ainda estou esperando` / `Continuo neste ponto esperando o ônibus.` |
+| Full | `Ônibus lotado` / `Está cheio e não está parando.` |
+| Broken | `Ônibus quebrado` / `O ônibus parou ou quebrou.` |
+| Blocked | `Acesso bloqueado` / `O ponto ou o portão está bloqueado.` |
+| Location note | `Sua localização aproximada (área de ~150 m) será usada só para mostrar onde você está. A posição exata não é enviada.` |
+| Notice title | `Usar sua localização aproximada?` |
+| Notice body | `Para mostrar onde você está esperando, o app lê sua localização uma vez e envia apenas uma área de cerca de 150 m. A posição exata não é enviada nem guardada. A sinalização é pública e some em até 2 horas.` |
+| Notice accept | `Usar minha localização` / `Agora não` |
+| Locating | `Obtendo localização...` |
+| Location failure | `Sem a localização, não dá para mostrar onde você está esperando.` |
+| Submit | `Enviar sinalização` |
+| Sent | `Sinalização enviada. Obrigado!` |
+| Retract | `Remover minha sinalização` |
+| Single waiting | `Alguém está esperando aqui` |
+| Many waiting | `2 pessoas esperando` (cap `5+`) |
+| Single incident | `1 relato recente` |
+| Many incidents | `2 pessoas relataram` (cap `5+`) |
+| Area detail | `Perto de você, a cerca de 100 m` / `Área aproximada de 150 m` |
+| Disclosure | `Sua sinalização é pública e anônima. Usamos só uma área aproximada de 150 m, nunca a posição exata. Para evitar abuso, o aparelho recebe um código anônimo. Ela some em até 2 horas.` |
+| Footnote | `Relatos de passageiros. Podem estar desatualizados.` |
 
 ---
 

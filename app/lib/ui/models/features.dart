@@ -19,6 +19,7 @@ class Features {
     this.followVehicle = true,
     this.routeLine = false,
     this.localKudos = true,
+    this.reports = true,
   });
 
   /// Home shortcut cards.
@@ -54,6 +55,9 @@ class Features {
   /// Device-only "you helped N trips" counter on the end card.
   final bool localKudos;
 
+  /// Passenger reports on the line sheet and trip screen.
+  final bool reports;
+
   /// Returns a copy with overrides applied. Unknown JSON keys are ignored.
   Features copyWith({
     bool? shortcuts,
@@ -67,6 +71,7 @@ class Features {
     bool? followVehicle,
     bool? routeLine,
     bool? localKudos,
+    bool? reports,
   }) {
     return Features(
       shortcuts: shortcuts ?? this.shortcuts,
@@ -80,6 +85,7 @@ class Features {
       followVehicle: followVehicle ?? this.followVehicle,
       routeLine: routeLine ?? this.routeLine,
       localKudos: localKudos ?? this.localKudos,
+      reports: reports ?? this.reports,
     );
   }
 
@@ -99,6 +105,7 @@ class Features {
       followVehicle: _flag(json, 'follow_vehicle') ?? base.followVehicle,
       routeLine: _flag(json, 'route_line') ?? base.routeLine,
       localKudos: _flag(json, 'local_kudos') ?? base.localKudos,
+      reports: _flag(json, 'reports') ?? base.reports,
     );
   }
 

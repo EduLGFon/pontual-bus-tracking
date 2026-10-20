@@ -664,6 +664,13 @@ class UiStrings {
   /// Android app download action.
   static const String androidAppDownload = 'Baixar app';
 
+  /// Android download row in Settings (web only).
+  static const String androidAppDownloadRow = 'Baixar app para Android';
+
+  /// Hint under the Android download row.
+  static const String androidAppDownloadRowHint =
+      'Instale o APK mais recente para compartilhar com a tela desligada.';
+
   /// Web keep open banner.
   static const String webKeepOpen =
       'Mantenha esta tela aberta e o celular desbloqueado.';
@@ -940,6 +947,211 @@ class UiStrings {
   static String kudos(int trips) =>
       trips == 1 ? 'Você já ajudou 1 viagem' : 'Você já ajudou $trips viagens';
 
+  // Passenger reports (D82).
+
+  /// Entry action on the line sheet.
+  static const String reportAction = 'Sinalizar';
+
+  /// Report sheet title.
+  static const String reportSheetTitle = 'O que está acontecendo?';
+
+  /// Waiting report label.
+  static const String reportWaiting = 'Ainda estou esperando';
+
+  /// Waiting report hint.
+  static const String reportWaitingHint =
+      'Continuo neste ponto esperando o ônibus.';
+
+  /// Full bus report label.
+  static const String reportFull = 'Ônibus lotado';
+
+  /// Full bus report hint.
+  static const String reportFullHint = 'Está cheio e não está parando.';
+
+  /// Broken bus report label.
+  static const String reportBroken = 'Ônibus quebrado';
+
+  /// Broken bus report hint.
+  static const String reportBrokenHint = 'O ônibus parou ou quebrou.';
+
+  /// Blocked access report label.
+  static const String reportBlocked = 'Acesso bloqueado';
+
+  /// Blocked access report hint.
+  static const String reportBlockedHint = 'O ponto ou o portão está bloqueado.';
+
+  /// Primary action in the report sheet.
+  static const String reportSubmit = 'Enviar sinalização';
+
+  /// Static loading label while the report is in flight.
+  static const String reportSending = 'Enviando sinalização...';
+
+  /// Success toast.
+  static const String reportSent = 'Sinalização enviada. Obrigado!';
+
+  /// Offline failure.
+  static const String reportOffline =
+      'Sem conexão. Não foi possível sinalizar agora.';
+
+  /// Rate-limit failure.
+  static const String reportRate =
+      'Muitas sinalizações em pouco tempo. Tente de novo em alguns minutos.';
+
+  /// Per-line cap failure.
+  static const String reportQuota =
+      'Muitas sinalizações nesta linha agora. Tente de novo em alguns minutos.';
+
+  /// Server kill switch.
+  static const String reportDisabled = 'Sinalizações indisponíveis no momento.';
+
+  /// Disclosure under the report sheet.
+  static const String reportPrivacy =
+      'Sua sinalização é pública e anônima. Usamos só uma área aproximada '
+      'de 150 m, nunca a posição exata. Para evitar abuso, o aparelho recebe '
+      'um código anônimo. Ela some em até 2 horas.';
+
+  /// Honesty footnote on report surfaces.
+  static const String reportDisclaimer =
+      'Relatos de passageiros. Podem estar desatualizados.';
+
+  /// One-time location notice title.
+  static const String reportLocationTitle = 'Usar sua localização aproximada?';
+
+  /// One-time location notice body.
+  static const String reportLocationBody =
+      'Para mostrar onde você está esperando, o app lê sua localização uma '
+      'vez e envia apenas uma área de cerca de 150 m. A posição exata não é '
+      'enviada nem guardada. A sinalização é pública e some em até 2 horas.';
+
+  /// Location notice bullet: one read.
+  static const String reportLocationBulletOnce =
+      'Só uma leitura, no momento de sinalizar.';
+
+  /// Location notice bullet: approximate area.
+  static const String reportLocationBulletArea =
+      'Área aproximada, não um pino no mapa.';
+
+  /// Location notice bullet: can decline.
+  static const String reportLocationBulletDeny =
+      'Você pode negar e continuar vendo o mapa.';
+
+  /// Location notice accept action.
+  static const String reportLocationAccept = 'Usar minha localização';
+
+  /// Location notice decline action.
+  static const String reportLocationDeny = 'Agora não';
+
+  /// Inline note for area-based kinds.
+  static const String reportLocationNote =
+      'Sua localização aproximada (área de ~150 m) será usada só para mostrar '
+      'onde você está. A posição exata não é enviada.';
+
+  /// Static loading label while the one-shot fix is running.
+  static const String reportLocating = 'Obtendo localização...';
+
+  /// Card title when the one-shot fix failed.
+  static const String reportLocationUnavailable = 'Localização indisponível';
+
+  /// Permission denied, retryable.
+  static const String reportLocationDenied =
+      'Sem a localização, não dá para mostrar onde você está esperando.';
+
+  /// Permission permanently denied.
+  static const String reportLocationBlocked =
+      'A localização está bloqueada para este app. Abra os ajustes para '
+      'permitir.';
+
+  /// Device location services off.
+  static const String reportLocationServicesOff =
+      'Ative a localização do aparelho para sinalizar onde você está.';
+
+  /// Fix too coarse for a 150 m cell.
+  static const String reportLocationImprecise =
+      'Sua localização está imprecisa. Tente de novo perto de uma janela ou '
+      'ao ar livre.';
+
+  /// Fix timeout.
+  static const String reportLocationTimeout =
+      'Não conseguimos sua localização agora. Tente de novo.';
+
+  /// Fix outside the served city.
+  static const String reportLocationOutsideArea =
+      'Você está fora da área de cobertura do app.';
+
+  /// Unknown location failure.
+  static const String reportLocationUnknown =
+      'Não foi possível usar sua localização agora. Tente de novo.';
+
+  /// Detail line with a rounded distance to the report area.
+  static String reportAreaNear(int meters) =>
+      'Perto de você, a cerca de $meters m';
+
+  /// Detail line when the viewer location is unknown.
+  static const String reportAreaApprox = 'Área aproximada de 150 m';
+
+  /// Own report marker.
+  static const String reportMine = 'Sua sinalização';
+
+  /// Retract action.
+  static const String reportRetract = 'Remover minha sinalização';
+
+  /// Retract success toast.
+  static const String reportRetracted = 'Sinalização removida.';
+
+  /// Waiting count with at least two people.
+  static String reportPeopleWaiting(int count) =>
+      count >= 5 ? '5+ pessoas esperando' : '$count pessoas esperando';
+
+  /// Waiting count for a single reporter, privacy-preserving.
+  static const String reportSomeoneWaiting = 'Alguém está esperando aqui';
+
+  /// Incident with a single source.
+  static const String reportOneReport = '1 relato recente';
+
+  /// Incident with several sources.
+  static String reportPeopleReported(int count) =>
+      count >= 5 ? '5+ pessoas relataram' : '$count pessoas relataram';
+
+  /// Compact waiting chip with one reporter.
+  static const String reportChipSomeone = 'Alguém esperando';
+
+  /// Compact waiting chip with several reporters.
+  static String reportChipWaiting(int count) =>
+      count >= 5 ? '5+ esperando' : '$count esperando';
+
+  /// Compact incident chip.
+  static String reportChipIncident(String label, String age) => '$label · $age';
+
+  /// Relative time now.
+  static const String reportAgeNow = 'agora';
+
+  /// Relative time in minutes.
+  static String reportAgeMinutes(int minutes) => 'há $minutes min';
+
+  /// Relative time in hours.
+  static String reportAgeHours(int hours) => 'há $hours h';
+
+  /// Trip screen report action.
+  static const String reportTripAction = 'Sinalizar problema';
+
+  /// Trip screen report semantic label.
+  static const String reportTripSemantic = 'Sinalizar problema neste ônibus';
+
+  /// Section title for the full report list.
+  static const String reportListTitle = 'Sinalizações desta linha';
+
+  /// Neutral fallback for a report kind this version does not know.
+  static const String reportUnknown = 'Sinalização';
+
+  /// Overflow chip label.
+  static String reportMore(int count) => '+$count';
+
+  /// Report detail age sentence.
+  static String reportReportedAgo(String age) => 'Sinalizado $age';
+
+  /// Report detail update sentence.
+  static String reportUpdatedAgo(String age) => 'Atualizado $age';
+
   // Future features (flagged off, UI_SPEC 13-14).
 
   /// Alerts sheet title.
@@ -1143,13 +1355,14 @@ class UiStrings {
   /// Contact row.
   static const String contactUs = 'Falar com a gente';
 
-  /// Six-line collection summary mirroring the data inventory. The legacy
-  /// screen owned this copy; the new privacy center is its only reader now.
+  /// Collection summary mirroring the data inventory. The legacy screen
+  /// owned this copy; the new privacy center is its only reader now.
   static const List<String> collectsSummary = <String>[
     'Aparelho anônimo: um código aleatório, sem nome ou e-mail.',
     'Versão do consentimento que você aceitou e quando.',
     'Durante a viagem: posição, velocidade e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
+    'Sinalizações: tipo, linha e área aproximada (~150 m), públicas por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];

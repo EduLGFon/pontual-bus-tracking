@@ -57,3 +57,19 @@ binary run (covered by CI per release).
 KL2 (lone rider position), KL3 (bunching), KL6 (restart drops live
 state), ghost vehicle without route geometry (AC12). All disclosed
 in consent text, policy draft, or RIPD.
+
+## D82/D83 passenger reports (2026-10-20)
+
+New attack surface: a state-changing `POST /v1/reports` and a public `r` array
+in the line snapshot/stream. Controls reviewed in code: bearer auth, strict
+schema with unknown keys rejected (including `lat`/`lng`/`at`), a coarse ~150 m
+area id validated against the served bbox, kind-target rules, per-device and
+per-IP rate limits, per-line/global caps, closed kinds, no free text, no exact
+coordinates, memory-only TTL, `DELETE /v1/me` clears reporter sets, and a kill
+switch. Reports are labelled as passenger claims, never verified facts.
+
+Residual: counts are sybil-able because tokens are free, and a single device can
+keep its own report fresh until the hard max age. Mitigations are the short TTL,
+caps, single-source wording ("1 relato recente") and the kill switch. The report
+HTTP suite needs `TEST_DATABASE_URL` and was not run on this host; it must run in
+CI before release.

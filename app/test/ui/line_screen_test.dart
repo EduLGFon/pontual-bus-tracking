@@ -118,7 +118,8 @@ final DateTime fixedNow = DateTime.utc(2026, 10, 14, 12, 0);
 class RecordingRepo extends VehicleRepository {
   RecordingRepo()
     : super(
-        fetchSnapshot: (_) async => const <ClientVehicle>[],
+        fetchSnapshot: (_) async =>
+            const ClientSnapshot(vehicles: <ClientVehicle>[]),
         openChannel: (_) async => FakeChannel(),
         wsBaseUrl: () => 'ws://127.0.0.1:8080',
         clock: FakeClock(100000),
@@ -180,7 +181,7 @@ Widget routeApp(VehicleRepository repo) {
 /// Builds a repository that answers with [vehicles].
 VehicleRepository repoOf(List<ClientVehicle> vehicles) {
   return VehicleRepository(
-    fetchSnapshot: (_) async => vehicles,
+    fetchSnapshot: (_) async => ClientSnapshot(vehicles: vehicles),
     openChannel: (_) async => FakeChannel(),
     wsBaseUrl: () => 'ws://127.0.0.1:8080',
     clock: FakeClock(100000),

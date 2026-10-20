@@ -15,6 +15,21 @@ export const ConsentsBody = strictObject({
   version: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(32767)),
 });
 
+/**
+ * POST /v1/reports. No coordinates, no timestamps, no free text.
+ * `area` is a coarse ~150 m grid cell, required for waiting/blocked and
+ * forbidden for broken/full; the handler enforces the kind-target rule.
+ */
+export const ReportBody = strictObject({
+  op: v.picklist(["report", "retract"]),
+  kind: v.picklist(["waiting", "full", "broken", "blocked"]),
+  line: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  area: v.optional(v.pipe(v.string(), v.maxLength(40))),
+});
+
+/** Typed report request. */
+export type ReportRequest = v.InferOutput<typeof ReportBody>;
+
 export function parseJson<T>(
   schema: v.GenericSchema<T>,
   input: unknown,

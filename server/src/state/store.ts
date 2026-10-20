@@ -1,7 +1,7 @@
 // In-memory store. Trips keyed by device id, vehicles by id with a line
 // index. Location lives only here and is dropped when a trip ends.
 // See PLAN.md D02, 6.6, 6.7. A StateStore seam allows Redis later.
-import type { Trip, Vehicle } from "../domain/types.ts";
+import type { ReportState, Trip, Vehicle } from "../domain/types.ts";
 
 export interface Store {
   trips: Map<string, Trip>;
@@ -10,6 +10,11 @@ export interface Store {
   nextVehicleId: number;
   /** D30: anonymous vehicle-sighting millis per line (no positions/ids). */
   passages: Map<number, number[]>;
+  /**
+   * Active passenger reports per line, keyed by `kind:areaId`. In memory
+   * only, pruned on the tick. PRIVACY: never serialised or persisted.
+   */
+  reports: Map<number, Map<string, ReportState>>;
 }
 
 export function createStore(): Store {
@@ -19,6 +24,7 @@ export function createStore(): Store {
     byLine: new Map(),
     nextVehicleId: 1,
     passages: new Map(),
+    reports: new Map(),
   };
 }
 

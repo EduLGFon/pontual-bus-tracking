@@ -4,6 +4,29 @@
 export type Role = "L" | "F" | "W";
 export type EndReason = "idle" | "timeout" | "max_duration" | "abuse" | "user";
 
+/**
+ * Public passenger report kinds. Closed API contract; unknown values from
+ * a newer client are rejected at the boundary.
+ */
+export type ReportKind = "waiting" | "full" | "broken" | "blocked";
+
+/**
+ * One active passenger report. Lives in API memory only, for its TTL.
+ * PRIVACY: `areaId` is a coarse ~150 m grid cell, never a coordinate.
+ * `reporters` holds device ids only to count distinct reporters, dedupe
+ * repeats, and let a device retract its own contribution. Neither is ever
+ * serialised raw, logged, or written to the database.
+ */
+export interface ReportState {
+  kind: ReportKind;
+  lineId: number;
+  areaId: string | null;
+  createdAtMs: number;
+  updatedAtMs: number;
+  expiresAtMs: number;
+  reporters: Set<string>;
+}
+
 export interface Fix {
   lat: number;
   lng: number;

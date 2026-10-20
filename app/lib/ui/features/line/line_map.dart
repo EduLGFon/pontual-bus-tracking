@@ -454,7 +454,8 @@ class _ViewerDot extends StatelessWidget {
 
 /// Bus stop dot: small muted circle with a surface ring. Never a bus
 /// glyph and never pulsing, so it cannot read as a vehicle. Names come
-/// from survey or OSM data, never invented.
+/// from survey or OSM data, never invented. Decorative: reports use the
+/// user's coarse area, not a manually chosen stop (D83).
 class _StopDot extends StatelessWidget {
   /// Creates a stop dot with the posted [name], if mapped.
   const _StopDot({this.name});

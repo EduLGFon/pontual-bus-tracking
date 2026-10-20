@@ -3033,3 +3033,148 @@ was extracted from `index.html` and rendered at 88 px, matching the source.
 files in `app/build/web/` match the sources (only the base href differs).
 No Dart code changed. Android SDK is not installed on this host, so the
 merged-manifest and install-launch checks were not run.
+
+## D81-2026-10-20: permanent Android download link in web Settings
+
+Owner order: "On app/website settings, add a link to download app for android".
+The web build now shows a permanent "Baixar app para Android" row in the
+Settings About section. Tap opens the latest release APK
+(`.../releases/latest/download/app-release.apk`) in the system browser through
+the existing allow-listed `url_launcher`. The one-time Android web card from
+D-U24 stays on Home and Settings; after dismissal the permanent row remains.
+The row is web only because it would be pointless inside the native Android
+app and cannot install on iOS.
+
+Implementation: shared `openAndroidAppDownload` helper in
+`app/lib/platform/web/android_app_download.dart` (the card reuses it) and
+`AndroidAppDownloadRow` in
+`app/lib/ui/features/settings/android_app_download_row.dart`; two pt-BR
+strings. No new dependency and no new data handling.
+
+Verified: `dart format` clean, `flutter analyze` clean, targeted
+`flutter test test/web_prompts_test.dart test/ui/trip_settings_test.dart`
+passes (28 tests).
+
+## D82-2026-10-20: passenger reports ("Sinalizações") (target model superseded by D83)
+
+
+Owner order: add a flag system for "still waiting at this stop", "bus broken",
+"gate blocked", "at max capacity", with a timestamp. Owner answers during the
+design review: accept the device token; in-memory for alpha; implement both
+line-level and stop-level; confirm the four kinds; no votes now; line-level
+direction is enough for v1; research real stop names on the internet where
+possible.
+
+Decision:
+
+- UI name **Sinalizações**, internal name **reports**. `flag` stays reserved
+  for feature flags.
+- Four closed kinds: `waiting` (line + stop), `full` (line), `broken` (line),
+  `blocked` (line + stop). No free text, no photos, no driver or plate data.
+- Reports are ephemeral and live in API process memory only. TTL default:
+  waiting 10 min, full 15 min, broken/blocked 30 min; hard max age 30 min /
+  45 min / 2 h / 2 h. A repeat from the same device refreshes freshness but
+  does not increase the distinct-reporter count. No confirm/deny votes.
+- Server owns timestamps. Clients never send `at`; the snapshot exposes
+  `created_age_s`, `updated_age_s` and `expires_in_s`.
+- Reads ride on the existing `GET /v1/lines/{id}/vehicles` payload and the
+  WebSocket snapshot as an additive `r` array. Old clients ignore it. Writes
+  use one route, `POST /v1/reports`, with `op` `report` or `retract`. No report
+  ids, no report ids in URLs, no vehicle ids from clients.
+- The device token is required, as AGENTS.md section 8 requires for every
+  state-changing endpoint. A viewer who reports for the first time creates a
+  pseudonymous `devices` row after a clear in-app disclosure. The report itself
+  is not persisted and is not linked to the device record in storage.
+- `DELETE /v1/me` removes the device from in-memory reporter sets, so a report
+  whose only reporter was that device disappears.
+- Stop ids are validated against the built static bundle when stop data is
+  loaded. Local runs without a bundle accept well-formed ids so the feature can
+  be tested; production bundles validate the exact set.
+- Line-level only for direction in v1: a broken bus in one direction shows for
+  both. `blocked` is also line-scoped until stop-line associations exist, so a
+  blocked stop reported from line 7 does not appear on line 8. The stop picker
+  lists all mapped stops because stop-line associations are still pending.
+  All are recorded as known limitations.
+
+Stop-name research (2026-10-20): queried the OSM API for the 12 node ids in
+`data/stops.json`. The tags still expose only `Guriri`, `Entrada do Jaguaré`
+(two nodes) and the generic "Ponto de ônibus" (two nodes); the other seven
+have no `name`. No new reliable posted names were found. No name was invented.
+The existing generic names were left untouched to avoid a data rebuild outside
+this change; a field survey (T17/RF20) is still the prerequisite for good
+stop-level labels. The picker gives unnamed nodes a local ordinal that is never
+written back to the data.
+
+Privacy and LGPD: the data inventory and policy drafts now include public
+reports (kind, line, chosen stop, server timestamps, distinct count), memory
+only, TTL at most 2 h, no coordinates and no identifier in durable storage.
+The device record created on first report is disclosed. Lawyer/DPO review of
+the wording and legal basis remains owner-blocked, as with the rest of the
+privacy drafts.
+
+Verification: `deno fmt --check`, `deno check src/main.ts`, `deno check
+test/*.ts` and `deno lint` pass. The full server suite ran against a throwaway
+PostgreSQL 16 container on 127.0.0.1:5433: 94 passed, 0 failed, including the
+six report tests (auth, schema, target validation, snapshot `r`, kill switch,
+delete-me cleanup, TTL/count/retract). `dart format`, `flutter analyze` and the
+full `flutter test` suite (388 tests, 1 skipped) pass. The Android
+manifest audit, size measurement and device checks were not run on this host.
+No database migration was added.
+
+## D83-2026-10-20: reports use a coarse location area, not a stop picker
+
+Owner order after reviewing D82: manually choosing a bus stop is a bad flow
+because the app already has the user's location and the mapped stop set is
+incomplete and not always correct. Use the current location instead. A person
+does not need to be on the bus to report that they are waiting, so the flow
+must be available to any viewer, not only to riders. Refactor the feature.
+
+Decision:
+
+- Waiting and blocked reports target a **coarse ~150 m grid cell**, not a stop
+  id and not a coordinate. The app reads the device location once, converts it
+  to the cell on-device, and sends only the cell id. Exact coordinates never
+  leave the device.
+- The grid is deterministic: 150 m cells, fixed reference latitude -18.7,
+  id `g<latIndex>_<lngIndex>`. The server validates the id and that its center
+  is inside the served bbox with one cell of margin. The Dart and TypeScript
+  implementations share test vectors.
+- The server keeps the cell in memory only for the report TTL, never logs it,
+  and never writes it to the database or metrics. `DELETE /v1/me` still removes
+  the device from reporter sets.
+- The manual stop picker and the stop sheet are removed. Stop dots stay on the
+  map as decorative information. There is no stop dependency in the report
+  API, and `server/src/data/stops.ts` is deleted.
+- Waiting is available to any viewer on a pilot line, without a trip, consent
+  for location sharing, or a device relationship to the bus. The line sheet's
+  `Sinalizar` action is the entry point; the trip screen keeps its shortcut.
+- Location UX: a one-time in-app notice explains that one location read becomes
+  a ~150 m area, not a pin, and that the exact position is not sent or stored.
+  Acceptance is stored locally (`report_location_notice_v1`), then the OS
+  permission prompt runs. Denied, blocked, services-off, imprecise (>150 m) and
+  timeout states get a report-specific card with retry and, on Android,
+  "Abrir ajustes". A decline leaves the map usable.
+- The report chip shows the count and age; the detail sheet shows the rounded
+  distance to the area ("cerca de 100 m") when the viewer location is known, or
+  "Área aproximada de 150 m" otherwise. Waiting reports sort by distance when
+  available. No precise coordinate is ever rendered.
+- No votes remains: a report disappears by TTL or when its reporters retract.
+- API contract change: `area` replaces `stop`. This feature has not shipped, so
+  the break is accepted pre-release; there is no installed-client compatibility
+  obligation for a feature that only exists in the current build.
+
+Privacy: the report is a public coarse presence claim chosen by the user. The
+cell is location data, but it is approximate, ephemeral, memory-only, and never
+logged. The data inventory, policy, terms, RIPD and UI spec are updated. The
+one-time notice plus OS permission is not a server-recorded consent yet; before
+public release, legal review must confirm whether a versioned server consent
+record is required. Until then the app remains a draft alpha and the policy
+status stays "minuta". No exact coordinates are persisted, logged or sent.
+
+Verification: `deno fmt --check`, `deno check src/main.ts test/*.ts`,
+`deno lint` and the full server suite against a throwaway PostgreSQL 16
+container (94 passed, 0 failed). `dart format`, `flutter analyze`, the report
+area/location unit tests and the full app suite pass (397 passed, 1 skipped).
+`flutter build web --release` passes and the source-manifest audit passes
+(no new permission). The merged Android manifest, size measurement and device
+checks were not run on this host.

@@ -23,6 +23,9 @@ import 'package:pontual/ui/design/components/vehicle_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_sheet_header.dart';
+import 'package:pontual/ui/features/reports/report_detail_sheet.dart';
+import 'package:pontual/ui/features/reports/report_sheet.dart';
+import 'package:pontual/ui/features/reports/report_strip.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
@@ -30,6 +33,7 @@ import 'package:pontual/ui/models/alert_rule.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/reliability.dart';
 import 'package:pontual/ui/models/line_vm.dart';
+import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
@@ -53,6 +57,7 @@ class LineSheet extends ConsumerStatefulWidget {
     required this.staticLine,
     required this.vehicles,
     required this.scrollController,
+    this.reports = const <ReportVM>[],
     this.viewer,
     this.initialTab,
     this.onTabChanged,
@@ -71,6 +76,9 @@ class LineSheet extends ConsumerStatefulWidget {
 
   /// Vehicles of this line, already capped by the caller.
   final List<VehicleVM> vehicles;
+
+  /// Active reports of this line, already sorted by severity.
+  final List<ReportVM> reports;
 
   /// Viewer position for the live hero ETA, null when unknown. Only the
   /// distance feeds the prediction; nothing is drawn from it here.
@@ -212,6 +220,46 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       limit: hero == null ? 4 : 3,
     );
     final List<Widget> out = <Widget>[];
+    final bool reportsEnabled =
+        ref.watch(appFeaturesProvider).reports && widget.staticLine.pilot;
+    if (reportsEnabled) {
+      if (widget.reports.isNotEmpty) {
+        out.add(
+          ReportStrip(
+            reports: widget.reports,
+            onTap: (ReportVM report) => showReportDetailSheet(
+              context,
+              reports: <ReportVM>[report],
+              onChanged: _refreshReports,
+            ),
+            onMore: () => showReportDetailSheet(
+              context,
+              reports: widget.reports,
+              onChanged: _refreshReports,
+            ),
+          ),
+        );
+        out.add(const SizedBox(height: Space.x2));
+      }
+      out.add(
+        Wrap(
+          spacing: Space.x2,
+          children: <Widget>[
+            GhostLink(
+              label: UiStrings.reportAction,
+              icon: Icons.flag_outlined,
+              onTap: () => showReportSheet(
+                context,
+                lineId: widget.staticLine.id,
+                lineName: widget.staticLine.name,
+                onSubmitted: _refreshReports,
+              ),
+            ),
+          ],
+        ),
+      );
+      out.add(const SizedBox(height: Space.x4));
+    }
     // D30 in-app alert: a saved rule for this line fires while a live
     // bus is on the route. Local only, no push, no server call.
     final List<AlertRuleVM> rules = ref.watch(alertsProvider);
@@ -357,6 +405,12 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       ]);
     }
     return out;
+  }
+
+  /// Refreshes the line snapshot after a report write. The repository
+  /// ignores this before start, so it is safe from the trip screen too.
+  Future<void> _refreshReports() {
+    return ref.read(vehicleRepoProvider(widget.staticLine.id)).refresh();
   }
 
   /// Secondary action row: the map reveal in data saver mode. The timetable

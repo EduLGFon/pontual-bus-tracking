@@ -4,6 +4,7 @@ import { loadConfig } from "./config/config.ts";
 import { defaultRuntimeConfig, loadRuntimeConfig } from "./config/runtime.ts";
 import { loadLinesFromDir, registryResolver } from "./data/lines.ts";
 import { openDb } from "./db/client.ts";
+import { reportRows } from "./domain/reports.ts";
 import { defaultEngineConfig } from "./domain/types.ts";
 import { buildApp } from "./http/app.ts";
 import { startJobs } from "./jobs/jobs.ts";
@@ -107,6 +108,7 @@ function broadcastLine(lineId: number): void {
         engine.publishTtlS,
         engine.memberAliveS,
       ),
+      r: runtime.reports.enabled ? reportRows(store, lineId, nowMs) : [],
     });
   } catch {
     // Engine output is practically always valid JSON; if it ever is
@@ -127,7 +129,8 @@ const app = buildApp({
   followerJitterS: 10,
   trustCloudflare: config.trustCloudflare,
   allowedOrigins: config.allowedOrigins,
-  onVehicle: broadcastLine,
+  onLineChanged: broadcastLine,
+  reportsEnabled: () => runtime.reports.enabled,
   engine,
   runtime: () => Promise.resolve(runtime),
 });

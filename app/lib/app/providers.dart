@@ -18,6 +18,7 @@ import 'package:pontual/data/net/http_client.dart';
 import 'package:pontual/data/prefs/token_store.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/ui/models/features.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -84,6 +85,12 @@ final Provider<BusApi> busApiProvider = Provider<BusApi>((Ref ref) {
     writeToken: store.write,
   );
 });
+
+/// App-wide feature flags. Compile-time defaults for now; the remote
+/// flags path already exists for maintenance and update gates.
+final Provider<Features> appFeaturesProvider = Provider<Features>(
+  (Ref ref) => const Features(),
+);
 
 /// Static data repository built from bundled assets.
 final FutureProvider<StaticDataRepository> staticDataRepoProvider =
@@ -275,20 +282,25 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
           throw StateError('snapshot failed');
         }
         final VehiclesSnapshot snap = (res as Ok<VehiclesSnapshot>).value;
-        return snap.vehicles
-            .map(
-              (List<num?> row) => ClientVehicle(
-                id: (row[0] as num).toInt(),
-                lat: (row[1] as num).toDouble(),
-                lng: (row[2] as num).toDouble(),
-                heading: row[3]?.toDouble(),
-                kmh: (row[4] as num).toDouble(),
-                members: (row[5] as num).toInt(),
-                ageS: (row[6] as num).toInt(),
-                paceKmh: row.length > 7 ? row[7]?.toDouble() : null,
-              ),
-            )
-            .toList();
+        return ClientSnapshot(
+          vehicles: snap.vehicles
+              .map(
+                (List<num?> row) => ClientVehicle(
+                  id: (row[0] as num).toInt(),
+                  lat: (row[1] as num).toDouble(),
+                  lng: (row[2] as num).toDouble(),
+                  heading: row[3]?.toDouble(),
+                  kmh: (row[4] as num).toDouble(),
+                  members: (row[5] as num).toInt(),
+                  ageS: (row[6] as num).toInt(),
+                  paceKmh: row.length > 7 ? row[7]?.toDouble() : null,
+                ),
+              )
+              .toList(),
+          reports: snap.reports
+              .map((ReportDTO r) => ClientReport.fromDto(r))
+              .toList(),
+        );
       },
       openChannel: (Uri url) {
         final WebSocketChannel channel = WebSocketChannel.connect(url);
