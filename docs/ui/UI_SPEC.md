@@ -1464,6 +1464,60 @@ limits). That is a backend/architecture decision; the UI only needs
 - Feature flags and `ArrivalsSource`/`SearchProvider` composition are the only
   extension points; do not branch on feature names inside widgets.
 
+### 13.6 Passenger reports ("Sinalizações", D82)
+
+The UI receives reports as an optional `r` array on the line snapshot and the
+WebSocket frame. No second socket, no second poll.
+
+Placement:
+
+- Line sheet, Agora: a `ReportStrip` of at most two `ReportChip`s plus a `+N`
+  chip, and a `Sinalizar` GhostLink. Only on pilot lines.
+- Stop sheet (tap a stop dot): stop name, the stop's reports, a primary
+  `Estou esperando aqui` and a secondary `Sinalizar`.
+- Trip screen: one AppBar `IconBtn` with `flag_outlined`, semantic label
+  `Sinalizar problema neste ônibus`.
+- Report sheet: four `SurfaceCard` options with icon, label and one-line hint;
+  stop chips only for `waiting`/`blocked`; one `PrimaryButton`; disclosure and
+  disclaimer. The stop picker uses the posted name when it exists, otherwise a
+  local `Ponto de ônibus N` locator that is never written back to data.
+- Detail sheet: label, absolute stop, `Sinalizado há ...`, `Atualizado há ...`,
+  count sentence, and `Remover minha sinalização` only for this session's own
+  report. No confirm/deny in the alpha.
+
+Visual roles:
+
+- Incidents (`full`, `broken`, `blocked`): `warning` at 12 % fill,
+  `warningText` icon/text. `blocked` first in severity.
+- Waiting: `surfaceSunken` fill, `inkMuted` icon/text. Never `live` green.
+- Unknown kind: neutral `flag_outlined`, label `Sinalização`, no actions.
+- Chips keep a 48 dp hit target, wrap instead of truncating at 200 % text, and
+  carry the full semantic sentence. No pulse, no motion beyond a 150 ms fade.
+- The strip renders nothing when there are no reports. It rebuilds with the
+  line's 5 s tick so stream updates land promptly; the age labels themselves
+  are minute-granular, never a per-second timer.
+
+Copy:
+
+| Context | pt-BR |
+| --- | --- |
+| Entry | `Sinalizar` |
+| Sheet title | `O que está acontecendo?` |
+| Waiting | `Ainda estou esperando` / `Continuo neste ponto esperando o ônibus.` |
+| Full | `Ônibus lotado` / `Está cheio e não está parando.` |
+| Broken | `Ônibus quebrado` / `O ônibus parou ou quebrou.` |
+| Blocked | `Acesso bloqueado` / `O ponto ou o portão está bloqueado.` |
+| Submit | `Enviar sinalização` |
+| Sent | `Sinalização enviada. Obrigado!` |
+| Stop primary | `Estou esperando aqui` / `Ainda estou aqui` |
+| Retract | `Saí do ponto` / `Remover minha sinalização` |
+| Single waiting | `Alguém está esperando aqui` |
+| Many waiting | `2 pessoas esperando` (cap `5+`) |
+| Single incident | `1 relato recente` |
+| Many incidents | `2 pessoas relataram` (cap `5+`) |
+| Disclosure | `Sua sinalização é pública e anônima. Não enviamos sua localização. Para evitar abuso, o aparelho recebe um código anônimo. Ela some em até 2 horas.` |
+| Footnote | `Relatos de passageiros. Podem estar desatualizados.` |
+
 ---
 
 ## 14. Copy deck (pt-BR)

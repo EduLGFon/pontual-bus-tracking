@@ -1,6 +1,6 @@
 # RIPD do Pontual (relatório de impacto, versão enxuta)
 
-Data: 2026-10-03. Responsável pela elaboração: equipe do app.
+Data: 2026-10-03. Atualização: 2026-10-20 (D82). Responsável pela elaboração: equipe do app.
 Revisão do responsável e de advogado: pendente. Revisar antes da
 fase 2 e a cada mudança no tratamento de dados.
 
@@ -9,8 +9,11 @@ fase 2 e a cada mudança no tratamento de dados.
 Passageiros de ônibus em São Mateus compartilham a posição do
 ônibus durante a viagem. O servidor junta passageiros do mesmo
 ônibus em um veículo, elege um líder (envia com frequência) e
-mostra veículos por linha no mapa. Sem cadastro, sem histórico,
-sem posição gravada em disco ou banco.
+mostra veículos por linha no mapa. Passageiros também podem
+enviar sinalizações públicas de curta duração (espera no ponto,
+ônibus lotado/quebrado, acesso bloqueado), sem coordenadas e sem
+texto livre. Sem cadastro, sem histórico, sem posição gravada em
+disco ou banco.
 
 ## 2. Necessidade e proporcionalidade
 
@@ -32,6 +35,8 @@ apagamento imediato a pedido.
 | Comprometimento do VPS | operação própria | Média | Alto | hardening, menor privilégio, backup cifrado, sem posição em disco |
 | Transferência internacional de IP | Cloudflare, OSM, Google | Alta | Baixo | divulgado na política; Brasil preferido para o VPS |
 | Menores expostos | estudantes usam | Média | Médio | mínimo de dados, sem perfil, sem anúncios |
+| Presença inferida por sinalização | "alguém esperando" em um ponto isolado | Baixa | Médio | sem coordenadas; contagem 1 vira "alguém"; público por ação do titular; TTL <= 2 h; sem histórico |
+| Sinalização falsa ou brigada | tokens gratuitos, retaliação | Média | Médio | tipos fechados, limites, teto por linha, TTL curto, texto "relato", kill switch |
 
 ## 4. Risco residual
 

@@ -17,6 +17,18 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
 3. Confira: `curl /v1/health` e um start de teste (espera 503).
 4. Investigue; para voltar, apague a chave ou volte a `true`.
 
+## Sinalizações de passageiros (D82)
+
+- Desligar só as sinalizações:
+  `update app_config set value='false' where key='reports_enabled';`.
+  Escritas passam a `503 maint` e o próximo snapshot manda `r: []`, o
+  que limpa os chips nos clientes. Nada é gravado em disco.
+- Um reinício da API apaga todas as sinalizações em memória. Isso é
+  esperado; não há histórico para recuperar.
+- Tetos: `reports_max_per_line` (8) e `reports_max_total` (2000).
+  TTLs e idade máxima ficam nas chaves `reports_ttl_*` e
+  `reports_max_age_*`.
+
 ## API fora do ar ou reiniciando (alerta, `502/503`)
 
 1. `systemctl status pontual`, `journalctl -u pontual` (sem PII).

@@ -1,7 +1,7 @@
 # Inventário de dados do Pontual
 
 Fonte: PLAN.md 13.2. Manter atualizado a cada mudança no tratamento.
-Última revisão: 2026-10-11 (D30).
+Última revisão: 2026-10-20 (D82).
 
 | Dado | Finalidade | Onde | Retenção | Dado pessoal? |
 | ---- | ---------- | ---- | -------- | ------------- |
@@ -13,6 +13,7 @@ Fonte: PLAN.md 13.2. Manter atualizado a cada mudança no tratamento.
 | Posição do veículo (junção) | mostrar o ônibus | memória do servidor | some após 120 s sem sinal | Pode revelar passageiro sozinho (KL2) |
 | Ritmo do veículo (velocidade suavizada, um número) | ETA e previsão | memória do servidor, no veículo | com o veículo; zera a cada ônibus novo | Não identifica motorista; sem histórico |
 | Passagens recentes (só instantes por linha) | frequência, histórico, atrasos | memória do servidor | anel de 32, 4 h | Sem posição, sem identidade |
+| Sinalização (tipo, linha, ponto, horários do servidor, contagem de aparelhos) | aviso público de curta duração | memória do servidor | TTL de 10 a 30 min; máximo 2 h; some ao reiniciar | Pode revelar presença em um ponto; público, sem identificador durável |
 | Limites por IP/aparelho | controle de abuso | memória do servidor | minutos; sem registro | Sim (IP), efêmero |
 | Registros de infra (IP, agente) | segurança/operação | Cloudflare, OSM, provedor VPS; próprios desligados ou sem IP | por provedor (curto) | Sim (IP), no provedor |
 | Backups cifrados das tabelas | recuperação | fora do servidor | 30 dias | Sim (pseudônimo), cifrado |
@@ -21,4 +22,7 @@ Fonte: PLAN.md 13.2. Manter atualizado a cada mudança no tratamento.
 
 Nunca coletado: nome, e-mail, telefone, contatos, IMEI,
 identificadores de publicidade, apps instalados, fotos,
-microfone, histórico de viagens. Quem só olha não cria registro.
+microfone, histórico de viagens. Quem só olha, sem compartilhar
+viagem e sem sinalizar, não cria registro. A primeira sinalização
+cria o mesmo código anônimo de aparelho usado contra abuso; a
+sinalização em si não é guardada junto desse código.

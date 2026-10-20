@@ -31,11 +31,17 @@ Coletamos somente:
   no mesmo ônibus viram um só ponto no mapa).
 - Para segurança: limites de uso por aparelho e por rede (só na
   memória, por minutos, sem registro permanente).
+- Sinalizações que você envia: tipo, linha, ponto escolhido, horário
+  do servidor e contagem de aparelhos. São públicas, ficam só na
+  memória do servidor e somem em até 2 horas. Não enviamos a
+  localização do seu celular para sinalizar.
 
 Nunca coletamos: nome, e-mail, telefone, contatos, fotos,
 microfone, histórico de viagens, IMEI ou identificadores de
-publicidade. Quem só olha o mapa ou os horários não cria
-registro nenhum.
+publicidade. Quem só olha o mapa ou os horários, sem compartilhar
+viagem e sem sinalizar, não cria registro nenhum. A primeira
+sinalização cria o mesmo código anônimo de aparelho usado para
+limitar abuso; a sinalização não é guardada junto desse código.
 
 ## 3. Para que usamos (finalidades)
 
@@ -43,6 +49,7 @@ registro nenhum.
 - Escolher qual celular envia com mais frequência (economia de
   bateria de todos).
 - Provar o seu consentimento e proteger o serviço contra abuso.
+- Mostrar sinalizações públicas de passageiros por alguns minutos.
 
 ## 4. Base legal (LGPD)
 
@@ -52,12 +59,18 @@ registro nenhum.
 - Só olhar o mapa: nenhum dado seu é coletado pelo app;
   registros de rede dos provedores seguem o legítimo interesse
   (art. 7, IX).
+- Sinalizações: você escolhe enviar e o app não usa a sua
+  localização; o ponto é escolhido por você. A base legal e o
+  texto final serão confirmados pelo responsável e pelo advogado.
+  A sinalização é pública e pode ser vista por outras pessoas.
 
 ## 5. Por quanto tempo guardamos
 
 - Posição: some da memória ao fim da viagem.
 - Código do aparelho e consentimento: até você apagar ou 30 dias
   sem uso.
+- Sinalizações: no máximo 2 horas, só na memória; somem ao
+  reiniciar o serviço ou ao usar "Apagar meus dados".
 - Cópias de segurança cifradas: 30 dias.
 
 ## 6. Quem recebe os dados

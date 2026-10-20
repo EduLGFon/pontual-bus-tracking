@@ -23,12 +23,16 @@ Use como referência, não como única fonte.
 - Compartilhe somente quando estiver dentro do ônibus da linha.
 - Sem localizações falsas, sem automação, sem tentativas de
   sobrecarregar o serviço.
+- Sinalizações são relatos públicos de passageiros, não informação
+  oficial. Não envie sinalização falsa nem use o recurso para
+  assediar, acusar pessoas ou divulgar dados pessoais.
 - Na web e no iPhone, o compartilhamento exige a tela aberta.
 
 ## 4. Consequências do mau uso
 
-Podemos encerrar viagens e bloquear aparelhos em caso de abuso,
-sem aviso prévio, para proteger os demais usuários.
+Podemos encerrar viagens, remover sinalizações e bloquear
+aparelhos em caso de abuso, sem aviso prévio, para proteger os
+demais usuários.
 
 ## 5. Privacidade e seus dados
 
@@ -46,4 +50,4 @@ Nos limites da lei, não respondemos por perdas decorrentes do
 uso das informações do app. Lei aplicável: Brasil. Contato:
 [DEFINIR e-mail].
 
-Data desta minuta: 03/10/2026.
+Data desta minuta: 20/10/2026.
