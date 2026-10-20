@@ -4,6 +4,7 @@
 import { bestMember } from "./election.ts";
 import { prunePassages } from "./arrivals.ts";
 import { endTrip } from "./ping.ts";
+import { pruneReports } from "./reports.ts";
 import { membersOf, removeVehicle, vehiclesOfLine } from "../state/store.ts";
 import type { Store } from "../state/store.ts";
 import type { EngineConfig, EngineEvent } from "./types.ts";
@@ -21,9 +22,11 @@ export function tick(
 ): TickResult {
   if (store.trips.size === 0 && store.vehicles.size === 0) {
     prunePassages(store, nowMs);
-    return { changedLines: [] };
+    return { changedLines: pruneReports(store, nowMs) };
   }
   const changed = new Set<number>();
+  // Reports expire even when no vehicle is live on the line.
+  for (const lineId of pruneReports(store, nowMs)) changed.add(lineId);
 
   for (const trip of [...store.trips.values()]) {
     if (trip.lastSeenAtMs === null) continue;

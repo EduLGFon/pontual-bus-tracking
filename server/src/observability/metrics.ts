@@ -13,6 +13,9 @@ export interface MetricsSnapshot {
   http429Total: number;
   /** Total 403 answers across read and trip routes. */
   http403Total: number;
+  /** Passenger reports created and retracted. Aggregate only, no ids. */
+  reportsCreatedTotal: number;
+  reportsRetractedTotal: number;
 }
 
 const startedAtMs = Date.now();
@@ -22,6 +25,8 @@ let wsConnectsTotal = 0;
 let wsCapacityRefusedTotal = 0;
 let http429Total = 0;
 let http403Total = 0;
+let reportsCreatedTotal = 0;
+let reportsRetractedTotal = 0;
 
 export function recordRequest(): void {
   requestsTotal += 1;
@@ -48,6 +53,14 @@ export function recordHttp403(): void {
   http403Total += 1;
 }
 
+export function recordReportCreated(): void {
+  reportsCreatedTotal += 1;
+}
+
+export function recordReportRetracted(): void {
+  reportsRetractedTotal += 1;
+}
+
 export function snapshot(): MetricsSnapshot {
   return {
     startedAt: new Date(startedAtMs).toISOString(),
@@ -58,5 +71,7 @@ export function snapshot(): MetricsSnapshot {
     wsCapacityRefusedTotal,
     http429Total,
     http403Total,
+    reportsCreatedTotal,
+    reportsRetractedTotal,
   };
 }
