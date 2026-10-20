@@ -1094,6 +1094,9 @@ it).
   Prefeitura de São Mateus.", data sources list, "© OpenStreetMap contributors"
   link, open-source licences screen (own simple list from `LicenseRegistry`,
   lazily loaded, tokens applied), contact link, repository link, version.
+- **Baixar app para Android (web only):** permanent row in "Sobre" that
+  opens the latest release APK; the native Android app hides it. The one-time
+  Android web card on Home and Settings stays.
 - No login, no avatar, no promotional content.
 
 ### 7.9 System screens and states

@@ -18,6 +18,19 @@ const String androidAppSeenKey = 'android_app_seen';
 const String androidApkUrl =
     '${UiStrings.repoUrl}/releases/latest/download/app-release.apk';
 
+/// Opens the latest release APK in the system browser. [openUrl] is
+/// injectable for tests; production launches the APK URL externally.
+Future<void> openAndroidAppDownload({
+  Future<void> Function(Uri uri)? openUrl,
+}) async {
+  final Uri uri = Uri.parse(androidApkUrl);
+  if (openUrl != null) {
+    await openUrl(uri);
+    return;
+  }
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
 /// Returns true when the hint should show: Android web browser, not seen.
 bool shouldShowAndroidAppDownload({
   required bool isWeb,
@@ -62,14 +75,7 @@ class AndroidAppDownloadCard extends StatelessWidget {
   final Future<void> Function(Uri uri)? openUrl;
 
   /// Downloads the latest release APK in the system browser.
-  Future<void> download() async {
-    final Uri uri = Uri.parse(androidApkUrl);
-    if (openUrl != null) {
-      await openUrl!(uri);
-      return;
-    }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
+  Future<void> download() => openAndroidAppDownload(openUrl: openUrl);
 
   @override
   Widget build(BuildContext context) {

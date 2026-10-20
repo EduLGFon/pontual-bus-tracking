@@ -3033,3 +3033,24 @@ was extracted from `index.html` and rendered at 88 px, matching the source.
 files in `app/build/web/` match the sources (only the base href differs).
 No Dart code changed. Android SDK is not installed on this host, so the
 merged-manifest and install-launch checks were not run.
+
+## D81-2026-10-20: permanent Android download link in web Settings
+
+Owner order: "On app/website settings, add a link to download app for android".
+The web build now shows a permanent "Baixar app para Android" row in the
+Settings About section. Tap opens the latest release APK
+(`.../releases/latest/download/app-release.apk`) in the system browser through
+the existing allow-listed `url_launcher`. The one-time Android web card from
+D-U24 stays on Home and Settings; after dismissal the permanent row remains.
+The row is web only because it would be pointless inside the native Android
+app and cannot install on iOS.
+
+Implementation: shared `openAndroidAppDownload` helper in
+`app/lib/platform/web/android_app_download.dart` (the card reuses it) and
+`AndroidAppDownloadRow` in
+`app/lib/ui/features/settings/android_app_download_row.dart`; two pt-BR
+strings. No new dependency and no new data handling.
+
+Verified: `dart format` clean, `flutter analyze` clean, targeted
+`flutter test test/web_prompts_test.dart test/ui/trip_settings_test.dart`
+passes (28 tests).

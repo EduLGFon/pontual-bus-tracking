@@ -664,6 +664,13 @@ class UiStrings {
   /// Android app download action.
   static const String androidAppDownload = 'Baixar app';
 
+  /// Android download row in Settings (web only).
+  static const String androidAppDownloadRow = 'Baixar app para Android';
+
+  /// Hint under the Android download row.
+  static const String androidAppDownloadRowHint =
+      'Instale o APK mais recente para compartilhar com a tela desligada.';
+
   /// Web keep open banner.
   static const String webKeepOpen =
       'Mantenha esta tela aberta e o celular desbloqueado.';

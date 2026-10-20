@@ -26,6 +26,7 @@ import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/shortcut_sheet.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
+import 'package:pontual/ui/features/settings/android_app_download_row.dart';
 import 'package:pontual/ui/features/settings/settings_section.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
@@ -154,6 +155,7 @@ class SettingsScreen extends ConsumerWidget {
             SettingsSection(
               title: UiStrings.sectionAbout,
               children: <Widget>[
+                if (PlatformInfo.isWeb) const AndroidAppDownloadRow(),
                 SettingsTile.chevron(
                   icon: Icons.info_outline_rounded,
                   title: UiStrings.about,

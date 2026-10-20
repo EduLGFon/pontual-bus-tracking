@@ -4,6 +4,9 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Settings on the web build now has a permanent "Baixar app para Android"
+  row that opens the latest release APK. The one-time card on Home stays;
+  the native Android app does not show the row. See DECISIONS.md D81.
 - Replaced the launcher, PWA and HTML splash icon with the owner-supplied
   mint bus on a deep green tile. Android legacy and adaptive, web 192/512,
   maskable 192/512, apple-touch 180, SVG and 32 px favicons all use the new
