@@ -1474,9 +1474,9 @@ states:
 
 - **Live**: "● Ao vivo · atualizado há N s" (green dot + text).
 - **Stale** (age > 45 s): "◐ Última posição há N min" amber + text.
-- **No vehicles**: card "Nenhum ônibus compartilhando agora. Veja os horários ou
-  ajude compartilhando sua viagem." with buttons [Ver horários] [Estou no
-  ônibus].
+- **No vehicles**: card "Nenhum ônibus ao vivo agora. Está no ônibus? Toque em
+  Estou no ônibus e mostre a posição para quem espera. Sem cadastro." with
+  buttons [Ver horários] [Estou no ônibus].
 - **Connecting**: small "Conectando…" text (not blocking).
 - **Offline**: banner "Sem conexão - mostrando a última posição conhecida" (if
   cache < 2 min) else "Sem conexão".
@@ -1504,7 +1504,7 @@ Purpose: timetable without any live data.
 ├──────────────────────────────────┤
 │ ⓘ Horários não oficiais, reunidos│
 │ de fontes públicas. Podem estar  │
-│ desatualizados. Atualizado em    │
+│ desatualizados. Atualizados em   │
 │ 05/10/2026.                      │
 └──────────────────────────────────┘
 ```
@@ -1567,12 +1567,13 @@ dismissible without side effects.
   localização 'o tempo todo'." [Continuar] → OS dialog. Then (Android 13+)
   notification permission: "A notificação mostra que a viagem está ativa e
   permite encerrar." [Continuar].
-- **Denied (can ask again):** "Sem permissão de localização. Sem ela não dá para
-  compartilhar a viagem." [Tentar de novo] [Cancelar].
+- **Denied (can ask again):** "A permissão de localização está desligada. Sem
+  ela não dá para compartilhar a viagem." [Tentar de novo] [Cancelar].
 - **Denied permanently:** same text + [Abrir ajustes] (opens app settings)
   [Cancelar].
-- **Notification denied:** non-blocking note: "Sem a notificação, o Android pode
-  encerrar o compartilhamento. Recomendamos permitir." The trip may continue.
+- **Notification denied:** non-blocking note: "Sem as notificações, o Android
+  pode encerrar o compartilhamento. Permita para manter o envio ativo." The trip
+  may continue.
 - **Location services off:** "Ative a localização do aparelho." [Abrir ajustes].
 - **Web:** browser prompt text pre-explained; if blocked: instructions for
   Safari/Chrome site settings.
@@ -1617,7 +1618,7 @@ Rules:
 - "Desci" → immediate local end (stop service) then best-effort
   `DELETE /v1/trip` with a 5 s timeout; show S09.
 - Web variant adds the banner "Mantenha esta tela aberta e o celular
-  desbloqueado." and a "Baixe o brilho" tip; shows wake-lock status.
+  desbloqueado." and an "Abaixe o brilho" tip; shows wake-lock status.
 - Prompt dialog (RF16): "Você ainda está no ônibus?" [Sim, continuar] [Desci];
   shown after 15 min slow; no answer in 5 min → end trip.
 - States: _waiting for movement_ ("Aguardando o ônibus sair…"), _leader_,
@@ -1630,7 +1631,8 @@ Content: "Viagem encerrada. Obrigado por ajudar!" plus the reason when
 automatic:
 
 - idle: "Encerramos porque o celular ficou parado por 10 minutos."
-- timeout/limit: "Encerramos por tempo máximo ou falta de sinal."
+- timeout/limit: "Encerramos porque a viagem atingiu o tempo máximo ou ficou
+  sem sinal."
 - permission: "Encerramos porque a permissão de localização foi removida."
 - abuse: "Encerramos por envios de localização inconsistentes."
 - server maintenance: "Serviço em manutenção. Tente mais tarde." Button [Voltar
@@ -2720,14 +2722,14 @@ wording.
 | `liveNow`                          | Ao vivo agora                                                                                         |
 | `allLines`                         | Todas as linhas                                                                                       |
 | `onlyTimetable`                    | Só horários                                                                                           |
-| `noVehicles`                       | Nenhum ônibus compartilhando agora. Veja os horários ou ajude compartilhando sua viagem.              |
+| `noVehicles`                       | Nenhum ônibus ao vivo agora. Está no ônibus? Toque em Estou no ônibus e mostre a posição para quem espera. Sem cadastro. |
 | `iAmOnBus`                         | Estou no ônibus                                                                                       |
 | `liveUpdated`                      | Ao vivo · atualizado há {n} s                                                                         |
 | `lastSeen`                         | Última posição há {n} min                                                                             |
-| `timetableDisclaimer`              | Horários não oficiais, reunidos de fontes públicas. Podem estar desatualizados. Atualizado em {date}. |
+| `timetableDisclaimer`              | Horários não oficiais, reunidos de fontes públicas. Podem estar desatualizados. Atualizados em {date}. |
 | `consentTitle`                     | Compartilhar sua localização                                                                          |
 | `consentAccept` / `consentDecline` | Aceitar e continuar / Agora não                                                                       |
-| `permDenied`                       | Sem permissão de localização. Sem ela não dá para compartilhar a viagem.                              |
+| `permDenied`                       | A permissão de localização está desligada. Sem ela não dá para compartilhar a viagem.                  |
 | `openSettings`                     | Abrir ajustes                                                                                         |
 | `tripSharing`                      | Compartilhando viagem                                                                                 |
 | `tripEnd`                          | Desci - encerrar viagem                                                                               |

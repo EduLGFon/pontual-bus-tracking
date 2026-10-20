@@ -4,6 +4,11 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Copy pass on the pt-BR UI strings: fixed typos and agreement ("Baixe"
+  to "Abaixe", "Linha favoritada", "Atualizado" to "Atualizados"),
+  made the wake-lock, permission, favorites, and empty-live texts
+  clearer and more direct, and pluralized the kudos counter. PLAN.md
+  and UI_SPEC.md copy updated to match.
 - Trip minimize and system back now return to the screen that started
   sharing (line details, map tab, search) with its state intact, instead
   of replacing the stack with home. The line viewer socket closes while a

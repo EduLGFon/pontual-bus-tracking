@@ -295,7 +295,7 @@ class _GalleryBody extends StatelessWidget {
               context: context,
               builder: (BuildContext context) => const PontualSheet(
                 title: 'Folha',
-                child: Text('Conteudo da folha'),
+                child: Text('Conteúdo da folha'),
               ),
             ),
             child: const Text('Abrir folha'),
