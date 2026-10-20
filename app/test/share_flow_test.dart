@@ -376,6 +376,16 @@ void main() {
       expect(find.byType(TripScreen), findsWidgets);
       expect(find.byType(SystemScreen), findsNothing);
       expect(tester.takeException(), isNull);
+
+      // Minimizing pops back to the shell and keeps sharing alive.
+      await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(find.byType(TripScreen), findsNothing);
+      expect(r.controller.endKind, isNull);
+      expect(tester.takeException(), isNull);
+
       r.controller.dispose();
       await r.positions.close();
     });

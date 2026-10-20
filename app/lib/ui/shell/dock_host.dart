@@ -77,7 +77,9 @@ class LiveDockHost extends ConsumerWidget {
           idleLabel: idleLabel,
           // The trip route boots from the controller in extra: without
           // it the router renders not-found and the live trip is lost.
-          onTap: () => context.go('/trip', extra: controller),
+          // Push so minimizing returns to the screen the dock was on
+          // (DECISIONS.md#D77).
+          onTap: () => context.push('/trip', extra: controller),
         );
       },
     );

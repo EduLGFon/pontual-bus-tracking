@@ -19,6 +19,7 @@ import 'package:pontual/ui/features/settings/about_screen.dart';
 import 'package:pontual/ui/features/settings/privacy_screen.dart';
 import 'package:pontual/ui/features/settings/settings_screen.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
+import 'package:pontual/ui/features/trip/trip_metrics.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:pontual/ui/features/trip/trip_status.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -40,6 +41,26 @@ Future<void> settleOnce(WidgetTester tester) {
   return tester.pump(const Duration(milliseconds: 300));
 }
 
+/// Router with a marker home and the trip screen, for navigation tests.
+/// The trip route is pushed by each test so the stack looks like production.
+GoRouter tripRouter(rig.Rig r, {String initialLocation = '/'}) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: <GoRoute>[
+      GoRoute(
+        path: '/',
+        builder: (BuildContext context, GoRouterState state) =>
+            const Scaffold(body: Text('home-marker')),
+      ),
+      GoRoute(
+        path: '/trip',
+        builder: (BuildContext context, GoRouterState state) =>
+            TripScreen(controller: r.controller),
+      ),
+    ],
+  );
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -54,8 +75,9 @@ void main() {
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
       expect(find.text(UiStrings.tripHero), findsOneWidget);
-      expect(find.text(UiStrings.connection), findsOneWidget);
-      expect(find.text(UiStrings.gps), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelSend), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelGps), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelSats), findsOneWidget);
       expect(find.text(UiStrings.tripStop), findsOneWidget);
       expect(find.textContaining('há '), findsWidgets);
       expect(tester.takeException(), isNull);
@@ -83,26 +105,12 @@ void main() {
       await r.positions.close();
     });
 
-    testWidgets('back minimises instead of ending', (
+    testWidgets('minimise returns to the screen that opened the trip', (
       WidgetTester tester,
     ) async {
       final rig.Rig r = rig.rig(rig.happy());
       await rig.start(r);
-      final GoRouter router = GoRouter(
-        initialLocation: '/',
-        routes: <GoRoute>[
-          GoRoute(
-            path: '/',
-            builder: (BuildContext context, GoRouterState state) =>
-                const Scaffold(body: Text('home-marker')),
-          ),
-          GoRoute(
-            path: '/trip',
-            builder: (BuildContext context, GoRouterState state) =>
-                TripScreen(controller: r.controller),
-          ),
-        ],
-      );
+      final GoRouter router = tripRouter(r);
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp.router(
@@ -115,10 +123,98 @@ void main() {
       unawaited(router.push('/trip'));
       await tester.pump();
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
       // No settle: the hero pulse never settles by design.
       await tester.pump(const Duration(milliseconds: 500));
+      // One more frame removes the popped route from the tree.
+      await tester.pump();
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
+      expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('system back minimises instead of ending', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final GoRouter router = tripRouter(r);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      unawaited(router.push('/trip'));
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
+      expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('minimise falls back home without a previous route', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      // Starting on /trip leaves no route to pop: the fallback must run.
+      final GoRouter router = tripRouter(r, initialLocation: '/trip');
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
       expect(find.text('home-marker'), findsOneWidget);
       expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('end card returns to the screen that opened the trip', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final GoRouter router = tripRouter(r);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      unawaited(router.push('/trip'));
+      await tester.pump();
+      await tester.tap(find.text(UiStrings.tripStop));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text(UiStrings.endTitle), findsOneWidget);
+      await tester.tap(find.text(UiStrings.endDone));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
       r.controller.dispose();
       await r.positions.close();
     });
@@ -319,7 +415,7 @@ void main() {
       await r.positions.close();
     });
 
-    testWidgets('weak GPS shows the satellite subtitle', (
+    testWidgets('GPS metric shows accuracy and the weak copy', (
       WidgetTester tester,
     ) async {
       const SharingHealth weak = SharingHealth(
@@ -335,21 +431,157 @@ void main() {
       );
       await tester.pumpWidget(
         wrapApp(
-          const StatusTiles(
+          const StatusMetrics(
             health: weak,
+            accuracyM: 42,
             gnss: GnssQuality(satsUsed: 3, satsView: 9, meanSnrDb: 28),
           ),
         ),
       );
       await tester.pump();
-      expect(
-        find.text('${UiStrings.gpsWeak}, ${UiStrings.satsInFix(3)}'),
-        findsOneWidget,
+      expect(find.text(UiStrings.metricAccuracy(42)), findsOneWidget);
+      expect(find.text(UiStrings.metricGpsWeakDetail), findsOneWidget);
+      // No satellite sample (web): the weak copy still explains the value.
+      await tester.pumpWidget(
+        wrapApp(const StatusMetrics(health: weak, accuracyM: 42)),
       );
-      // No sample, no subtitle: the tile keeps its short value.
-      await tester.pumpWidget(wrapApp(const StatusTiles(health: weak)));
       await tester.pump();
-      expect(find.text(UiStrings.gpsWeak), findsOneWidget);
+      expect(find.text(UiStrings.metricGpsWeakDetail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('satellites metric shows used, in view and unknown', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth live = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            gnss: GnssQuality(satsUsed: 7, satsView: 12, meanSnrDb: 30),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricSatsValue(7)), findsOneWidget);
+      expect(find.text(UiStrings.metricSatsInView(12)), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            gnss: GnssQuality(satsUsed: 0, satsView: 0, meanSnrDb: 0),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricSatsNone), findsOneWidget);
+      expect(find.text(UiStrings.metricGpsNoFixDetail), findsOneWidget);
+      // No native GNSS channel (web): the cell names the limitation.
+      await tester.pumpWidget(wrapApp(const StatusMetrics(health: live)));
+      await tester.pump();
+      expect(find.text(UiStrings.metricNoReading), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('send metric shows the server interval and role', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth live = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            intervalS: 15,
+            role: TripRole.leader,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricInterval(15)), findsOneWidget);
+      expect(find.text(UiStrings.metricSendLeader), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            intervalS: 45,
+            role: TripRole.follower,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricSendFollower), findsOneWidget);
+      const SharingHealth offline = SharingHealth(
+        connectionLevel: SharingLevel.warn,
+        connectionValue: ConnectionValue.offline,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.offline,
+        overall: SharingOverall.paused,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: offline,
+            intervalS: 45,
+            role: TripRole.offlineSaver,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.connOffline), findsOneWidget);
+      expect(find.text(UiStrings.metricSendOfflineDetail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stale send is called out without hiding the interval', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth stale = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: true,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: stale,
+            intervalS: 15,
+            role: TripRole.leader,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricInterval(15)), findsOneWidget);
+      expect(find.text(UiStrings.metricSendStale), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

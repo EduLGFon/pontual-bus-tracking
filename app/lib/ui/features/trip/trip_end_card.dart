@@ -116,7 +116,7 @@ class _TripEndCardState extends State<TripEndCard> {
                   widget.helpedTrips! > 0) ...<Widget>[
                 const SizedBox(height: Space.x3),
                 Text(
-                  '${UiStrings.kudosPrefix} ${widget.helpedTrips!} ${UiStrings.kudosSuffix}',
+                  UiStrings.kudos(widget.helpedTrips!),
                   style: context.text.body,
                   textAlign: TextAlign.center,
                 ),

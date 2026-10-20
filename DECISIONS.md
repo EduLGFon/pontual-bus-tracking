@@ -2865,3 +2865,171 @@ full history (over 350 commits, about 3.2 MB) with zero findings.
 No code, permission, manifest, or data changed. The local `check.sh`
 still skips the step when the binary is absent; install gitleaks or
 add it to PATH to make the mirror cover it.
+
+## D77-2026-10-20: Trip minimize returns to the previous screen (Accepted)
+
+`shareTrip` and the active dock both opened `/trip` with `go`, which
+replaced the navigation stack. The minimize chevron and system back then
+called `go('/')`, so a rider who started sharing from line details lost
+the line, its sheet position, and its map state on return.
+
+`/trip` is now pushed over the current route. Minimize and system back
+pop it, so the screen that started sharing (line details, a tab, search)
+returns with its state intact; home remains the fallback when there is no
+route below (a deep link or a bare test harness). The back handler uses
+`PopScope.canPop` with `Navigator.of(context)` so plain `MaterialApp`
+harnesses keep working, while minimize and the end card use go_router's
+`context.pop()` to keep the router's location in sync.
+
+A `RouteObserver<PageRoute<dynamic>>` (`appPageRouteObserver`) is attached
+to the root navigator. The line screen subscribes to it, closes its viewer
+repository in `didPushNext`, and reopens it in `didPopNext` (PLAN.md 8.8.4
+and 10.4.6). The observer is deliberately typed to `PageRoute`: modal
+bottom sheets and dialogs are `PopupRoute`s, so the share flow's consent,
+progress, and permission sheets do not stop the stream. Closing and
+reopening are serialized through a pending-stop future and a generation
+counter, so a fast cover-then-back cannot overlap a close with a reconnect
+or start two sockets.
+
+Consequences: one extra route stays on the stack while sharing, which is
+the intent; the line socket is closed while covered, while its 5 s vehicle
+tick still rebuilds the mounted screen (a small accepted residual). The
+trip's own state and the foreground service are unchanged, so the dock
+keeps sharing after minimizing.
+
+Rejected: storing a return location and keeping `go`. It would lose the
+line screen's sheet and map state and need extra state plumbing.
+Rejected: pausing through `ModalRoute.isCurrent`, because modal sheets
+would stop the stream while the rider is still on the line screen.
+
+Verified: `flutter analyze` reports no issues; targeted trip, line, and
+share-flow widget tests pass, including minimize, system back, the
+no-previous-route fallback, the end-card return, and cover/modal stream
+lifecycle; the full `flutter test` suite passes 376 tests with 1 skipped.
+
+Build and size: the release web build succeeds with
+`flutter build web --release --no-web-resources-cdn`. `main.dart.js`
+measures 3.2 MB raw, 987 KB gzip, and 763 KB brotli; local assets add
+1.8 MB. The web output includes 37 MB of local Canvaskit because this
+build disables the resources CDN; production serves it from the CDN and
+caches it. The change adds a few kilobytes of Dart, so it does not
+move the budget. `tools/ci/manifest_audit.sh` passes with the same
+permission set; no dependency, permission, retention, or data change.
+
+Android: `flutter build appbundle --release` succeeds and produces a
+56.9 MB universal AAB. The merged release manifest keeps the same allowed
+permission set, `allowBackup="false"`, and no cleartext traffic. The
+universal artifact contains all ABIs, so the per-download arm64 budget
+(15 MB) is not measured from it and remains the T45 release gate.
+
+## D78-2026-10-20: Trip sharing screen shows measured metrics (Accepted)
+
+The `/trip` screen described the phone, GPS and connection with short
+words alone ("Bom", "Tela ligada", "Conectado"). That met the truth
+rules but hid values the app already has: the last accepted fix carries
+accuracy and a 5 percent battery bucket, Android reports satellites used
+and in view, and the server sends the next send interval on every trip
+and ping response. The screen now shows those values instead of
+inventing a score.
+
+One tonal card holds three metrics. GPS shows accuracy in meters and the
+satellite count, with a meter against the existing 60 m publish gate.
+Celular shows the battery percentage from the last accepted fix, the
+charging state, and a level meter. Envio shows the server interval in
+seconds plus the role explanation (waiting, leader, follower or offline);
+it deliberately has no meter because no honest denominator exists. When
+a value is missing the copy says so ("Procurando sinal", "Sem leitura",
+"Sem conexão") instead of showing a placeholder number. A 5 s tick
+refreshes values that arrive on fixes but do not notify the controller.
+
+Only read-only signals were added: `TripController.role` and
+`TripController.intervalS`. No new field is collected, stored, logged or
+sent; accuracy, battery and GNSS quality already existed. No dependency
+changed. New copy lives in `UiStrings`; the big value uses a new
+`PontualText.metric` token. Empty accuracy is treated as searching even
+if the seeded success clock would otherwise read "good".
+
+Rejected: a derived "GPS percentage". It would look precise while
+measuring nothing. Rejected: send success percentage. The ping client
+keeps no counters, and adding them would create a stat the product does
+not need. Rejected: moving coordinates or a map into this screen.
+
+Verified: `flutter analyze` clean; the trip widget tests cover accuracy
+and satellites, battery percentage and charging, server interval and
+roles, offline and stale sends; targeted `trip_controller_test` covers
+the interval getter. Full `flutter test` passes. No manifest,
+permission, retention or data change.
+
+## D79-2026-10-20: Satellites replace battery in the trip metrics (Accepted)
+
+The metrics card from D78 showed the phone battery percentage and charging
+state. The owner removed it: on a trip screen the battery number is noise,
+and the low level already raises its own banner with the same 15 percent
+rule. The card now shows satellites used and in view from the Android GNSS
+channel, with a meter built from that real fraction. This explains the GPS
+accuracy beside it and helps the user move the phone when the sky view is
+poor.
+
+Satellites were already collected for D69 and already appeared as the GPS
+caption; this only promotes them to a cell. No new field, counter, log,
+permission or persisted value was added, and the send metric still has no
+meter because no honest denominator exists. When the receiver sees none the
+cell says "Sem satélites"; on platforms without the native channel it reads
+"Indisponível no navegador" instead of waiting forever.
+
+Rejected: showing speed. The browser maps a missing speed to 0.0, so the web
+build would report "Parado" for a moving bus. Rejected: a positions-sent or
+distance counter; one adds a stat the product does not need and the other
+derives location history in memory. Rejected: last-send age, already shown
+in the hero proof line.
+
+Verified: `flutter analyze` clean; trip widget tests cover satellites used,
+in view, none and unavailable, plus accuracy, send interval, roles, offline
+and stale sends. Full `flutter test` passes.
+
+## D80-2026-10-20: second owner-supplied app icon applied (launcher + PWA)
+
+The owner placed a new `icon.png` (161x157 RGBA, rounded corners
+transparent) and `icon.svg` (161x157 monochrome trace) at the repo root and
+asked to replace the launcher and website icon and the loading screen icon.
+The PNG is the visual master. The SVG is not a full-colour source: it draws
+the rounded tile minus the bus, so a mint layer behind its dark paths
+produces the mint bus. That negative was used to rebuild the icon as a
+vector instead of upscaling the 161 px PNG to 512 px and 432 px.
+
+Sources: `design/brand/app-icon.png` (master) and `app-icon.svg` (trace)
+replaced the previous files. The stale `app-icon.jpeg` from the previous
+icon was removed; Git history keeps it. Root copies removed. The live
+signal mark `design/brand/pontual-mark.svg` and the theme tokens are
+unchanged: the app icon is the bus tile, while the in-app motif remains the
+mint dot and arcs. The launcher tile is `#0B3228` and the bus is `#77E9A3`,
+sampled from the new master; the UI brand pine `#0B3D36` is still the
+splash background, so the icon tile sits on a slightly different green.
+
+Generated with the host's ImageMagick and rsvg-convert (throwaway commands
+outside the repo, no dependency added):
+
+- Android legacy: `mipmap-mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi/ic_launcher.png`
+  at 48/72/96/144/192, rounded corners transparent.
+- Android adaptive: `drawable-<dpi>/ic_launcher_foreground.png` at
+  108/162/216/324/432 with the tile at 60 percent of the canvas and the
+  rest transparent; `mipmap-anydpi-v26/ic_launcher.xml` and
+  `ic_launcher_round.xml` use `@color/pontual_icon_bg` (`#0B3228`). No
+  monochrome layer was added.
+- Web: `icons/Icon-192.png` and `icons/Icon-512.png` (rounded, transparent
+  corners), `icons/Icon-maskable-192.png` and `Icon-maskable-512.png`
+  (tile at 80 percent on `#0B3228`), `Icon-apple-touch-180.png` (tile at
+  92 percent on `#0B3228`), `favicon.png` (32 px) and a new
+  `favicon.svg` with the coloured vector. `index.html` links the SVG
+  favicon before the PNG, keeps the manifest icon names, and replaces the
+  inline splash SVG with the app icon at the same 88 px pulsing size. The
+  splash still paints from the first frame with no network request.
+
+Verified: `identify` dimensions and alpha on all generated PNGs; visual
+check of the 512 web and maskable icons, the 180 apple touch, the 32
+favicon, the xxxhdpi foreground and the 88 px inline splash; the inline SVG
+was extracted from `index.html` and rendered at 88 px, matching the source.
+`flutter build web --release` passed and the built `index.html` and icon
+files in `app/build/web/` match the sources (only the base href differs).
+No Dart code changed. Android SDK is not installed on this host, so the
+merged-manifest and install-launch checks were not run.

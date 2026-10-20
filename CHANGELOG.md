@@ -4,6 +4,25 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Replaced the launcher, PWA and HTML splash icon with the owner-supplied
+  mint bus on a deep green tile. Android legacy and adaptive, web 192/512,
+  maskable 192/512, apple-touch 180, SVG and 32 px favicons all use the new
+  artwork; see DECISIONS.md D80.
+- Copy pass on the pt-BR UI strings: fixed typos and agreement ("Baixe"
+  to "Abaixe", "Linha favoritada", "Atualizado" to "Atualizados"),
+  made the wake-lock, permission, favorites, and empty-live texts
+  clearer and more direct, and pluralized the kudos counter. PLAN.md
+  and UI_SPEC.md copy updated to match.
+- Trip minimize and system back now return to the screen that started
+  sharing (line details, map tab, search) with its state intact, instead
+  of replacing the stack with home. The line viewer socket closes while a
+  full page covers it and reopens on return; bottom sheets and dialogs do
+  not pause it. See DECISIONS.md D77.
+- The sharing screen now shows measured metrics instead of short status
+  words: GPS accuracy in meters, satellites used and in view, and the
+  server send interval with the current role. Meters compare accuracy to
+  the 60 m publish gate and satellites used to those in view; missing
+  values are named, never invented. See DECISIONS.md D78 and D79.
 - D30 momentum anônimo (ordem do dono): ritmo por veículo (um número
   suavizado, sem motorista nem histórico) no snapshot, passagens
   recentes por linha (só instantes, anel de 32, 4 h) com

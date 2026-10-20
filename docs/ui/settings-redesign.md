@@ -60,7 +60,7 @@ strings are pt-BR.
     `dd/MM/yyyy`. Current bundle value is `2026-10-03T00:52:47.112Z`,
     shown as `03/10/2026`.
   - Settings footer and `line_sheet.dart` (passed to `timetable_tab.dart`
-    footnote `Horários não oficiais. Atualizado em <date>`) read the
+    footnote `Horários não oficiais. Atualizados em <date>`) read the
     same provider. There is one source of truth in code today; the two
     dates in the brief (`03/10/2026` vs `11/10/2026`) come from a stale
     screenshot, not from two datasets. No hardcoded date in widgets.

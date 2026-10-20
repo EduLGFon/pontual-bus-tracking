@@ -118,12 +118,12 @@ class UiStrings {
   static const String homeAllLinesGo = 'Ver';
 
   /// Empty state when nothing is sharing.
-  static const String homeNoLive = 'Nenhum ônibus compartilhando agora.';
+  static const String homeNoLive = 'Nenhum ônibus ao vivo agora.';
 
   /// Sharing hint under the empty state.
   static const String homeNoLiveHint =
-      'Quem está no ônibus pode tocar em "Estou no ônibus" e a posição '
-      'aparece aqui, sem cadastro.';
+      'Está no ônibus? Toque em "Estou no ônibus" e mostre a posição para '
+      'quem espera. Sem cadastro.';
 
   /// Empty state action to the timetables.
   static const String seeTimetable = 'Ver horários';
@@ -175,7 +175,7 @@ class UiStrings {
   static const String welcomePrivacy = 'Como funciona a privacidade';
 
   /// Coachmark pointing at the dock.
-  static const String coachmark = 'Toque aqui quando estiver no ônibus.';
+  static const String coachmark = 'Está no ônibus? Toque aqui.';
 
   // Search screen.
 
@@ -214,7 +214,8 @@ class UiStrings {
 
   /// Empty live state body when nothing is sharing.
   static const String linesNoLiveBody =
-      'Quem estiver no ônibus pode tocar em Estou no ônibus.';
+      'Está no ônibus? Toque em "Estou no ônibus" e mostre a posição para '
+      'todos.';
 
   /// Empty live state when offline: status unknown, timetables still work.
   static const String linesLiveOffline =
@@ -222,8 +223,8 @@ class UiStrings {
 
   /// Friendly detail for a line without timetable data.
   static const String linesNoTimetableBody =
-      'Ainda não temos os horários desta linha. Se você estiver nesse '
-      'ônibus, toque em Estou no ônibus para aparecer ao vivo.';
+      'Ainda não temos os horários desta linha. Está nesse ônibus? Toque '
+      'em "Estou no ônibus" para aparecer ao vivo.';
 
   /// All filter.
   static const String filterAll = 'Todas';
@@ -245,10 +246,10 @@ class UiStrings {
 
   /// Empty state for the favorites filter.
   static const String linesNoFavorites =
-      'Toque na estrela de uma linha para fixá-la aqui.';
+      'Toque na estrela de uma linha para adicioná-la aos favoritos.';
 
   /// Toast after starring a line.
-  static const String linesFavAdded = 'Linha favoritada.';
+  static const String linesFavAdded = 'Linha adicionada aos favoritos.';
 
   /// Toast after unstarring a line.
   static const String linesFavRemoved = 'Linha removida dos favoritos.';
@@ -364,7 +365,7 @@ class UiStrings {
 
   /// Timetable footnote.
   static const String timetableFootnote =
-      'Horários não oficiais. Atualizado em ';
+      'Horários não oficiais. Atualizados em ';
 
   /// Sources link in the footnote.
   static const String sources = 'Fontes';
@@ -436,16 +437,16 @@ class UiStrings {
 
   /// Permission pre-prompt body.
   static const String permissionPrompt =
-      'Para compartilhar, o Pontual precisa da localização enquanto o app '
-      'estiver em uso. Não pedimos localização "o tempo todo".';
+      'Para compartilhar, o Pontual precisa da sua localização enquanto o '
+      'app estiver em uso. Não pedimos localização o tempo todo.';
 
   /// Permission pre-prompt action.
   static const String permissionContinue = 'Continuar';
 
   /// Permission denied message.
   static const String permissionDenied =
-      'Sem permissão de localização. Sem ela não dá para compartilhar a '
-      'viagem.';
+      'A permissão de localização está desligada. Sem ela não dá para '
+      'compartilhar a viagem.';
 
   /// Permission permanently denied action.
   static const String openSettings = 'Abrir ajustes';
@@ -460,16 +461,16 @@ class UiStrings {
 
   /// Web location failure message.
   static const String locationOffWeb =
-      'O navegador não conseguiu a sua posição. Verifique se a localização '
-      'do aparelho está ligada.';
+      'Não conseguimos sua localização. Verifique se a localização do '
+      'aparelho está ligada e tente de novo.';
 
   /// Web unblock retry action.
   static const String alreadyAllowed = 'Já permiti, tentar de novo';
 
   /// Notification permission note on Android.
   static const String notificationNote =
-      'Sem a notificação, o Android pode encerrar o compartilhamento. '
-      'Recomendamos permitir.';
+      'Sem as notificações, o Android pode encerrar o compartilhamento. '
+      'Permita para manter o envio ativo.';
 
   /// Unsupported context message.
   static const String unsupported =
@@ -529,7 +530,7 @@ class UiStrings {
 
   /// Follower explanation.
   static const String roleFollowerHint =
-      'Modo economia: outras pessoas também compartilham.';
+      'Outras pessoas também compartilham, então enviamos menos vezes.';
 
   /// Waiting role copy.
   static const String roleWaiting = 'Aguardando o ônibus sair…';
@@ -560,7 +561,7 @@ class UiStrings {
 
   /// Toast when the exemption is not granted. Sharing continues anyway.
   static const String batteryExemptionKept =
-      'Tudo bem. O compartilhamento continua tentando.';
+      'Tudo bem. Vamos continuar tentando compartilhar.';
 
   /// Share start failed: could not reach the server.
   static const String shareNoConnection =
@@ -568,7 +569,8 @@ class UiStrings {
 
   /// Share start failed: no location fix within the wait window.
   static const String shareNoGps =
-      'Não conseguimos sua localização. Vá para um lugar aberto e tente de novo.';
+      'Não conseguimos obter sua localização. Vá para um lugar aberto e '
+      'tente de novo.';
 
   /// Share start failed: server rate or capacity limits.
   static const String shareBusy =
@@ -628,11 +630,13 @@ class UiStrings {
 
   /// Web trip note about battery: the screen stays on.
   static const String webWakeNote =
-      'A tela fica ligada durante a viagem. Baixe o brilho para economizar bateria.';
+      'A tela fica ligada durante a viagem. Abaixe o brilho para economizar '
+      'bateria.';
 
   /// Shown when the browser cannot hold a wake lock.
   static const String webWakeUnsupported =
-      'Este navegador não mantém a tela ligada. Deixe o brilho no máximo e não troque de aba.';
+      'Este navegador não mantém a tela ligada. Abaixe o brilho e não troque '
+      'de aba.';
 
   /// Shown while a web trip is paused for a hidden page.
   static const String webHiddenPaused =
@@ -653,8 +657,9 @@ class UiStrings {
 
   /// Android app download body.
   static const String androidAppBody =
-      'Para compartilhar com a tela desligada e economizar bateria, '
-      'baixe o app direto do GitHub. O mapa continua aqui no navegador.';
+      'Com o app Android, você compartilha mesmo com a tela desligada e '
+      'economiza bateria. Baixe direto do GitHub. O mapa continua aqui no '
+      'navegador.';
 
   /// Android app download action.
   static const String androidAppDownload = 'Baixar app';
@@ -665,7 +670,7 @@ class UiStrings {
 
   /// Web brightness tip.
   static const String webBrightness =
-      'A tela fica ligada durante a viagem. Baixe o brilho para economizar '
+      'A tela fica ligada durante a viagem. Abaixe o brilho para economizar '
       'bateria.';
 
   /// End trip action.
@@ -692,6 +697,93 @@ class UiStrings {
 
   /// Toast when there is nothing to send yet.
   static const String forcePingNoFix = 'Sem posição ainda.';
+
+  // Trip metrics panel.
+
+  /// GPS metric label.
+  static const String metricLabelGps = 'GPS';
+
+  /// Satellite metric label.
+  static const String metricLabelSats = 'Satélites';
+
+  /// Send metric label.
+  static const String metricLabelSend = 'Envio';
+
+  /// Accuracy value, for example "±8 m". The sign marks an estimate.
+  static String metricAccuracy(int meters) => '±$meters m';
+
+  /// Send interval value, for example "15 s".
+  static String metricInterval(int seconds) => '$seconds s';
+
+  /// Satellites used value, for example "7".
+  static String metricSatsValue(int used) => '$used';
+
+  /// Satellites in view detail, for example "de 12 em vista".
+  static String metricSatsInView(int view) => 'de $view em vista';
+
+  /// Satellite value when the receiver sees none.
+  static const String metricSatsNone = 'Sem satélites';
+
+  /// Satellite detail before the first native sample arrives.
+  static const String metricSatsWaitingDetail = 'Buscando satélites';
+
+  /// Satellite detail on platforms without a native GNSS channel.
+  static const String metricSatsUnavailableDetail = 'Indisponível no navegador';
+
+  /// Value shared by every metric that has no reading yet.
+  static const String metricNoReading = 'Sem leitura';
+
+  /// GPS detail against the publish gate.
+  static String metricGpsLimitDetail(int maxM) => 'Aceito até $maxM m';
+
+  /// GPS detail above the weak threshold.
+  static const String metricGpsWeakDetail = 'Precisão limitada';
+
+  /// GPS detail with no fix yet.
+  static const String metricGpsNoFixDetail = 'Vá para um lugar aberto';
+
+  /// GPS detail while waiting for the first fix.
+  static const String metricGpsSearchingDetail = 'Aguardando sinal';
+
+  /// GPS detail when location services are off.
+  static const String metricGpsOffDetail = 'Ative para continuar';
+
+  /// GPS detail when the OS permission was revoked.
+  static const String metricGpsPermissionDetail = 'Permissão desativada';
+
+  /// GPS detail for approximate-only grants.
+  static const String metricGpsImpreciseDetail = 'Ative a precisão exata';
+
+  /// Send value while the trip is still starting.
+  static const String metricSendStarting = 'Iniciando';
+
+  /// Send detail while the trip is still starting.
+  static const String metricSendStartingDetail = 'Preparando o envio';
+
+  /// Send detail while waiting for the bus to move.
+  static const String metricSendWaiting = 'Aguardando o ônibus';
+
+  /// Send detail on the leader role.
+  static const String metricSendLeader = 'Com mais frequência';
+
+  /// Send detail on the follower role.
+  static const String metricSendFollower = 'Modo economia';
+
+  /// Send detail when the last success is stale.
+  static const String metricSendStale = 'Envio atrasado';
+
+  /// Send detail while offline. Matches the resume wording in roleOffline.
+  static const String metricSendOfflineDetail = 'Retomamos ao voltar';
+
+  /// Send detail before the first server interval arrives.
+  static const String metricSendCalculating = 'Calculando intervalo';
+
+  /// Fallback send detail when the role is unknown but connected.
+  static const String metricSendIntervalDetail = 'Intervalo atual';
+
+  /// Combined screen-reader sentence for one metric.
+  static String metricSemantics(String label, String value, String detail) =>
+      '$label: $value. $detail';
 
   /// Short connection value while steady offline.
   static const String connOffline = 'Sem conexão';
@@ -724,7 +816,7 @@ class UiStrings {
   static const String deviceLowBattery = 'Bateria baixa';
 
   /// Starting state title.
-  static const String tripStarting = 'Iniciando...';
+  static const String tripStarting = 'Iniciando…';
 
   /// Weak GPS banner.
   static const String gpsWeakBanner =
@@ -751,12 +843,12 @@ class UiStrings {
 
   /// Single keep-awake tip on Android (neutral, shown once).
   static const String keepAwakeTip =
-      'Mantenha a tela aberta e o celular desbloqueado. Baixe o brilho '
+      'Mantenha a tela aberta e o celular desbloqueado. Abaixe o brilho '
       'para economizar bateria.';
 
   /// Single keep-awake tip on the web (tab must stay visible).
   static const String keepAwakeTipWeb =
-      'Mantenha esta aba aberta e visível. Baixe o brilho para '
+      'Mantenha esta aba aberta e visível. Abaixe o brilho para '
       'economizar bateria.';
 
   /// Prefix of the last-send proof line, for example
@@ -822,7 +914,8 @@ class UiStrings {
       'Encerramos porque parecia que você já tinha descido.';
 
   /// Automatic end reason: maximum duration.
-  static const String endMax = 'Encerramos por tempo máximo ou falta de sinal.';
+  static const String endMax =
+      'Encerramos porque a viagem atingiu o tempo máximo ou ficou sem sinal.';
 
   /// Automatic end reason: server timeout after a long web gap.
   static const String endTimeout =
@@ -843,11 +936,9 @@ class UiStrings {
   /// Automatic end reason: server maintenance.
   static const String endServer = 'Serviço em manutenção. Tente mais tarde.';
 
-  /// Local kudos counter prefix.
-  static const String kudosPrefix = 'Você já ajudou';
-
-  /// Local kudos counter suffix.
-  static const String kudosSuffix = 'viagens';
+  /// Local kudos counter, for example "Você já ajudou 3 viagens".
+  static String kudos(int trips) =>
+      trips == 1 ? 'Você já ajudou 1 viagem' : 'Você já ajudou $trips viagens';
 
   // Future features (flagged off, UI_SPEC 13-14).
 
@@ -1082,7 +1173,7 @@ class UiStrings {
   /// About source line.
   static const String aboutSourceLines =
       'Linhas e horários: transcritos de páginas públicas (onibus.online). '
-      'Horários não oficiais e podem mudar sem aviso.';
+      'Horários não oficiais, que podem mudar sem aviso.';
 
   /// Attribution row.
   static const String aboutOsm = 'Mapa: © OpenStreetMap contributors';

@@ -578,6 +578,13 @@ unknown keys (show "Linha não encontrada" with a way back). Transitions:
 fade-through 200 ms with 8 dp upward slide; the line badge uses a `Hero`; **no
 Hero involving the map**.
 
+`/trip` is pushed over the current route. The minimize chevron and system back
+pop back to the screen that started sharing (line details, map tab, search)
+with its state intact; home is the fallback when there is no route below. The
+line screen closes its viewer socket while a full page covers it and reopens it
+on return; bottom sheets and dialogs do not pause it. See
+`DECISIONS.md#D77-2026-10-20`.
+
 ### 6.7 State rules
 
 - Riverpod (or the project's state manager): fine-grained providers, `select`
@@ -974,10 +981,10 @@ is in the matrix below and section 8.
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Not asked                          | pre-prompt -> OS dialog                                                                                                                                                                                                   | pre-prompt -> browser prompt (must be triggered by the tap)                                                                       |
 | Granted                            | continue                                                                                                                                                                                                                  | continue                                                                                                                          |
-| Denied (can ask again)             | `PermissionCard`: "Sem permissão de localização. Sem ela não dá para compartilhar a viagem." [Tentar de novo] [Cancelar]                                                                                                  | same (some browsers re-ask, some do not; fall through to blocked)                                                                 |
+| Denied (can ask again)             | `PermissionCard`: "A permissão de localização está desligada. Sem ela não dá para compartilhar a viagem." [Tentar de novo] [Cancelar]                                                                                                  | same (some browsers re-ask, some do not; fall through to blocked)                                                                 |
 | Denied permanently                 | same text + **[Abrir ajustes]** -> `Geolocator.openAppSettings()` (VERIFY the project's plugin); when the app returns to foreground (`AppLifecycleState.resumed`) re-check automatically and continue the flow if granted | **no settings link exists**: show browser-specific steps (below) + [Já permiti, tentar de novo] which re-checks without reloading |
-| Location services off              | "Ative a localização do aparelho." [Abrir ajustes] -> `Geolocator.openLocationSettings()`; auto re-check on resume                                                                                                        | "O navegador não conseguiu a sua posição. Verifique se a localização do aparelho está ligada." [Tentar de novo]                   |
-| Notifications denied (Android 13+) | non-blocking note: "Sem a notificação, o Android pode encerrar o compartilhamento. Recomendamos permitir." The trip may continue                                                                                          | not applicable (no notification on web trips)                                                                                     |
+| Location services off              | "Ative a localização do aparelho." [Abrir ajustes] -> `Geolocator.openLocationSettings()`; auto re-check on resume                                                                                                        | "Não conseguimos sua localização. Verifique se a localização do aparelho está ligada e tente de novo." [Tentar de novo]          |
+| Notifications denied (Android 13+) | non-blocking note: "Sem as notificações, o Android pode encerrar o compartilhamento. Permita para manter o envio ativo." The trip may continue                                                                                          | not applicable (no notification on web trips)                                                                                     |
 | Insecure context / unsupported     | n/a                                                                                                                                                                                                                       | "Seu navegador não permite compartilhar a localização aqui." + link to supported browsers                                         |
 
 **Web "blocked" steps** (detect browser family from the user agent; show only
@@ -996,18 +1003,22 @@ soft ring pulse; CPU ~0):
 
 ```
 ┌────────────────────────────────────┐
-│ ⌄  Compartilhando viagem           │  minimize chevron (returns to the app, dock stays)
+│ ⌄  Compartilhando viagem           │  minimize chevron (pops back to the previous screen, dock stays)
 │                                    │
 │            ((  ●  ))               │  LiveDot hero (static if reduced motion)
 │        Você está ajudando          │
 │        quem espera o ônibus        │  headline
 │    (AC) Aroeira / Cohab            │
-│        00:23:41                    │  elapsed, tabular, updates each second only here
+│        há 12 min                   │  elapsed, tabular, 5 s tick
 │                                    │
-│  Conexão     ✓ Conectado           │  rows with icon + text (never colour only)
-│  GPS         ✓ Bom                 │
-│  Seu celular  Modo economia        │  or "Enviando com mais frequência"
-│  (role copy explains rotation)     │
+│  ┌ métricas (um cartão) ─────────┐ │
+│  │ GPS            ±8 m           │ │  accuracy from the last accepted fix
+│  │ ▓▓▓▓▓▓▓▓▓░░░  Aceito até 60 m │ │  meter against the 60 m publish gate
+│  │ Satélites      7              │ │  signal quality, Android only
+│  │ ▓▓▓▓▓▓▓▓░░░░  de 12 em vista  │ │  meter is the real used/in-view
+│  │ Envio          15 s           │ │  server interval, never a client guess
+│  │ Com mais frequência           │ │  role explains the cadence
+│  └───────────────────────────────┘ │
 │  ┌ dica (dismissible, Android) ┐   │
 │  │ Se parar sozinho, defina a  │   │
 │  │ bateria do app como "Sem    │   │
@@ -1018,14 +1029,22 @@ soft ring pulse; CPU ~0):
 └────────────────────────────────────┘
 ```
 
-States: _waiting_ ("Aguardando o ônibus sair…"), _leader_ ("Enviando com mais
+States: _waiting_ ("Aguardando o ônibus…"), _leader_ ("Enviando com mais
 frequência. Revezamos a cada poucos minutos para poupar a bateria de todos."),
-_follower_ ("Modo economia: outras pessoas também compartilham."), _offline_
-("Sem conexão. Vamos retomar assim que voltar."), _paused_ (permission/GPS
-banner with the action), _web_ (extra banner "Mantenha esta tela aberta e o
-celular desbloqueado." + tip to lower brightness + wake-lock status). Rules: the
-word "líder/seguidor/ping/cluster" never appears. The end button is the only
-large control; ending is immediate (no confirm), followed by the end card.
+_follower_ ("Outras pessoas também compartilham, então enviamos menos vezes."),
+_offline_ ("Sem conexão. Vamos retomar assim que voltar."), _paused_
+(permission/GPS banner with the action), _web_ (extra banner "Mantenha esta tela
+aberta e o celular desbloqueado." + tip to lower brightness + wake-lock status).
+Rules: the word "líder/seguidor/ping/cluster" never appears. The end button is
+the only large control; ending is immediate (no confirm), followed by the end
+card. The metrics card shows only measured values: GPS accuracy, satellites
+used and in view, and the server send interval. Missing values read
+"Procurando sinal", "Sem leitura" or "Sem conexão"; no placeholder number is
+invented. The GPS and satellite meters compare a real value to the publish gate
+(60 m) and to the satellites in view; the send metric has no meter. Satellites
+come from the Android GNSS channel; elsewhere the cell reads "Indisponível no
+navegador". On screens of 600 dp and wider the three metrics sit in one row;
+below that, and whenever the text scale is above 1.3, they stack.
 
 **Step 4 - End card** (full-screen card, 2 s of delight then calm): checkmark
 draws in (stroke animation 400 ms, skipped on reduced motion), "Viagem
@@ -1098,7 +1117,7 @@ it).
   "Entendi" + "Como funciona a privacidade". Permissions are never requested
   here.
 - A one-time **coachmark** (small bubble pointing at the dock, 6 s, tap to
-  dismiss): "Toque aqui quando estiver no ônibus." Stored in local prefs.
+  dismiss): "Está no ônibus? Toque aqui." Stored in local prefs.
 
 ---
 
@@ -1113,13 +1132,13 @@ shared code). Anything not listed behaves identically.
 | Location permission settings | `openAppSettings` / `openLocationSettings` through the project's location plugin (VERIFY the exact calls); re-check on `AppLifecycleState.resumed` | **cannot open settings**: show browser-specific steps and a "Tentar de novo" button (7.7)                                                                                                                                                                                         |
 | Trip while screen is off     | yes (foreground service, existing logic)                                                                                                           | **no**: needs screen on + page open; show the foreground banner, request a Screen Wake Lock if supported, pause after the page is hidden for 60 s                                                                                                                                 |
 | Notifications                | trip notification (existing); Android 13+ runtime permission                                                                                       | none for trips; future arrival alerts need Web Push + installed PWA on iOS (see 13.4)                                                                                                                                                                                             |
-| Back navigation              | system back and **predictive back** (Android 14+): use `PopScope`; back from `/trip` minimises instead of ending; back closes sheets first         | browser back/forward and URL must work; the app updates the URL for line routes; `Esc` closes sheets and search                                                                                                                                                                   |
+| Back navigation              | system back and **predictive back** (Android 14+): use `PopScope`; back from `/trip` minimises to the screen that opened it (home when there is none) instead of ending; back closes sheets first | browser back/forward and URL must work; the app updates the URL for line routes; `Esc` closes sheets and search                                                                                                                                                                   |
 | System bars                  | edge-to-edge, transparent status/navigation bars, correct icon brightness per theme (`SystemUiOverlayStyle`), safe-area aware                      | `<meta name="theme-color">` for light and dark; no safe-area except iOS notch (`viewport-fit=cover` + `env(safe-area-inset-*)` handled by `MediaQuery.padding`)                                                                                                                   |
 | Input                        | touch gestures, haptics                                                                                                                            | mouse + keyboard + touch: hover tint, `SystemMouseCursors.click`, visible focus ring, shortcuts (`/` search, `Esc` close, arrows in lists, `Enter` activate), mouse-wheel scroll, draggable scrollbars on desktop, click-and-drag scrolling enabled via a custom `ScrollBehavior` |
 | Pull to refresh              | yes                                                                                                                                                | desktop has no pull gesture: show a small refresh `IconBtn` in the header on pointer devices                                                                                                                                                                                      |
 | Layout                       | compact/medium/expanded by size                                                                                                                    | same breakpoints; desktop gets the side-panel map layout and centred max-width content                                                                                                                                                                                            |
-| Startup                      | native splash (Android 12 splash API: brand `#0B3D36` background + mark), `runApp` immediately                                                     | **inline HTML/CSS splash** (below) removed on the first Flutter frame; map code deferred                                                                                                                                                                                          |
-| Icons/branding               | adaptive icon (background `#0B3D36`, mint mark) + **monochrome** layer for themed icons                                                            | favicon (SVG + 32 px PNG), `apple-touch-icon`, manifest icons (192/512, maskable), `theme-color`, Open Graph title/description                                                                                                                                                    |
+| Startup                      | native splash (Android 12 splash API: brand `#0B3D36` background + the app icon), `runApp` immediately                                               | **inline HTML/CSS splash** (below) removed on the first Flutter frame; map code deferred                                                                                                                                                                                          |
+| Icons/branding               | adaptive icon (background `#0B3228`, owner-supplied bus tile), no monochrome layer                                                                   | favicon (SVG + 32 px PNG), `apple-touch-icon`, manifest icons (192/512, maskable), `theme-color`, Open Graph title/description                                                                                                                                                    |
 | Fonts                        | bundled subset                                                                                                                                     | same files; avoid FOUT by waiting for the first frame (fonts are assets)                                                                                                                                                                                                          |
 | Links                        | `url_launcher` external application                                                                                                                | same, `noopener`, never inside the app shell                                                                                                                                                                                                                                      |
 | Install                      | Play Store (and the debug/APK distribution already in use)                                                                                         | optional PWA install: do not nag; a quiet "Instalar" item in Ajustes when the browser offers it (`beforeinstallprompt` via the project's existing JS interop if present; do not add a package)                                                                                    |
@@ -1166,7 +1185,7 @@ body {
 }
 </style>
 <div id="splash" aria-hidden="true">
-  <!-- inline SVG of the brand mark (section 15) -->
+  <!-- inline SVG of the app icon (section 15) -->
 </div>
 <script>
 window.addEventListener("flutter-first-frame", function () {
@@ -1475,9 +1494,9 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 | `linesCount`                                                                                | `{n}` linhas                                                                                                                                                                                                                                                                |
 | `filterAll` / `filterLive` / `filterFavorites`                                              | Todas / Ao vivo / Favoritas                                                                                                                                                                                                                                                 |
 | `emptyLive`                                                                                 | Nenhuma linha ao vivo agora                                                                                                                                                                                                                                                 |
-| `emptyFavorites`                                                                            | Toque na estrela para favoritar                                                                                                                                                                                                                                             |
-| `noVehicles`                                                                                | Nenhum ônibus compartilhando agora                                                                                                                                                                                                                                          |
-| `noVehiclesHint`                                                                            | Veja os horários ou ajude compartilhando sua viagem.                                                                                                                                                                                                                        |
+| `emptyFavorites`                                                                            | Toque na estrela de uma linha para adicioná-la aos favoritos                                                                                                                                                                                                                |
+| `noVehicles`                                                                                | Nenhum ônibus ao vivo agora                                                                                                                                                                                                                                                 |
+| `noVehiclesHint`                                                                            | Está no ônibus? Toque em "Estou no ônibus" e mostre a posição para quem espera. Sem cadastro.                                                                                                                  |
 | `onlyTimetable`                                                                             | Só horários                                                                                                                                                                                                                                                                 |
 | `lineNotTrackable`                                                                          | Esta linha ainda não tem rastreamento ao vivo. Veja os horários.                                                                                                                                                                                                            |
 | `lineNotFound`                                                                              | Linha não encontrada                                                                                                                                                                                                                                                        |
@@ -1494,7 +1513,7 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 | `next`                                                                                      | Próximo                                                                                                                                                                                                                                                                     |
 | `departFrom`                                                                                | Saída de                                                                                                                                                                                                                                                                    |
 | `dayWeekday` / `daySaturday` / `daySunday`                                                  | Dias úteis / Sábado / Dom e feriados                                                                                                                                                                                                                                        |
-| `timetableDisclaimer`                                                                       | Horários não oficiais, reunidos de fontes públicas. Podem estar desatualizados. Atualizado em `{date}`.                                                                                                                                                                     |
+| `timetableDisclaimer`                                                                       | Horários não oficiais, reunidos de fontes públicas. Podem estar desatualizados. Atualizados em `{date}`.                                                                                                                                                                     |
 | `timetableEmpty`                                                                            | Sem horários cadastrados para este dia                                                                                                                                                                                                                                      |
 | `dockIdle` / `dockIdleLine`                                                                 | Estou no ônibus / Estou neste ônibus                                                                                                                                                                                                                                        |
 | `dockStarting`                                                                              | Iniciando…                                                                                                                                                                                                                                                                  |
@@ -1507,12 +1526,12 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 | `consentPoints`                                                                             | Só serve para posicionar o ônibus no mapa. / Não é ligada a nome, e-mail ou telefone. / É apagada quando a viagem termina. / Outros veem a posição do ônibus, não quem está nele. Se só você compartilhar, a posição do ônibus é a sua. / Você pode encerrar quando quiser. |
 | `consentAccept` / `consentDecline`                                                          | Aceitar e continuar / Agora não                                                                                                                                                                                                                                             |
 | `privacyPolicy`                                                                             | Política de Privacidade                                                                                                                                                                                                                                                     |
-| `permPre`                                                                                   | Para compartilhar, o Pontual precisa da localização enquanto o app estiver em uso. Não pedimos localização "o tempo todo".                                                                                                                                                  |
+| `permPre`                                                                                   | Para compartilhar, o Pontual precisa da sua localização enquanto o app estiver em uso. Não pedimos localização o tempo todo.                                                                                  |
 | `permContinue`                                                                              | Continuar                                                                                                                                                                                                                                                                   |
-| `permDenied`                                                                                | Sem permissão de localização. Sem ela não dá para compartilhar a viagem.                                                                                                                                                                                                    |
+| `permDenied`                                                                                | A permissão de localização está desligada. Sem ela não dá para compartilhar a viagem.                                                                                                                        |
 | `permRetry` / `permOpenSettings` / `permAlreadyAllowed`                                     | Tentar de novo / Abrir ajustes / Já permiti, tentar de novo                                                                                                                                                                                                                 |
 | `permLocationOff`                                                                           | Ative a localização do aparelho.                                                                                                                                                                                                                                            |
-| `permNotifNote`                                                                             | Sem a notificação, o Android pode encerrar o compartilhamento. Recomendamos permitir.                                                                                                                                                                                       |
+| `permNotifNote`                                                                             | Sem as notificações, o Android pode encerrar o compartilhamento. Permita para manter o envio ativo.                                                                                                          |
 | `permWebUnsupported`                                                                        | Seu navegador não permite compartilhar a localização aqui.                                                                                                                                                                                                                  |
 | `permWebChrome`                                                                             | Toque no cadeado ao lado do endereço > Permissões > Localização > Permitir. Depois toque em Tentar de novo.                                                                                                                                                                 |
 | `permWebSafari`                                                                             | Toque em aA na barra do endereço > Ajustes do site > Localização > Permitir.                                                                                                                                                                                                |
@@ -1521,20 +1540,20 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 | `tripHero`                                                                                  | Você está ajudando quem espera o ônibus                                                                                                                                                                                                                                     |
 | `tripWaiting`                                                                               | Aguardando o ônibus sair…                                                                                                                                                                                                                                                   |
 | `tripActiveHigh`                                                                            | Enviando com mais frequência. Revezamos a cada poucos minutos para poupar a bateria de todos.                                                                                                                                                                               |
-| `tripActiveEco`                                                                             | Modo economia: outras pessoas também compartilham.                                                                                                                                                                                                                          |
+| `tripActiveEco`                                                                             | Outras pessoas também compartilham, então enviamos menos vezes.                                                                                                                                                                                                                          |
 | `tripOffline`                                                                               | Sem conexão. Vamos retomar assim que voltar.                                                                                                                                                                                                                                |
 | `tripConnection` / `tripGps`                                                                | Conexão / GPS                                                                                                                                                                                                                                                               |
 | `connOk` / `connNone`                                                                       | Conectado / Sem conexão                                                                                                                                                                                                                                                     |
 | `gpsGood` / `gpsWeak` / `gpsOff`                                                            | Bom / Fraco / Desligado                                                                                                                                                                                                                                                     |
 | `tripBatteryTip`                                                                            | Se parar sozinho, defina a bateria do app como "Sem restrições".                                                                                                                                                                                                            |
 | `webForeground`                                                                             | Mantenha esta tela aberta e o celular desbloqueado.                                                                                                                                                                                                                         |
-| `webBrightness`                                                                             | Dica: diminua o brilho para economizar bateria.                                                                                                                                                                                                                             |
+| `webBrightness`                                                                             | A tela fica ligada durante a viagem. Abaixe o brilho para economizar bateria.                                                                                                                         |
 | `tripEnd`                                                                                   | Desci - encerrar viagem                                                                                                                                                                                                                                                     |
 | `stillOnBus`                                                                                | Você ainda está no ônibus?                                                                                                                                                                                                                                                  |
 | `yesContinue` / `iGotOff`                                                                   | Sim, continuar / Desci                                                                                                                                                                                                                                                      |
 | `tripEnded`                                                                                 | Viagem encerrada. Obrigado por ajudar!                                                                                                                                                                                                                                      |
 | `endedIdle`                                                                                 | Encerramos porque o celular ficou parado por 10 minutos.                                                                                                                                                                                                                    |
-| `endedTimeout`                                                                              | Encerramos por tempo máximo ou falta de sinal.                                                                                                                                                                                                                              |
+| `endedTimeout`                                                                              | Encerramos porque a viagem atingiu o tempo máximo ou ficou sem sinal.                                                                                                                                    |
 | `endedPermission`                                                                           | Encerramos porque a permissão de localização foi removida.                                                                                                                                                                                                                  |
 | `endedAbuse`                                                                                | Encerramos por envios de localização inconsistentes.                                                                                                                                                                                                                        |
 | `endedMaint`                                                                                | Serviço em manutenção. Tente mais tarde.                                                                                                                                                                                                                                    |
@@ -1566,7 +1585,7 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 | `welcomeTitle`                                                                              | Veja onde o ônibus está                                                                                                                                                                                                                                                     |
 | `welcomeBody`                                                                               | Quem está dentro compartilha a posição, de forma anônima. Sem cadastro, sem anúncios.                                                                                                                                                                                       |
 | `welcomeOk` / `welcomePrivacy`                                                              | Entendi / Como funciona a privacidade                                                                                                                                                                                                                                       |
-| `coachDock`                                                                                 | Toque aqui quando estiver no ônibus.                                                                                                                                                                                                                                        |
+| `coachDock`                                                                                 | Está no ônibus? Toque aqui.                                                                                                                                                                            |
 | `predictionInfoTitle`                                                                       | Como calculamos                                                                                                                                                                                                                                                             |
 | `predictionInfoBody`                                                                        | A previsão usa as posições mais recentes e o ritmo habitual desta linha neste horário. Ela é uma estimativa, não uma posição ao vivo, e pode mudar.                                                                                                                         |
 | `scheduledInfoBody`                                                                         | Este horário vem da tabela publicada. Não é uma posição ao vivo.                                                                                                                                                                                                            |
@@ -1597,16 +1616,20 @@ stable keys. Plurals and ordinals via small helpers (0, 1, many).
 </svg>
 ```
 
-- **Android launcher icon:** adaptive icon, background `#0B3D36`, foreground =
-  the mark (dot + arcs only) scaled to fit the 66 dp safe zone, plus a
-  **monochrome** layer for themed icons. Generate with `flutter_launcher_icons`
-  (dev dependency only). Android 12 splash: background `#0B3D36`, icon = the
-  mark.
+- **App icon:** owner-supplied mint bus on a deep green tile. Sources:
+  `design/brand/app-icon.png` (raster master) and `app-icon.svg` (vector
+  trace). Tile `#0B3228`, bus `#77E9A3`. This is the launcher, PWA and splash
+  identity; the live signal mark above stays the in-app motif.
+- **Android launcher icon:** adaptive icon, background `#0B3228`, foreground =
+  the app icon tile scaled to fit the 66 dp safe zone. No monochrome layer:
+  themed icons fall back to the standard icon until a vector monochrome
+  exists. Android 12 splash: background `#0B3D36`, icon = the adaptive icon.
 - **Web:** favicon (SVG + 32 px PNG), `apple-touch-icon` (180), manifest icons
   192 and 512 + maskable, `theme-color` `#F6F5F1` (light) and `#0A1110` (dark),
   Open Graph title "Pontual - ônibus ao vivo em São Mateus".
-- **In-app use of the mark:** the HTML splash, About screen, empty states, and
-  the end-of-trip card. The live waves icon is the same two-arc motif.
+- **In-app use of the mark:** About screen, empty states, and the end-of-trip
+  card. The live waves icon is the same two-arc motif. The HTML splash and
+  launcher use the app icon.
 - Do not use operator names, colours or logos. Include the non-affiliation line
   in About and in the store/web description.
 

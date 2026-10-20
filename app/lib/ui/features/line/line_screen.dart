@@ -24,6 +24,7 @@ import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Fallback tile URL template, the same one the data layer uses.
@@ -45,13 +46,29 @@ class LineScreen extends ConsumerStatefulWidget {
   ConsumerState<LineScreen> createState() => _LineScreenState();
 }
 
-class _LineScreenState extends ConsumerState<LineScreen> {
+class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
   final DraggableScrollableController _sheet = DraggableScrollableController();
   final GlobalKey<LineMapState> _mapKey = GlobalKey<LineMapState>();
 
   StaticLine? _staticLine;
   bool _streamStarted = false;
   VehicleRepository? _repo;
+
+  /// Invalidates post-frame starts scheduled before a cover closed the
+  /// stream, so returning quickly cannot open two sockets.
+  int _streamGeneration = 0;
+
+  /// The last stop future. A start waits for it, so a fast cover-then-back
+  /// cannot overlap a close with a reconnect on the same repository.
+  Future<void> _streamStopped = Future<void>.value();
+
+  /// False while a full page covers this screen. The viewer socket is
+  /// closed then (PLAN.md 8.8.4 and 10.4.6) and reopened on return.
+  bool _routeVisible = true;
+
+  /// True once the route observer subscription is in place.
+  bool _subscribed = false;
+
   bool _panned = false;
   bool _mapOpened = false;
   int? _selectedKey;
@@ -75,7 +92,39 @@ class _LineScreenState extends ConsumerState<LineScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_subscribed) {
+      return;
+    }
+    final ModalRoute<dynamic>? route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic>) {
+      appPageRouteObserver.subscribe(this, route);
+      _subscribed = true;
+    }
+  }
+
+  /// A full page (the trip screen, a policy page) now covers this screen.
+  /// Close the viewer socket: no stream while it is not visible.
+  @override
+  void didPushNext() {
+    _routeVisible = false;
+    _stopStream();
+  }
+
+  /// The covering page popped: reopen the stream and keep the screen state.
+  @override
+  void didPopNext() {
+    _routeVisible = true;
+    final StaticLine? line = _staticLine;
+    if (line != null && line.pilot) {
+      _startStream(line.id);
+    }
+  }
+
+  @override
   void dispose() {
+    appPageRouteObserver.unsubscribe(this);
     _sheet.dispose();
     // The repository is kept in a field: reading a provider in dispose of a
     // disposed element is unsafe in Riverpod.
@@ -305,19 +354,40 @@ class _LineScreenState extends ConsumerState<LineScreen> {
     return ref.watch(vehiclesVmProvider(line.id)).take(maxMarkers).toList();
   }
 
-  /// Starts the live stream for a shareable line, once per screen.
+  /// Starts the live stream for a shareable line, once per visible period.
   void _startStream(int lineId) {
-    if (_streamStarted) {
+    if (_streamStarted || !_routeVisible) {
       return;
     }
     _streamStarted = true;
+    final int generation = ++_streamGeneration;
     final VehicleRepository repo = ref.read(vehicleRepoProvider(lineId));
     _repo = repo;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        unawaited(repo.start(lineId));
+    final Future<void> stopped = _streamStopped;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // A cover pushed between this build and the callback must not be
+      // reconnected by a stale post-frame start, and a fast cover-then-back
+      // must not overlap the close with the reconnect.
+      await stopped;
+      if (!mounted || !_routeVisible || generation != _streamGeneration) {
+        return;
       }
+      unawaited(repo.start(lineId));
     });
+  }
+
+  /// Closes the viewer socket while another page covers this screen.
+  /// PLAN.md 8.8.4 and 10.4.6: no stream when the screen is not visible.
+  void _stopStream() {
+    final VehicleRepository? repo = _repo;
+    _repo = null;
+    _streamStarted = false;
+    _streamGeneration += 1;
+    if (repo != null) {
+      final Future<void> stopped = repo.stop();
+      _streamStopped = stopped;
+      unawaited(stopped);
+    }
   }
 
   /// Opens the map behind the list in the data saver mode.

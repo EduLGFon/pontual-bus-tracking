@@ -497,7 +497,7 @@ void main() {
       }
       if (path == '/v1/trip/ping') {
         pings += 1;
-        return http.Response('{"r":"W","n":20}', 200);
+        return http.Response('{"r":"W","n":15}', 200);
       }
       return http.Response('{}', 404);
     });
@@ -564,6 +564,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     }
     expect(started, isTrue);
+    expect(c.intervalS, 20);
     // Open the first send slot and prove the healthy path sends.
     clock.advance(21000);
     await feedOne();
@@ -572,6 +573,7 @@ void main() {
     }
     expect(pings, 1);
     await drainAfter(100000);
+    expect(c.intervalS, 15);
     expect(c.isImprecise, isFalse);
     // Three approximate polls flag the trip imprecise.
     gateway.precise = false;

@@ -256,6 +256,15 @@ class TripController extends ChangeNotifier {
   /// True while sends keep failing and only probes go out.
   bool get isOffline => activeRole(_state) == TripRole.offlineSaver;
 
+  /// Current sampling role, null before the trip is active. Read-only;
+  /// drives the send cadence copy in the metrics panel.
+  TripRole? get role => activeRole(_state);
+
+  /// Last server-instructed send interval in seconds, null before the
+  /// first start instruction. Read-only: the server always wins.
+  int? get intervalS => _intervalS;
+  int? _intervalS;
+
   /// True while location services are off (stream paused, banner shown).
   bool get isPaused => _supervisor?.paused ?? false;
 
@@ -441,6 +450,7 @@ class TripController extends ChangeNotifier {
     _lastBatteryPct = null;
     _lastCharging = false;
     _lastFix = null;
+    _intervalS = null;
     _revivedOnce = false;
     _reviving = false;
     _webHidden = false;
@@ -691,6 +701,7 @@ class TripController extends ChangeNotifier {
     _supervisor?.begin(_startedAtMs!);
     _set(tripReduce(_state, TripEvent.startConfirmed));
     final int firstIntervalS = (started as Ok<TripInstruction>).value.intervalS;
+    _intervalS = firstIntervalS;
     _runLoop(token, stream, firstIntervalS);
     return true;
   }
@@ -904,6 +915,7 @@ class TripController extends ChangeNotifier {
       return;
     }
     _nextPingAtMs = _deps.clock.nowMs() + outcome.intervalS * 1000;
+    _intervalS = outcome.intervalS;
     _webTimeoutLikely = false;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
@@ -1127,6 +1139,7 @@ class TripController extends ChangeNotifier {
     _webHidden = false;
     _webHiddenSinceMs = null;
     _webTimeoutLikely = false;
+    _intervalS = null;
     _supervisor?.reset();
     _supervisor = null;
     final StreamSubscription<TripFix>? sub = _fixSub;
