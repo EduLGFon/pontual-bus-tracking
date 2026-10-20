@@ -1,5 +1,6 @@
-// Public read endpoints and the read-only stream. Vehicle positions are
-// public by design; reads need no login. See PLAN.md 6.5 and 6.8.
+// Public read endpoints and the read-only stream. Vehicle positions and
+// passenger reports are public by design; reads need no login. See PLAN.md
+// 6.5 and 6.8.
 import { Hono } from "@hono/hono";
 import type { LineResolver } from "../data/lines.ts";
 import { arrivalsPayload } from "../domain/arrivals.ts";
@@ -13,6 +14,7 @@ import {
 import { lineSnapshot, livePayload, snapshotRows } from "../state/snapshots.ts";
 import type { Store } from "../state/store.ts";
 import { RateLimiter } from "../security/rateLimit.ts";
+import { reportRows } from "../domain/reports.ts";
 import { Hub } from "../ws/hub.ts";
 
 type Vars = {
@@ -25,6 +27,8 @@ export interface ReadDeps {
   hub: Hub;
   allowedOrigins: string[];
   trustCloudflare: boolean;
+  /** Sync switch so WS snapshots stay synchronous. */
+  reportsEnabled: () => boolean;
 }
 
 export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
@@ -32,10 +36,6 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
   const cfg = defaultEngineConfig();
   const vehiclesPerIp = new RateLimiter(120, 60 * 1000);
   const livePerIp = new RateLimiter(60, 60 * 1000);
-  // Last snapshot per line. ETag equality proves identical bytes, so a
-  // matching If-None-Match answers 304 without rebuilding. Bounded by
-  // line count (tens of entries, each a few KB at most).
-  const memo = new Map<number, { body: string; etag: string }>();
   const ipOf = (c: { get(n: "clientIp"): string }) => c.get("clientIp");
 
   app.get("/v1/lines/:id/vehicles", (c) => {
@@ -49,18 +49,17 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     const line = deps.lines(id);
     if (!line || !line.isActive) return c.json({ e: "line" }, 404);
     const inm = c.req.header("if-none-match");
-    const cached = memo.get(id);
-    if (cached && inm === cached.etag) {
-      return c.body(null, 304);
-    }
+    // Build the snapshot before comparing: a cached ETag would hide a
+    // report change until some other request refreshed the cache. The
+    // payload is tiny and the build is cheap.
     const { body, etag } = lineSnapshot(
       deps.store,
       id,
       Date.now(),
       cfg.publishTtlS,
       cfg.memberAliveS,
+      deps.reportsEnabled(),
     );
-    memo.set(id, { body, etag });
     if (inm === etag) {
       return c.body(null, 304);
     }
@@ -142,7 +141,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
           const line = deps.lines(lineId);
           if (!line || !line.isActive) return null;
           try {
-            return JSON.stringify({
+            const snap = {
               l: lineId,
               t: Math.floor(nowMs / 1000),
               v: snapshotRows(
@@ -152,7 +151,11 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
                 cfg.publishTtlS,
                 cfg.memberAliveS,
               ),
-            });
+              r: deps.reportsEnabled()
+                ? reportRows(deps.store, lineId, nowMs)
+                : [],
+            };
+            return JSON.stringify(snap);
           } catch {
             return null;
           }

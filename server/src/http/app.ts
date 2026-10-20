@@ -10,9 +10,11 @@ import type { RuntimeConfig } from "../config/runtime.ts";
 import { recordHealthCheck, recordRequest } from "../observability/metrics.ts";
 import { clientIp } from "../security/clientIp.ts";
 import type { LineResolver } from "../data/lines.ts";
+import type { StopResolver } from "../data/stops.ts";
 import type { Store } from "../state/store.ts";
 import { buildAccountRoutes } from "./routes.ts";
 import { buildReadRoutes } from "./readRoutes.ts";
+import { buildReportRoutes } from "./reportRoutes.ts";
 import { buildTripRoutes } from "./tripRoutes.ts";
 import type { Hub } from "../ws/hub.ts";
 
@@ -20,11 +22,13 @@ export interface AppOptions {
   sql: Sql | null;
   store: Store | null;
   lines: LineResolver;
+  stops: StopResolver;
   hub: Hub | null;
   followerJitterS: number;
   trustCloudflare: boolean;
   allowedOrigins: string[];
-  onVehicle: (lineId: number) => void;
+  onLineChanged: (lineId: number) => void;
+  reportsEnabled: () => boolean;
   /** Tunables owned by main.ts; test easy-publish mutates this object. */
   engine: EngineConfig;
   /**
@@ -106,7 +110,15 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
     // Without an injected getter, load per request (old behavior).
     const runtime = opts.runtime ??
       (() => loadRuntimeConfig(sql));
-    app.route("/", buildAccountRoutes({ sql, runtime }));
+    app.route(
+      "/",
+      buildAccountRoutes({
+        sql,
+        runtime,
+        store: opts.store ?? undefined,
+        onLineChanged: opts.onLineChanged,
+      }),
+    );
   }
   if (opts.sql && opts.store) {
     const sql: Sql = opts.sql;
@@ -119,9 +131,20 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         store: opts.store,
         lines: opts.lines,
         followerJitterS: opts.followerJitterS,
-        onVehicle: opts.onVehicle,
+        onLineChanged: opts.onLineChanged,
         engine: opts.engine,
         runtime,
+      }),
+    );
+    app.route(
+      "/",
+      buildReportRoutes({
+        sql,
+        store: opts.store,
+        lines: opts.lines,
+        stops: opts.stops,
+        runtime,
+        onLineChanged: opts.onLineChanged,
       }),
     );
   }
@@ -134,6 +157,7 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         hub: opts.hub,
         allowedOrigins: opts.allowedOrigins,
         trustCloudflare: opts.trustCloudflare,
+        reportsEnabled: opts.reportsEnabled,
       }),
     );
   }

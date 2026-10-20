@@ -32,7 +32,7 @@ export interface TripDeps {
   store: Store;
   lines: LineResolver;
   followerJitterS: number;
-  onVehicle: (lineId: number) => void;
+  onLineChanged: (lineId: number) => void;
   /** Tunables owned by main.ts; test easy-publish mutates this object. */
   engine: EngineConfig;
   /** Live runtime config, cached in main.ts and refreshed every 30 s. */
@@ -200,7 +200,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     if (
       lineId !== undefined && events.some((e) => e.kind === "vehicleUpdated")
     ) {
-      deps.onVehicle(lineId);
+      deps.onLineChanged(lineId);
     }
     if (out.end) return c.json({ r: out.role, n: out.intervalS, e: out.end });
     return c.json({ r: out.role, n: out.intervalS });

@@ -7,6 +7,8 @@ import type { Sql } from "../db/client.ts";
 import { deleteDevice, insertDevice } from "../db/devices.ts";
 import { recordConsent } from "../db/consents.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
+import { removeDeviceFromReports } from "../domain/reports.ts";
+import type { Store } from "../state/store.ts";
 import { ConsentsBody, DevicesBody, parseJson } from "./schemas.ts";
 import { authMiddleware, evictTokenHash } from "../security/auth.ts";
 import {
@@ -49,6 +51,8 @@ async function readBody(c: Context<Vars>): Promise<Body> {
 export function buildAccountRoutes(deps: {
   sql: Sql;
   runtime: () => Promise<RuntimeConfig>;
+  store?: Store;
+  onLineChanged?: (lineId: number) => void;
 }): Hono<Vars> {
   const sql = deps.sql;
   const runtime = deps.runtime;
@@ -113,6 +117,13 @@ export function buildAccountRoutes(deps: {
     const token = bearerToken(c.req.header("authorization") ?? null);
     await deleteDevice(sql, deviceId);
     if (token) evictTokenHash(hashHex(await tokenHash(token)));
+    // PRIVACY: the report store keeps device ids only in memory, so the
+    // deletion must clear them here as well. Reports whose only reporter
+    // was this device disappear and the line snapshot is broadcast.
+    if (deps.store) {
+      const changed = removeDeviceFromReports(deps.store, deviceId);
+      for (const lineId of changed) deps.onLineChanged?.(lineId);
+    }
     return c.body(null, 204);
   });
 
