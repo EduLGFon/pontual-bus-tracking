@@ -2905,4 +2905,19 @@ would stop the stream while the rider is still on the line screen.
 Verified: `flutter analyze` reports no issues; targeted trip, line, and
 share-flow widget tests pass, including minimize, system back, the
 no-previous-route fallback, the end-card return, and cover/modal stream
-lifecycle; the full `flutter test` suite passes 375 tests with 1 skipped.
+lifecycle; the full `flutter test` suite passes 376 tests with 1 skipped.
+
+Build and size: the release web build succeeds with
+`flutter build web --release --no-web-resources-cdn`. `main.dart.js`
+measures 3.2 MB raw, 987 KB gzip, and 763 KB brotli; local assets add
+1.8 MB. The web output includes 37 MB of local Canvaskit because this
+build disables the resources CDN; production serves it from the CDN and
+caches it. The change adds a few kilobytes of Dart, so it does not
+move the budget. `tools/ci/manifest_audit.sh` passes with the same
+permission set; no dependency, permission, retention, or data change.
+
+Android: `flutter build appbundle --release` succeeds and produces a
+56.9 MB universal AAB. The merged release manifest keeps the same allowed
+permission set, `allowBackup="false"`, and no cleartext traffic. The
+universal artifact contains all ABIs, so the per-download arm64 budget
+(15 MB) is not measured from it and remains the T45 release gate.
