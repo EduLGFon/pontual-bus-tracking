@@ -230,7 +230,9 @@ Future<void> _shareTrip(
       // no-op that strands the stale sheet over the trip screen.
       Navigator.of(context, rootNavigator: true).pop();
     }
-    context.go('/trip', extra: controller);
+    // Push, not go: minimize and system back pop back to the screen that
+    // opened the trip (DECISIONS.md#D77).
+    unawaited(context.push('/trip', extra: controller));
     return;
   }
   final StartFailure? reason = controller.failReason;

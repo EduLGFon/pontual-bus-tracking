@@ -40,6 +40,26 @@ Future<void> settleOnce(WidgetTester tester) {
   return tester.pump(const Duration(milliseconds: 300));
 }
 
+/// Router with a marker home and the trip screen, for navigation tests.
+/// The trip route is pushed by each test so the stack looks like production.
+GoRouter tripRouter(rig.Rig r, {String initialLocation = '/'}) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: <GoRoute>[
+      GoRoute(
+        path: '/',
+        builder: (BuildContext context, GoRouterState state) =>
+            const Scaffold(body: Text('home-marker')),
+      ),
+      GoRoute(
+        path: '/trip',
+        builder: (BuildContext context, GoRouterState state) =>
+            TripScreen(controller: r.controller),
+      ),
+    ],
+  );
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -83,26 +103,12 @@ void main() {
       await r.positions.close();
     });
 
-    testWidgets('back minimises instead of ending', (
+    testWidgets('minimise returns to the screen that opened the trip', (
       WidgetTester tester,
     ) async {
       final rig.Rig r = rig.rig(rig.happy());
       await rig.start(r);
-      final GoRouter router = GoRouter(
-        initialLocation: '/',
-        routes: <GoRoute>[
-          GoRoute(
-            path: '/',
-            builder: (BuildContext context, GoRouterState state) =>
-                const Scaffold(body: Text('home-marker')),
-          ),
-          GoRoute(
-            path: '/trip',
-            builder: (BuildContext context, GoRouterState state) =>
-                TripScreen(controller: r.controller),
-          ),
-        ],
-      );
+      final GoRouter router = tripRouter(r);
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp.router(
@@ -118,7 +124,86 @@ void main() {
       // No settle: the hero pulse never settles by design.
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
       expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('system back minimises instead of ending', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final GoRouter router = tripRouter(r);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      unawaited(router.push('/trip'));
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
+      expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('minimise falls back home without a previous route', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      // Starting on /trip leaves no route to pop: the fallback must run.
+      final GoRouter router = tripRouter(r, initialLocation: '/trip');
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byTooltip(UiStrings.tripMinimize));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(r.controller.endKind, isNull);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('end card returns to the screen that opened the trip', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final GoRouter router = tripRouter(r);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: pontualLightTheme(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      unawaited(router.push('/trip'));
+      await tester.pump();
+      await tester.tap(find.text(UiStrings.tripStop));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text(UiStrings.endTitle), findsOneWidget);
+      await tester.tap(find.text(UiStrings.endDone));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('home-marker'), findsOneWidget);
+      expect(find.byType(TripScreen), findsNothing);
       r.controller.dispose();
       await r.positions.close();
     });

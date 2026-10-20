@@ -1,7 +1,10 @@
 // Tests of the new line screen: unknown key, live line with markers and
 // vehicle rows, non shareable line hiding the dock and showing the note,
-// and 200 percent text scale. Uses the fake harness pattern of
+// 200 percent text scale, and the viewer stream lifecycle while a page
+// covers the screen. Uses the fake harness pattern of
 // test/map_tab_test.dart so no network call ever happens.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -15,6 +18,7 @@ import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
+import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -108,6 +112,35 @@ const ClientVehicle liveBus2 = ClientVehicle(
 
 /// Fixed São Mateus wall clock, so the timetable assertions are stable.
 final DateTime fixedNow = DateTime.utc(2026, 10, 14, 12, 0);
+
+/// Repository that counts stream starts and stops. It never touches the
+/// network: the route-lifecycle test only cares about the calls.
+class RecordingRepo extends VehicleRepository {
+  RecordingRepo()
+    : super(
+        fetchSnapshot: (_) async => const <ClientVehicle>[],
+        openChannel: (_) async => FakeChannel(),
+        wsBaseUrl: () => 'ws://127.0.0.1:8080',
+        clock: FakeClock(100000),
+        launch: (Future<void> task) {},
+      );
+
+  /// Calls to [start].
+  int starts = 0;
+
+  /// Calls to [stop].
+  int stops = 0;
+
+  @override
+  Future<void> start(int lineId) async {
+    starts += 1;
+  }
+
+  @override
+  Future<void> stop() async {
+    stops += 1;
+  }
+}
 
 /// Builds a repository that answers with [vehicles].
 VehicleRepository repoOf(List<ClientVehicle> vehicles) {
@@ -254,6 +287,104 @@ void main() {
     await tester.scrollUntilVisible(find.text(UiStrings.vehiclesNow), 200);
     expect(find.text(UiStrings.vehiclesNow), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('page cover pauses the viewer stream and return resumes it', (
+    WidgetTester tester,
+  ) async {
+    await _useCompactView(tester);
+    final RecordingRepo repo = RecordingRepo();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linesProvider.overrideWith(
+            (Ref ref) async => const <StaticLine>[pilotLine],
+          ),
+          liveProvider.overrideWith(
+            (Ref ref) async => const LiveLines(<List<int>>[]),
+          ),
+          tileUrlProvider.overrideWith(
+            (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
+          ),
+          currentNowProvider.overrideWithValue(fixedNow),
+          vehicleRepoProvider(7).overrideWithValue(repo),
+        ],
+        child: MaterialApp(
+          navigatorObservers: <NavigatorObserver>[appPageRouteObserver],
+          home: const LineScreen(lineKey: 'seven'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 1);
+
+    final BuildContext ctx = tester.element(find.byType(LineScreen));
+    unawaited(
+      Navigator.of(ctx).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) =>
+              const Scaffold(body: Text('cover')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.stops, 1);
+
+    Navigator.of(ctx).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 2);
+    expect(repo.stops, 1);
+  });
+
+  testWidgets('modal sheets do not pause the viewer stream', (
+    WidgetTester tester,
+  ) async {
+    await _useCompactView(tester);
+    final RecordingRepo repo = RecordingRepo();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linesProvider.overrideWith(
+            (Ref ref) async => const <StaticLine>[pilotLine],
+          ),
+          liveProvider.overrideWith(
+            (Ref ref) async => const LiveLines(<List<int>>[]),
+          ),
+          tileUrlProvider.overrideWith(
+            (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
+          ),
+          currentNowProvider.overrideWithValue(fixedNow),
+          vehicleRepoProvider(7).overrideWithValue(repo),
+        ],
+        child: MaterialApp(
+          navigatorObservers: <NavigatorObserver>[appPageRouteObserver],
+          home: const LineScreen(lineKey: 'seven'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 1);
+
+    final BuildContext ctx = tester.element(find.byType(LineScreen));
+    unawaited(
+      showModalBottomSheet<void>(
+        context: ctx,
+        builder: (BuildContext context) => const SizedBox(height: 100),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.stops, 0);
+
+    Navigator.of(ctx).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.starts, 1);
+    expect(repo.stops, 0);
   });
 
   group('timetable tab', () {

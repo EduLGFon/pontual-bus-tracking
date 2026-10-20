@@ -288,15 +288,15 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
 
   Widget _body(BuildContext context, TripController c) {
     return PopScope(
-      canPop: false,
+      // A pushed /trip has the screen that opened it below, so system back
+      // pops to it instead of ending, and the dock keeps sharing
+      // (UI_SPEC 8, DECISIONS.md#D77). Without a previous route (test
+      // harness, future deep link) the handler falls back to home.
+      canPop: context.canPop(),
       onPopInvokedWithResult: (bool didPop, Object? _) {
         if (didPop) {
           return;
         }
-        // System back minimises instead of ending: the dock keeps the trip
-        // and the foreground service keeps sharing (UI_SPEC 8). go, not
-        // pop: the share flow reached /trip with go, so there is no route
-        // to pop back to.
         context.go('/');
       },
       child: Scaffold(
@@ -391,9 +391,11 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   }
 
   /// Header with the minimise chevron and the screen title. Minimising
-  /// goes home with go, not pop: /trip was reached with go, so pop has no
-  /// route to return to. The live trip stays attached to the trip host, so
-  /// the dock keeps working and sharing continues.
+  /// pops back to the screen that opened the trip, so the line details
+  /// (or the tab, or search) return with their state intact. The live trip
+  /// stays attached to the trip host, so the dock keeps working and
+  /// sharing continues. Home is only the fallback when there is no route
+  /// to pop.
   Widget _header(BuildContext context) {
     return Padding(
       key: const ValueKey<String>('tripHeader'),
@@ -403,13 +405,23 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           IconBtn(
             icon: Icons.keyboard_arrow_down_rounded,
             semanticLabel: UiStrings.tripMinimize,
-            onTap: () => context.go('/'),
+            onTap: _minimize,
           ),
           const SizedBox(width: Space.x2),
           Expanded(child: Text(UiStrings.tripTitle, style: context.text.title)),
         ],
       ),
     );
+  }
+
+  /// Leaves the trip screen without ending the trip. Pops when there is a
+  /// screen to return to; a deep link or a bare harness falls back home.
+  void _minimize() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
   }
 
   int _nowMs() {

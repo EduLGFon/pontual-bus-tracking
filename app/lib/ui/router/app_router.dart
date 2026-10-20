@@ -17,6 +17,7 @@ import 'package:pontual/ui/features/settings/settings_screen.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:pontual/ui/router/page_transition.dart';
+import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/shell/app_shell.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
@@ -24,6 +25,9 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 GoRouter buildUiRouter() {
   return GoRouter(
     initialLocation: '/',
+    // Before the routes: the line screen closes its viewer stream while a
+    // full page covers it. See DECISIONS.md#D77.
+    observers: <NavigatorObserver>[appPageRouteObserver],
     errorBuilder: (BuildContext context, GoRouterState state) =>
         const SystemScreen(kind: SystemKind.notFound),
     routes: <RouteBase>[
