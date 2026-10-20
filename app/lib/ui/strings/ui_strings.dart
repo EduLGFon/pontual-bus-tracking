@@ -753,6 +753,9 @@ class UiStrings {
   /// Phone detail before the first accepted fix carries a battery read.
   static const String metricBatteryUnknown = 'Sem leitura';
 
+  /// Phone detail while the first battery read is still pending.
+  static const String metricBatteryUnknownDetail = 'Aguardando leitura';
+
   /// Phone detail while charging.
   static const String metricBatteryChargingDetail = 'Carregando agora';
 

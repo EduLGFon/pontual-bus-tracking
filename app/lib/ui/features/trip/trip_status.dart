@@ -9,7 +9,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/android/battery_optimization.dart';
-import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/components/banner.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
@@ -19,12 +18,11 @@ import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 
+import 'trip_metrics.dart';
+
 /// Milliseconds a new issue must hold before the banner flips, so a
 /// flapping signal does not flicker the screen.
 const int bannerHoldMs = 2000;
-
-/// Width at which the three tiles sit in a row instead of stacking.
-const double tilesRowBreakpoint = 600;
 
 /// Holds the visible banner issue back until a new issue is stable.
 class IssueDebouncer {
@@ -105,7 +103,15 @@ class _StatusBlockState extends State<StatusBlock> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        StatusTiles(health: health, gnss: c.lastGnssQuality),
+        StatusMetrics(
+          health: health,
+          gnss: c.lastGnssQuality,
+          accuracyM: c.lastAccuracyM,
+          batteryPct: c.lastBatteryPct,
+          charging: c.lastCharging,
+          intervalS: c.intervalS,
+          role: c.role,
+        ),
         if (_bannerOf(shown) != null) ...<Widget>[
           const SizedBox(height: Space.x3),
           _IssueBanner(
@@ -327,196 +333,6 @@ class _IssueBanner extends StatelessWidget {
         icon: Icons.info_rounded,
       ),
     };
-  }
-}
-
-/// Three health tiles. The value sits under the label so long values
-/// never squeeze into a narrow right column. Wide screens show a row,
-/// narrow screens and large text stack full-width rows.
-class StatusTiles extends StatelessWidget {
-  /// Creates the tiles for [health].
-  const StatusTiles({required this.health, this.gnss, super.key});
-
-  /// Resolved health to render.
-  final SharingHealth health;
-
-  /// Latest GNSS quality, if any. Shown as a satellite subtitle on the
-  /// GPS tile while weak or unfixed: it tells sky-blocked apart from
-  /// permission or services problems at a glance. See D69.
-  final GnssQuality? gnss;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> tiles = <Widget>[
-      _HealthTile(
-        key: const ValueKey<String>('tileConnection'),
-        icon: _connectionIcon(health.connectionValue),
-        label: UiStrings.connection,
-        value: _connectionText(health.connectionValue),
-        level: health.connectionLevel,
-      ),
-      _HealthTile(
-        key: const ValueKey<String>('tileGps'),
-        icon: _gpsIcon(health.gpsValue),
-        label: UiStrings.gps,
-        value: _gpsText(health.gpsValue, gnss),
-        level: health.gpsLevel,
-      ),
-      _HealthTile(
-        key: const ValueKey<String>('tileDevice'),
-        icon: _deviceIcon(health.deviceValue),
-        label: UiStrings.device,
-        value: _deviceText(health.deviceValue),
-        level: health.deviceLevel,
-      ),
-    ];
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        if (constraints.maxWidth >= tilesRowBreakpoint) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(child: tiles[0]),
-              const SizedBox(width: Space.x4),
-              Expanded(child: tiles[1]),
-              const SizedBox(width: Space.x4),
-              Expanded(child: tiles[2]),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            tiles[0],
-            const SizedBox(height: Space.x3),
-            tiles[1],
-            const SizedBox(height: Space.x3),
-            tiles[2],
-          ],
-        );
-      },
-    );
-  }
-
-  IconData _connectionIcon(ConnectionValue value) {
-    return switch (value) {
-      ConnectionValue.connected => Icons.wifi_rounded,
-      ConnectionValue.offline => Icons.cloud_off_rounded,
-      ConnectionValue.reconnecting => Icons.sync_rounded,
-    };
-  }
-
-  String _connectionText(ConnectionValue value) {
-    return switch (value) {
-      ConnectionValue.connected => UiStrings.connected,
-      ConnectionValue.offline => UiStrings.connOffline,
-      ConnectionValue.reconnecting => UiStrings.connReconnecting,
-    };
-  }
-
-  IconData _gpsIcon(GpsValue value) {
-    return switch (value) {
-      GpsValue.good => Icons.location_on_rounded,
-      GpsValue.weak => Icons.gps_not_fixed_rounded,
-      GpsValue.noFix => Icons.gps_not_fixed_rounded,
-      GpsValue.off => Icons.location_disabled_rounded,
-      GpsValue.noPermission => Icons.block_rounded,
-      GpsValue.imprecise => Icons.block_rounded,
-      GpsValue.searching => Icons.location_searching_rounded,
-    };
-  }
-
-  String _gpsText(GpsValue value, GnssQuality? gnss) {
-    final String base = switch (value) {
-      GpsValue.good => UiStrings.gpsGood,
-      GpsValue.weak => UiStrings.gpsWeak,
-      GpsValue.noFix => UiStrings.noSignal,
-      GpsValue.off => UiStrings.gpsOffShort,
-      GpsValue.noPermission => UiStrings.gpsNoPermission,
-      GpsValue.imprecise => UiStrings.gpsImprecise,
-      GpsValue.searching => UiStrings.gpsSearching,
-    };
-    if (gnss == null) {
-      return base;
-    }
-    if (value != GpsValue.weak && value != GpsValue.noFix) {
-      return base;
-    }
-    return '$base, ${UiStrings.satsInFix(gnss.satsUsed)}';
-  }
-
-  IconData _deviceIcon(DeviceValue value) {
-    return switch (value) {
-      DeviceValue.screenOn => Icons.phone_android_rounded,
-      DeviceValue.lowBattery => Icons.battery_alert_rounded,
-    };
-  }
-
-  String _deviceText(DeviceValue value) {
-    return switch (value) {
-      DeviceValue.screenOn => UiStrings.deviceScreenOn,
-      DeviceValue.lowBattery => UiStrings.deviceLowBattery,
-    };
-  }
-}
-
-/// One health tile: icon plus label with the short value underneath.
-/// Color never carries the meaning alone; every tile has icon and text.
-class _HealthTile extends StatelessWidget {
-  /// Creates a tile.
-  const _HealthTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.level,
-    super.key,
-  });
-
-  /// Leading icon.
-  final IconData icon;
-
-  /// Tile label in pt-BR.
-  final String label;
-
-  /// Short value in pt-BR, one or two words.
-  final String value;
-
-  /// Severity, which tints the icon and the value only.
-  final SharingLevel level;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final Color accent = switch (level) {
-      SharingLevel.ok => colors.liveText,
-      SharingLevel.warn => colors.warningText,
-      SharingLevel.error => colors.dangerText,
-      SharingLevel.neutral => colors.inkMuted,
-    };
-    return Semantics(
-      label: '$label: $value',
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, size: 20, color: accent),
-          const SizedBox(width: Space.x3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(label, style: context.text.caption),
-                Text(
-                  value,
-                  style: context.text.bodyStrong.copyWith(color: accent),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

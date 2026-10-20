@@ -214,7 +214,7 @@ class StatusMetrics extends StatelessWidget {
       return const _Metric(
         label: UiStrings.metricLabelPhone,
         value: UiStrings.metricBatteryUnknown,
-        detail: UiStrings.metricBatteryOnBatteryDetail,
+        detail: UiStrings.metricBatteryUnknownDetail,
         icon: Icons.battery_unknown_rounded,
         level: SharingLevel.neutral,
         numeric: false,
@@ -272,9 +272,7 @@ class StatusMetrics extends StatelessWidget {
       value: interval == null
           ? UiStrings.metricSendCalculating
           : UiStrings.metricInterval(interval),
-      detail: stale
-          ? UiStrings.metricSendStale
-          : _roleDetail(role),
+      detail: stale ? UiStrings.metricSendStale : _roleDetail(role),
       icon: stale ? Icons.schedule_rounded : Icons.send_rounded,
       level: stale ? SharingLevel.warn : health.connectionLevel,
       numeric: interval != null,
@@ -308,8 +306,7 @@ class _MetricCell extends StatelessWidget {
       SharingLevel.neutral => colors.inkMuted,
     };
     final bool attention =
-        metric.level == SharingLevel.warn ||
-        metric.level == SharingLevel.error;
+        metric.level == SharingLevel.warn || metric.level == SharingLevel.error;
     final TextStyle valueStyle = metric.numeric
         ? context.text.metric
         : context.text.headline;
@@ -321,7 +318,12 @@ class _MetricCell extends StatelessWidget {
       ),
       excludeSemantics: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(Space.x4, Space.x3, Space.x4, Space.x3),
+        padding: const EdgeInsets.fromLTRB(
+          Space.x4,
+          Space.x3,
+          Space.x4,
+          Space.x3,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

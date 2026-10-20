@@ -19,8 +19,8 @@ import 'package:pontual/ui/features/settings/about_screen.dart';
 import 'package:pontual/ui/features/settings/privacy_screen.dart';
 import 'package:pontual/ui/features/settings/settings_screen.dart';
 import 'package:pontual/ui/features/system/system_screen.dart';
+import 'package:pontual/ui/features/trip/trip_metrics.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
-import 'package:pontual/ui/features/trip/trip_status.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -74,8 +74,9 @@ void main() {
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
       expect(find.text(UiStrings.tripHero), findsOneWidget);
-      expect(find.text(UiStrings.connection), findsOneWidget);
-      expect(find.text(UiStrings.gps), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelSend), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelGps), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelPhone), findsOneWidget);
       expect(find.text(UiStrings.tripStop), findsOneWidget);
       expect(find.textContaining('há '), findsWidgets);
       expect(tester.takeException(), isNull);
@@ -413,7 +414,7 @@ void main() {
       await r.positions.close();
     });
 
-    testWidgets('weak GPS shows the satellite subtitle', (
+    testWidgets('GPS metric shows accuracy and satellite count', (
       WidgetTester tester,
     ) async {
       const SharingHealth weak = SharingHealth(
@@ -429,21 +430,149 @@ void main() {
       );
       await tester.pumpWidget(
         wrapApp(
-          const StatusTiles(
+          const StatusMetrics(
             health: weak,
+            accuracyM: 42,
             gnss: GnssQuality(satsUsed: 3, satsView: 9, meanSnrDb: 28),
           ),
         ),
       );
       await tester.pump();
-      expect(
-        find.text('${UiStrings.gpsWeak}, ${UiStrings.satsInFix(3)}'),
-        findsOneWidget,
+      expect(find.text(UiStrings.metricAccuracy(42)), findsOneWidget);
+      expect(find.text(UiStrings.metricSats(3, 9)), findsOneWidget);
+      // No satellite sample (web): the weak copy explains the value.
+      await tester.pumpWidget(
+        wrapApp(const StatusMetrics(health: weak, accuracyM: 42)),
       );
-      // No sample, no subtitle: the tile keeps its short value.
-      await tester.pumpWidget(wrapApp(const StatusTiles(health: weak)));
       await tester.pump();
-      expect(find.text(UiStrings.gpsWeak), findsOneWidget);
+      expect(find.text(UiStrings.metricGpsWeakDetail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('phone metric shows battery percentage and state', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth live = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(const StatusMetrics(health: live, batteryPct: 85)),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricPercent(85)), findsOneWidget);
+      expect(find.text(UiStrings.metricBatteryOnBatteryDetail), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(const StatusMetrics(health: live, batteryPct: 10)),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricBatteryLowDetail), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(health: live, batteryPct: 10, charging: true),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricBatteryChargingDetail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('send metric shows the server interval and role', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth live = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            intervalS: 15,
+            role: TripRole.leader,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricInterval(15)), findsOneWidget);
+      expect(find.text(UiStrings.metricSendLeader), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            intervalS: 45,
+            role: TripRole.follower,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricSendFollower), findsOneWidget);
+      const SharingHealth offline = SharingHealth(
+        connectionLevel: SharingLevel.warn,
+        connectionValue: ConnectionValue.offline,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.offline,
+        overall: SharingOverall.paused,
+        lastSendStale: false,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: offline,
+            intervalS: 45,
+            role: TripRole.offlineSaver,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.connOffline), findsOneWidget);
+      expect(find.text(UiStrings.metricSendOfflineDetail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stale send is called out without hiding the interval', (
+      WidgetTester tester,
+    ) async {
+      const SharingHealth stale = SharingHealth(
+        connectionLevel: SharingLevel.ok,
+        connectionValue: ConnectionValue.connected,
+        gpsLevel: SharingLevel.ok,
+        gpsValue: GpsValue.good,
+        deviceLevel: SharingLevel.ok,
+        deviceValue: DeviceValue.screenOn,
+        issue: SharingIssue.none,
+        overall: SharingOverall.live,
+        lastSendStale: true,
+      );
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: stale,
+            intervalS: 15,
+            role: TripRole.leader,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricInterval(15)), findsOneWidget);
+      expect(find.text(UiStrings.metricSendStale), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
