@@ -3054,3 +3054,68 @@ strings. No new dependency and no new data handling.
 Verified: `dart format` clean, `flutter analyze` clean, targeted
 `flutter test test/web_prompts_test.dart test/ui/trip_settings_test.dart`
 passes (28 tests).
+
+## D82-2026-10-20: passenger reports ("Sinalizações")
+
+Owner order: add a flag system for "still waiting at this stop", "bus broken",
+"gate blocked", "at max capacity", with a timestamp. Owner answers during the
+design review: accept the device token; in-memory for alpha; implement both
+line-level and stop-level; confirm the four kinds; no votes now; line-level
+direction is enough for v1; research real stop names on the internet where
+possible.
+
+Decision:
+
+- UI name **Sinalizações**, internal name **reports**. `flag` stays reserved
+  for feature flags.
+- Four closed kinds: `waiting` (line + stop), `full` (line), `broken` (line),
+  `blocked` (line + stop). No free text, no photos, no driver or plate data.
+- Reports are ephemeral and live in API process memory only. TTL default:
+  waiting 10 min, full 15 min, broken/blocked 30 min; hard max age 30 min /
+  45 min / 2 h / 2 h. A repeat from the same device refreshes freshness but
+  does not increase the distinct-reporter count. No confirm/deny votes.
+- Server owns timestamps. Clients never send `at`; the snapshot exposes
+  `created_age_s`, `updated_age_s` and `expires_in_s`.
+- Reads ride on the existing `GET /v1/lines/{id}/vehicles` payload and the
+  WebSocket snapshot as an additive `r` array. Old clients ignore it. Writes
+  use one route, `POST /v1/reports`, with `op` `report` or `retract`. No report
+  ids, no report ids in URLs, no vehicle ids from clients.
+- The device token is required, as AGENTS.md section 8 requires for every
+  state-changing endpoint. A viewer who reports for the first time creates a
+  pseudonymous `devices` row after a clear in-app disclosure. The report itself
+  is not persisted and is not linked to the device record in storage.
+- `DELETE /v1/me` removes the device from in-memory reporter sets, so a report
+  whose only reporter was that device disappears.
+- Stop ids are validated against the built static bundle when stop data is
+  loaded. Local runs without a bundle accept well-formed ids so the feature can
+  be tested; production bundles validate the exact set.
+- Line-level only for direction in v1: a broken bus in one direction shows for
+  both. `blocked` is also line-scoped until stop-line associations exist, so a
+  blocked stop reported from line 7 does not appear on line 8. The stop picker
+  lists all mapped stops because stop-line associations are still pending.
+  All are recorded as known limitations.
+
+Stop-name research (2026-10-20): queried the OSM API for the 12 node ids in
+`data/stops.json`. The tags still expose only `Guriri`, `Entrada do Jaguaré`
+(two nodes) and the generic "Ponto de ônibus" (two nodes); the other seven
+have no `name`. No new reliable posted names were found. No name was invented.
+The existing generic names were left untouched to avoid a data rebuild outside
+this change; a field survey (T17/RF20) is still the prerequisite for good
+stop-level labels. The picker gives unnamed nodes a local ordinal that is never
+written back to the data.
+
+Privacy and LGPD: the data inventory and policy drafts now include public
+reports (kind, line, chosen stop, server timestamps, distinct count), memory
+only, TTL at most 2 h, no coordinates and no identifier in durable storage.
+The device record created on first report is disclosed. Lawyer/DPO review of
+the wording and legal basis remains owner-blocked, as with the rest of the
+privacy drafts.
+
+Verification: `deno fmt --check`, `deno check src/main.ts`, `deno check
+test/*.ts` and `deno lint` pass. The full server suite ran against a throwaway
+PostgreSQL 16 container on 127.0.0.1:5433: 94 passed, 0 failed, including the
+six report tests (auth, schema, target validation, snapshot `r`, kill switch,
+delete-me cleanup, TTL/count/retract). `dart format`, `flutter analyze` and the
+full `flutter test` suite (388 tests, 1 skipped) pass. The Android
+manifest audit, size measurement and device checks were not run on this host.
+No database migration was added.

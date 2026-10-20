@@ -4,6 +4,14 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Passenger reports ("Sinalizações", D82): waiting at a stop, bus full, bus
+  broken and access blocked, with a server timestamp and a short TTL. Reads
+  ride on the existing line snapshot/WebSocket as an additive `r` array;
+  writes use one authenticated `POST /v1/reports` route with `report` and
+  `retract`. In-memory only, no coordinates, no free text, no votes. The line
+  sheet shows up to two chips, tapping a stop opens the waiting sheet, and the
+  trip screen has a report action. Stop names were checked against OSM; no new
+  reliable names were found, so unnamed nodes keep a local picker ordinal.
 - Settings on the web build now has a permanent "Baixar app para Android"
   row that opens the latest release APK. The one-time card on Home stays;
   the native Android app does not show the row. See DECISIONS.md D81.
