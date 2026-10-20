@@ -222,9 +222,6 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     final List<Widget> out = <Widget>[];
     final bool reportsEnabled =
         ref.watch(appFeaturesProvider).reports && widget.staticLine.pilot;
-    final List<StopPoint> stops = reportsEnabled
-        ? ref.watch(stopsProvider).value ?? const <StopPoint>[]
-        : const <StopPoint>[];
     if (reportsEnabled) {
       if (widget.reports.isNotEmpty) {
         out.add(
@@ -233,13 +230,11 @@ class _LineSheetState extends ConsumerState<LineSheet> {
             onTap: (ReportVM report) => showReportDetailSheet(
               context,
               reports: <ReportVM>[report],
-              stops: stops,
               onChanged: _refreshReports,
             ),
             onMore: () => showReportDetailSheet(
               context,
               reports: widget.reports,
-              stops: stops,
               onChanged: _refreshReports,
             ),
           ),
@@ -257,7 +252,6 @@ class _LineSheetState extends ConsumerState<LineSheet> {
                 context,
                 lineId: widget.staticLine.id,
                 lineName: widget.staticLine.name,
-                stops: stops,
                 onSubmitted: _refreshReports,
               ),
             ),

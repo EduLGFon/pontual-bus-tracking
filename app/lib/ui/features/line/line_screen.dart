@@ -24,7 +24,6 @@ import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
-import 'package:pontual/ui/features/reports/stop_sheet.dart';
 import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/router/route_observer.dart';
@@ -324,26 +323,6 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
         _mapKey.currentState?.centerOnClosestBus();
       },
       onVehicleTap: (VehicleVM v) => _focus(v, true),
-      onStopTap: (StopPoint stop) {
-        final StaticLine? line = _staticLine;
-        if (line != null) _openStop(line, stop, stops);
-      },
-    );
-  }
-
-  /// Opens the stop sheet for a tapped stop dot. The report is scoped to
-  /// the line the user is already viewing; no location permission is
-  /// requested and no coordinate leaves the device.
-  void _openStop(StaticLine line, StopPoint stop, List<StopPoint> stops) {
-    if (!line.pilot || !ref.read(appFeaturesProvider).reports) return;
-    unawaited(
-      showStopSheet(
-        context,
-        line: line,
-        stop: stop,
-        stops: stops,
-        onChanged: () => ref.read(vehicleRepoProvider(line.id)).refresh(),
-      ),
     );
   }
 

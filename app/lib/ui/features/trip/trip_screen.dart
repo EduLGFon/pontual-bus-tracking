@@ -11,7 +11,6 @@ import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
-import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/platform/web/visibility.dart';
 import 'package:pontual/platform/web/wake_lock.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
@@ -428,7 +427,6 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
                     context,
                     lineId: lineId,
                     lineName: c.lineLabel,
-                    stops: ref.read(stopsProvider).value ?? const <StopPoint>[],
                     onSubmitted: () =>
                         ref.read(vehicleRepoProvider(lineId)).refresh(),
                   ),
