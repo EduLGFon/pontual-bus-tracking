@@ -24,8 +24,10 @@ Use como referência, não como única fonte.
 - Sem localizações falsas, sem automação, sem tentativas de
   sobrecarregar o serviço.
 - Sinalizações são relatos públicos de passageiros, não informação
-  oficial. Não envie sinalização falsa nem use o recurso para
-  assediar, acusar pessoas ou divulgar dados pessoais.
+  oficial. Para espera ou acesso bloqueado, o app usa uma área
+  aproximada de ~150 m; a posição exata não é enviada. Não envie
+  sinalização falsa nem use o recurso para assediar, acusar pessoas
+  ou divulgar dados pessoais.
 - Na web e no iPhone, o compartilhamento exige a tela aberta.
 
 ## 4. Consequências do mau uso

@@ -1006,25 +1006,88 @@ class UiStrings {
 
   /// Disclosure under the report sheet.
   static const String reportPrivacy =
-      'Sua sinalização é pública e anônima. Não enviamos sua localização. '
-      'Para evitar abuso, o aparelho recebe um código anônimo. Ela some em '
-      'até 2 horas.';
+      'Sua sinalização é pública e anônima. Usamos só uma área aproximada '
+      'de 150 m, nunca a posição exata. Para evitar abuso, o aparelho recebe '
+      'um código anônimo. Ela some em até 2 horas.';
 
   /// Honesty footnote on report surfaces.
   static const String reportDisclaimer =
       'Relatos de passageiros. Podem estar desatualizados.';
 
-  /// Stop picker label.
-  static const String reportChooseStop = 'Ponto';
+  /// One-time location notice title.
+  static const String reportLocationTitle = 'Usar sua localização aproximada?';
 
-  /// Stop picker hint when a stop is required.
-  static const String reportChooseStopHint = 'Escolha o ponto para continuar.';
+  /// One-time location notice body.
+  static const String reportLocationBody =
+      'Para mostrar onde você está esperando, o app lê sua localização uma '
+      'vez e envia apenas uma área de cerca de 150 m. A posição exata não é '
+      'enviada nem guardada. A sinalização é pública e some em até 2 horas.';
 
-  /// Empty stop data.
-  static const String reportNoStops = 'Nenhum ponto mapeado ainda.';
+  /// Location notice bullet: one read.
+  static const String reportLocationBulletOnce =
+      'Só uma leitura, no momento de sinalizar.';
 
-  /// Fallback stop name.
-  static const String reportStopGeneric = 'Ponto de ônibus';
+  /// Location notice bullet: approximate area.
+  static const String reportLocationBulletArea =
+      'Área aproximada, não um pino no mapa.';
+
+  /// Location notice bullet: can decline.
+  static const String reportLocationBulletDeny =
+      'Você pode negar e continuar vendo o mapa.';
+
+  /// Location notice accept action.
+  static const String reportLocationAccept = 'Usar minha localização';
+
+  /// Location notice decline action.
+  static const String reportLocationDeny = 'Agora não';
+
+  /// Inline note for area-based kinds.
+  static const String reportLocationNote =
+      'Sua localização aproximada (área de ~150 m) será usada só para mostrar '
+      'onde você está. A posição exata não é enviada.';
+
+  /// Static loading label while the one-shot fix is running.
+  static const String reportLocating = 'Obtendo localização...';
+
+  /// Card title when the one-shot fix failed.
+  static const String reportLocationUnavailable = 'Localização indisponível';
+
+  /// Permission denied, retryable.
+  static const String reportLocationDenied =
+      'Sem a localização, não dá para mostrar onde você está esperando.';
+
+  /// Permission permanently denied.
+  static const String reportLocationBlocked =
+      'A localização está bloqueada para este app. Abra os ajustes para '
+      'permitir.';
+
+  /// Device location services off.
+  static const String reportLocationServicesOff =
+      'Ative a localização do aparelho para sinalizar onde você está.';
+
+  /// Fix too coarse for a 150 m cell.
+  static const String reportLocationImprecise =
+      'Sua localização está imprecisa. Tente de novo perto de uma janela ou '
+      'ao ar livre.';
+
+  /// Fix timeout.
+  static const String reportLocationTimeout =
+      'Não conseguimos sua localização agora. Tente de novo.';
+
+  /// Fix outside the served city.
+  static const String reportLocationOutsideArea =
+      'Você está fora da área de cobertura do app.';
+
+  /// Unknown location failure.
+  static const String reportLocationUnknown =
+      'Não foi possível usar sua localização agora. Tente de novo.';
+
+  /// Detail line with a rounded distance to the report area.
+  static String reportAreaNear(int meters) =>
+      'Perto de você, a cerca de $meters m';
+
+  /// Detail line when the viewer location is unknown.
+  static const String reportAreaApprox = 'Área aproximada de 150 m';
 
   /// Own report marker.
   static const String reportMine = 'Sua sinalização';
@@ -1067,18 +1130,6 @@ class UiStrings {
 
   /// Relative time in hours.
   static String reportAgeHours(int hours) => 'há $hours h';
-
-  /// Waiting primary action at a stop.
-  static const String reportWaitingAction = 'Estou esperando aqui';
-
-  /// Waiting primary action when the device already reported.
-  static const String reportStillWaiting = 'Ainda estou aqui';
-
-  /// Leave-the-stop retract action.
-  static const String reportLeaveStop = 'Saí do ponto';
-
-  /// Stop sheet title when the stop has no posted name.
-  static const String reportStopTitle = 'Ponto de ônibus';
 
   /// Trip screen report action.
   static const String reportTripAction = 'Sinalizar problema';
@@ -1311,7 +1362,7 @@ class UiStrings {
     'Versão do consentimento que você aceitou e quando.',
     'Durante a viagem: posição, velocidade e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
-    'Sinalizações: tipo, linha e ponto escolhido, públicos por até 2 h.',
+    'Sinalizações: tipo, linha e área aproximada (~150 m), públicas por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];

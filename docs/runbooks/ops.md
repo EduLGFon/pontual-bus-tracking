@@ -24,7 +24,8 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
   Escritas passam a `503 maint` e o próximo snapshot manda `r: []`, o
   que limpa os chips nos clientes. Nada é gravado em disco.
 - Um reinício da API apaga todas as sinalizações em memória. Isso é
-  esperado; não há histórico para recuperar.
+  esperado; não há histórico para recuperar. A célula de ~150 m é o
+  único alvo guardado; coordenadas exatas nunca chegam ao servidor.
 - Tetos: `reports_max_per_line` (8) e `reports_max_total` (2000).
   TTLs e idade máxima ficam nas chaves `reports_ttl_*` e
   `reports_max_age_*`.

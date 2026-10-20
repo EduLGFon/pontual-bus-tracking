@@ -55,7 +55,7 @@ class Features {
   /// Device-only "you helped N trips" counter on the end card.
   final bool localKudos;
 
-  /// Passenger reports on the line and stop sheets.
+  /// Passenger reports on the line sheet and trip screen.
   final bool reports;
 
   /// Returns a copy with overrides applied. Unknown JSON keys are ignored.
