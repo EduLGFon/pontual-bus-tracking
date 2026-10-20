@@ -2832,12 +2832,12 @@ the data bundle. Both CI and the local mirror now sum every file in
 the budget while the separately built map extract does not. The
 current bundle is 10,546 bytes.
 
-Verified: `tools/ci/check.sh --only tools` 6 passed with the 41.6 MB
-tile present; `--only deploy --with-tiles` 7 passed, including
-the 41.6 MB extract, verify, Pages assembly, and removal; `deno
-fmt --check`, `deno lint`, and `deno task map-test` green. The
-earlier full run had already passed the app, server, and data
-jobs except for the stale local tile size. Remaining risk: the
+Verified: a final `tools/ci/check.sh --with-tiles` run passed 28
+steps with 0 failures: app analyze, format, 370 tests (1 skipped),
+manifest audit, and web build; server 88 tests plus the simulator
+smoke; all 6 tools checks with a 10,546-byte bundle; and the
+7-step deploy dry run including the 41.6 MB extract, verify, Pages
+assembly, and removal. gitleaks found no leaks. Remaining risk: the
 deploy workflow still hotlinks a Protomaps daily build. Protomaps
 retires builds outside its retention window and discourages
 hotlinking, so the pin must be refreshed or mirrored before the
@@ -2860,8 +2860,8 @@ value regex, not a whole-file exclusion, so a real credential in
 those files still fails. The root config is gitleaks' default path,
 so both the local scan and a repo-root CI scan pick it up.
 
-Verified: `gitleaks 8.30.1 detect --source . --redact` scans 350
-commits and 3.23 MB with zero findings. No code, permission,
-manifest, or data changed. The local `check.sh` still skips the
-step when the binary is absent; install gitleaks or add it to PATH
-to make the mirror cover it.
+Verified: `gitleaks 8.30.1 detect --source . --redact` scans the
+full history (over 350 commits, about 3.2 MB) with zero findings.
+No code, permission, manifest, or data changed. The local `check.sh`
+still skips the step when the binary is absent; install gitleaks or
+add it to PATH to make the mirror cover it.
