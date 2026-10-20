@@ -1,7 +1,9 @@
-// Public snapshot payloads. Vehicles only, never trips or device data.
-// Coordinates at 5 decimals, member count capped at 3. See PLAN.md 6.6.
+// Public snapshot payloads. Vehicles plus optional passenger reports, never
+// trips or device data. Coordinates at 5 decimals, member count capped at 3.
+// See PLAN.md 6.6 and DECISIONS.md#D82.
 import { buildSnapshot } from "../domain/snapshot.ts";
 import type { SnapshotRow } from "../domain/snapshot.ts";
+import { reportRows } from "../domain/reports.ts";
 import { membersOf, vehiclesOfLine } from "../state/store.ts";
 import type { Store } from "../state/store.ts";
 
@@ -28,10 +30,14 @@ export function lineSnapshot(
   nowMs: number,
   publishTtlS: number,
   memberAliveS: number,
+  includeReports: boolean,
 ): { body: string; etag: string } {
   const snap = {
     t: Math.floor(nowMs / 1000),
     v: snapshotRows(store, lineId, nowMs, publishTtlS, memberAliveS),
+    // Always present so a disabled feature clears a client that still
+    // holds an older report list. Old clients ignore the key.
+    r: includeReports ? reportRows(store, lineId, nowMs) : [],
   };
   const body = JSON.stringify(snap);
   return { body, etag: etagOf(body) };

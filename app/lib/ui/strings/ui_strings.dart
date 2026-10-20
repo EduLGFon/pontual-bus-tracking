@@ -947,6 +947,160 @@ class UiStrings {
   static String kudos(int trips) =>
       trips == 1 ? 'Você já ajudou 1 viagem' : 'Você já ajudou $trips viagens';
 
+  // Passenger reports (D82).
+
+  /// Entry action on the line sheet.
+  static const String reportAction = 'Sinalizar';
+
+  /// Report sheet title.
+  static const String reportSheetTitle = 'O que está acontecendo?';
+
+  /// Waiting report label.
+  static const String reportWaiting = 'Ainda estou esperando';
+
+  /// Waiting report hint.
+  static const String reportWaitingHint =
+      'Continuo neste ponto esperando o ônibus.';
+
+  /// Full bus report label.
+  static const String reportFull = 'Ônibus lotado';
+
+  /// Full bus report hint.
+  static const String reportFullHint = 'Está cheio e não está parando.';
+
+  /// Broken bus report label.
+  static const String reportBroken = 'Ônibus quebrado';
+
+  /// Broken bus report hint.
+  static const String reportBrokenHint = 'O ônibus parou ou quebrou.';
+
+  /// Blocked access report label.
+  static const String reportBlocked = 'Acesso bloqueado';
+
+  /// Blocked access report hint.
+  static const String reportBlockedHint = 'O ponto ou o portão está bloqueado.';
+
+  /// Primary action in the report sheet.
+  static const String reportSubmit = 'Enviar sinalização';
+
+  /// Static loading label while the report is in flight.
+  static const String reportSending = 'Enviando sinalização...';
+
+  /// Success toast.
+  static const String reportSent = 'Sinalização enviada. Obrigado!';
+
+  /// Offline failure.
+  static const String reportOffline =
+      'Sem conexão. Não foi possível sinalizar agora.';
+
+  /// Rate-limit failure.
+  static const String reportRate =
+      'Muitas sinalizações em pouco tempo. Tente de novo em alguns minutos.';
+
+  /// Per-line cap failure.
+  static const String reportQuota =
+      'Muitas sinalizações nesta linha agora. Tente de novo em alguns minutos.';
+
+  /// Server kill switch.
+  static const String reportDisabled = 'Sinalizações indisponíveis no momento.';
+
+  /// Disclosure under the report sheet.
+  static const String reportPrivacy =
+      'Sua sinalização é pública e anônima. Não enviamos sua localização. '
+      'Para evitar abuso, o aparelho recebe um código anônimo. Ela some em '
+      'até 2 horas.';
+
+  /// Honesty footnote on report surfaces.
+  static const String reportDisclaimer =
+      'Relatos de passageiros. Podem estar desatualizados.';
+
+  /// Stop picker label.
+  static const String reportChooseStop = 'Ponto';
+
+  /// Stop picker hint when a stop is required.
+  static const String reportChooseStopHint = 'Escolha o ponto para continuar.';
+
+  /// Empty stop data.
+  static const String reportNoStops = 'Nenhum ponto mapeado ainda.';
+
+  /// Fallback stop name.
+  static const String reportStopGeneric = 'Ponto de ônibus';
+
+  /// Own report marker.
+  static const String reportMine = 'Sua sinalização';
+
+  /// Retract action.
+  static const String reportRetract = 'Remover minha sinalização';
+
+  /// Retract success toast.
+  static const String reportRetracted = 'Sinalização removida.';
+
+  /// Waiting count with at least two people.
+  static String reportPeopleWaiting(int count) =>
+      count >= 5 ? '5+ pessoas esperando' : '$count pessoas esperando';
+
+  /// Waiting count for a single reporter, privacy-preserving.
+  static const String reportSomeoneWaiting = 'Alguém está esperando aqui';
+
+  /// Incident with a single source.
+  static const String reportOneReport = '1 relato recente';
+
+  /// Incident with several sources.
+  static String reportPeopleReported(int count) =>
+      count >= 5 ? '5+ pessoas relataram' : '$count pessoas relataram';
+
+  /// Compact waiting chip with one reporter.
+  static const String reportChipSomeone = 'Alguém esperando';
+
+  /// Compact waiting chip with several reporters.
+  static String reportChipWaiting(int count) =>
+      count >= 5 ? '5+ esperando' : '$count esperando';
+
+  /// Compact incident chip.
+  static String reportChipIncident(String label, String age) => '$label · $age';
+
+  /// Relative time now.
+  static const String reportAgeNow = 'agora';
+
+  /// Relative time in minutes.
+  static String reportAgeMinutes(int minutes) => 'há $minutes min';
+
+  /// Relative time in hours.
+  static String reportAgeHours(int hours) => 'há $hours h';
+
+  /// Waiting primary action at a stop.
+  static const String reportWaitingAction = 'Estou esperando aqui';
+
+  /// Waiting primary action when the device already reported.
+  static const String reportStillWaiting = 'Ainda estou aqui';
+
+  /// Leave-the-stop retract action.
+  static const String reportLeaveStop = 'Saí do ponto';
+
+  /// Stop sheet title when the stop has no posted name.
+  static const String reportStopTitle = 'Ponto de ônibus';
+
+  /// Trip screen report action.
+  static const String reportTripAction = 'Sinalizar problema';
+
+  /// Trip screen report semantic label.
+  static const String reportTripSemantic = 'Sinalizar problema neste ônibus';
+
+  /// Section title for the full report list.
+  static const String reportListTitle = 'Sinalizações desta linha';
+
+  /// Neutral fallback for a report kind this version does not know.
+  static const String reportUnknown = 'Sinalização';
+
+  /// Overflow chip label.
+  static String reportMore(int count) => '+$count';
+
+  /// Report detail age sentence.
+  static String reportReportedAgo(String age) => 'Sinalizado $age';
+
+  /// Report detail update sentence.
+  static String reportUpdatedAgo(String age) => 'Atualizado $age';
+
   // Future features (flagged off, UI_SPEC 13-14).
 
   /// Alerts sheet title.
@@ -1150,13 +1304,14 @@ class UiStrings {
   /// Contact row.
   static const String contactUs = 'Falar com a gente';
 
-  /// Six-line collection summary mirroring the data inventory. The legacy
-  /// screen owned this copy; the new privacy center is its only reader now.
+  /// Collection summary mirroring the data inventory. The legacy screen
+  /// owned this copy; the new privacy center is its only reader now.
   static const List<String> collectsSummary = <String>[
     'Aparelho anônimo: um código aleatório, sem nome ou e-mail.',
     'Versão do consentimento que você aceitou e quando.',
     'Durante a viagem: posição, velocidade e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
+    'Sinalizações: tipo, linha e ponto escolhido, públicos por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];

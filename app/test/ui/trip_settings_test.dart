@@ -618,6 +618,9 @@ void main() {
       expect(find.text(UiStrings.privacyPolicy), findsOneWidget);
       expect(find.text(UiStrings.privacyTerms), findsOneWidget);
       expect(find.text(UiStrings.privacyCollectsTitle), findsOneWidget);
+      // The summary gained a passenger-report line (D82), so the
+      // revoke action sits below the fold of the lazy list now.
+      await tester.scrollUntilVisible(find.text(UiStrings.privacyRevoke), 200);
       expect(find.text(UiStrings.privacyRevoke), findsOneWidget);
       // The danger row sits below the fold of the lazy list.
       await tester.scrollUntilVisible(find.text(UiStrings.privacyDelete), 200);

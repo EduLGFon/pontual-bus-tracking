@@ -2,6 +2,7 @@
 // error mapping on fakes, plus a real contract test against the local
 // server when BUS_API_BASE is set. Merged into one file so the suite
 // pays a single test-process startup instead of two.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/api/dto.dart';
 import 'package:pontual/data/net/http_client.dart';
+import 'package:pontual/domain/reporting/report_kind.dart';
 
 BusApi fakeApi(MockClient client) {
   return BusApi(
@@ -203,11 +205,13 @@ void main() {
       expect(await fakeApi(ok).deleteMe('bm1_t'), isA<Ok<bool>>());
     });
 
-    test('vehicles and live parse', () async {
+    test('vehicles and live parse, including optional reports', () async {
       final MockClient client = MockClient((http.Request req) async {
         if (req.url.path.endsWith('/vehicles')) {
           return http.Response(
-            '{"t":100,"v":[[7,-18.72,-39.85,90,29,1,4]]}',
+            '{"t":100,"v":[[7,-18.72,-39.85,90,29,1,4]],'
+            '"r":[{"kind":"broken","stop":null,"count":2,'
+            '"created_age_s":120,"updated_age_s":10,"expires_in_s":1700}]}',
             200,
           );
         }
@@ -218,10 +222,43 @@ void main() {
           (await api.getVehicles(7) as Ok<VehiclesSnapshot>).value;
       expect(snap.epochS, 100);
       expect(snap.vehicles.first[0], 7);
+      expect(snap.reports, hasLength(1));
+      expect(snap.reports.first.kind, ReportKind.broken);
+      expect(snap.reports.first.count, 2);
       final LiveLines live = (await api.getLive() as Ok<LiveLines>).value;
       expect(live.rows, [
         [7, 1],
       ]);
+    });
+
+    test('postReport sends no coordinates and parses the snapshot', () async {
+      late http.Request seen;
+      final MockClient client = MockClient((http.Request req) async {
+        seen = req;
+        return http.Response(
+          '{"t":100,"r":[{"kind":"waiting","stop":"s1","count":1,'
+          '"created_age_s":0,"updated_age_s":0,"expires_in_s":600}]}',
+          201,
+        );
+      });
+      final Result<List<ReportDTO>> result = await fakeApi(client).postReport(
+        'bm1_t',
+        op: 'report',
+        kind: ReportKind.waiting,
+        lineId: 7,
+        stop: 's1',
+      );
+      expect(result, isA<Ok<List<ReportDTO>>>());
+      final List<ReportDTO> reports = (result as Ok<List<ReportDTO>>).value;
+      expect(reports.single.stop, 's1');
+      final Map<String, dynamic> body =
+          jsonDecode(seen.body) as Map<String, dynamic>;
+      expect(body['op'], 'report');
+      expect(body['kind'], 'waiting');
+      expect(body['line'], 7);
+      expect(body['stop'], 's1');
+      expect(body.containsKey('lat'), isFalse);
+      expect(body.containsKey('at'), isFalse);
     });
 
     test('real contract against local server', () async {
