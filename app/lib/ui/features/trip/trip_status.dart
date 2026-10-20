@@ -25,8 +25,9 @@ import 'trip_metrics.dart';
 /// flapping signal does not flicker the screen.
 const int bannerHoldMs = 2000;
 
-/// Coarse refresh for values that arrive with accepted fixes (accuracy,
-/// battery) and for the stale-send tier. One tick per 5 s, never 1 Hz.
+/// Coarse refresh for values that arrive with accepted fixes (accuracy)
+/// and native samples (satellites), plus the stale-send tier. One tick
+/// per 5 s, never 1 Hz.
 const Duration metricsRefresh = Duration(seconds: 5);
 
 /// Holds the visible banner issue back until a new issue is stable.
@@ -98,8 +99,8 @@ class _StatusBlockState extends State<StatusBlock> {
   void initState() {
     super.initState();
     // The controller notifies on roles, prompts and GNSS count changes,
-    // not on every fix. This coarse tick keeps the accuracy, battery and
-    // stale-send values current without a 1 Hz rebuild.
+    // not on every fix. This coarse tick keeps the accuracy, satellite
+    // and stale-send values current without a 1 Hz rebuild.
     _ticker = Timer.periodic(metricsRefresh, (_) {
       if (mounted) {
         setState(() {});
@@ -132,8 +133,6 @@ class _StatusBlockState extends State<StatusBlock> {
           health: health,
           gnss: c.lastGnssQuality,
           accuracyM: c.lastAccuracyM,
-          batteryPct: c.lastBatteryPct,
-          charging: c.lastCharging,
           intervalS: c.intervalS,
           role: c.role,
         ),

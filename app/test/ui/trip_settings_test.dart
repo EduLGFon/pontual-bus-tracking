@@ -77,7 +77,7 @@ void main() {
       expect(find.text(UiStrings.tripHero), findsOneWidget);
       expect(find.text(UiStrings.metricLabelSend), findsOneWidget);
       expect(find.text(UiStrings.metricLabelGps), findsOneWidget);
-      expect(find.text(UiStrings.metricLabelPhone), findsOneWidget);
+      expect(find.text(UiStrings.metricLabelSats), findsOneWidget);
       expect(find.text(UiStrings.tripStop), findsOneWidget);
       expect(find.textContaining('há '), findsWidgets);
       expect(tester.takeException(), isNull);
@@ -415,7 +415,7 @@ void main() {
       await r.positions.close();
     });
 
-    testWidgets('GPS metric shows accuracy and satellite count', (
+    testWidgets('GPS metric shows accuracy and the weak copy', (
       WidgetTester tester,
     ) async {
       const SharingHealth weak = SharingHealth(
@@ -440,8 +440,8 @@ void main() {
       );
       await tester.pump();
       expect(find.text(UiStrings.metricAccuracy(42)), findsOneWidget);
-      expect(find.text(UiStrings.metricSats(3, 9)), findsOneWidget);
-      // No satellite sample (web): the weak copy explains the value.
+      expect(find.text(UiStrings.metricGpsWeakDetail), findsOneWidget);
+      // No satellite sample (web): the weak copy still explains the value.
       await tester.pumpWidget(
         wrapApp(const StatusMetrics(health: weak, accuracyM: 42)),
       );
@@ -450,7 +450,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('phone metric shows battery percentage and state', (
+    testWidgets('satellites metric shows used, in view and unknown', (
       WidgetTester tester,
     ) async {
       const SharingHealth live = SharingHealth(
@@ -465,23 +465,31 @@ void main() {
         lastSendStale: false,
       );
       await tester.pumpWidget(
-        wrapApp(const StatusMetrics(health: live, batteryPct: 85)),
-      );
-      await tester.pump();
-      expect(find.text(UiStrings.metricPercent(85)), findsOneWidget);
-      expect(find.text(UiStrings.metricBatteryOnBatteryDetail), findsOneWidget);
-      await tester.pumpWidget(
-        wrapApp(const StatusMetrics(health: live, batteryPct: 10)),
-      );
-      await tester.pump();
-      expect(find.text(UiStrings.metricBatteryLowDetail), findsOneWidget);
-      await tester.pumpWidget(
         wrapApp(
-          const StatusMetrics(health: live, batteryPct: 10, charging: true),
+          const StatusMetrics(
+            health: live,
+            gnss: GnssQuality(satsUsed: 7, satsView: 12, meanSnrDb: 30),
+          ),
         ),
       );
       await tester.pump();
-      expect(find.text(UiStrings.metricBatteryChargingDetail), findsOneWidget);
+      expect(find.text(UiStrings.metricSatsValue(7)), findsOneWidget);
+      expect(find.text(UiStrings.metricSatsInView(12)), findsOneWidget);
+      await tester.pumpWidget(
+        wrapApp(
+          const StatusMetrics(
+            health: live,
+            gnss: GnssQuality(satsUsed: 0, satsView: 0, meanSnrDb: 0),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(UiStrings.metricSatsNone), findsOneWidget);
+      expect(find.text(UiStrings.metricGpsNoFixDetail), findsOneWidget);
+      // No native GNSS channel (web): the cell names the limitation.
+      await tester.pumpWidget(wrapApp(const StatusMetrics(health: live)));
+      await tester.pump();
+      expect(find.text(UiStrings.metricNoReading), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

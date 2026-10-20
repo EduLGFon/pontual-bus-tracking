@@ -1,9 +1,9 @@
-// Trip metrics panel: GPS, phone battery and send cadence as one tonal
-// card with a big value, a meter where a real fraction exists, and a
-// short caption. Every number shown comes from the controller or the
-// native GNSS channel; nothing is inferred or invented.
-// PRIVACY: accuracy and battery are device data already sent with each
-// fix. No coordinates, tokens or identifiers ever reach this widget.
+// Trip metrics panel: GPS accuracy, satellite signal and send cadence as
+// one tonal card with a big value, a meter where a real fraction exists,
+// and a short caption. Every number shown comes from the controller or
+// the native GNSS channel; nothing is inferred or invented.
+// PRIVACY: accuracy, satellites and cadence never carry a coordinate,
+// token or identifier to this widget.
 import 'package:flutter/material.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
@@ -13,6 +13,7 @@ import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/util/platform.dart';
 
 /// Width at which the three metrics sit side by side. Large text always
 /// stacks them, whatever the width.
@@ -42,7 +43,7 @@ class _Metric {
   final bool numeric;
 
   /// Real fraction for the meter, null when the metric has no honest
-  /// denominator. Only accuracy and battery use one.
+  /// denominator. Accuracy and satellites use one.
   final double? fraction;
 }
 
@@ -54,8 +55,6 @@ class StatusMetrics extends StatelessWidget {
     required this.health,
     this.gnss,
     this.accuracyM,
-    this.batteryPct,
-    this.charging = false,
     this.intervalS,
     this.role,
     super.key,
@@ -70,12 +69,6 @@ class StatusMetrics extends StatelessWidget {
   /// Last accepted fix accuracy in meters, null before the first fix.
   final double? accuracyM;
 
-  /// Last accepted fix battery bucket, null before the first fix.
-  final int? batteryPct;
-
-  /// Last accepted fix charging flag.
-  final bool charging;
-
   /// Last server-instructed send interval in seconds.
   final int? intervalS;
 
@@ -86,7 +79,7 @@ class StatusMetrics extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget> cells = <Widget>[
       _MetricCell(metric: _gpsMetric()),
-      _MetricCell(metric: _batteryMetric()),
+      _MetricCell(metric: _satsMetric()),
       _MetricCell(metric: _sendMetric()),
     ];
     final double textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -121,14 +114,9 @@ class StatusMetrics extends StatelessWidget {
     );
   }
 
-  /// GPS: accuracy in meters plus satellites when Android reports them.
-  /// Accuracy comes from the last accepted fix; the meter compares it to
-  /// the publish gate, not to an invented quality score.
+  /// GPS: accuracy in meters from the last accepted fix. The meter
+  /// compares it to the publish gate, not to an invented quality score.
   _Metric _gpsMetric() {
-    final GnssQuality? sample = gnss;
-    final String sats = sample == null
-        ? UiStrings.metricGpsLimitDetail(fixAccuracyMaxM)
-        : UiStrings.metricSats(sample.satsUsed, sample.satsView);
     switch (health.gpsValue) {
       case GpsValue.good:
       case GpsValue.weak:
@@ -150,9 +138,9 @@ class StatusMetrics extends StatelessWidget {
         return _Metric(
           label: UiStrings.metricLabelGps,
           value: UiStrings.metricAccuracy(meters),
-          detail: health.gpsValue == GpsValue.weak && sample == null
+          detail: health.gpsValue == GpsValue.weak
               ? UiStrings.metricGpsWeakDetail
-              : sats,
+              : UiStrings.metricGpsLimitDetail(fixAccuracyMaxM),
           icon: health.gpsValue == GpsValue.weak
               ? Icons.gps_not_fixed_rounded
               : Icons.location_on_rounded,
@@ -161,12 +149,10 @@ class StatusMetrics extends StatelessWidget {
           fraction: (1 - accuracy / denominator).clamp(0, 1),
         );
       case GpsValue.noFix:
-        return _Metric(
+        return const _Metric(
           label: UiStrings.metricLabelGps,
           value: UiStrings.noSignal,
-          detail: sample == null
-              ? UiStrings.metricGpsNoFixDetail
-              : UiStrings.metricSats(sample.satsUsed, sample.satsView),
+          detail: UiStrings.metricGpsNoFixDetail,
           icon: Icons.gps_not_fixed_rounded,
           level: SharingLevel.warn,
           numeric: false,
@@ -210,39 +196,41 @@ class StatusMetrics extends StatelessWidget {
     }
   }
 
-  /// Phone: real battery percentage, charging state and a level meter.
-  /// The value is the 5 percent bucket carried by the last accepted fix,
-  /// not a fresh OS read: the fix path is the only battery source here.
-  _Metric _batteryMetric() {
-    final int? raw = batteryPct;
-    if (raw == null) {
-      return const _Metric(
-        label: UiStrings.metricLabelPhone,
-        value: UiStrings.metricBatteryUnknown,
-        detail: UiStrings.metricBatteryUnknownDetail,
-        icon: Icons.battery_unknown_rounded,
+  /// Satellites: used and in view from the native GNSS channel. Signal
+  /// quality only, never a position. Android reports it; elsewhere the
+  /// cell names the limitation instead of waiting forever.
+  _Metric _satsMetric() {
+    final GnssQuality? sample = gnss;
+    if (sample == null) {
+      return _Metric(
+        label: UiStrings.metricLabelSats,
+        value: UiStrings.metricNoReading,
+        detail: PlatformInfo.isAndroid
+            ? UiStrings.metricSatsWaitingDetail
+            : UiStrings.metricSatsUnavailableDetail,
+        icon: Icons.satellite_alt_rounded,
         level: SharingLevel.neutral,
         numeric: false,
       );
     }
-    final int pct = raw.clamp(0, 100);
-    final bool low = pct <= lowBatteryPct && !charging;
+    if (sample.satsView <= 0) {
+      return const _Metric(
+        label: UiStrings.metricLabelSats,
+        value: UiStrings.metricSatsNone,
+        detail: UiStrings.metricGpsNoFixDetail,
+        icon: Icons.satellite_alt_rounded,
+        level: SharingLevel.warn,
+        numeric: false,
+      );
+    }
     return _Metric(
-      label: UiStrings.metricLabelPhone,
-      value: UiStrings.metricPercent(pct),
-      detail: low
-          ? UiStrings.metricBatteryLowDetail
-          : charging
-          ? UiStrings.metricBatteryChargingDetail
-          : UiStrings.metricBatteryOnBatteryDetail,
-      icon: low
-          ? Icons.battery_alert_rounded
-          : charging
-          ? Icons.battery_charging_full_rounded
-          : Icons.battery_std_rounded,
-      level: low ? SharingLevel.warn : SharingLevel.ok,
+      label: UiStrings.metricLabelSats,
+      value: UiStrings.metricSatsValue(sample.satsUsed),
+      detail: UiStrings.metricSatsInView(sample.satsView),
+      icon: Icons.satellite_alt_rounded,
+      level: SharingLevel.neutral,
       numeric: true,
-      fraction: pct / 100,
+      fraction: (sample.satsUsed / sample.satsView).clamp(0, 1),
     );
   }
 

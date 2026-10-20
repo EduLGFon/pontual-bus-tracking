@@ -1013,9 +1013,9 @@ soft ring pulse; CPU ~0):
 │                                    │
 │  ┌ métricas (um cartão) ─────────┐ │
 │  │ GPS            ±8 m           │ │  accuracy from the last accepted fix
-│  │ ▓▓▓▓▓▓▓▓▓░░░  7 de 12 satélites│ │  meter against the 60 m publish gate
-│  │ Celular        85%            │ │  battery bucket from the last fix
-│  │ ▓▓▓▓▓▓▓▓▓▓▓░  Carregando agora│ │  meter is the real level
+│  │ ▓▓▓▓▓▓▓▓▓░░░  Aceito até 60 m │ │  meter against the 60 m publish gate
+│  │ Satélites      7              │ │  signal quality, Android only
+│  │ ▓▓▓▓▓▓▓▓░░░░  de 12 em vista  │ │  meter is the real used/in-view
 │  │ Envio          15 s           │ │  server interval, never a client guess
 │  │ Com mais frequência           │ │  role explains the cadence
 │  └───────────────────────────────┘ │
@@ -1037,13 +1037,14 @@ _offline_ ("Sem conexão. Vamos retomar assim que voltar."), _paused_
 aberta e o celular desbloqueado." + tip to lower brightness + wake-lock status).
 Rules: the word "líder/seguidor/ping/cluster" never appears. The end button is
 the only large control; ending is immediate (no confirm), followed by the end
-card. The metrics card shows only measured values: GPS accuracy and satellites,
-the phone battery percentage and charging state, and the server send interval.
-Missing values read "Procurando sinal", "Sem leitura" or "Sem conexão"; no
-placeholder number is invented. The GPS and battery meters compare a real value
-to the publish gate (60 m) and to 100 percent; the send metric has no meter.
-On screens of 600 dp and wider the three metrics sit in one row; below that,
-and whenever the text scale is above 1.3, they stack.
+card. The metrics card shows only measured values: GPS accuracy, satellites
+used and in view, and the server send interval. Missing values read
+"Procurando sinal", "Sem leitura" or "Sem conexão"; no placeholder number is
+invented. The GPS and satellite meters compare a real value to the publish gate
+(60 m) and to the satellites in view; the send metric has no meter. Satellites
+come from the Android GNSS channel; elsewhere the cell reads "Indisponível no
+navegador". On screens of 600 dp and wider the three metrics sit in one row;
+below that, and whenever the text scale is above 1.3, they stack.
 
 **Step 4 - End card** (full-screen card, 2 s of delight then calm): checkmark
 draws in (stroke animation 400 ms, skipped on reduced motion), "Viagem

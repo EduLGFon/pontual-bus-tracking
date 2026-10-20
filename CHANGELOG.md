@@ -15,11 +15,10 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
   full page covers it and reopens on return; bottom sheets and dialogs do
   not pause it. See DECISIONS.md D77.
 - The sharing screen now shows measured metrics instead of short status
-  words: GPS accuracy in meters and satellites, the phone battery
-  percentage and charging state, and the server send interval with the
-  current role. Meters compare accuracy to the 60 m publish gate and
-  battery to 100 percent; missing values are named, never invented. See
-  DECISIONS.md D78.
+  words: GPS accuracy in meters, satellites used and in view, and the
+  server send interval with the current role. Meters compare accuracy to
+  the 60 m publish gate and satellites used to those in view; missing
+  values are named, never invented. See DECISIONS.md D78 and D79.
 - D30 momentum anônimo (ordem do dono): ritmo por veículo (um número
   suavizado, sem motorista nem histórico) no snapshot, passagens
   recentes por linha (só instantes, anel de 32, 4 h) com

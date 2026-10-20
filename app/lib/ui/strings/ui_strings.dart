@@ -703,8 +703,8 @@ class UiStrings {
   /// GPS metric label.
   static const String metricLabelGps = 'GPS';
 
-  /// Phone metric label.
-  static const String metricLabelPhone = 'Celular';
+  /// Satellite metric label.
+  static const String metricLabelSats = 'Satélites';
 
   /// Send metric label.
   static const String metricLabelSend = 'Envio';
@@ -712,24 +712,28 @@ class UiStrings {
   /// Accuracy value, for example "±8 m". The sign marks an estimate.
   static String metricAccuracy(int meters) => '±$meters m';
 
-  /// Battery percentage value, for example "85%".
-  static String metricPercent(int pct) => '$pct%';
-
   /// Send interval value, for example "15 s".
   static String metricInterval(int seconds) => '$seconds s';
 
-  /// Satellite usage detail, for example "7 de 12 satélites".
-  static String metricSats(int used, int view) {
-    if (view > 0) {
-      return '$used de $view satélites';
-    }
-    if (used == 0) {
-      return 'Sem satélites';
-    }
-    return used == 1 ? '1 satélite' : '$used satélites';
-  }
+  /// Satellites used value, for example "7".
+  static String metricSatsValue(int used) => '$used';
 
-  /// GPS detail when no satellite sample exists on this platform.
+  /// Satellites in view detail, for example "de 12 em vista".
+  static String metricSatsInView(int view) => 'de $view em vista';
+
+  /// Satellite value when the receiver sees none.
+  static const String metricSatsNone = 'Sem satélites';
+
+  /// Satellite detail before the first native sample arrives.
+  static const String metricSatsWaitingDetail = 'Buscando satélites';
+
+  /// Satellite detail on platforms without a native GNSS channel.
+  static const String metricSatsUnavailableDetail = 'Indisponível no navegador';
+
+  /// Value shared by every metric that has no reading yet.
+  static const String metricNoReading = 'Sem leitura';
+
+  /// GPS detail against the publish gate.
   static String metricGpsLimitDetail(int maxM) => 'Aceito até $maxM m';
 
   /// GPS detail above the weak threshold.
@@ -749,22 +753,6 @@ class UiStrings {
 
   /// GPS detail for approximate-only grants.
   static const String metricGpsImpreciseDetail = 'Ative a precisão exata';
-
-  /// Phone detail before the first accepted fix carries a battery read.
-  static const String metricBatteryUnknown = 'Sem leitura';
-
-  /// Phone detail while the first battery read is still pending.
-  static const String metricBatteryUnknownDetail =
-      'A primeira posição traz a bateria';
-
-  /// Phone detail while charging.
-  static const String metricBatteryChargingDetail = 'Carregando agora';
-
-  /// Phone detail at or below the low battery threshold.
-  static const String metricBatteryLowDetail = 'Carregue se puder';
-
-  /// Phone detail while unplugged above the low threshold.
-  static const String metricBatteryOnBatteryDetail = 'Na bateria';
 
   /// Send value while the trip is still starting.
   static const String metricSendStarting = 'Iniciando';

@@ -2959,3 +2959,30 @@ and satellites, battery percentage and charging, server interval and
 roles, offline and stale sends; targeted `trip_controller_test` covers
 the interval getter. Full `flutter test` passes. No manifest,
 permission, retention or data change.
+
+## D79-2026-10-20: Satellites replace battery in the trip metrics (Accepted)
+
+The metrics card from D78 showed the phone battery percentage and charging
+state. The owner removed it: on a trip screen the battery number is noise,
+and the low level already raises its own banner with the same 15 percent
+rule. The card now shows satellites used and in view from the Android GNSS
+channel, with a meter built from that real fraction. This explains the GPS
+accuracy beside it and helps the user move the phone when the sky view is
+poor.
+
+Satellites were already collected for D69 and already appeared as the GPS
+caption; this only promotes them to a cell. No new field, counter, log,
+permission or persisted value was added, and the send metric still has no
+meter because no honest denominator exists. When the receiver sees none the
+cell says "Sem satélites"; on platforms without the native channel it reads
+"Indisponível no navegador" instead of waiting forever.
+
+Rejected: showing speed. The browser maps a missing speed to 0.0, so the web
+build would report "Parado" for a moving bus. Rejected: a positions-sent or
+distance counter; one adds a stat the product does not need and the other
+derives location history in memory. Rejected: last-send age, already shown
+in the hero proof line.
+
+Verified: `flutter analyze` clean; trip widget tests cover satellites used,
+in view, none and unavailable, plus accuracy, send interval, roles, offline
+and stale sends. Full `flutter test` passes.
