@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "build": "flutter build apk --release --target-platform=android-arm64 --dart-define-from-file=env/phone.json",
+    "build": "cd app && flutter build apk --release --target-platform=android-arm64 --dart-define-from-file=../env/phone.json",
     "check-workflows": "bash tools/ci/check_workflows.sh"
   }
 }
