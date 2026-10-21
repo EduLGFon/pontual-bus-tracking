@@ -4,6 +4,10 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 
 ## [Unreleased] - 0.1.0-alpha.0
 
+- Production domains: app at `https://pontual.spotnik.space` (GitHub Pages
+  custom domain) and API at `https://api-pontual.spotnik.space` (Cloudflare
+  Tunnel). Fixed the missing DNS record and the API CORS allow-list. See
+  DECISIONS.md INFRA-05.
 - Passenger reports ("Sinalizações", D82/D83): waiting, bus full, bus broken
   and access blocked, with a server timestamp and a short TTL. Waiting and
   blocked use a one-shot location read converted on-device to a coarse ~150 m
