@@ -55,6 +55,25 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
 
 1. Modo SSL, certificado de origem, Caddy, DNS.
 2. Volte à última configuração boa conhecida.
+3. Diagnóstico de hostname: `openssl s_client -connect <host>:443
+   -servername <host>`. Falha de handshake em subdomínio de segundo
+   nível indica falta de certificado, não problema no túnel.
+
+## Domínios e certificados (INFRA-05)
+
+- App: `pontual.spotnik.space` no GitHub Pages. O CNAME na Cloudflare
+  precisa ser DNS only (nuvem cinza). Com o proxy laranja o GitHub não
+  emite o certificado do domínio customizado.
+- API: `api-pontual.spotnik.space` pelo túnel `pontual`. É host de
+  primeiro nível e o Universal SSL cobre.
+- `api.pontual.spotnik.space` é segundo nível: o Universal SSL não cobre
+  e o Total TLS não emite para hostnames do Tunnel. Só funciona com
+  Advanced Certificate Manager (US$ 10/mês) e certificado avançado.
+- Depois de mudar `API_ORIGIN`, rode o workflow `deploy-static` de novo.
+  Variável alterada não rebuilda sozinha. Valor atual:
+  `API_ORIGIN=https://api-pontual.spotnik.space`.
+  `STATIC_ORIGIN` é opcional: sem ela, o workflow lê o domínio customizado
+  do Pages e usa `https://pontual.spotnik.space`.
 
 ## Ônibus fantasma / falsificação
 

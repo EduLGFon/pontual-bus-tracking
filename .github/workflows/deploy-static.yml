@@ -1,7 +1,9 @@
 # Static deploy to GitHub Pages. See PLAN.md 17.2.
 # Needs repo var: API_ORIGIN (e.g. https://api.example.com); the web build
 # bakes it in via --dart-define. STATIC_ORIGIN defaults to this repo's Pages
-# URL and only needs a var for a custom domain.
+# URL; it is read from the Pages custom domain when the var is unset.
+# This project needs API_ORIGIN=https://api-pontual.spotnik.space (see README
+# Domains); STATIC_ORIGIN is optional and normally auto-detected.
 # One-time owner setup: repo Settings > Pages > Source: GitHub Actions.
 # Verified SHAs 2026-10-10 via api.github.com.
 name: deploy-static
@@ -23,6 +25,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -35,17 +40,35 @@ jobs:
           deno-version: 2.9.7
       - name: Resolve origins
         id: origins
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          test -n "${{ vars.API_ORIGIN }}" || (echo "missing repo var API_ORIGIN (e.g. https://api.example.com); set it in Settings > Secrets and variables > Actions > Variables" && exit 1)
+          API="${{ vars.API_ORIGIN }}"
+          test -n "$API" || (echo "missing repo var API_ORIGIN (e.g. https://api.example.com); set it in Settings > Secrets and variables > Actions > Variables" && exit 1)
+          API="${API%/}"
           STATIC="${{ vars.STATIC_ORIGIN }}"
-          if [ -z "$STATIC" ]; then STATIC="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"; fi
-          echo "api=${{ vars.API_ORIGIN }}" >> "$GITHUB_OUTPUT"
-          echo "static=$STATIC" >> "$GITHUB_OUTPUT"
+          if [ -z "$STATIC" ]; then
+            # Follow the Pages custom domain so the base href is correct even
+            # when the owner did not set STATIC_ORIGIN. Fail rather than build
+            # with a wrong base href if the lookup is unavailable.
+            if ! CNAME="$(gh api "repos/${{ github.repository }}/pages" --jq '.cname // empty' 2>/dev/null)"; then
+              echo "::error::could not read Pages settings; set repo variable STATIC_ORIGIN (e.g. https://app.example.com)"
+              exit 1
+            fi
+            if [ -n "$CNAME" ]; then
+              STATIC="https://$CNAME"
+            else
+              STATIC="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+            fi
+          fi
+          STATIC="${STATIC%/}"
           BASE_PATH="$(printf '%s' "$STATIC" | sed -E 's#^https?://[^/]+##')"
           [ -z "$BASE_PATH" ] && BASE_PATH="/"
           case "$BASE_PATH" in */) BASE_HREF="$BASE_PATH";; *) BASE_HREF="$BASE_PATH/";; esac
+          echo "api=$API" >> "$GITHUB_OUTPUT"
+          echo "static=$STATIC" >> "$GITHUB_OUTPUT"
           echo "base=$BASE_HREF" >> "$GITHUB_OUTPUT"
-          echo "API=${{ vars.API_ORIGIN }} STATIC=$STATIC BASE_HREF=$BASE_HREF"
+          echo "API=$API STATIC=$STATIC BASE_HREF=$BASE_HREF"
       - name: Build data bundle
         working-directory: tools
         env:
@@ -58,6 +81,12 @@ jobs:
             --base-href "${{ steps.origins.outputs.base }}" \
             --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }} \
             --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
+      - name: Verify baked API origin
+        working-directory: app
+        run: |
+          test -n "${{ steps.origins.outputs.api }}"
+          grep -q "${{ steps.origins.outputs.api }}" build/web/main.dart.js
+          echo "baked API origin: ${{ steps.origins.outputs.api }}"
       - name: Build offline map tiles
         working-directory: tools
         run: |

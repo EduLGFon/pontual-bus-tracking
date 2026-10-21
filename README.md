@@ -102,10 +102,32 @@ database; the suite truncates device rows and toggles the kill switch.
   resolvable full commit SHA. Pass `--offline` to skip GitHub lookups
   (`bash tools/ci/check_workflows.sh --offline`).
 - Release follows PLAN.md 17.3 and 17.5. Deploys are manual by the owner in
-  alpha. Release workflows need repo vars `API_ORIGIN` and `STATIC_ORIGIN`
-  (baked in via `--dart-define`); without them prod builds call localhost.
+  alpha. Release workflows require repo var `API_ORIGIN` (baked in via
+  `--dart-define`); `STATIC_ORIGIN` is optional and auto-detected from the
+  Pages custom domain. See Domains below for the production values.
 
-## Domains (TBD)
+## Domains
 
-API and static domains are undecided (DECISIONS.md D22, INFRA-05). Until then:
-static on `*.pages.dev`, API on localhost for dev.
+- App/PWA: `https://pontual.spotnik.space` (GitHub Pages custom domain).
+  The Cloudflare record is a DNS-only CNAME `pontual` ->
+  `edulgfon.github.io`. Keep it DNS only: with the orange-cloud proxy GitHub
+  cannot issue its own certificate for the custom domain.
+- API: `https://api-pontual.spotnik.space` (Cloudflare Tunnel `pontual` to
+  `http://127.0.0.1:8080`).
+- `api.pontual.spotnik.space` is a second-level subdomain. Cloudflare's free
+  Universal SSL covers only the apex and first-level names, and Total TLS does
+  not issue for Tunnel hostnames, so that name needs Advanced Certificate
+  Manager (USD 10/month). The alpha uses the first-level API hostname; the
+  second-level route stays configured for a later ACM decision.
+
+Production web build values:
+
+    API_ORIGIN=https://api-pontual.spotnik.space
+    STATIC_ORIGIN=https://pontual.spotnik.space
+
+`deploy-static` requires the `API_ORIGIN` repo variable and derives the
+`--base-href` from `STATIC_ORIGIN`. When `STATIC_ORIGIN` is unset, the
+workflow reads the Pages custom domain and uses
+`https://<custom-domain>` automatically, so the base href follows the live
+site. `release-android` uses the same rule. Re-run `deploy-static` after
+changing `API_ORIGIN`: editing a variable does not trigger a rebuild.

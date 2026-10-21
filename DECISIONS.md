@@ -3178,3 +3178,35 @@ area/location unit tests and the full app suite pass (397 passed, 1 skipped).
 `flutter build web --release` passes and the source-manifest audit passes
 (no new permission). The merged Android manifest, size measurement and device
 checks were not run on this host.
+- 2026-10-20: INFRA-05 resolved (domains and DNS). App/PWA:
+  `https://pontual.spotnik.space`, a GitHub Pages custom domain with a
+  DNS-only CNAME `pontual` -> `edulgfon.github.io` at Cloudflare. API:
+  `https://api-pontual.spotnik.space`, routed by the `pontual` Cloudflare
+  Tunnel to `http://127.0.0.1:8080`. The originally requested
+  `api.pontual.spotnik.space` is a second-level name: free Universal SSL
+  covers only the apex and first level, and Total TLS does not issue for
+  Tunnel hostnames, so it needs Advanced Certificate Manager (USD 10/month).
+  Given the R$0 recurring-infra rule, the alpha uses the first-level hostname;
+  the second-level DNS route and tunnel ingress stay configured for a later
+  ACM decision. Root causes fixed: the `pontual` DNS record did not exist;
+  `ALLOWED_ORIGINS` was `http://pontual.spotnik.space` only, so every browser
+  origin failed CORS. It is now
+  `https://pontual.spotnik.space,https://edulgfon.github.io`. Verified:
+  `GET https://api-pontual.spotnik.space/v1/health` returns 200 and the
+  preflight with `Origin: https://pontual.spotnik.space` returns 204 with
+  `access-control-allow-origin`; `http://pontual.spotnik.space` returns 200
+  from GitHub Pages. Still pending: GitHub Pages has not issued the custom
+  domain certificate yet, so HTTPS there still presents `*.github.io`. The
+  live Pages build is stale: it bakes the retired quick-tunnel API host and
+  the `/pontual-bus-tracking/` base href. Rebuilding needs repo vars
+  `API_ORIGIN=https://api-pontual.spotnik.space` and
+  `STATIC_ORIGIN=https://pontual.spotnik.space` plus a `deploy-static` run.
+  The owner chose to skip that rebuild in this change.
+- 2026-10-20: CI origin follow-up. `deploy-static` and `release-android` now
+  read the Pages custom domain with `gh api repos/{repo}/pages` when
+  `STATIC_ORIGIN` is unset, so the base href and `/data` URL follow
+  `pontual.spotnik.space` without a second repo variable. `API_ORIGIN`
+  remains required. `deploy-static` also greps the built `main.dart.js` for
+  the resolved API origin, so a stale build fails before upload. The build
+  jobs gained `pages: read` for the lookup. This keeps the custom domain out
+  of the workflows while removing the manual `STATIC_ORIGIN` step.
