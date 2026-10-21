@@ -30,7 +30,7 @@ android {
 
     buildTypes {
         release {
-            debuggable = false
+            isDebuggable = false
             // R8 shrink + obfuscation. Stock keeps in proguard-rules.pro.
             // Rollback: set both flags to false and rebuild.
             isMinifyEnabled = true

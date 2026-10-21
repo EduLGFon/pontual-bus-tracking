@@ -131,3 +131,14 @@ workflow reads the Pages custom domain and uses
 `https://<custom-domain>` automatically, so the base href follows the live
 site. `release-android` uses the same rule. Re-run `deploy-static` after
 changing `API_ORIGIN`: editing a variable does not trigger a rebuild.
+
+Temporary easy-test web overrides (repo variables, removed before pilot):
+
+    FIX_ACCURACY_MAX_M=500
+    FORCE_PING_BUTTON=true
+
+`deploy-static` bakes these into the PWA. Defaults are 60 and false. Set them
+only while the API runs with `APP_ENV=local` and `TEST_EASY_PUBLISH=true`.
+The PWA is public, so with easy-publish a visitor can force-publish a
+stationary bus. Delete both variables and re-run `deploy-static` before the
+pilot.

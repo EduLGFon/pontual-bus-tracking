@@ -74,6 +74,12 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
   `API_ORIGIN=https://api-pontual.spotnik.space`.
   `STATIC_ORIGIN` é opcional: sem ela, o workflow lê o domínio customizado
   do Pages e usa `https://pontual.spotnik.space`.
+- Enquanto a API estiver em easy-test (`APP_ENV=local` com
+  `TEST_EASY_PUBLISH=true`), o PWA pode ser rebuildado com
+  `FIX_ACCURACY_MAX_M=500` e `FORCE_PING_BUTTON=true` nas variáveis do
+  repositório. Os padrões são 60 e false. Remova as duas e rode
+  `deploy-static` antes do piloto: o PWA é público e, com easy-publish,
+  qualquer visitante pode publicar um ônibus parado.
 
 ## Ônibus fantasma / falsificação
 
