@@ -69,10 +69,11 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
 - `api.pontual.spotnik.space` é segundo nível: o Universal SSL não cobre
   e o Total TLS não emite para hostnames do Tunnel. Só funciona com
   Advanced Certificate Manager (US$ 10/mês) e certificado avançado.
-- Depois de mudar `API_ORIGIN` ou `STATIC_ORIGIN`, rode o workflow
-  `deploy-static` de novo. Variável alterada não rebuilda sozinha.
-  Valores atuais: `API_ORIGIN=https://api-pontual.spotnik.space`,
-  `STATIC_ORIGIN=https://pontual.spotnik.space`.
+- Depois de mudar `API_ORIGIN`, rode o workflow `deploy-static` de novo.
+  Variável alterada não rebuilda sozinha. Valor atual:
+  `API_ORIGIN=https://api-pontual.spotnik.space`.
+  `STATIC_ORIGIN` é opcional: sem ela, o workflow lê o domínio customizado
+  do Pages e usa `https://pontual.spotnik.space`.
 
 ## Ônibus fantasma / falsificação
 

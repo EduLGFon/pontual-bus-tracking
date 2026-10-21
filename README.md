@@ -102,8 +102,9 @@ database; the suite truncates device rows and toggles the kill switch.
   resolvable full commit SHA. Pass `--offline` to skip GitHub lookups
   (`bash tools/ci/check_workflows.sh --offline`).
 - Release follows PLAN.md 17.3 and 17.5. Deploys are manual by the owner in
-  alpha. Release workflows need repo vars `API_ORIGIN` and `STATIC_ORIGIN`
-  (baked in via `--dart-define`); see Domains below for the production values.
+  alpha. Release workflows require repo var `API_ORIGIN` (baked in via
+  `--dart-define`); `STATIC_ORIGIN` is optional and auto-detected from the
+  Pages custom domain. See Domains below for the production values.
 
 ## Domains
 
