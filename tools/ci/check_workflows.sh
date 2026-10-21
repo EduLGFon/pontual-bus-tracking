@@ -66,11 +66,20 @@ if [ -z "$ACTIONLINT" ]; then
   else
     need curl
     need tar
+    case "$(uname -m)" in
+      x86_64|amd64) ACTIONLINT_ARCH="amd64" ;;
+      aarch64|arm64) ACTIONLINT_ARCH="arm64" ;;
+      *)
+        echo "unsupported architecture for actionlint: $(uname -m)"
+        exit 2
+        ;;
+    esac
     mkdir -p "$TMPBASE/actionlint-bin"
     ACTIONLINT="$TMPBASE/actionlint-bin/actionlint"
-    if [ ! -x "$ACTIONLINT" ]; then
+    if ! "$ACTIONLINT" -version >/dev/null 2>&1; then
+      rm -f "$ACTIONLINT"
       curl -fsSL -o "$TMPBASE/actionlint.tar.gz" \
-        "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+        "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_${ACTIONLINT_ARCH}.tar.gz"
       tar xzf "$TMPBASE/actionlint.tar.gz" -C "$TMPBASE/actionlint-bin" actionlint
     fi
   fi
