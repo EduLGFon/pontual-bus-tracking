@@ -3210,3 +3210,13 @@ checks were not run on this host.
   the resolved API origin, so a stale build fails before upload. The build
   jobs gained `pages: read` for the lookup. This keeps the custom domain out
   of the workflows while removing the manual `STATIC_ORIGIN` step.
+- 2026-10-21: Web PWA easy-test overrides (owner order). `deploy-static`
+  now reads optional repo variables `FIX_ACCURACY_MAX_M` (default 60) and
+  `FORCE_PING_BUTTON` (default false) and bakes them into the web build.
+  The current field-test target is 500/true to match the API's
+  `APP_ENV=local` plus `TEST_EASY_PUBLISH=true`. This is a temporary
+  deviation from PLAN.md 17.1's "test overrides never in production builds":
+  the PWA is public, and with easy-publish a visitor can force-publish a
+  stationary bus. Remove both variables and re-run `deploy-static` before
+  the pilot. `release-android` keeps the production defaults; test APKs use
+  `env/phone.json`.

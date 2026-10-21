@@ -4,6 +4,9 @@
 # URL; it is read from the Pages custom domain when the var is unset.
 # This project needs API_ORIGIN=https://api-pontual.spotnik.space (see README
 # Domains); STATIC_ORIGIN is optional and normally auto-detected.
+# Optional test overrides: repo vars FIX_ACCURACY_MAX_M (default 60) and
+# FORCE_PING_BUTTON (default false). Set 500/true only while the API runs with
+# TEST_EASY_PUBLISH=true; remove them before the pilot.
 # One-time owner setup: repo Settings > Pages > Source: GitHub Actions.
 # Verified SHAs 2026-10-10 via api.github.com.
 name: deploy-static
@@ -69,6 +72,30 @@ jobs:
           echo "static=$STATIC" >> "$GITHUB_OUTPUT"
           echo "base=$BASE_HREF" >> "$GITHUB_OUTPUT"
           echo "API=$API STATIC=$STATIC BASE_HREF=$BASE_HREF"
+      - name: Resolve client overrides
+        id: client
+        env:
+          ACCURACY_IN: ${{ vars.FIX_ACCURACY_MAX_M }}
+          FORCE_IN: ${{ vars.FORCE_PING_BUTTON }}
+        run: |
+          ACCURACY="${ACCURACY_IN:-60}"
+          FORCE="${FORCE_IN:-false}"
+          case "$ACCURACY" in
+            ''|*[!0-9]*)
+              echo "::error::FIX_ACCURACY_MAX_M must be an integer"
+              exit 1
+              ;;
+          esac
+          case "$FORCE" in
+            true|false) ;;
+            *)
+              echo "::error::FORCE_PING_BUTTON must be true or false"
+              exit 1
+              ;;
+          esac
+          echo "accuracy=$ACCURACY" >> "$GITHUB_OUTPUT"
+          echo "force=$FORCE" >> "$GITHUB_OUTPUT"
+          echo "FIX_ACCURACY_MAX_M=$ACCURACY FORCE_PING_BUTTON=$FORCE"
       - name: Build data bundle
         working-directory: tools
         env:
@@ -80,7 +107,9 @@ jobs:
           flutter build web --release --no-web-resources-cdn --wasm \
             --base-href "${{ steps.origins.outputs.base }}" \
             --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }} \
-            --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
+            --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data \
+            --dart-define=FIX_ACCURACY_MAX_M=${{ steps.client.outputs.accuracy }} \
+            --dart-define=FORCE_PING_BUTTON=${{ steps.client.outputs.force }}
       - name: Verify baked API origin
         working-directory: app
         run: |

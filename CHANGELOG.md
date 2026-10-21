@@ -11,6 +11,9 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
 - CI: `deploy-static` and `release-android` resolve `STATIC_ORIGIN` from the
   Pages custom domain when the repo variable is unset, and `deploy-static`
   checks that the built web bundle contains the resolved API origin.
+- Web PWA: `deploy-static` accepts optional `FIX_ACCURACY_MAX_M` and
+  `FORCE_PING_BUTTON` repo variables for the temporary easy-test server.
+  Defaults remain 60/false; remove them before the pilot.
 - Passenger reports ("Sinalizações", D82/D83): waiting, bus full, bus broken
   and access blocked, with a server timestamp and a short TTL. Waiting and
   blocked use a one-shot location read converted on-device to a coarse ~150 m
