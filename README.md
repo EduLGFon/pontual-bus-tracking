@@ -124,8 +124,9 @@ Production web build values:
     API_ORIGIN=https://api-pontual.spotnik.space
     STATIC_ORIGIN=https://pontual.spotnik.space
 
-The `deploy-static` workflow reads them from repo variables and derives the
-`--base-href` from `STATIC_ORIGIN`. Re-run the workflow after changing them:
-editing a variable does not trigger a rebuild. Without `STATIC_ORIGIN` the
-build gets the `/pontual-bus-tracking/` base href and breaks at the custom
-domain.
+`deploy-static` requires the `API_ORIGIN` repo variable and derives the
+`--base-href` from `STATIC_ORIGIN`. When `STATIC_ORIGIN` is unset, the
+workflow reads the Pages custom domain and uses
+`https://<custom-domain>` automatically, so the base href follows the live
+site. `release-android` uses the same rule. Re-run `deploy-static` after
+changing `API_ORIGIN`: editing a variable does not trigger a rebuild.

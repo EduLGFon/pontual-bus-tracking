@@ -8,6 +8,9 @@ Format: Keep a Changelog. Versioning: `0.1.0-alpha.N` for alpha builds.
   custom domain) and API at `https://api-pontual.spotnik.space` (Cloudflare
   Tunnel). Fixed the missing DNS record and the API CORS allow-list. See
   DECISIONS.md INFRA-05.
+- CI: `deploy-static` and `release-android` resolve `STATIC_ORIGIN` from the
+  Pages custom domain when the repo variable is unset, and `deploy-static`
+  checks that the built web bundle contains the resolved API origin.
 - Passenger reports ("Sinalizações", D82/D83): waiting, bus full, bus broken
   and access blocked, with a server timestamp and a short TTL. Waiting and
   blocked use a one-shot location read converted on-device to a coarse ~150 m

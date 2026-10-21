@@ -3202,3 +3202,11 @@ checks were not run on this host.
   `API_ORIGIN=https://api-pontual.spotnik.space` and
   `STATIC_ORIGIN=https://pontual.spotnik.space` plus a `deploy-static` run.
   The owner chose to skip that rebuild in this change.
+- 2026-10-20: CI origin follow-up. `deploy-static` and `release-android` now
+  read the Pages custom domain with `gh api repos/{repo}/pages` when
+  `STATIC_ORIGIN` is unset, so the base href and `/data` URL follow
+  `pontual.spotnik.space` without a second repo variable. `API_ORIGIN`
+  remains required. `deploy-static` also greps the built `main.dart.js` for
+  the resolved API origin, so a stale build fails before upload. The build
+  jobs gained `pages: read` for the lookup. This keeps the custom domain out
+  of the workflows while removing the manual `STATIC_ORIGIN` step.

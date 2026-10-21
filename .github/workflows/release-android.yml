@@ -8,9 +8,8 @@
 # ANDROID_KEY_PASSWORD, ANDROID_STORE_PASSWORD. Until then the
 # build uses debug signing and is install-test only.
 # Also needs repo var API_ORIGIN (e.g. https://api.example.com); the AAB
-# bakes it in via --dart-define. STATIC_ORIGIN defaults to this repo's
-# GitHub Pages URL (where deploy-static.yml publishes /data) and only
-# needs a var for a custom domain.
+# bakes it in via --dart-define. STATIC_ORIGIN is optional: when unset, the
+# workflow reads the Pages custom domain, so /data follows the live site.
 name: release-android
 on:
   push:
@@ -18,6 +17,7 @@ on:
       - "v*"
 permissions:
   contents: write
+  pages: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,13 +35,31 @@ jobs:
         run: bash tools/ci/manifest_audit.sh
       - name: Resolve origins
         id: origins
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          test -n "${{ vars.API_ORIGIN }}" || (echo "missing repo var API_ORIGIN (e.g. https://api.example.com); set it in Settings > Secrets and variables > Actions > Variables" && exit 1)
+          API="${{ vars.API_ORIGIN }}"
+          test -n "$API" || (echo "missing repo var API_ORIGIN (e.g. https://api.example.com); set it in Settings > Secrets and variables > Actions > Variables" && exit 1)
+          API="${API%/}"
           STATIC="${{ vars.STATIC_ORIGIN }}"
-          if [ -z "$STATIC" ]; then STATIC="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"; fi
-          echo "api=${{ vars.API_ORIGIN }}" >> "$GITHUB_OUTPUT"
+          if [ -z "$STATIC" ]; then
+            # Follow the Pages custom domain so the static data URL is correct
+            # even when the owner did not set STATIC_ORIGIN. Fail rather than
+            # build with a wrong URL if the lookup is unavailable.
+            if ! CNAME="$(gh api "repos/${{ github.repository }}/pages" --jq '.cname // empty' 2>/dev/null)"; then
+              echo "::error::could not read Pages settings; set repo variable STATIC_ORIGIN (e.g. https://app.example.com)"
+              exit 1
+            fi
+            if [ -n "$CNAME" ]; then
+              STATIC="https://$CNAME"
+            else
+              STATIC="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+            fi
+          fi
+          STATIC="${STATIC%/}"
+          echo "api=$API" >> "$GITHUB_OUTPUT"
           echo "static=$STATIC" >> "$GITHUB_OUTPUT"
-          echo "API=${{ vars.API_ORIGIN }} STATIC=$STATIC"
+          echo "API=$API STATIC=$STATIC"
       - name: Build release AAB
         working-directory: app
         run: >
