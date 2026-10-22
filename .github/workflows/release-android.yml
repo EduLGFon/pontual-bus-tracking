@@ -68,7 +68,7 @@ jobs:
           --split-debug-info=build/debug-info
           --dart-define=API_BASE_URL=${{ steps.origins.outputs.api }}
           --dart-define=STATIC_BASE_URL=${{ steps.origins.outputs.static }}/data
-      - name: Build release APK (universal, for direct download)
+      - name: Build release APK (armv8, for direct download)
         working-directory: app
         run: >
           flutter build apk --release --obfuscate
