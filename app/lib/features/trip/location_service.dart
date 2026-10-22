@@ -198,8 +198,16 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
       );
   switch (mode) {
     case SamplingMode.waiting:
+      // High accuracy: the waiting phase must engage the GPS receiver so
+      // the first fix is a real GPS fix (sub-30 m) instead of a coarse
+      // network fix. Medium/balanced accuracy (PRIORITY_BALANCED_POWER)
+      // can resolve on WiFi/cell towers, never turns on GPS (no GPS
+      // indicator), and yields fixes above the 60 m gate, which made the
+      // start stall the full 60 s window and then fail. The waiting window
+      // is bounded (<= 60 s) and short-lived, so the battery cost of high
+      // accuracy here is acceptable. See PLAN.md 8.6.
       return AndroidSettings(
-        accuracy: LocationAccuracy.medium,
+        accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
