@@ -39,7 +39,7 @@ Future<void> shareTrip(
   ProviderContainer container,
   StaticLine line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
-  Future<void> Function() ensureNotifications = ensureNotificationPermission,
+  Future<bool> Function() ensureNotifications = ensureNotificationPermission,
   bool legacySheets = true,
   // When the caller already disclosed consent (the new UI ConsentBody),
   // it passes an answer here so the flow records without showing the
@@ -77,7 +77,7 @@ Future<void> _shareTrip(
   ProviderContainer container,
   StaticLine line,
   PermissionGateway gateway,
-  Future<void> Function() ensureNotifications, {
+  Future<bool> Function() ensureNotifications, {
   bool legacySheets = true,
   Future<bool> Function()? consentAnswer,
 }) async {
@@ -200,7 +200,18 @@ Future<void> _shareTrip(
       // Best effort and non-blocking: the trip works without the banner.
       // The notification request always runs; only its education sheet
       // is owned by the new UI when it leads the flow.
-      await ensureNotifications();
+      final bool notificationsGranted = await ensureNotifications();
+      if (!context.mounted) {
+        return;
+      }
+      if (!notificationsGranted) {
+        // Surface a denied notification permission instead of failing
+        // silently: without the foreground banner Android may kill the
+        // sharing process when the app leaves the foreground.
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text(UiStrings.notificationNote)),
+        );
+      }
       if (!context.mounted || !legacySheets) {
         return;
       }

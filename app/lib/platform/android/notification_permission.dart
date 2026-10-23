@@ -10,13 +10,13 @@ import 'package:pontual/core/logging/log.dart';
 
 /// Requests the notification permission on Android, best effort.
 /// No-op on web and non-Android platforms. Never throws.
-Future<void> ensureNotificationPermission() async {
+Future<bool> ensureNotificationPermission() async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-    return;
+    return true;
   }
   try {
     if ((await Permission.notification.status).isGranted) {
-      return;
+      return true;
     }
     // On Android only the request() outcome is meaningful: status never
     // reports permanentlyDenied, so denial handling keys off this result.
@@ -24,8 +24,11 @@ Future<void> ensureNotificationPermission() async {
     final PermissionStatus after = await Permission.notification.request();
     if (!after.isGranted) {
       Log.w('notifications denied', 'trip continues without banner');
+      return false;
     }
+    return true;
   } catch (_) {
     Log.w('notification request failed', 'trip continues');
+    return false;
   }
 }

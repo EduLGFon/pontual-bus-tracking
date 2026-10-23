@@ -94,7 +94,7 @@ Widget shareButton(StaticLine line) {
                     ProviderScope.containerOf(context),
                     line,
                     gateway: gateway,
-                    ensureNotifications: () async {},
+                    ensureNotifications: () async => true,
                   ),
                   child: const Text('share'),
                 );
@@ -188,7 +188,7 @@ Widget wrapFlow(Widget app, {required PermissionGateway gateway}) {
 Widget flowButton(
   LineVM? line,
   PermissionGateway gateway, {
-  Future<void> Function()? ensureNotifications,
+  Future<bool> Function()? ensureNotifications,
 }) {
   return wrapFlow(
     Scaffold(
@@ -199,7 +199,7 @@ Widget flowButton(
               context,
               line,
               gateway: gateway,
-              ensureNotifications: ensureNotifications ?? () async {},
+              ensureNotifications: ensureNotifications ?? (() async => true),
             ),
             child: const Text('share'),
           );
@@ -245,7 +245,7 @@ class _HidingDockState extends State<_HidingDock> {
           context,
           widget.line,
           gateway: widget.gateway,
-          ensureNotifications: () async {},
+          ensureNotifications: () async => true,
         );
       },
       child: const Text('share'),

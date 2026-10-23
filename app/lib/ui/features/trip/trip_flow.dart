@@ -48,7 +48,7 @@ Future<void> startShare(
   BuildContext context,
   LineVM? line, {
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
-  Future<void> Function() ensureNotifications = ensureNotificationPermission,
+  Future<bool> Function() ensureNotifications = ensureNotificationPermission,
 }) async {
   if (_shareInFlight) {
     return;
@@ -88,7 +88,7 @@ Future<void> _startShare(
   ProviderContainer container,
   LineVM? line, {
   required PermissionGateway gateway,
-  required Future<void> Function() ensureNotifications,
+  required Future<bool> Function() ensureNotifications,
 }) async {
   final LineVM? chosen = line ?? await _chooseLine(context);
   if (chosen == null) {
@@ -197,7 +197,7 @@ Future<void> _permissionStep(
   StaticLine target,
   LineVM line,
   PermissionGateway gateway,
-  Future<void> Function() ensureNotifications,
+  Future<bool> Function() ensureNotifications,
 ) async {
   if (!await _prePromptStep(context)) {
     return;
