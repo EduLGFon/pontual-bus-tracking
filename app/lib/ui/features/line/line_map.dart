@@ -382,7 +382,7 @@ class LineMapState extends State<LineMap> {
         const MapBackButton(),
         const MapAttributionChip(),
         Positioned(
-          top: Space.x8,
+          top: Space.x12,
           right: Space.x2,
           child: Material(
             color: colors.surface.withValues(alpha: 0.9),
