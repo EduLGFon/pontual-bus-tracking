@@ -130,6 +130,17 @@ class LineMapState extends State<LineMap> {
   int _tileReloadAttempts = 0;
   DateTime? _lastTileErrorAt;
   bool _viewerFitted = false;
+  bool _mapDarkInitialized = false;
+  bool _mapDark = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_mapDarkInitialized) {
+      _mapDark = Theme.of(context).brightness == Brightness.dark;
+      _mapDarkInitialized = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -265,7 +276,6 @@ class LineMapState extends State<LineMap> {
   Widget build(BuildContext context) {
     final Animation<double>? pulse = LivePulseScope.maybeOf(context);
     final colors = context.colors;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Widget tileLayer = osmTileLayer(
       widget.tileUrlTemplate,
       httpClient: widget.httpClient,
@@ -293,10 +303,11 @@ class LineMapState extends State<LineMap> {
                 },
               ),
               children: <Widget>[
-                // Darken the OSM raster tiles in dark mode. The built-in
-                // helper applies the inversion + hue rotation matrix once on
-                // the tile container (cheaper than per-tile filtering).
-                if (isDark)
+                // Darken the OSM raster tiles when the map theme toggle is on.
+                // The built-in helper applies the inversion + hue rotation
+                // matrix once on the tile container (cheaper than per-tile
+                // filtering).
+                if (_mapDark)
                   darkModeTilesContainerBuilder(context, tileLayer)
                 else
                   tileLayer,
@@ -370,6 +381,19 @@ class LineMapState extends State<LineMap> {
         ),
         const MapBackButton(),
         const MapAttributionChip(),
+        Positioned(
+          top: Space.x2,
+          right: Space.x2,
+          child: Material(
+            color: colors.surface.withValues(alpha: 0.9),
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: _mapDark ? 'Mapa claro' : 'Mapa escuro',
+              icon: Icon(_mapDark ? Icons.light_mode : Icons.dark_mode),
+              onPressed: () => setState(() => _mapDark = !_mapDark),
+            ),
+          ),
+        ),
         if (widget.panned)
           MapLocateControls(
             bottomPadding: widget.controlsBottomPadding,
