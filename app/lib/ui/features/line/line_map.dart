@@ -125,7 +125,7 @@ class LineMapState extends State<LineMap> {
   final MapController _map = MapController();
 
   /// Reloads the visible tiles when the throttled-burst retry fires.
-  final StreamController<void> _tileReset = StreamController<void>();
+  final StreamController<void> _tileReset = StreamController<void>.broadcast();
   Timer? _tileRetryTimer;
   int _tileReloadAttempts = 0;
   DateTime? _lastTileErrorAt;
@@ -382,7 +382,7 @@ class LineMapState extends State<LineMap> {
         const MapBackButton(),
         const MapAttributionChip(),
         Positioned(
-          top: Space.x2,
+          top: Space.x8,
           right: Space.x2,
           child: Material(
             color: colors.surface.withValues(alpha: 0.9),
