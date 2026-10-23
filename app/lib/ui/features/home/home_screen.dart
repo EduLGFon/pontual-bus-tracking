@@ -195,7 +195,12 @@ class HomeScreen extends ConsumerWidget {
               Positioned(
                 left: margin,
                 right: margin,
-                bottom: Space.x8,
+                // Sit above the global dock instead of overlapping it: the dock
+                // is painted in the shell layer on top of this screen, so an
+                // offset inside the dock's footprint hid the bubble behind the
+                // button. Add the system bottom inset for safe areas.
+                bottom:
+                    MediaQuery.of(context).viewPadding.bottom + dockClearance,
                 child: CoachmarkBubble(
                   onDismiss: () =>
                       ref.read(onboardingProvider.notifier).dismissCoachmark(),
