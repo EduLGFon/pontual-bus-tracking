@@ -1267,6 +1267,14 @@ class UiStrings {
       'Abre a linha em lista primeiro e só carrega o mapa quando você '
       'pedir. Usa menos internet.';
 
+  /// Diagnostics opt-in row.
+  static const String diagnosticsOptIn = 'Enviar diagnósticos';
+
+  /// Diagnostics opt-in description.
+  static const String diagnosticsOptInHint =
+      'Envia avisos e falhas anonimamente para ajudar a melhorar o app. '
+      'Sem localização ou dados pessoais.';
+
   /// Reduce animations row.
   static const String reduceMotion = 'Reduzir animações';
 

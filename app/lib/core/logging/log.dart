@@ -1,9 +1,12 @@
 // Log wrapper. Debug builds are verbose; release builds keep warnings and
-// errors in an in-memory ring buffer that is never sent anywhere and never
-// persisted. There is deliberately no overload that accepts coordinates,
-// tokens, session ids, or user ids. See PLAN.md 14.9.
-// PRIVACY: never log coordinates.
+// errors in an in-memory ring buffer and a persisted append-only list that
+// is uploaded to our first-party server when the user opts in.
+// PRIVACY: never log coordinates, tokens, session or user ids.
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Log severity levels.
 enum LogLevel {
@@ -41,9 +44,59 @@ class Log {
 
   static const int _ringCap = 200;
   static final List<LogRecord> _ring = <LogRecord>[];
+  static const String _persistKey = 'diag_logs_v1';
+  static const int _persistCap = 500;
 
   /// Recent warnings and errors, newest last. For on-device debugging only.
   static List<LogRecord> get recent => List<LogRecord>.unmodifiable(_ring);
+
+  /// Appends a record to the persisted list (best effort, never throws).
+  static void _persist(LogRecord record) {
+    unawaited(() async {
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final List<String> raw =
+            prefs.getStringList(_persistKey) ?? const <String>[];
+        final List<String> next = List<String>.from(raw);
+        next.add(jsonEncode(<String, dynamic>{
+          'l': record.level == LogLevel.warning ? 'w' : 'e',
+          'm': record.message,
+          'c': record.context,
+          't': DateTime.now().millisecondsSinceEpoch,
+        }));
+        while (next.length > _persistCap) {
+          next.removeAt(0);
+        }
+        await prefs.setStringList(_persistKey, next);
+      } on Object {
+        // Never fail logging.
+      }
+    }());
+  }
+
+  /// Reads persisted records.
+  static Future<List<Map<String, dynamic>>> readPersisted() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> raw =
+          prefs.getStringList(_persistKey) ?? const <String>[];
+      return raw
+          .map((String s) => jsonDecode(s) as Map<String, dynamic>)
+          .toList();
+    } on Object {
+      return const <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Clears persisted records after a successful upload.
+  static Future<void> clearPersisted() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_persistKey);
+    } on Object {
+      // Ignore.
+    }
+  }
 
   /// Clears the ring buffer. Used by tests.
   @visibleForTesting
@@ -83,6 +136,9 @@ class Log {
     _ring.add(record);
     while (_ring.length > _ringCap) {
       _ring.removeAt(0);
+    }
+    if (record.level == LogLevel.warning || record.level == LogLevel.error) {
+      _persist(record);
     }
   }
 }

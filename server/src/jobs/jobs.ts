@@ -4,6 +4,7 @@
 // See PLAN.md 6.10.
 import type { Sql } from "../db/client.ts";
 import { purgeExpiredDevices } from "../db/devices.ts";
+import { purgeOldDiagnostics } from "../db/diagnostics.ts";
 import { loadRuntimeConfig, type RuntimeConfig } from "../config/runtime.ts";
 import { tick } from "../domain/tick.ts";
 import type { Store } from "../state/store.ts";
@@ -53,6 +54,12 @@ export function runTickGuarded(
 /** Delete devices past expiry. Returns the purged count. */
 export async function runPurge(sql: Sql, now: Date): Promise<number> {
   return await purgeExpiredDevices(sql, now);
+}
+
+/** Delete diagnostics older than 14 days. */
+export async function runPurgeDiagnostics(sql: Sql, now: Date): Promise<number> {
+  const cutoff = new Date(now.getTime() - 14 * 86400 * 1000);
+  return await purgeOldDiagnostics(sql, cutoff);
 }
 
 /** Reload runtime config from app_config. */
@@ -108,20 +115,21 @@ export function startJobs(deps: JobsDeps): Jobs {
   const purgeDelay = Math.max(0, deps.purgeAtMs(nowMs) - nowMs);
   timers.push(
     setTimeout(async () => {
-      // A failing purge must not crash the process either.
       try {
         await runPurge(deps.sql, new Date());
+        await runPurgeDiagnostics(deps.sql, new Date());
       } catch {
         console.log(
-          JSON.stringify({ level: "error", msg: "device purge failed" }),
+          JSON.stringify({ level: "error", msg: "purge failed" }),
         );
       }
       timers.push(setInterval(async () => {
         try {
           await runPurge(deps.sql, new Date());
+          await runPurgeDiagnostics(deps.sql, new Date());
         } catch {
           console.log(
-            JSON.stringify({ level: "error", msg: "device purge failed" }),
+            JSON.stringify({ level: "error", msg: "purge failed" }),
           );
         }
       }, 86400 * 1000));

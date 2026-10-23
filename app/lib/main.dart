@@ -5,14 +5,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pontual/app/providers.dart';
+import 'package:pontual/core/diagnostics/diagnostics_uploader.dart';
+import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/data/prefs/theme_store.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/router/app_router.dart';
 
 /// Entry point of the app.
 void main() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    Log.e('flutter error', details.exceptionAsString());
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    Log.e('uncaught', error.toString());
+    return true;
+  };
   runApp(const ProviderScope(child: PontualApp()));
 }
 
@@ -46,6 +58,17 @@ class _PontualAppState extends ConsumerState<PontualApp>
     if (state == AppLifecycleState.resumed) {
       // PLAN.md 9.5 S03: live dots refresh on resumed, never on a timer.
       unawaited(ref.read(liveRefresherProvider).refresh());
+      unawaited(_uploadDiagnostics());
+    }
+  }
+
+  Future<void> _uploadDiagnostics() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final bool optIn = prefs.getBool('diag_opt_in_v1') ?? true;
+      await const DiagnosticsUploader().uploadIfOptedIn(optIn);
+    } on Object {
+      // Never fail lifecycle.
     }
   }
 

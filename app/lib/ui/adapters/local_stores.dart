@@ -25,6 +25,9 @@ const String favoritesKey = 'ui_favorites_v1';
 /// Storage key for the data saver setting.
 const String dataSaverKey = 'ui_data_saver_v1';
 
+/// Storage key for the diagnostics opt-in setting (default on).
+const String diagnosticsOptInKey = 'diag_opt_in_v1';
+
 /// Storage key for the reduce animations setting.
 const String reduceMotionKey = 'ui_reduce_motion_v1';
 
@@ -201,6 +204,21 @@ class SettingsStore {
     await prefs.setBool(dataSaverKey, value);
   }
 
+  /// Reads diagnostics opt-in, defaulting to true.
+  Future<bool> readDiagnosticsOptIn() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(diagnosticsOptInKey) ?? true;
+  }
+
+  /// Writes diagnostics opt-in.
+  Future<void> writeDiagnosticsOptIn(bool value) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(diagnosticsOptInKey, value);
+    if (!value) {
+      await prefs.remove('diag_logs_v1');
+    }
+  }
+
   /// Reads the reduce animations preference, defaulting to follow system.
   Future<ReduceMotionMode> readReduceMotionMode() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -275,15 +293,18 @@ class SettingsNotifier extends Notifier<UiSettings> {
   Future<void> _load(SettingsStore store) async {
     bool dataSaver = false;
     ReduceMotionMode reduceMotionMode = ReduceMotionMode.system;
+    bool diagnosticsOptIn = true;
     try {
       dataSaver = await store.readDataSaver();
       reduceMotionMode = await store.readReduceMotionMode();
+      diagnosticsOptIn = await store.readDiagnosticsOptIn();
     } on Object {
       // Defaults stand when prefs are unavailable.
     }
     state = UiSettings(
       dataSaver: dataSaver,
       reduceMotionMode: reduceMotionMode,
+      diagnosticsOptIn: diagnosticsOptIn,
     );
   }
 
@@ -292,6 +313,13 @@ class SettingsNotifier extends Notifier<UiSettings> {
     state = state.copyWith(dataSaver: value);
     const SettingsStore store = SettingsStore();
     await store.writeDataSaver(value);
+  }
+
+  /// Sets diagnostics opt-in.
+  Future<void> setDiagnosticsOptIn(bool value) async {
+    state = state.copyWith(diagnosticsOptIn: value);
+    const SettingsStore store = SettingsStore();
+    await store.writeDiagnosticsOptIn(value);
   }
 
   /// Sets reduce animations from the switch: an explicit user choice that
@@ -316,10 +344,14 @@ class UiSettings {
   const UiSettings({
     this.dataSaver = false,
     this.reduceMotionMode = ReduceMotionMode.system,
+    this.diagnosticsOptIn = true,
   });
 
   /// Map and images stay on the cheap side.
   final bool dataSaver;
+
+  /// Whether redacted diagnostics may be collected and uploaded.
+  final bool diagnosticsOptIn;
 
   /// Reduce-motion preference. System means the OS accessibility setting
   /// decides; on and off are explicit user choices.
@@ -331,10 +363,15 @@ class UiSettings {
   bool get reduceMotion => reduceMotionMode == ReduceMotionMode.on;
 
   /// Returns a copy with the given overrides.
-  UiSettings copyWith({bool? dataSaver, ReduceMotionMode? reduceMotionMode}) {
+  UiSettings copyWith({
+    bool? dataSaver,
+    ReduceMotionMode? reduceMotionMode,
+    bool? diagnosticsOptIn,
+  }) {
     return UiSettings(
       dataSaver: dataSaver ?? this.dataSaver,
       reduceMotionMode: reduceMotionMode ?? this.reduceMotionMode,
+      diagnosticsOptIn: diagnosticsOptIn ?? this.diagnosticsOptIn,
     );
   }
 }

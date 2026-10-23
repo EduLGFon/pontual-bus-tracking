@@ -27,8 +27,31 @@ export const ReportBody = strictObject({
   area: v.optional(v.pipe(v.string(), v.maxLength(40))),
 });
 
-/** Typed report request. */
-export type ReportRequest = v.InferOutput<typeof ReportBody>;
+/** POST /v1/diagnostics. Redacted bundle, no PII. */
+export const DiagnosticsBody = strictObject({
+  v: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(32767)),
+  app: v.pipe(v.string(), v.maxLength(40)),
+  build: v.pipe(v.string(), v.maxLength(40)),
+  platform: v.pipe(v.string(), v.maxLength(20)),
+  os: v.pipe(v.string(), v.maxLength(60)),
+  model: v.optional(v.pipe(v.string(), v.maxLength(60))),
+  records: v.pipe(
+    v.array(
+      strictObject({
+        l: v.picklist(["w", "e"]),
+        m: v.pipe(v.string(), v.maxLength(200)),
+        c: v.optional(v.pipe(v.string(), v.maxLength(200))),
+        t: v.optional(v.pipe(v.number(), v.integer())),
+      }),
+    ),
+    v.maxLength(500),
+  ),
+  crash: v.optional(v.pipe(v.string(), v.maxLength(4000))),
+  optIn: v.boolean(),
+});
+
+/** Typed diagnostics request. */
+export type DiagnosticsRequest = v.InferOutput<typeof DiagnosticsBody>;
 
 export function parseJson<T>(
   schema: v.GenericSchema<T>,

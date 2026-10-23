@@ -108,6 +108,14 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (bool value) =>
                       ref.read(settingsProvider.notifier).setDataSaver(value),
                 ),
+                SettingsTile.toggle(
+                  title: UiStrings.diagnosticsOptIn,
+                  description: UiStrings.diagnosticsOptInHint,
+                  value: settings.diagnosticsOptIn,
+                  onChanged: (bool value) => ref
+                      .read(settingsProvider.notifier)
+                      .setDiagnosticsOptIn(value),
+                ),
                 SettingsTile.chevron(
                   icon: Icons.cleaning_services_outlined,
                   title: UiStrings.clearLocalData,

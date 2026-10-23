@@ -12,6 +12,7 @@ import { clientIp } from "../security/clientIp.ts";
 import type { LineResolver } from "../data/lines.ts";
 import type { Store } from "../state/store.ts";
 import { buildAccountRoutes } from "./routes.ts";
+import { buildDiagnosticsRoutes } from "./diagRoutes.ts";
 import { buildReadRoutes } from "./readRoutes.ts";
 import { buildReportRoutes } from "./reportRoutes.ts";
 import { buildTripRoutes } from "./tripRoutes.ts";
@@ -115,6 +116,13 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         runtime,
         store: opts.store ?? undefined,
         onLineChanged: opts.onLineChanged,
+      }),
+    );
+    app.route(
+      "/",
+      buildDiagnosticsRoutes({
+        sql,
+        runtime,
       }),
     );
   }

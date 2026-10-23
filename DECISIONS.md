@@ -3100,3 +3100,13 @@ without an analyzer trades a verified tree for an unverified one.
 Deferred: `offlineFlagProvider` is still a constant `false`, so the global
 offline banner (S03) never shows. Wiring it needs a real connectivity source
 from the data layer plus widget tests, which this pass could not run.
+
+## ADR: First-party diagnostics (opt-out, 14-day retention)
+
+- Added `POST /v1/diagnostics` storing redacted bundles in a new `diagnostics`
+  table with 14-day purge (not 90). No coordinates, tokens, session/user ids,
+  IPs or device identifiers beyond the hashed token linkage (cascades on delete).
+- Client captures warnings/errors + crash summaries into an append-only
+  SharedPreferences list, uploaded on app resume if opted in (default on,
+  opt-out in settings). Opt-out clears the pending list.
+- No third-party SDK; first-party only, consistent with PRV06/RNF18.
