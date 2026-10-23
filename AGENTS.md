@@ -653,18 +653,19 @@ replacements.
 
 ## 16. Session Efficiency
 
-- Never re-export environment variables or source setup snippets in every
-  shell call. Tool shells start fresh and do not read startup files, so make
-  setup zero-cost instead: link externally installed tools (Flutter, dbmate)
-  into a directory already on `PATH` once per machine, then call them bare.
-- Never type long absolute paths or `cd` prefixes. Use the `workdir`
-  parameter with repo-relative paths.
+- Never change directory (cd) to the same directory, re-export environment
+  variables or source setup snippets in every shell call. Tool shells start
+  fresh and do not read startup files, so make setup zero-cost instead: link
+  externally installed tools (Flutter, dbmate) into a directory already on
+  `PATH` once per machine, then call them bare.
+- Never type long absolute paths or `cd` prefixes. Use the `workdir` parameter
+  with repo-relative paths.
 - Only values that change per command belong on the command line. Stable
   endpoints and ports are written literally and kept short.
-- Keep long-running services up across calls (local server, database) instead
-  of rebooting them per command. One readiness probe beats a restart.
-- Run long commands (full test suites, builds, clones, soaks) in the
-  background and keep doing other useful work; never poll for completion.
+- Keep long-running services up across calls (local server, database) instead of
+  rebooting them per command. One readiness probe beats a restart.
+- Run long commands (full test suites, builds, clones, soaks) in the background
+  and keep doing other useful work; never poll for completion.
 - Batch independent reads and independent tool calls in one block.
-- Do not re-run checks that already passed for the current tree. Re-verify
-  only what the latest change could affect, and say what was skipped and why.
+- Do not re-run checks that already passed for the current tree. Re-verify only
+  what the latest change could affect, and say what was skipped and why.
