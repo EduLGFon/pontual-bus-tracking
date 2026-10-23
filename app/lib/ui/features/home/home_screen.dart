@@ -54,7 +54,11 @@ class HomeScreen extends ConsumerWidget {
     final onboarding = ref.watch(onboardingProvider);
     final bool liveKnown = ref.watch(liveProvider).hasValue;
     final bool offline = ref.watch(offlineFlagProvider);
-    final DateTime now = ref.watch(currentNowProvider);
+    // Select the greeting instead of watching the minute clock: this
+    // screen then rebuilds when the greeting changes (three times a day),
+    // not on every clock tick. Sections with countdowns still watch the
+    // clock directly.
+    final String greeting = ref.watch(currentNowProvider.select(greetingFor));
 
     int liveTotal = 0;
     for (final LineVM line in lines) {
@@ -82,7 +86,7 @@ class HomeScreen extends ConsumerWidget {
                 ref.read(onboardingProvider.notifier).dismissWelcome(),
           );
     final Widget header = _HomeHeader(
-      greeting: greetingFor(now),
+      greeting: greeting,
       liveTotal: liveTotal,
       liveKnown: liveKnown,
       offline: offline,
@@ -164,19 +168,25 @@ class HomeScreen extends ConsumerWidget {
         child: Stack(
           children: <Widget>[
             Positioned.fill(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  margin,
-                  Space.x3,
-                  margin,
-                  dockClearance,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: _contentMaxWidth,
+              child: RefreshIndicator(
+                // PLAN.md 9.5 S03: pull-to-refresh is one of the three
+                // triggers for /v1/live; the refresher keeps a 10 s floor.
+                onRefresh: () => ref.read(liveRefresherProvider).refresh(),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    margin,
+                    Space.x3,
+                    margin,
+                    dockClearance,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: _contentMaxWidth,
+                      ),
+                      child: content,
                     ),
-                    child: content,
                   ),
                 ),
               ),

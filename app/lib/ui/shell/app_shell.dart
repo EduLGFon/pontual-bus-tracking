@@ -1,9 +1,12 @@
 // App shell: banner slot, current branch, the trip dock and the navigation.
 // Below 600 dp the navigation is a bottom bar above the dock; from 600 dp
 // up it becomes a rail on the side. See docs/ui/UI_SPEC.md 6.5 and 7.1.
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Banner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/app/providers.dart';
 import 'package:pontual/ui/design/components/banner.dart';
 import 'package:pontual/ui/design/components/toast.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -52,7 +55,7 @@ class AppShell extends ConsumerWidget {
                     if (rail)
                       NavRail(
                         currentIndex: navigationShell.currentIndex,
-                        onSelect: _select,
+                        onSelect: (int index) => _select(ref, index),
                       ),
                     Expanded(child: navigationShell),
                   ],
@@ -88,7 +91,7 @@ class AppShell extends ConsumerWidget {
           if (!rail)
             BottomNav(
               currentIndex: navigationShell.currentIndex,
-              onSelect: _select,
+              onSelect: (int index) => _select(ref, index),
             ),
         ],
       ),
@@ -96,7 +99,11 @@ class AppShell extends ConsumerWidget {
   }
 
   /// Selects a branch, re-tapping the active one returns to its root.
-  void _select(int index) {
+  /// Home and Linhas refresh live dots on open, throttled in the refresher.
+  void _select(WidgetRef ref, int index) {
+    if (index == 0 || index == 1) {
+      unawaited(ref.read(liveRefresherProvider).refresh());
+    }
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,

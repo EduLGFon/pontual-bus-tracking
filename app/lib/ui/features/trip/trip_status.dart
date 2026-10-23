@@ -25,11 +25,6 @@ import 'trip_metrics.dart';
 /// flapping signal does not flicker the screen.
 const int bannerHoldMs = 2000;
 
-/// Coarse refresh for values that arrive with accepted fixes (accuracy)
-/// and native samples (satellites), plus the stale-send tier. One tick
-/// per 5 s, never 1 Hz.
-const Duration metricsRefresh = Duration(seconds: 5);
-
 /// Holds the visible banner issue back until a new issue is stable.
 class IssueDebouncer {
   /// Currently shown issue.
@@ -63,6 +58,8 @@ class IssueDebouncer {
 }
 
 /// Holds the status tiles, the single banner, and the platform tip.
+/// Rebuilds on the trip screen's one coarse clock (5 s), so it owns no
+/// timer of its own.
 class StatusBlock extends StatefulWidget {
   /// Creates the block for [controller].
   const StatusBlock({
@@ -93,26 +90,6 @@ class StatusBlock extends StatefulWidget {
 
 class _StatusBlockState extends State<StatusBlock> {
   final IssueDebouncer _debouncer = IssueDebouncer();
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    // The controller notifies on roles, prompts and GNSS count changes,
-    // not on every fix. This coarse tick keeps the accuracy, satellite
-    // and stale-send values current without a 1 Hz rebuild.
-    _ticker = Timer.periodic(metricsRefresh, (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
 
   int _nowMs() {
     final int Function()? injected = widget.nowMs;

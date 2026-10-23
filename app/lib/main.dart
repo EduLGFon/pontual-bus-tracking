@@ -25,12 +25,28 @@ class PontualApp extends ConsumerStatefulWidget {
   ConsumerState<PontualApp> createState() => _PontualAppState();
 }
 
-class _PontualAppState extends ConsumerState<PontualApp> {
+class _PontualAppState extends ConsumerState<PontualApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_loadTheme());
     _afterFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // PLAN.md 9.5 S03: live dots refresh on resumed, never on a timer.
+      unawaited(ref.read(liveRefresherProvider).refresh());
+    }
   }
 
   /// Reads the persisted theme after the first frame, so the first paint

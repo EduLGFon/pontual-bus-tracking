@@ -4,7 +4,7 @@
 // PRIVACY: reports live in API memory only and expire with their TTL.
 // See DECISIONS.md#D82/D83 and PLAN.md 6.6.
 import type { ReportKind, ReportState } from "./types.ts";
-import type { Store } from "../state/store.ts";
+import type { Store } from "./store.ts";
 
 /** Runtime tunables for reports. Defaults mirror PLAN.md 6.3. */
 export interface ReportsConfig {

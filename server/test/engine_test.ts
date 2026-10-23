@@ -1,8 +1,9 @@
 // Engine unit tests 1-18, 20-24 per PLAN.md 15.2. Pure, fake clock.
 // Test 19 (restart) lands in T11 with the jobs.
 import { assert, assertEquals } from "@std/assert";
-import { createStore, membersOf } from "../src/state/store.ts";
-import type { Store } from "../src/state/store.ts";
+import { createStore } from "../src/state/store.ts";
+import { membersOf } from "../src/domain/store.ts";
+import type { Store } from "../src/domain/store.ts";
 import {
   applyPing,
   endTrip,

@@ -113,7 +113,11 @@ class TripScreen extends StatefulWidget {
 int _systemNowMs() => DateTime.now().millisecondsSinceEpoch;
 
 class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
-  Timer? _visibilityTimer;
+  /// One coarse 5 s clock for the hero and the status block, which each
+  /// used to own a timer. It pauses while the app is not resumed: the trip
+  /// process stays alive under the foreground service, so background ticks
+  /// would only rebuild an invisible screen.
+  Timer? _ticker;
   bool _promptOpen = false;
   bool _wakeUnsupported = false;
   bool _kudosCounted = false;
@@ -128,16 +132,12 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     super.initState();
     _wakeLock = widget.wakeLock ?? const ProdWebWakeLock();
     widget.controller.addListener(_maybePrompt);
+    // The observer runs on every platform: it pauses the coarse clock in
+    // the background and drives the web visibility tracker.
+    WidgetsBinding.instance.addObserver(this);
+    _startTicker();
     if (_isWeb) {
-      WidgetsBinding.instance.addObserver(this);
       unawaited(_holdWakeLock());
-      _visibilityTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        final int nowMs = _nowMs();
-        _visibility.check(nowMs);
-        if (_visibility.paused && !widget.controller.isWebHidden) {
-          widget.controller.setWebHidden(true);
-        }
-      });
     }
   }
 
@@ -163,19 +163,25 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_isWeb) {
+    if (state != AppLifecycleState.resumed) {
+      _stopTicker();
+      if (_isWeb) {
+        _visibility.onHidden(_nowMs());
+      }
       return;
     }
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden) {
-      _visibility.onHidden(_nowMs());
-    } else if (state == AppLifecycleState.resumed) {
-      final int nowMs = _nowMs();
-      final int hiddenForMs = _visibility.hiddenFor(nowMs);
-      _visibility.onVisible();
-      unawaited(_recoverWeb(hiddenForMs));
+    _startTicker();
+    if (!_isWeb) {
+      _tick();
+      return;
     }
+    // Order matters on web: clearing the hidden state first keeps the tick
+    // from pausing a session that is being resumed.
+    final int nowMs = _nowMs();
+    final int hiddenForMs = _visibility.hiddenFor(nowMs);
+    _visibility.onVisible();
+    _tick();
+    unawaited(_recoverWeb(hiddenForMs));
   }
 
   /// Re-acquires the wake lock and asks the controller for a fresh fix.
@@ -188,13 +194,41 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _stopTicker();
+    WidgetsBinding.instance.removeObserver(this);
     if (_isWeb) {
-      WidgetsBinding.instance.removeObserver(this);
-      _visibilityTimer?.cancel();
       unawaited(_wakeLock.disable());
     }
     widget.controller.removeListener(_maybePrompt);
     super.dispose();
+  }
+
+  /// Starts the coarse clock, if it is not already running.
+  void _startTicker() {
+    _ticker ??= Timer.periodic(const Duration(seconds: 5), (_) => _tick());
+  }
+
+  /// Stops the coarse clock: nothing visible needs it off foreground.
+  void _stopTicker() {
+    _ticker?.cancel();
+    _ticker = null;
+  }
+
+  /// One coarse tick. The rebuild refreshes the time texts (elapsed,
+  /// last-send, stale tier) and, on web, feeds the visibility tracker.
+  void _tick() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    if (!_isWeb) {
+      return;
+    }
+    final int nowMs = _nowMs();
+    _visibility.check(nowMs);
+    if (_visibility.paused && !widget.controller.isWebHidden) {
+      widget.controller.setWebHidden(true);
+    }
   }
 
   /// RF16 prompt: presented when the controller asks, never before.

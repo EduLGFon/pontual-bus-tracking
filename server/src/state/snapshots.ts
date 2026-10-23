@@ -4,8 +4,8 @@
 import { buildSnapshot } from "../domain/snapshot.ts";
 import type { SnapshotRow } from "../domain/snapshot.ts";
 import { reportRows } from "../domain/reports.ts";
-import { membersOf, vehiclesOfLine } from "../state/store.ts";
-import type { Store } from "../state/store.ts";
+import { membersOf, vehiclesOfLine } from "../domain/store.ts";
+import type { Store } from "../domain/store.ts";
 
 /** Structured vehicle rows for one line, without stringifying. */
 export function snapshotRows(

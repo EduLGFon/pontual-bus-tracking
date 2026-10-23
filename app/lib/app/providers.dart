@@ -177,8 +177,8 @@ final FutureProvider<List<StaticLine>> linesProvider =
       return repo.lines();
     });
 
-/// Last good live-lines payload. A failed poll keeps these dots instead
-/// of blanking every live badge for up to 30 s on any network blip.
+/// Last good live-lines payload. A failed refresh keeps these dots
+/// instead of blanking every live badge on any network blip.
 class LastLive extends Notifier<LiveLines> {
   /// Creates the holder with no lines live.
   LastLive() : super();
@@ -192,18 +192,58 @@ class LastLive extends Notifier<LiveLines> {
   }
 }
 
-/// Holds the last good live-lines payload across failed polls.
+/// Holds the last good live-lines payload across failed refreshes.
 final NotifierProvider<LastLive, LiveLines> lastLiveProvider =
     NotifierProvider<LastLive, LiveLines>(LastLive.new);
 
+/// Minimum gap between /v1/live calls (PLAN.md 9.5 S03).
+const Duration liveRefreshMinGap = Duration(seconds: 10);
+
+/// Coordinates live-lines refreshes for the open, resumed and
+/// pull-to-refresh triggers. There is no polling timer: dots refresh when
+/// the user opens the app, returns to it, or pulls the list.
+class LiveRefresher {
+  /// Creates the refresher bound to [ref].
+  LiveRefresher(this._ref);
+
+  final Ref _ref;
+  int _lastCallMs = 0;
+
+  /// Records that a fetch started, so the gap also covers the first load.
+  void markFetched() {
+    _lastCallMs = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  /// Fetches /v1/live again unless the last call is younger than
+  /// [liveRefreshMinGap]. Waits for the payload so a pull-to-refresh
+  /// spinner ends with the new dots; the last good payload survives a
+  /// failure.
+  Future<void> refresh() async {
+    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - _lastCallMs < liveRefreshMinGap.inMilliseconds) {
+      return;
+    }
+    try {
+      _ref.invalidate(liveProvider);
+      await _ref.read(liveProvider.future);
+    } on Object {
+      // A failed fetch or a disposed container keeps the last good dots.
+    }
+  }
+}
+
+/// App-lifetime live refresher.
+final Provider<LiveRefresher> liveRefresherProvider = Provider<LiveRefresher>(
+  (Ref ref) => LiveRefresher(ref),
+);
+
 /// Live-lines indicator. Loading or error states keep the last good dots
 /// rather than spinners or blanking: cached content never waits on the
-/// network. Re-fetches on [liveTickProvider] so home and line rows stop
-/// showing yesterday's dots instead of needing a reload.
+/// network.
 final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
   Ref ref,
 ) async {
-  ref.watch(liveTickProvider);
+  ref.read(liveRefresherProvider).markFetched();
   final BusApi api = ref.watch(busApiProvider);
   final result = await api.getLive();
   if (result is Ok<LiveLines>) {
@@ -211,15 +251,6 @@ final FutureProvider<LiveLines> liveProvider = FutureProvider<LiveLines>((
     return result.value;
   }
   return ref.read(lastLiveProvider);
-});
-
-/// Refreshes the live-lines indicator every 30 s. /v1/live is tiny and
-/// edge-cached for 10 s. Auto-disposed with the last watcher, like the
-/// vehicle tick; the app-lifetime live provider holds it while mounted.
-final StreamProvider<int> liveTickProvider = StreamProvider.autoDispose<int>((
-  Ref ref,
-) {
-  return Stream<int>.periodic(const Duration(seconds: 30), (int i) => i);
 });
 
 /// Anonymous recent arrivals per line (D30). Null while loading or on

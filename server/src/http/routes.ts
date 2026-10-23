@@ -1,7 +1,6 @@
 // Device, consent, and delete routes. Handlers stay thin: parse,
 // authenticate, call a repository, format the response.
 // See PLAN.md 6.5. No trip or session ids anywhere.
-import type { Context } from "@hono/hono";
 import { Hono } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
 import { deleteDevice, insertDevice } from "../db/devices.ts";
@@ -9,6 +8,7 @@ import { recordConsent } from "../db/consents.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import { removeDeviceFromReports } from "../domain/reports.ts";
 import type { Store } from "../state/store.ts";
+import { readJsonBody } from "./body.ts";
 import { ConsentsBody, DevicesBody, parseJson } from "./schemas.ts";
 import { authMiddleware, evictTokenHash } from "../security/auth.ts";
 import {
@@ -20,33 +20,10 @@ import {
 import { RateLimiter } from "../security/rateLimit.ts";
 
 const DEVICE_TTL_MS = 30 * 86400 * 1000;
-const BODY_CAP = 1024;
 
 type Vars = {
   Variables: { requestId: string; deviceId: string; clientIp: string };
 };
-
-type Body = { kind: "json"; value: unknown } | { kind: "media" } | {
-  kind: "empty";
-};
-
-async function readBody(c: Context<Vars>): Promise<Body> {
-  const len = c.req.header("content-length");
-  const lenNum = len !== undefined ? Number(len) : NaN;
-  if (Number.isFinite(lenNum) && lenNum > BODY_CAP) {
-    return { kind: "media" };
-  }
-  const ct = c.req.header("content-type") ?? "";
-  if (!ct.includes("application/json")) return { kind: "media" };
-  try {
-    const text = await c.req.text();
-    if (text.length > BODY_CAP) return { kind: "media" };
-    if (text.trim() === "") return { kind: "empty" };
-    return { kind: "json", value: JSON.parse(text) };
-  } catch {
-    return { kind: "empty" };
-  }
-}
 
 export function buildAccountRoutes(deps: {
   sql: Sql;
@@ -69,7 +46,7 @@ export function buildAccountRoutes(deps: {
       c.header("Retry-After", "60");
       return c.json({ e: "rate" }, 429);
     }
-    const body = await readBody(c);
+    const body = await readJsonBody(c);
     if (body.kind === "media") return c.json({ e: "media" }, 415);
     const value = body.kind === "json" ? body.value : {};
     if (parseJson(DevicesBody, value) === null) {
@@ -93,7 +70,7 @@ export function buildAccountRoutes(deps: {
       c.header("Retry-After", "60");
       return c.json({ e: "rate" }, 429);
     }
-    const body = await readBody(c);
+    const body = await readJsonBody(c);
     if (body.kind !== "json") {
       return body.kind === "media"
         ? c.json({ e: "media" }, 415)

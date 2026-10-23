@@ -3035,3 +3035,68 @@ so the battery cost is acceptable. The 60 m publish gate is untouched.
 
 Verified: `flutter analyze` clean, `dart format` clean, `location_test` 19
 green, `trip_controller_test` 24 green.
+
+## D84-2026-10-22: live dots on demand, one trip clock, tighter HTTP timeouts (Accepted)
+
+Code audit against `AGENTS.md` and `PLAN.md`, plus a battery and performance pass
+on the app and the server. No API, schema, or user-visible contract changed.
+
+Decision:
+
+- **Live dots (client).** `PLAN.md` 9.5 S03 asks for `GET /v1/live` on open, on
+  `resumed`, and on pull-to-refresh, at most once every 10 s, with no polling
+  timer. The app still polled every 30 s through `liveTickProvider`. That
+  provider is gone; `LiveRefresher` owns the cadence. `markFetched()` records
+  each fetch start, so the floor also covers the app-start read. `refresh()`
+  returns early inside the floor, otherwise invalidates `liveProvider` and
+  awaits it, so the pull-to-refresh spinner ends with the new dots. Triggers:
+  app resume (`main.dart` lifecycle observer), branch select for Home and
+  Linhas, and the new `RefreshIndicator` on both screens. A failed fetch still
+  serves the last good payload (D55).
+- **Trip screen clock.** The hero, the status block, and (on web) the
+  visibility tracker each ran their own 5 s timer, so one open screen owned
+  three periodic timers. The screen now owns a single 5 s `_ticker` that
+  rebuilds the tree and feeds the web visibility check. `_TripTimes` is
+  stateless again and `metricsRefresh` is gone. The ticker pauses on every
+  non-`resumed` lifecycle state and resumes with an immediate tick, because the
+  trip process stays alive under the foreground service and background ticks
+  only rebuilt an invisible screen. On web the resume path clears the hidden
+  state before that tick, so a resumed session is never paused by stale hidden
+  time.
+- **Home rebuilds.** The greeting comes from
+  `currentNowProvider.select(greetingFor)`, so the home widget rebuilds when
+  the greeting changes (three times a day) instead of every minute. Sections
+  that show countdowns keep watching the clock directly.
+- **HTTP timeouts.** `PLAN.md` 11.2 asks for a 5 s connect timeout and an 8 s
+  total request timeout; the client had 10 s for both. Aligned, which stops a
+  stalled request from holding a socket and the radio for 10 s.
+- **Server.** `domain/` must stay pure, but it imported the state module for
+  the store shape. The shape and its pure map helpers moved to
+  `server/src/domain/store.ts`; `state/store.ts` keeps the factory and
+  re-exports the type. `routes.ts` and `tripRoutes.ts` each carried their own
+  JSON body reader with its own size cap; both now use `http/body.ts`. The
+  generated `server/db/schema.sql` was deleted: migrations are the only schema
+  source and nothing referenced it.
+
+Verified: `deno check src/main.ts`, `deno lint`, and `deno fmt --check` clean in
+`server/`; full `deno task test` 94 passed, 0 failed against PostgreSQL 16,
+including `no_location_at_rest`.
+
+Not verified: the app. This machine is aarch64 and Flutter publishes no Linux
+arm64 host build, so `dart format`, `flutter analyze`, and `flutter test` could
+not run here. The app changes were kept format-clean by inspection (no added
+line exceeds 80 columns, and new constructs copy shapes the formatter already
+produced elsewhere in the tree), but CI or the owner's machine must confirm
+them before merge. `.github/workflows/ci.yml` already runs those three commands
+on `ubuntu-latest`.
+
+Deferred: 27 app files exceed the `PLAN.md` 14.2 review threshold of about 300
+lines (largest: `ui_strings.dart` 1431, `trip_controller.dart` 1197,
+`vehicle_repository.dart` 616, `search_screen.dart` 580,
+`location_service.dart` 563); `server/src/domain/ping.ts` is the single server
+file over it at 358. Splitting them is a separate change set, since splitting
+without an analyzer trades a verified tree for an unverified one.
+
+Deferred: `offlineFlagProvider` is still a constant `false`, so the global
+offline banner (S03) never shows. Wiring it needs a real connectivity source
+from the data layer plus widget tests, which this pass could not run.

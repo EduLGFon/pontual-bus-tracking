@@ -2,7 +2,7 @@
 // vehicle-sighting epoch millis per line, no positions, no ids.
 // Powers headway, history/delay and reliability cards. TTL 4 h, cap 32.
 // Dropped on restart. See DECISIONS.md#D30.
-import type { Store } from "../state/store.ts";
+import type { Store } from "./store.ts";
 
 /** How long a sighting stays in the ring (4 h). */
 export const PASSAGE_TTL_MS = 4 * 3600 * 1000;

@@ -90,52 +90,60 @@ class LinesScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverToBoxAdapter(
-              child: _Header(total: all.length, withTimes: withTimes),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _PinnedChips(
-                liveCount: liveLines,
-                favoriteCount: favorites.length,
-                offline: offline,
+        child: RefreshIndicator(
+          // PLAN.md 9.5 S03: pull-to-refresh asks for fresh live dots;
+          // the refresher enforces the 10 s floor.
+          onRefresh: () => ref.read(liveRefresherProvider).refresh(),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: <Widget>[
+              SliverToBoxAdapter(
+                child: _Header(total: all.length, withTimes: withTimes),
               ),
-            ),
-            if (items.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(marginFor(context)),
-                    child: _EmptyState(filter: filter, offline: offline),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PinnedChips(
+                  liveCount: liveLines,
+                  favoriteCount: favorites.length,
+                  offline: offline,
+                ),
+              ),
+              if (items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(marginFor(context)),
+                      child: _EmptyState(filter: filter, offline: offline),
+                    ),
+                  ),
+                )
+              else ...<Widget>[
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
+                  sliver: SliverList.builder(
+                    itemCount: items.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final LinesListItem item = items[index];
+                      if (item is LinesHeaderItem) {
+                        return _CategoryHeader(item: item);
+                      }
+                      final LineVM line = (item as LinesLineItem).line;
+                      return Padding(
+                        key: ValueKey<String>(line.key),
+                        padding: const EdgeInsets.only(bottom: Space.x2),
+                        child: _LineCard(line: line),
+                      );
+                    },
                   ),
                 ),
-              )
-            else ...<Widget>[
-              SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
-                sliver: SliverList.builder(
-                  itemCount: items.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final LinesListItem item = items[index];
-                    if (item is LinesHeaderItem) {
-                      return _CategoryHeader(item: item);
-                    }
-                    final LineVM line = (item as LinesLineItem).line;
-                    return Padding(
-                      key: ValueKey<String>(line.key),
-                      padding: const EdgeInsets.only(bottom: Space.x2),
-                      child: _LineCard(line: line),
-                    );
-                  },
+                // Clearance so the floating dock never covers the last row.
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: dockClearance),
                 ),
-              ),
-              // Clearance so the floating dock never covers the last row.
-              const SliverToBoxAdapter(child: SizedBox(height: dockClearance)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

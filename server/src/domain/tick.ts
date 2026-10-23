@@ -5,8 +5,8 @@ import { bestMember } from "./election.ts";
 import { prunePassages } from "./arrivals.ts";
 import { endTrip } from "./ping.ts";
 import { pruneReports } from "./reports.ts";
-import { membersOf, removeVehicle, vehiclesOfLine } from "../state/store.ts";
-import type { Store } from "../state/store.ts";
+import { membersOf, removeVehicle, vehiclesOfLine } from "./store.ts";
+import type { Store } from "./store.ts";
 import type { EngineConfig, EngineEvent } from "./types.ts";
 
 export interface TickResult {

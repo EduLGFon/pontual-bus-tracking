@@ -8,7 +8,8 @@ import 'package:http/io_client.dart';
 http.Client createHttpClient() {
   return IOClient(
     HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10)
+      // PLAN.md 11.2: connect 5 s, total request 8 s (requestTimeout).
+      ..connectionTimeout = const Duration(seconds: 5)
       // Longer than the 90 s follower interval so follower pings reuse
       // the TLS session instead of handshaking every time (D09 budget).
       ..idleTimeout = const Duration(seconds: 120)

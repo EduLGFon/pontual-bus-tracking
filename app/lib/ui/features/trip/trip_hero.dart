@@ -1,10 +1,8 @@
 // Trip hero: the live indicator inside its own bounds, the headline,
 // the line badge with name and endpoints, the elapsed and last-send
-// proof lines, and the trust line. Only the small time texts rebuild
-// on the coarse timer; the rest rebuilds with the controller.
+// proof lines, and the trust line. The screen's single coarse clock
+// rebuilds the hero every 5 s; the controller notifies on top.
 // PRIVACY: no coordinates are ever shown or logged.
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
@@ -155,9 +153,10 @@ class _LiveIndicator extends StatelessWidget {
   }
 }
 
-/// Elapsed time and last-send proof. Rebuilds only these two texts on
-/// a coarse 5 s timer, which stops with the screen.
-class _TripTimes extends StatefulWidget {
+/// Elapsed time and last-send proof. Stateless: the screen's single
+/// coarse clock rebuilds this row every 5 s, and controller notifications
+/// refresh it immediately.
+class _TripTimes extends StatelessWidget {
   /// Creates the times for [controller].
   const _TripTimes({
     required this.controller,
@@ -175,64 +174,27 @@ class _TripTimes extends StatefulWidget {
   final int Function() nowMs;
 
   @override
-  State<_TripTimes> createState() => _TripTimesState();
-}
-
-class _TripTimesState extends State<_TripTimes> {
-  Timer? _timer;
-  late int _nowMs = widget.nowMs();
-
-  @override
-  void initState() {
-    super.initState();
-    // A ping success moves lastSuccessMs past the 5 s cached clock, which
-    // rendered negative ages like "-3s". Refresh on every controller
-    // notification so the age is measured against the real now.
-    widget.controller.addListener(_onController);
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) {
-        setState(() => _nowMs = widget.nowMs());
-      }
-    });
-  }
-
-  /// Refreshes the render clock when the controller notifies (ping
-  /// success, role change, prompt flip), so a fresh success never reads
-  /// older than the cached tick.
-  void _onController() {
-    if (mounted) {
-      setState(() => _nowMs = widget.nowMs());
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onController);
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final int? startedAtMs = widget.startedAtMs;
-    final int? lastSuccessMs = widget.controller.lastSuccessMs;
+    final int now = nowMs();
+    final int? startMs = startedAtMs;
+    final int? lastSuccessMs = controller.lastSuccessMs;
     final bool stale =
-        lastSuccessMs != null && _nowMs - lastSuccessMs > staleSendAfterMs;
-    // Clamped at zero: with the listener above this is normally fresh, but
-    // an injected test clock can still sit behind the success timestamp.
+        lastSuccessMs != null && now - lastSuccessMs > staleSendAfterMs;
+    // Clamped at zero: an injected test clock can sit behind the success
+    // timestamp.
     final int rawSentS = lastSuccessMs == null
         ? 0
-        : (_nowMs - lastSuccessMs) ~/ 1000;
+        : (now - lastSuccessMs) ~/ 1000;
     final int lastSentS = rawSentS < 0 ? 0 : rawSentS;
     final colors = context.colors;
     return Column(
       children: <Widget>[
-        if (startedAtMs != null)
+        if (startMs != null)
           Semantics(
             label:
-                'Tempo de viagem ${UiStrings.agoLong(_elapsedS(startedAtMs))}',
+                'Tempo de viagem ${UiStrings.agoLong(_elapsedS(startMs, now))}',
             child: Text(
-              UiStrings.elapsedAgo(_elapsedS(startedAtMs)),
+              UiStrings.elapsedAgo(_elapsedS(startMs, now)),
               style: context.text.bodyStrong,
               textAlign: TextAlign.center,
             ),
@@ -254,7 +216,7 @@ class _TripTimesState extends State<_TripTimes> {
     );
   }
 
-  int _elapsedS(int startedAtMs) {
-    return ((_nowMs - startedAtMs) ~/ 1000).clamp(0, 1 << 30);
+  int _elapsedS(int startedAtMs, int nowMs) {
+    return ((nowMs - startedAtMs) ~/ 1000).clamp(0, 1 << 30);
   }
 }

@@ -352,7 +352,7 @@ void main() {
       expect(find.text(UiStrings.batteryExemptionGranted), findsOneWidget);
       expect(tester.takeException(), isNull);
       // Dismiss the snackbar (cancels its auto-dismiss timer), then
-      // complete the parked ping: its 10 s request timeout is a FakeAsync
+      // complete the parked ping: its 8 s request timeout is a FakeAsync
       // timer that outlives the test otherwise. Unmount, then stop the
       // controller and its timers inline.
       ScaffoldMessenger.of(tester.element(find.byType(StatusBlock)))

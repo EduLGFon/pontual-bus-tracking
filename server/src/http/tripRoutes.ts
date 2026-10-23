@@ -14,8 +14,7 @@ import { RateLimiter } from "../security/rateLimit.ts";
 import { recordHttp403, recordHttp429 } from "../observability/metrics.ts";
 import { TripPingBody, TripStartBody } from "./tripSchemas.ts";
 import type { EngineConfig, EngineEvent } from "../domain/types.ts";
-
-const BODY_CAP = 1024;
+import { readJsonBody } from "./body.ts";
 
 type Vars = {
   Variables: { requestId: string; deviceId: string; clientIp: string };
@@ -37,31 +36,6 @@ export interface TripDeps {
   engine: EngineConfig;
   /** Live runtime config, cached in main.ts and refreshed every 30 s. */
   runtime: () => Promise<RuntimeConfig>;
-}
-
-type Body = { kind: "json"; value: unknown } | { kind: "media" } | {
-  kind: "empty";
-};
-
-async function readBody(c: {
-  req: { header(n: string): string | undefined; text(): Promise<string> };
-}): Promise<Body> {
-  const len = c.req.header("content-length");
-  const lenNum = len !== undefined ? Number(len) : NaN;
-  if (Number.isFinite(lenNum) && lenNum > BODY_CAP) {
-    return { kind: "media" };
-  }
-  if (!(c.req.header("content-type") ?? "").includes("application/json")) {
-    return { kind: "media" };
-  }
-  try {
-    const text = await c.req.text();
-    if (text.length > BODY_CAP) return { kind: "media" };
-    if (text.trim() === "") return { kind: "empty" };
-    return { kind: "json", value: JSON.parse(text) };
-  } catch {
-    return { kind: "empty" };
-  }
 }
 
 function jitterS(maxS: number): number {
@@ -104,7 +78,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     const stopped = await guard(c, c.get("deviceId"));
     if (stopped) return stopped;
     const deviceId = c.get("deviceId");
-    const body = await readBody(c);
+    const body = await readJsonBody(c);
     if (body.kind !== "json") {
       return c.json(
         { e: body.kind === "media" ? "media" : "bad_request" },
@@ -163,7 +137,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       recordHttp429();
       return c.json({ e: "rate" }, 429);
     }
-    const body = await readBody(c);
+    const body = await readJsonBody(c);
     if (body.kind !== "json") {
       return c.json(
         { e: body.kind === "media" ? "media" : "bad_request" },

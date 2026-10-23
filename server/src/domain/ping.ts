@@ -6,8 +6,8 @@ import { isCoherent, nearestVehicle } from "./attach.ts";
 import { recordPassage } from "./arrivals.ts";
 import { distM, distToShapeM, type RouteShape } from "./geo.ts";
 import { impliedSpeedMps, validateFix } from "./validate.ts";
-import type { Store } from "../state/store.ts";
-import { addVehicle, removeVehicle, vehiclesOfLine } from "../state/store.ts";
+import type { Store } from "./store.ts";
+import { addVehicle, removeVehicle, vehiclesOfLine } from "./store.ts";
 import type {
   EndReason,
   EngineConfig,
