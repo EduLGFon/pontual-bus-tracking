@@ -387,7 +387,16 @@ class LocationService {
     final StreamSubscription<Position>? old = _sub;
     _sub = null;
     if (old != null) {
-      await old.cancel();
+      // Cancelling can stall indefinitely on some platforms (geolocator
+      // foreground-service teardown) or in test fakes, which previously
+      // froze supervision rounds and the trip screen. Bound the wait so
+      // the new stream still starts; the old subscription is detached
+      // either way. See DECISIONS.md note on mode-switch races.
+      try {
+        await old.cancel().timeout(const Duration(seconds: 2));
+      } catch (_) {
+        // Best effort: proceed with the new subscription regardless.
+      }
     }
     _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
