@@ -265,6 +265,13 @@ class LineMapState extends State<LineMap> {
   Widget build(BuildContext context) {
     final Animation<double>? pulse = LivePulseScope.maybeOf(context);
     final colors = context.colors;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Widget tileLayer = osmTileLayer(
+      widget.tileUrlTemplate,
+      httpClient: widget.httpClient,
+      reset: _tileReset.stream,
+      onTileError: _onTileError,
+    );
     return Stack(
       children: <Widget>[
         Positioned.fill(
@@ -286,12 +293,13 @@ class LineMapState extends State<LineMap> {
                 },
               ),
               children: <Widget>[
-                osmTileLayer(
-                  widget.tileUrlTemplate,
-                  httpClient: widget.httpClient,
-                  reset: _tileReset.stream,
-                  onTileError: _onTileError,
-                ),
+                // Darken the OSM raster tiles in dark mode. The built-in
+                // helper applies the inversion + hue rotation matrix once on
+                // the tile container (cheaper than per-tile filtering).
+                if (isDark)
+                  darkModeTilesContainerBuilder(context, tileLayer)
+                else
+                  tileLayer,
                 // Premium muting without a GPU cost: one tinted box above
                 // the tiles. No ColorFiltered, no blend mode, no blur.
                 ColoredBox(color: colors.mapScrim),
