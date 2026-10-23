@@ -203,11 +203,11 @@ void main() {
     expect(opens, 1);
     // Waiting (10 s) to leaderMoving (5 s) is an upgrade: it recreates
     // immediately even inside the 30 s window.
-    service.requestMode(SamplingMode.leaderMoving, 100000 + 1000);
+    await service.requestMode(SamplingMode.leaderMoving, 100000 + 1000);
     expect(opens, 2);
     // LeaderMoving (5 s) to follower (45 s) is a downgrade: it waits out
     // the hysteresis window.
-    service.requestMode(SamplingMode.follower, 100000 + 2000);
+    await service.requestMode(SamplingMode.follower, 100000 + 2000);
     expect(opens, 2);
     service.stop();
     await positions.close();
@@ -366,12 +366,12 @@ void main() {
     service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
     expect(opens, 1);
     // Same mode inside hysteresis restarts nothing while healthy.
-    service.requestMode(SamplingMode.waiting, 100000);
+    await service.requestMode(SamplingMode.waiting, 100000);
     expect(opens, 1);
     // The OS kills the position stream when location services go off.
     positions.addError(StateError('location off'));
     await Future<void>.delayed(Duration.zero);
-    service.requestMode(SamplingMode.waiting, 100000);
+    await service.requestMode(SamplingMode.waiting, 100000);
     expect(opens, 2);
     service.stop();
     await positions.close();
@@ -421,14 +421,14 @@ void main() {
     now = 100000 + 31000;
     await emitDegraded();
     expect(
-      service.requestMode(SamplingMode.follower, now),
+      await service.requestMode(SamplingMode.follower, now),
       SamplingMode.leaderMoving,
     );
     expect(opens, 1);
     now = 100000 + 45000;
     await emitDegraded();
     expect(
-      service.requestMode(SamplingMode.follower, now),
+      await service.requestMode(SamplingMode.follower, now),
       SamplingMode.leaderMoving,
     );
     expect(opens, 1);
@@ -436,7 +436,7 @@ void main() {
     now = 100000 + 61000;
     await emitDegraded();
     expect(
-      service.requestMode(SamplingMode.follower, now),
+      await service.requestMode(SamplingMode.follower, now),
       SamplingMode.follower,
     );
     expect(opens, 2);
@@ -483,7 +483,7 @@ void main() {
     await next.timeout(const Duration(seconds: 5));
     now = 100000 + 31000;
     expect(
-      service.requestMode(SamplingMode.follower, now),
+      await service.requestMode(SamplingMode.follower, now),
       SamplingMode.follower,
     );
     expect(opens, 2);
@@ -535,14 +535,17 @@ void main() {
     await emitDegraded();
     now = 100000 + 45000;
     expect(
-      service.requestMode(SamplingMode.offlineSaver, now),
+      await service.requestMode(SamplingMode.offlineSaver, now),
       SamplingMode.offlineSaver,
     );
     expect(opens, 2);
     now = 100000 + 75000;
     await emitDegraded();
     now = 100000 + 76000;
-    expect(service.requestMode(SamplingMode.paused, now), SamplingMode.paused);
+    expect(
+      await service.requestMode(SamplingMode.paused, now),
+      SamplingMode.paused,
+    );
     expect(opens, 3);
     service.stop();
     await positions.close();
@@ -697,11 +700,11 @@ void main() {
     expect(opens, 1);
     // Inside the stall window the same mode restarts nothing.
     now = 100000 + LocationService.stallRestartMs - 1000;
-    service.requestMode(SamplingMode.waiting, now);
+    await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 1);
     // Past it with no fix since, the stream recreates.
     now = 100000 + LocationService.stallRestartMs + 1000;
-    service.requestMode(SamplingMode.waiting, now);
+    await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 2);
     service.stop();
     await positions.close();

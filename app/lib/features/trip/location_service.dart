@@ -353,7 +353,13 @@ class LocationService {
   }
 
   void _listen(SamplingMode m, StreamController<TripFix> controller) {
+    // Initial subscription only: no previous stream to cancel, so the
+    // foreground service starts in one synchronous step. Recreations go
+    // through [_relisten], which awaits the old cancellation first so the
+    // native foreground service is not disabled after the new stream has
+    // already started it (see DECISIONS.md note on mode-switch races).
     unawaited(_sub?.cancel());
+    _sub = null;
     _streamDead = false;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) => _emit(p, controller),
@@ -361,6 +367,33 @@ class LocationService {
         Log.w('position stream error', e.runtimeType.toString());
         // The OS closes the position stream when location services go
         // off. requestMode recreates it on the next supervision round.
+        _streamDead = true;
+      },
+      onDone: () {
+        _streamDead = true;
+      },
+    );
+  }
+
+  /// Recreates the position stream after awaiting the previous
+  /// cancellation. Awaiting is required: geolocator's Android side
+  /// disables the foreground service when a subscription cancels, and if
+  /// that disable lands after the new subscription's enable it leaves the
+  /// trip without a notification or a foreground process.
+  Future<void> _relisten(
+    SamplingMode m,
+    StreamController<TripFix> controller,
+  ) async {
+    final StreamSubscription<Position>? old = _sub;
+    _sub = null;
+    if (old != null) {
+      await old.cancel();
+    }
+    _streamDead = false;
+    _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
+      (Position p) => _emit(p, controller),
+      onError: (Object e) {
+        Log.w('position stream error', e.runtimeType.toString());
         _streamDead = true;
       },
       onDone: () {
@@ -466,7 +499,7 @@ class LocationService {
     if (_needsRestart(nowMs)) {
       Log.w('position stream stalled', 'restarting on visible');
       _lastChangeMs = nowMs;
-      _listen(_mode, controller);
+      await _relisten(_mode, controller);
     }
     final Future<Position> Function(LocationSettings settings)? oneShot =
         _oneShotPosition;
@@ -506,7 +539,7 @@ class LocationService {
   /// (fixes flowed, then nothing for [stallRestartMs]) recreates too, at
   /// most once per stall window: some devices freeze delivery without
   /// ever erroring. Returns the active mode.
-  SamplingMode requestMode(SamplingMode mode, int nowMs) {
+  Future<SamplingMode> requestMode(SamplingMode mode, int nowMs) async {
     final bool restartDead = _streamDead;
     final bool stalled = !restartDead && _needsRestart(nowMs);
     final bool restart = restartDead || stalled;
@@ -534,7 +567,7 @@ class LocationService {
     _lastChangeMs = nowMs;
     final StreamController<TripFix>? controller = _controller;
     if (controller != null && !controller.isClosed) {
-      _listen(mode, controller);
+      await _relisten(mode, controller);
     }
     return _mode;
   }

@@ -1046,7 +1046,10 @@ class TripController extends ChangeNotifier {
     }
     final LocationService? locations = _locations;
     if (locations != null) {
-      _samplingMode = locations.requestMode(round.wanted, _deps.clock.nowMs());
+      _samplingMode = await locations.requestMode(
+        round.wanted,
+        _deps.clock.nowMs(),
+      );
     }
     if (supervisor.promptVisible != hadPrompt ||
         supervisor.imprecise != hadImprecise) {
