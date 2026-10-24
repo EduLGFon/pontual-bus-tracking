@@ -450,10 +450,13 @@ class LineMapState extends State<LineMap> {
   }
 }
 
-/// Viewer dot: ink core, surface ring, primary halo. Token colours only,
-// no new palette: the shape (small dot, never a bus glyph) tells it apart
-// from vehicle markers, and the halo is decorative, never the only cue.
+/// Viewer dot: blue core with a white ring and a blue halo, like Google
+/// Maps, so it is easy to tell apart from vehicle markers. Blue is a
+/// fixed accent (not a theme token) because the dot must stay
+/// recognisable in both light and dark themes.
 class _ViewerDot extends StatelessWidget {
+  static const Color _blue = Color(0xFF1A73E8);
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -461,11 +464,11 @@ class _ViewerDot extends StatelessWidget {
       label: 'Sua posição',
       child: Center(
         child: Container(
-          width: 20,
-          height: 20,
+          width: 22,
+          height: 22,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.25),
+            color: _blue.withValues(alpha: 0.20),
             shape: BoxShape.circle,
           ),
           child: Container(
@@ -473,7 +476,7 @@ class _ViewerDot extends StatelessWidget {
             height: 14,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: colors.ink,
+              color: _blue,
               shape: BoxShape.circle,
               border: Border.all(color: colors.surface, width: 2.5),
             ),

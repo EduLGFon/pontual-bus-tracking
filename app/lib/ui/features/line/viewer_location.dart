@@ -3,6 +3,7 @@
 // the device: only trip pings reach the server, and only while a trip runs.
 // PRIVACY: this value is never logged and never sent anywhere.
 // See PLAN.md PRV01 and docs/ui/UI_SPEC.md 7.5.
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -32,10 +33,17 @@ final FutureProvider<LatLng?> viewerLocationProvider =
         return null;
       }
       try {
-        final LocationPermissionState state =
-            await const GeolocatorPermissionGateway().check();
-        if (state != LocationPermissionState.granted) {
-          return null;
+        // On web there is no "already granted" state we can query without
+        // prompting: the position call itself is the permission request, and
+        // dev-tools location overrides only take effect once it runs. On
+        // native we keep the no-prompt behaviour (viewer dot only when
+        // permission is already granted).
+        if (!kIsWeb) {
+          final LocationPermissionState state =
+              await const GeolocatorPermissionGateway().check();
+          if (state != LocationPermissionState.granted) {
+            return null;
+          }
         }
         final Position position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
@@ -43,7 +51,9 @@ final FutureProvider<LatLng?> viewerLocationProvider =
             timeLimit: Duration(seconds: 15),
           ),
         ).timeout(const Duration(seconds: 20));
-        if (position.accuracy > viewerAccuracyMaxM) {
+        // Web overrides often report a coarse or zero accuracy; do not drop
+        // the dot there on accuracy alone.
+        if (!kIsWeb && position.accuracy > viewerAccuracyMaxM) {
           return null;
         }
         final LatLng point = LatLng(position.latitude, position.longitude);
