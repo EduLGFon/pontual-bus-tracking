@@ -39,5 +39,6 @@ flutter:
           weight: 400
   assets:
     - assets/data/
+    - assets/data/routes/
     - assets/fonts/
     - assets/map/

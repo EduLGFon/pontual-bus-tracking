@@ -4,6 +4,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as latlong2;
+import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/net/http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +15,9 @@ const String linesKeyPrefix = 'static_lines_';
 
 /// Storage key prefix for cached stop sets, keyed by stops file name.
 const String stopsKeyPrefix = 'static_stops_';
+
+/// Storage key prefix for cached route files, keyed by route file name.
+const String routesKeyPrefix = 'static_routes_';
 
 /// Storage key for the cached manifest.
 const String manifestKey = 'static_manifest';
@@ -151,6 +156,7 @@ class StaticDataRepository {
     required this.prefs,
     required this.nowMs,
     this.bundleStopsJson = '[]',
+    this.bundleRoutes = const <String, String>{},
   });
 
   /// Shared HTTP client.
@@ -167,6 +173,9 @@ class StaticDataRepository {
 
   /// Bundled stops JSON from assets. Empty until stops are mapped.
   final String bundleStopsJson;
+
+  /// Bundled route files (code -> body), from assets/data/routes/.
+  final Map<String, String> bundleRoutes;
 
   /// Preferences accessor.
   final Future<SharedPreferences> Function() prefs;
@@ -220,6 +229,86 @@ class StaticDataRepository {
     } catch (_) {
       return const <StopPoint>[];
     }
+  }
+
+  /// Returns the route polyline for [code] as lat/lng points. Cached first,
+  /// then fetched from the manifest's `routes` map; empty when the line has
+  /// no route or the data is unavailable. Never throws.
+  Future<List<latlong2.LatLng>> route(String code) async {
+    // Built-in bundle first: guarantees routes ship with the app even when
+    // there is no cached manifest or network access.
+    final String? bundledBody = bundleRoutes[code];
+    if (bundledBody != null) {
+      try {
+        final Map<String, dynamic> json =
+            jsonDecode(bundledBody) as Map<String, dynamic>;
+        final String poly = json['polyline'] as String;
+        return geo
+            .decodePolyline(poly)
+            .map((geo.LatLng p) => latlong2.LatLng(p.lat, p.lng))
+            .toList(growable: false);
+      } catch (_) {
+        // Fall through to cache/network.
+      }
+    }
+    final SharedPreferences sp = await prefs();
+    final String? manifestStr = sp.getString(manifestKey);
+    if (manifestStr != null) {
+      try {
+        final Map<String, dynamic> manifest =
+            jsonDecode(manifestStr) as Map<String, dynamic>;
+        final Map<String, dynamic>? routes =
+            manifest['routes'] as Map<String, dynamic>?;
+        final String? name = routes?[code] as String?;
+        if (name != null) {
+          String? body = sp.getString('$routesKeyPrefix$name');
+          if (body == null) {
+            try {
+              final http.Response res = await client
+                  .get(Uri.parse('${staticBaseUrl()}/$name'))
+                  .timeout(requestTimeout);
+              if (res.statusCode == 200) {
+                body = res.body;
+                await sp.setString('$routesKeyPrefix$name', body);
+              }
+            } catch (_) {
+              body = null;
+            }
+          }
+          if (body != null) {
+            try {
+              final Map<String, dynamic> json =
+                  jsonDecode(body) as Map<String, dynamic>;
+              final String poly = json['polyline'] as String;
+              return geo
+                  .decodePolyline(poly)
+                  .map((geo.LatLng p) => latlong2.LatLng(p.lat, p.lng))
+                  .toList(growable: false);
+            } catch (_) {
+              // Fall through to empty.
+            }
+          }
+        }
+      } catch (_) {
+        // Fall through to empty.
+      }
+    }
+    // Bundled fallback: use the route file shipped in assets, if any.
+    final String? bundled = bundleRoutes[code];
+    if (bundled != null) {
+      try {
+        final Map<String, dynamic> json =
+            jsonDecode(bundled) as Map<String, dynamic>;
+        final String poly = json['polyline'] as String;
+        return geo
+            .decodePolyline(poly)
+            .map((geo.LatLng p) => latlong2.LatLng(p.lat, p.lng))
+            .toList(growable: false);
+      } catch (_) {
+        // Fall through to empty.
+      }
+    }
+    return const <latlong2.LatLng>[];
   }
 
   /// Checks the remote manifest at most once per day and atomically swaps

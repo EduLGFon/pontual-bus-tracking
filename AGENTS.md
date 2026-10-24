@@ -653,11 +653,10 @@ replacements.
 
 ## 16. Session Efficiency
 
-- Never change directory (cd) to the same directory, re-export environment
-  variables or source setup snippets in every shell call. Tool shells start
-  fresh and do not read startup files, so make setup zero-cost instead: link
-  externally installed tools (Flutter, dbmate) into a directory already on
-  `PATH` once per machine, then call them bare.
+- Never re-export environment variables or source setup snippets in every shell
+  call. Tool shells start fresh and do not read startup files, so make setup
+  zero-cost instead: link externally installed tools (Flutter, dbmate) into a
+  directory already on `PATH` once per machine, then call them bare.
 - Never type long absolute paths or `cd` prefixes. Use the `workdir` parameter
   with repo-relative paths.
 - Only values that change per command belong on the command line. Stable

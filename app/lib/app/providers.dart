@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/core/time/clock.dart';
@@ -111,12 +112,34 @@ final FutureProvider<StaticDataRepository> staticDataRepoProvider =
           // No bundled stops: the repository serves an empty list.
         }
       }
+      // Bundle route files shipped under assets/data/routes/, keyed by code.
+      final Map<String, String> bundleRoutes = <String, String>{};
+      try {
+        final Map<String, dynamic> decodedManifest =
+            jsonDecode(manifest) as Map<String, dynamic>;
+        final Map<String, dynamic>? routes =
+            decodedManifest['routes'] as Map<String, dynamic>?;
+        if (routes != null) {
+          for (final MapEntry<String, dynamic> e in routes.entries) {
+            try {
+              bundleRoutes[e.key] = await rootBundle.loadString(
+                'assets/data/${e.value}',
+              );
+            } catch (_) {
+              // Missing asset: fall back to network later.
+            }
+          }
+        }
+      } catch (_) {
+        // Manifest without routes: nothing to bundle.
+      }
       return StaticDataRepository(
         client: ref.watch(httpClientProvider),
         staticBaseUrl: () => staticBaseUrl,
         bundleManifestJson: manifest,
         bundleLinesJson: lines,
         bundleStopsJson: stops,
+        bundleRoutes: bundleRoutes,
         prefs: SharedPreferences.getInstance,
         nowMs: () => DateTime.now().millisecondsSinceEpoch,
       );
@@ -134,6 +157,20 @@ final FutureProvider<List<StopPoint>> stopsProvider =
         return stops;
       } catch (_) {
         return const <StopPoint>[];
+      }
+    });
+
+/// Route polyline for a single line code. Empty when the line has no route
+/// or the data is unavailable; never throws.
+final routeProvider = FutureProvider.autoDispose
+    .family<List<latlong2.LatLng>, String>((Ref ref, String code) async {
+      try {
+        final StaticDataRepository repo = await ref.watch(
+          staticDataRepoProvider.future,
+        );
+        return await repo.route(code);
+      } catch (_) {
+        return const <latlong2.LatLng>[];
       }
     });
 

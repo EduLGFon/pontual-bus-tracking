@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -301,14 +302,20 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
     final List<StopPoint> stops =
         ref.watch(stopsProvider).value ?? const <StopPoint>[];
+    final String code = _staticLine?.code ?? '';
+    final List<latlong2.LatLng> routePoints = code.isEmpty
+        ? const <latlong2.LatLng>[]
+        : (ref.watch(routeProvider(code)).value ?? const <latlong2.LatLng>[]);
     return LineMap(
       // Global key so the parent can command the camera without rebuilding
       // the map when the sheet moves.
       key: _mapKey,
-      lineKey: _staticLine?.code ?? '',
+      lineKey: code,
       vehicles: vehicles,
       tileUrlTemplate: tileUrl,
       stops: stops,
+      routePoints: routePoints,
+      dashedRoute: !(_staticLine?.pilot ?? false),
       panned: _panned,
       selectedKey: _selectedKey,
       viewerPosition: ref.watch(viewerLocationProvider).value,
