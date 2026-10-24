@@ -3,7 +3,6 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/domain/learning/learned_route.dart';
 import 'package:pontual/domain/learning/learned_stop.dart';
