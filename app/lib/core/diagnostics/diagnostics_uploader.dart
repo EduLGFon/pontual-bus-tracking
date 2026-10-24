@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/data/prefs/token_store.dart';
-import 'package:pontual/ui/adapters/local_stores.dart';
 
 /// Uploads persisted diagnostic records to our first-party server.
 class DiagnosticsUploader {

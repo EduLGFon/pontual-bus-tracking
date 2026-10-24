@@ -58,12 +58,14 @@ class Log {
         final List<String> raw =
             prefs.getStringList(_persistKey) ?? const <String>[];
         final List<String> next = List<String>.from(raw);
-        next.add(jsonEncode(<String, dynamic>{
-          'l': record.level == LogLevel.warning ? 'w' : 'e',
-          'm': record.message,
-          'c': record.context,
-          't': DateTime.now().millisecondsSinceEpoch,
-        }));
+        next.add(
+          jsonEncode(<String, dynamic>{
+            'l': record.level == LogLevel.warning ? 'w' : 'e',
+            'm': record.message,
+            'c': record.context,
+            't': DateTime.now().millisecondsSinceEpoch,
+          }),
+        );
         while (next.length > _persistCap) {
           next.removeAt(0);
         }

@@ -57,7 +57,10 @@ export async function runPurge(sql: Sql, now: Date): Promise<number> {
 }
 
 /** Delete diagnostics older than 14 days. */
-export async function runPurgeDiagnostics(sql: Sql, now: Date): Promise<number> {
+export async function runPurgeDiagnostics(
+  sql: Sql,
+  now: Date,
+): Promise<number> {
   const cutoff = new Date(now.getTime() - 14 * 86400 * 1000);
   return await purgeOldDiagnostics(sql, cutoff);
 }

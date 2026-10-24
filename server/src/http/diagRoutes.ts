@@ -9,9 +9,13 @@ import { RateLimiter } from "../security/rateLimit.ts";
 import { readJsonBody } from "./body.ts";
 import { DiagnosticsBody, parseJson } from "./schemas.ts";
 
-type Vars = { Variables: { requestId: string; deviceId: string; clientIp: string } };
+type Vars = {
+  Variables: { requestId: string; deviceId: string; clientIp: string };
+};
 
-export function buildDiagnosticsRoutes(deps: { sql: Sql; runtime: () => Promise<RuntimeConfig> }): Hono<Vars> {
+export function buildDiagnosticsRoutes(
+  deps: { sql: Sql; runtime: () => Promise<RuntimeConfig> },
+): Hono<Vars> {
   const sql = deps.sql;
   const app = new Hono<Vars>();
   const perDevice = new RateLimiter(5, 3600 * 1000);

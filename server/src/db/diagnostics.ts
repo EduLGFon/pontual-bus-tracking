@@ -8,7 +8,9 @@ export async function insertDiagnostic(
 ): Promise<void> {
   await sql`
     insert into diagnostics (device_id, payload)
-    values (${deviceId}, ${sql.json(payload as any)})
+    values (${deviceId}, ${
+    sql.json(payload as unknown as Parameters<typeof sql.json>[0])
+  })
   `;
 }
 
