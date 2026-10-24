@@ -316,18 +316,21 @@ class _FilterRow extends StatelessWidget {
         marginFor(context),
         Space.x3,
       ),
-      child: Row(
-        children: <Widget>[
-          for (final LinesFilter value in LinesFilter.values) ...<Widget>[
-            Chip(
-              label: labels[value]!,
-              selected: value == current,
-              onTap: () => _select(context, value),
-            ),
-            if (value != LinesFilter.values.last)
-              const SizedBox(width: Space.x2),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            for (final LinesFilter value in LinesFilter.values) ...<Widget>[
+              Chip(
+                label: labels[value]!,
+                selected: value == current,
+                onTap: () => _select(context, value),
+              ),
+              if (value != LinesFilter.values.last)
+                const SizedBox(width: Space.x2),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
