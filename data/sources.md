@@ -8,6 +8,10 @@ shows an "unofficial timetable" notice.
 
 ## Sources
 
+- `owner-test` - Internal owner field-testing line (id 99). Not a real
+  operator line; used so test trips do not pollute learned aggregates of
+  real lines. No public source; maintained by the owner.
+
 - `onibus-online` - Onibus Online, Viação São Gabriel company page and
   per-line timetable pages. Retrieved 2026-10-03. Third-party aggregator
   claiming official collection, updated 2026. Informational use only.
@@ -21,8 +25,12 @@ shows an "unofficial timetable" notice.
 - Embedded itinerary digits on the source pages were stripped; only plain
   departure times were kept. A duplicated 13:20 on line 66 Centro and
   duplicated 23:00 on line 60 Litorâneo were collapsed to one each.
-- Line 62 runs as one line id; its via João XXIII and via BR-101 variants
-  are not split (owner pattern "via Jacui" not found on the source page).
+- Line 62 split into two pilot lines: 62 "Guriri / Ifes-Ufes via BR-101"
+  (keeps the transcribed timetable) and 63 "Guriri / Ifes-Ufes via Jacuí"
+  (timetable pending). Line 21 has a separate operator variant
+  "Santo Antônio x Aviação via Jacuí" that is not yet split (candidate).
+  Line 66 carries internal itinerary variants (via Rodonaldo/Centro) under
+  one line number and is intentionally not split.
 - Operator site lists two different lines as "Linha 013"; kept as published
   (10 Aroeira / Morada do Ribeirão, 13 Aroeira / Cohab).
 - Lines 62 and 66 show weekday times only on the source; 41 shows

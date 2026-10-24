@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": 63,
+  "code": "63-guriri-ifes-ufes-via-jacui",
+  "short": "62",
+  "name": "Guriri / Ifes-Ufes via Jacuí",
+  "terminals": [
+    "Guriri",
+    "IFES / UFES"
+  ],
+  "area_tags": [
+    "Guriri",
+    "IFES / UFES"
+  ],
+  "is_active": true,
+  "pilot": true,
+  "schedules": [],
+  "source_ids": [
+    "onibus-online"
+  ],
+  "verified_at": null
+}
