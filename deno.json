@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "build": "cd app && flutter build apk --release --obfuscate --split-debug-info=build/debug-info --target-platform=android-arm64 --dart-define-from-file=../env/phone.json",
-    "build:ab": "cd app && flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info --target-platform=android-arm64 --dart-define-from-file=../env/phone.json",
+    "build": "cd app && flutter build apk --release --target-platform=android-arm64 --dart-define-from-file=../env/phone.json",
+    "build:ab": "cd app && flutter build appbundle --release --target-platform=android-arm64 --dart-define-from-file=../env/phone.json",
     "check-workflows": "bash tools/ci/check_workflows.sh"
   }
 }
