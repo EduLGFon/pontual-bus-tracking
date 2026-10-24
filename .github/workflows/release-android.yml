@@ -79,7 +79,8 @@ jobs:
       - name: Merged manifest audit
         working-directory: app
         run: |
-          MANIFEST=$(find build/app/outputs -name AndroidManifest.xml | head -1)
+          MANIFEST=$(find build -path "*merged_manifest*" -name AndroidManifest.xml | grep -i release | head -1)
+          if [ -z "$MANIFEST" ]; then MANIFEST=$(find build -name AndroidManifest.xml | head -1); fi
           echo "merged manifest: $MANIFEST"
           test -n "$MANIFEST"
           ! grep -q "ACCESS_BACKGROUND_LOCATION" "$MANIFEST"
