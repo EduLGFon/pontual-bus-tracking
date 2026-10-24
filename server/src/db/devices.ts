@@ -39,6 +39,23 @@ export async function deleteDevice(sql: Sql, deviceId: string): Promise<void> {
   await sql`delete from devices where id = ${deviceId}`;
 }
 
+export async function setLearningOptOut(
+  sql: Sql,
+  deviceId: string,
+  optOut: boolean,
+): Promise<void> {
+  await sql`update devices set learning_opt_out = ${optOut} where id = ${deviceId}`;
+}
+
+export async function getLearningOptOut(
+  sql: Sql,
+  deviceId: string,
+): Promise<boolean> {
+  const rows = await sql`
+    select learning_opt_out as "optOut" from devices where id = ${deviceId} limit 1`;
+  return (rows[0] as { optOut: boolean } | undefined)?.optOut ?? false;
+}
+
 export async function purgeExpiredDevices(
   sql: Sql,
   now: Date,

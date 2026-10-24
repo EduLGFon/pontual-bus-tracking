@@ -8,6 +8,9 @@ import { reportRows } from "./domain/reports.ts";
 import { defaultEngineConfig } from "./domain/types.ts";
 import { buildApp } from "./http/app.ts";
 import { startJobs } from "./jobs/jobs.ts";
+import { LearningConsumer } from "./learning/consumer.ts";
+import { loadLearningConfig } from "./learning/config.ts";
+import { defaultLearningConfig } from "./learning/types.ts";
 import { setLogLevel } from "./observability/log.ts";
 import { snapshot } from "./observability/metrics.ts";
 import { pruneLimiters } from "./security/rateLimit.ts";
@@ -48,6 +51,13 @@ loadRuntimeConfig(sql).then(
   },
   () => {},
 );
+loadLearningConfig(sql).then(
+  (c) => {
+    learningConfig = c;
+    learningConsumer.reloadConfig();
+  },
+  () => {},
+);
 // Line registry: built bundle first, LINES_JSON local seed as fallback.
 const bundled = await loadLinesFromDir(config.dataDir);
 const seed = config.linesJson.map((l) => ({
@@ -73,6 +83,13 @@ console.log(
 );
 const store = createStore();
 const hub = new Hub();
+
+let learningConfig = defaultLearningConfig();
+const learningConsumer = new LearningConsumer({
+  sql,
+  config: () => learningConfig,
+  now: () => Date.now(),
+});
 const engine = defaultEngineConfig();
 if (config.testEasyPublish) {
   // Testing only: publish on the first ping and count every fix as
@@ -133,6 +150,7 @@ const app = buildApp({
   reportsEnabled: () => runtime.reports.enabled,
   engine,
   runtime: () => Promise.resolve(runtime),
+  learning: learningConsumer,
 });
 
 const controller = new AbortController();
@@ -155,6 +173,7 @@ const metricsServer = Deno.serve(
 
 function shutdown(): void {
   jobs.stop();
+  clearInterval(learningFlush);
   clearInterval(heartbeat);
   hub.closeAll();
   controller.abort();
@@ -183,12 +202,35 @@ const jobs = startJobs({
   },
   onConfig: (cfg) => {
     runtime = cfg;
+    loadLearningConfig(sql).then(
+      (c) => {
+        learningConfig = c;
+        learningConsumer.reloadConfig();
+      },
+      () => {},
+    );
+  },
+  onTickEvents: (evs) => {
+    for (const ev of evs) learningConsumer.handle(ev, 1);
   },
 });
 
 // Application heartbeat every 25 s for Cloudflare idle timeouts.
 // Also prunes rate-limiter buckets so device/IP entries do not grow
 // forever (each entry is tiny, but uptime is measured in weeks).
+const learningFlush = setInterval(() => {
+  if (!learningConsumer.isEnabled()) return;
+  learningConsumer.flush().catch((e) => {
+    console.log(
+      JSON.stringify({
+        level: "error",
+        msg: "learning flush failed",
+        err: String(e),
+      }),
+    );
+  });
+}, learningConfig.flushIntervalS * 1000);
+
 const heartbeat = setInterval(() => {
   hub.heartbeat(Math.floor(Date.now() / 1000));
   pruneLimiters(Date.now());

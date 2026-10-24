@@ -21,6 +21,7 @@ export interface JobsDeps {
   dbHealthMs: number;
   onTick: (changedLines: number[]) => void;
   onConfig: (cfg: RuntimeConfig) => void;
+  onTickEvents?: (events: EngineEvent[]) => void;
 }
 
 export interface Jobs {
@@ -34,16 +35,15 @@ export function runTickGuarded(
   events: EngineEvent[],
   nowMs: number,
   engine: EngineConfig,
+  onEvents?: (events: EngineEvent[]) => void,
 ): { ran: boolean; changedLines: number[] } {
   if (guard.running) return { ran: false, changedLines: [] };
   guard.running = true;
   try {
     const out = tick(store, events, nowMs, engine);
-    // The array is a scratch buffer: tick appends tripEnded events via
-    // endTrip, and no consumer reads them (onTick uses changedLines only).
-    // Drain it here so ended trips do not accumulate for the life of the
-    // process. Callers that pre-fill the array for the engine call itself
-    // are unaffected: the drain happens after tick returns.
+    // Hand events to consumers before draining.
+    if (onEvents && events.length > 0) onEvents([...events]);
+    // Drain so ended trips do not accumulate.
     events.length = 0;
     return { ran: true, changedLines: out.changedLines };
   } finally {
@@ -93,6 +93,7 @@ export function startJobs(deps: JobsDeps): Jobs {
         deps.events,
         Date.now(),
         deps.engine,
+        deps.onTickEvents,
       );
       if (out.ran && out.changedLines.length > 0) deps.onTick(out.changedLines);
     }, deps.tickPeriodMs),

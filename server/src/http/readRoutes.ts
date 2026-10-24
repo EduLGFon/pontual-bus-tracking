@@ -4,6 +4,8 @@
 import { Hono } from "@hono/hono";
 import type { LineResolver } from "../data/lines.ts";
 import { arrivalsPayload } from "../domain/arrivals.ts";
+import { decodePolyline } from "../domain/geo.ts";
+import { predictEta } from "../learning/predictor.ts";
 import { defaultEngineConfig } from "../domain/types.ts";
 import {
   recordHttp403,
@@ -29,6 +31,8 @@ export interface ReadDeps {
   trustCloudflare: boolean;
   /** Sync switch so WS snapshots stay synchronous. */
   reportsEnabled: () => boolean;
+  /** Optional learning consumer. */
+  learning?: import("../learning/consumer.ts").LearningConsumer;
 }
 
 export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
@@ -180,6 +184,142 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     socket.onclose = () => deps.hub.disconnect(conn);
     socket.onerror = () => deps.hub.disconnect(conn);
     return response;
+  });
+
+  // Learning endpoints (optional). Returns 404 when no consumer is wired
+  // or the subsystem is disabled.
+  const learningPerIp = new RateLimiter(60, 60 * 1000);
+  const learningEtaPerIp = new RateLimiter(120, 60 * 1000);
+
+  app.get("/v1/lines/:id/learned-route", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!learningPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
+    const line = deps.lines(id);
+    if (!line || !line.isActive) return c.json({ e: "line" }, 404);
+    const r = await deps.learning.learnedRoute(id);
+    if (!r) {
+      // fallback to static route from server data bundle
+      const staticRoute = line.route ?? null;
+      return c.json({
+        v: 0,
+        dir: 0,
+        polyline: staticRoute,
+        points: staticRoute ? null : 0,
+        trips: 0,
+        computed_at: null,
+        fallback: true,
+      }, 200);
+    }
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({
+      v: r.version,
+      dir: 0,
+      polyline: r.polyline,
+      points: null,
+      trips: r.trips,
+      computed_at: r.computedAt,
+      fallback: false,
+    }, 200);
+  });
+
+  app.get("/v1/lines/:id/stops", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!learningPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
+    const line = deps.lines(id);
+    if (!line || !line.isActive) return c.json({ e: "line" }, 404);
+    const stops = await deps.learning.learnedStops(id);
+    if (stops.length === 0) {
+      return c.json({ dir: 0, stops: [], fallback: true }, 200);
+    }
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({
+      dir: 0,
+      stops: stops.map((s) => ({
+        id: s.id,
+        i: s.ordinal,
+        lat: s.lat,
+        lng: s.lng,
+        r: s.radiusM,
+        n: s.passes,
+      })),
+      fallback: false,
+    }, 200);
+  });
+
+  app.get("/v1/lines/:id/eta", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!learningEtaPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
+    const line = deps.lines(id);
+    if (!line || !line.isActive) return c.json({ e: "line" }, 404);
+    const stopId = c.req.query("stop");
+    if (!stopId) return c.json({ e: "bad_request" }, 400);
+    const cfg = deps.learning.configSnapshot();
+    const route = await deps.learning.learnedRoute(id);
+    const routePts = route?.polyline
+      ? decodePolyline(route.polyline, 5)
+      : (line.route ? [...line.route.pts] : []);
+    const stops = await deps.learning.learnedStops(id);
+    const stopList = stops.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng }));
+    const vehicleParam = c.req.query("vehicle");
+    const nowMs = Date.now();
+    const vehicles = deps.store
+      ? [...deps.store.vehicles.values()].filter((v) => v.lineId === id)
+      : [];
+    const targets = vehicleParam
+      ? vehicles.filter((v) => String(v.id) === vehicleParam)
+      : vehicles;
+    const items: Array<
+      { vehicle: number; eta_s: number; conf: string; n: number }
+    > = [];
+    for (const v of targets) {
+      const res = await predictEta(
+        deps.learning,
+        cfg,
+        id,
+        0,
+        v.lat,
+        v.lng,
+        v.paceMps,
+        stopId,
+        stopList,
+        routePts,
+        nowMs,
+      );
+      items.push({
+        vehicle: v.id,
+        eta_s: res.etaS,
+        conf: res.confidence,
+        n: res.sampleCount,
+      });
+    }
+    c.header("Cache-Control", "public, max-age=10");
+    return c.json({
+      stop: stopId,
+      now: Math.floor(nowMs / 1000),
+      items,
+      next_scheduled_s: null,
+    }, 200);
   });
 
   return app;

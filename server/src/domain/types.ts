@@ -41,6 +41,8 @@ export interface Fix {
 
 export interface Trip {
   deviceId: string;
+  /** Opaque in-memory key for learning correlation. Never persisted or logged. */
+  tripKey: string;
   lineId: number;
   vehicleId: number | null;
   startedAtMs: number;
@@ -148,4 +150,24 @@ export function defaultEngineConfig(): EngineConfig {
 
 export type EngineEvent =
   | { kind: "vehicleUpdated"; lineId: number }
-  | { kind: "tripEnded"; lineId: number; reason: EndReason };
+  | {
+    kind: "tripStarted";
+    lineId: number;
+    tripKey: string;
+    startedAtMs: number;
+    lat: number;
+    lng: number;
+  }
+  | {
+    kind: "fixAccepted";
+    lineId: number;
+    tripKey: string;
+    atMs: number;
+    lat: number;
+    lng: number;
+    speedMps: number;
+    heading: number | null;
+    accuracyM: number;
+  }
+  | { kind: "vehicleRemoved"; lineId: number; vehicleId: number }
+  | { kind: "tripEnded"; lineId: number; tripKey: string; reason: EndReason };

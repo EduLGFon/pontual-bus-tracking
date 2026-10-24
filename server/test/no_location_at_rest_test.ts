@@ -26,17 +26,31 @@ Deno.test("migrations contain no location-like columns", async () => {
     found += 1;
     const text = await Deno.readTextFile(new URL(entry.name, dir));
     const lower = text.toLowerCase();
-    for (const word of FORBIDDEN) {
-      // Match column-ish usage, not prose comments about privacy.
-      const re = new RegExp(
-        `\\b${word}[a-z_]*\\s+(double|real|numeric|float|int|smallint|boolean|bytea|jsonb?)\\b`,
-      );
-      const hit = lower.match(re);
-      assertEquals(
-        hit,
-        null,
-        `${entry.name} contains location-like column: ${hit?.[0]}`,
-      );
+    const lines = lower.split(/\r?\n/);
+    let currentTable = "";
+    for (const line of lines) {
+      const tm = line.match(/create table (?:if not exists )?(\w+)/);
+      if (tm) currentTable = tm[1];
+      for (const word of FORBIDDEN) {
+        // Aggregate stop centroids are the one permitted location at rest
+        // (see docs/data-learning.md section 7); they live only in
+        // learned_stops and are not individual locations.
+        if (
+          (word === "lat" || word === "lng") &&
+          currentTable === "learned_stops"
+        ) {
+          continue;
+        }
+        const re = new RegExp(
+          `\\b${word}[a-z_]*\\s+(double|real|numeric|float|int|smallint|boolean|bytea|jsonb?)\\b`,
+        );
+        const hit = line.match(re);
+        assertEquals(
+          hit,
+          null,
+          `${entry.name} contains location-like column: ${hit?.[0]}`,
+        );
+      }
     }
   }
   assertEquals(found >= 1, true, "expected at least one migration");
