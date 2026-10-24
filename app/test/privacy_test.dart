@@ -157,6 +157,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Privacidade e dados'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Privacidade e dados'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Apagar meus dados'), 200);

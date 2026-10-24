@@ -13,14 +13,19 @@ typedef LearningBaseUrlProvider = String Function();
 
 /// Repository for learned routes, stops, and ETA.
 class LearningRepository {
+  /// Creates a learning repository.
   LearningRepository({
     required this.client,
     required this.baseUrl,
   });
 
+  /// Shared HTTP client.
   final http.Client client;
+
+  /// Base URL provider.
   final LearningBaseUrlProvider baseUrl;
 
+  /// Fetches the learned route for [lineId].
   Future<Result<LearnedRoute?>> fetchLearnedRoute(int lineId) async {
     try {
       final http.Response res = await client
@@ -30,7 +35,7 @@ class LearningRepository {
         return const Ok<LearnedRoute?>(null);
       }
       if (res.statusCode != 200) {
-        return Err<LearnedRoute?>(
+        return const Err<LearnedRoute?>(
           ServerFailure('learned route failed', 'learned_route'),
         );
       }
@@ -42,6 +47,7 @@ class LearningRepository {
     }
   }
 
+  /// Fetches learned stops for [lineId].
   Future<Result<LearnedStopsResult?>> fetchStops(int lineId) async {
     try {
       final http.Response res = await client
@@ -51,7 +57,7 @@ class LearningRepository {
         return const Ok<LearnedStopsResult?>(null);
       }
       if (res.statusCode != 200) {
-        return Err<LearnedStopsResult?>(
+        return const Err<LearnedStopsResult?>(
           ServerFailure('learned stops failed', 'learned_stops'),
         );
       }
@@ -63,6 +69,7 @@ class LearningRepository {
     }
   }
 
+  /// Fetches ETA for [stopId] on [lineId].
   Future<Result<EtaResult?>> fetchEta(int lineId, String stopId) async {
     try {
       final http.Response res = await client
@@ -74,7 +81,7 @@ class LearningRepository {
         return const Ok<EtaResult?>(null);
       }
       if (res.statusCode != 200) {
-        return Err<EtaResult?>(
+        return const Err<EtaResult?>(
           ServerFailure('eta failed', 'eta'),
         );
       }
