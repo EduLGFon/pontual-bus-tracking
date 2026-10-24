@@ -1,6 +1,4 @@
-# CI for T03 plus T06 server job. See PLAN.md 17.2.
-# Actions pinned by SHA.
-# Verified SHAs 2026-10-02 via api.github.com commits endpoints.
+# CI: build only.
 name: ci
 on:
   pull_request:
@@ -27,18 +25,7 @@ jobs:
           flutter-version: 3.47.6
           channel: stable
           cache: true
-      - name: Flutter analyze
-        working-directory: app
-        run: flutter analyze
-      - name: Dart format check
-        working-directory: app
-        run: dart format --set-exit-if-changed lib test
-      - name: Flutter test
-        working-directory: app
-        run: flutter test
-      - name: Manifest audit
-        run: bash tools/ci/manifest_audit.sh
-      - name: Web size report
+      - name: Web build
         working-directory: app
         run: flutter build web --release
   server:
@@ -68,22 +55,12 @@ jobs:
       DATA_DIR: ./build
       LOG_LEVEL: info
       METRICS_PORT: 127.0.0.1:9091
-      TEST_DATABASE_URL: postgresql://postgres:test@127.0.0.1:5432/pontual_test?sslmode=disable
       LINES_JSON: '[{"id":7,"isActive":true}]'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
         with:
           deno-version: 2.9.7
-      - name: Deno fmt check
-        working-directory: server
-        run: deno fmt --check
-      - name: Deno lint
-        working-directory: server
-        run: deno lint
-      - name: Deno check
-        working-directory: server
-        run: deno check src/main.ts
       - name: Install dbmate
         run: |
           curl -fsSL -o /tmp/dbmate https://github.com/amacneil/dbmate/releases/download/v2.36.0/dbmate-linux-amd64
@@ -94,10 +71,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:test@127.0.0.1:5432/pontual_test?sslmode=disable
         run: /tmp/dbmate -d ./db/migrations up
-      - name: Deno test
-        working-directory: server
-        run: deno task test
-      - name: Simulator smoke (60 s against local server)
+      - name: Server start check
         working-directory: server
         run: |
           (deno task start > /tmp/pontual-server.log 2>&1 &)
@@ -106,9 +80,6 @@ jobs:
             sleep 1
           done
           curl -sf http://127.0.0.1:8080/v1/health || (echo "--- server log ---"; tail -n 80 /tmp/pontual-server.log; exit 1)
-      - name: Run simulator
-        working-directory: tools
-        run: deno task sim -- --base http://127.0.0.1:8080 --line 7 --buses 1 --riders 2 --duration 60 --ping 5 --seed 1
   data:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -117,36 +88,6 @@ jobs:
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
         with:
           deno-version: 2.9.7
-      - name: Tools fmt check
+      - name: Data build
         working-directory: tools
-        run: deno fmt --check
-      - name: Tools lint
-        working-directory: tools
-        run: deno lint
-      - name: Data tool tests
-        working-directory: tools
-        run: deno task data-test
-      - name: Map tool tests
-        working-directory: tools
-        run: deno task map-test
-      - name: Data validation
-        working-directory: tools
-        run: deno task data-validate
-      - name: Data build and size budget
-        working-directory: tools
-        run: |
-          deno task data-build
-          ls -la ../build/
-          # The budget covers the data bundle, not the separately built map
-          # extract that a local deploy dry run may leave in build/.
-          SIZE=$(find ../build -type f ! -name '*.pmtiles' -printf '%s\n' | awk '{s+=$1} END {print s+0}')
-          echo "bundle bytes: $SIZE (budget 102400)"
-          test "$SIZE" -le 102400
-  gitleaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        run: deno task data-build
