@@ -95,4 +95,4 @@ Unverified items:
 - Actual rendered stroke weight of the variable font at runtime: needs a device or golden test (UNVERIFIED by execution).
 - Tile cache size cap: the `BuiltInMapCachingProvider` default is 1 GB; the project must set a smaller cap explicitly (50 MB figure not wired).
 - Whether OSM servers send `Cache-Control` mapping to >= 7 days: not tested (no network probes). Code path honours server headers.
-- No ADR recorded in `DECISIONS.md` yet for the bundled font choice (gap 1).
+- Bundled font choice is recorded as D-U03.

@@ -1,6 +1,6 @@
 # RIPD do Pontual (relatório de impacto, versão enxuta)
 
-Data: 2026-10-03. Atualização: 2026-10-20 (D83). Responsável pela elaboração: equipe do app.
+Data: 2026-10-03. Atualização: 2026-10-26 (aprendizagem). Responsável pela elaboração: equipe do app.
 Revisão do responsável e de advogado: pendente. Revisar antes da
 fase 2 e a cada mudança no tratamento de dados.
 
@@ -15,6 +15,9 @@ lotado/quebrado, acesso bloqueado). Para espera e acesso
 bloqueado, o app lê a localização uma vez e envia só uma célula de
 ~150 m; a posição exata não sai do aparelho. Sem texto livre, sem
 cadastro, sem histórico, sem posição gravada em disco ou banco.
+O subsistema de aprendizagem (0.3.x) deriva agregados anônimos de
+rotas, paradas e tempos a partir de viagens consentidas; não guarda
+coordenadas brutas, ids de aparelho ou de viagem.
 
 ## 2. Necessidade e proporcionalidade
 
@@ -49,7 +52,7 @@ no máximo registros pseudônimos de aparelhos.
 
 ## 5. Medidas e cronograma
 
-- Revisão jurídica dos textos: antes da fase 2.
+- Revisão jurídica dos textos, incluindo o consentimento v2 e os agregados de aprendizagem: pendente, antes da fase 2.
 - Verificação ECA Digital (Lei 15.211/2025): pendente (V06).
 - Confirmação da região do VPS: pendente (D24 verificou São
   Paulo, Brasil).

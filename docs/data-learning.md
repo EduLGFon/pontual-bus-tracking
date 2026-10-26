@@ -1,10 +1,10 @@
 # Data Learning Plan: Route, Stops, Dwell, and ETA
 
-Status: draft design document, scope [L], gated by D20. Light, in-process learning subsystem that consumes the existing trip-sharing event stream and produces de-identified aggregates for route geometry, stops, dwell times, segment travel times, and ETA prediction. Does not change alpha behavior. Nothing may be built before the legal gate in section 1 passes.
+Status: implemented in 0.3.x and enabled by default (`learning_enabled`), per the 2026-10-26 ADR. Legal sign-off and final consent wording remain release gates. Light, in-process learning subsystem that consumes the existing trip-sharing event stream and produces de-identified aggregates for route geometry, stops, dwell times, segment travel times, and ETA prediction.
 
 Companions: PLAN.md (5.5, 6, 7, 12, 13); DECISIONS.md (D02, D20, D30, D46); docs/privacy/inventory.md; docs/privacy/ripd.md.
 
-Scope tags follow PLAN.md 0.2: [A] alpha, [A*] alpha should, [L] later. Everything here is [L] unless marked otherwise.
+Scope tags follow PLAN.md 0.2: [A] alpha, [A*] alpha should, [L] later. The learning subsystem shipped in 0.3.x; remaining work is legal sign-off and tuning.
 
 ## 0. Purpose and status
 
@@ -27,12 +27,13 @@ Success criteria: line with at least minRouteTrips (default 20) completed trips 
 
 ## 1. Privacy and legal gate (D20)
 
-Blocked until all done and recorded in DECISIONS.md:
-1. Consent text version bump (new `consent_version`, e.g. 2) with explicit wording that de-identified, aggregated travel and dwell statistics may be derived from shared trips. Old consent version stays valid for live sharing only; aggregates updated only from trips whose rider consented to new version.
-2. RIPD update in docs/privacy/ripd.md covering new processing purpose, aggregate data inventory, retention, re-identification risk.
-3. Data inventory update in docs/privacy/inventory.md listing every new table and field.
-4. Lawyer review of consent wording and aggregate schema before first byte stored.
-5. Owner decision on whether aggregate publication is opt-in or part of base consent (recommendation: part of base consent v2, with separate opt-out toggle in settings that stops device from contributing without affecting live sharing).
+Release gate. Consent version 2 and the inventory update are shipped; lawyer/DPO review and final RIPD sign-off remain pending.
+
+1. Consent text version bump to 2: shipped. Covers de-identified aggregate derivation; old consent remains valid for live sharing only.
+2. RIPD update covering the new purpose, aggregate inventory, retention and re-identification risk: pending legal sign-off.
+3. Data inventory listing every new table and field: shipped (`docs/privacy/inventory.md`).
+4. Lawyer review of consent wording and aggregate schema: pending.
+5. Opt-out: shipped as a settings toggle, default on (see ADR 2026-10-26).
 
 Additional hard rules (PLAN.md 8 and 15):
 - No raw per-trip tracks, ever. Only accumulators and cluster centroids.
@@ -420,46 +421,11 @@ Privacy audit:
 - Grep learning files for coordinate logging; CI check.
 - DB dump inspection in tests: column allow-list per table.
 
-## 14. Milestones and tasks
+## 14. Status
 
-Phase 0, spikes (before any code):
-- S-L1: map-match-free centerline quality on simulator trips. Small offline script in `tools/` runs route algorithm on simulator output and reports deviation vs input route. Gate: median < 40 m on two lines.
-- S-L2: consent wording and RIPD review with owner's lawyer. Gate: written approval.
-- S-L3: group-size feasibility: run simulator for week-equivalent and check intermediate-stop buckets reach kMin. If not, raise kMin lowering or accept sparser data.
-- S-L4: performance: recompute on 10k trips in < 30 s.
+Implemented in 0.3.x: event plumbing, in-memory aggregator, aggregate persistence, route learner, stop/dwell statistics, ETA prediction, learned-route persistence, client seams and opt-out. `learning_enabled` defaults to true.
 
-Phase 1, event plumbing and in-memory aggregator (no DB, no serving):
-- T-L1: expand `EngineEvent` variants and emission points.
-- T-L2: implement `learning/consumer.ts` with working state and downsampling.
-- T-L3: implement accumulators and flush to no-op sink; add tests.
-- T-L4: consent gating and opt-out flag on devices (migration 0003 partial: add `learning_opt_out boolean` to devices? Actually keep separate `device_learning_opt_outs` table or a column. Recommendation: add column `learning_opt_out boolean not null default false` to `devices` via migration 0003. Simpler and cascades on delete.)
-
-Phase 2, persistence and route learning:
-- T-L5: migration 0003 (full schema).
-- T-L6: implement flush upserts and read model cache.
-- T-L7: implement route learner and recompute job.
-- T-L8: `GET /v1/lines/:id/learned-route`.
-- T-L9: client `LearnedRouteRepository` and map polyline selection.
-
-Phase 3, stops and dwell stats:
-- T-L10: stop detector and clustering.
-- T-L11: dwell and segment accumulators + flush.
-- T-L12: `GET /v1/lines/:id/stops`.
-- T-L13: client stop dots.
-
-Phase 4, ETA:
-- T-L14: predictor implementation.
-- T-L15: `GET /v1/lines/:id/eta`.
-- T-L16: client ETA bottom sheet and polling.
-- T-L17: headway fallback to timetable.
-
-Phase 5, hardening:
-- T-L18: privacy audit and `no_location_at_rest` extension.
-- T-L19: performance and memory budget tests.
-- T-L20: docs (inventory, RIPD, policy) and consent v2 text.
-- T-L21: owner sign-off and flip `learning_enabled` default to true.
-
-Each task is one logical change set, with acceptance criteria and tests, per PLAN.md 0.3 and 16.
+Remaining before release: lawyer/DPO sign-off, RIPD finalisation, and any tuning of promotion thresholds after real field data. Each change is one logical change set with tests per PLAN.md 0.3.
 
 ## 15. Risks and mitigations
 
@@ -475,12 +441,9 @@ Each task is one logical change set, with acceptance criteria and tests, per PLA
 | Consent confusion | Legal | Separate opt-out toggle; clear wording; version bump |
 | Migration risk on production | Downtime | Forward-only; test on staging; owner runs migration per runbook |
 
-## 16. Open decisions for the owner
+## 16. Decisions
 
-1. Opt-in vs. opt-out for contributing aggregates (recommendation: opt-out toggle, default on, only after consent v2).
-2. Whether learned routes should auto-replace static routes in the client or require a manual "use community route" toggle (recommendation: auto-replace when confidence high, with a "report wrong route" link).
-3. Whether to expose ETA publicly or only to consenting riders (recommendation: public, since it is aggregate and contains no rider data).
-4. Max directions per line: 2 (recommendation) vs. N.
-5. Whether to store a daily rollup table (recommendation: defer until volume justifies).
-6. Whether model serving should move to a separate process (recommendation: defer; in-process is fine until CPU budget is hit).
+Decided: opt-out toggle, default on (ADR 2026-10-26); learned route auto-replaces static geometry when promoted.
+
+Still open: public ETA exposure, max directions per line (2 recommended), daily rollup table (defer), separate model-serving process (defer until CPU budget requires it).
 

@@ -1,7 +1,8 @@
 # DECISIONS.md
 
-Append-only record of architecture decisions, spike results, and deviations from PLAN.md. PLAN.md is build contract.
-IDs stable and resolvable via "See DECISIONS.md#Dxx".
+Compacted decision index, current as of 2026-10-26. Full history is in git.
+New decisions append to the relevant section. IDs are stable and resolvable via
+"See DECISIONS.md#Dxx". PLAN.md is the build contract.
 Statuses: Accepted, Proposed, Pending owner, Superseded.
 
 ## 1. Conventions
@@ -19,7 +20,7 @@ Statuses: Accepted, Proposed, Pending owner, Superseded.
 | D01 | geolocator directly; smart_location wrapper lacks claimed features |
 | D02 | no ping history, no location at rest; location only in API memory |
 | D03 | clients talk only to Deno API, never PostgreSQL |
-| D04 | attach-at-ping online clustering with dead reckoning, pure TS engine |
+| D04 | <a id="D04"></a>attach-at-ping online clustering with dead reckoning, pure TS engine |
 | D05 | vehicle position is newest accepted fix, not centroid |
 | D06 | role and interval returned in ping; two-phase hand-over |
 | D07 | timetables static versioned JSON, not a DB table |
@@ -139,7 +140,7 @@ D-U31 (2026-10-12, Accepted): two map locate buttons (viewer dot, closest bus).
 ## 9. Later decisions D29-D84
 
 D29 (2026-10-10, Accepted): rate-limit strikes no longer end trips; fast streams sampled ~4 s.
-D30 (2026-10-11, Accepted): anonymous momentum for ETA/prediction; amends D02 narrowly.
+<a id="D30"></a>D30 (2026-10-11, Accepted): anonymous momentum for ETA/prediction; amends D02 narrowly.
 D30-followup (2026-10-11, Accepted): PLAN deltas shipped (RF20/RF22 partial).
 D31 (2026-10-12, Accepted, pending owner review): lines-screen brief deviations.
 D32 (2026-10-12, Accepted, pending owner review): line-detail brief deviations.
@@ -182,13 +183,13 @@ D73 (2026-10-19, Accepted): last known bus position keeps its ping age.
 D74 (2026-10-19, Accepted): web gap recovery stays foreground-only.
 D75 (2026-10-20, Accepted): static deploy dry run repaired.
 D76 (2026-10-20, Accepted): gitleaks allowlist for UI storage keys.
-D77 (2026-10-20, Accepted): trip minimize returns to previous screen.
+<a id="D77"></a><a id="D77-2026-10-20"></a>D77 (2026-10-20, Accepted): trip minimize returns to previous screen.
 D78 (2026-10-20, Accepted): trip sharing screen shows measured metrics.
 D79 (2026-10-20, Accepted): satellites replace battery in trip metrics.
 D80 (2026-10-20, Accepted): second owner-supplied app icon applied.
 D81 (2026-10-20, Accepted): permanent Android download link in web settings.
-D82 (2026-10-20, Accepted, target model superseded by D83): passenger reports.
-D83 (2026-10-20, Accepted): reports use coarse location area not stop picker.
+<a id="D82"></a>D82 (2026-10-20, Accepted, target model superseded by D83): passenger reports.
+<a id="D83"></a>D83 (2026-10-20, Accepted): reports use coarse location area not stop picker.
 D84 (2026-10-22, Accepted): live dots on demand, one trip clock, tighter HTTP timeouts.
 
 ## 10. ADRs

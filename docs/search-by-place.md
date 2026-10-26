@@ -1,6 +1,6 @@
 # Search by place (lines that pass through a searched location)
 
-Status: design plan. Scope: client search extension plus one server read endpoint, built on top of the learning subsystem (learned routes and stops). Nothing changes trip sharing, location handling, or the privacy contract.
+Status: implemented in 0.3.x. Client search extension plus one server read endpoint (`GET /v1/learned-routes?bbox=`), built on top of the learning subsystem (learned routes and stops). Trip sharing, location handling and the privacy contract are unchanged.
 
 Companions: PLAN.md, docs/data-learning.md, docs/ui/UI_SPEC.md section 7.3, DECISIONS.md (D20).
 
@@ -103,16 +103,9 @@ Data tool validates and copies into bundle, mirroring lines/stops. Small (tens o
 - Proximity matching O(lines * polyline points) per keystroke. ~20 lines and ~100 points each: sub-millisecond, no debounce, matching existing search behaviour.
 - Bulk endpoint cached 5 min server-side and revalidated by ETag client-side.
 
-## 9. Rollout and milestones
+## 9. Status
 
-1. Server: consumer methods and bulk endpoint; tests.
-2. Data tool: places schema and build step; seed small gazetteer.
-3. Client: domain model, repository method, providers, proximity helper.
-4. Client: PlaceSearchProvider and search screen wiring.
-5. Strings and tests.
-6. Documentation: update docs/ui/UI_SPEC.md 7.3 to mention place kind; add new kind to SearchProvider list.
-
-Each step one change set with acceptance criteria. Do not start step N+1 until step N passes.
+Shipped: bulk `GET /v1/learned-routes` with optional `bbox`, bundled `data/places.json` gazetteer, client place model and provider, proximity matching, search-screen wiring, strings and tests.
 
 ## 10. Acceptance criteria
 
@@ -124,12 +117,10 @@ Each step one change set with acceptance criteria. Do not start step N+1 until s
 - `deno test` (including security and `no_location_at_rest`) passes.
 - `flutter analyze` and `flutter test` pass, including new unit and widget tests.
 
-## 11. Open decisions (prompts with recommended defaults)
+## 11. Decisions
 
-Prompt 1 - Gazetteer scope/ownership: seed with places already used as line terminals and area tags (Centro, IFES/UFES, Guriri, Villages, Roberto Silvares, Jacuipe, Santo Antonio, Cohab, Aroeira, etc.) plus major institutions (UFES, IFES, terminal Centro). Maintain as `data/` file reviewed like lines, with source_ids and verified_at; follow existing data governance. Start small (20-40 entries), grow from field feedback.
-
-Prompt 2 - Match radius tuning: start 500 m / 300 m; record false positives and missed lines in docs/field-tests/. If too many loose matches, lower to 300 m / 200 m; if misses lines locals consider "passing through", raise to 700 m. Keep as named constants with comment pointing to this document.
-
-Prompt 3 - Home screen exposure (owner override): expose place search on full search screen and also in home shortcut flow. Home shortcut sheet gains "Buscar por lugar" entry opening /search with field focused, reusing existing shortcut store. Differs from original search-screen-only v1 recommendation.
-
-Prompt 4 - Bulk endpoint scaling (owner decision): add bounding-box filter now. Endpoint accepts optional `bbox` (section 5.2). Keep unfiltered form for small deployments and app session-wide cache.
+- Gazetteer: bundled `data/places.json`, reviewed like lines, grown from field feedback.
+- Match radius: starts at 500 m / 300 m; tune from missed-line and false-positive field reports.
+- Exposure: full search screen plus a home shortcut ("Buscar por lugar").
+- Scaling: bulk endpoint accepts optional `bbox`; unfiltered form remains for small deployments and session cache.
+- Open: none for alpha.

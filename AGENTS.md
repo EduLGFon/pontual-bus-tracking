@@ -47,10 +47,8 @@ Reconciling `PLAN.md` and this file:
 
 ## 2. Project Standards
 
-Values below come from `PLAN.md`. The repository may not exist yet: until the
-milestone that creates a tool or command has landed (T02 and T03 for Flutter and
-CI, T14 for the data tool), treat the command as intended, and check that it
-exists before claiming a check was run.
+Values below come from `PLAN.md`. Check that a tool or command exists before
+claiming a check was run; do not invent commands.
 
 - Runtime: Flutter (Android and Web/PWA) for the app; a Deno (TypeScript) API in
   `server/` running on the owner's VPS behind Caddy and Cloudflare; PostgreSQL
@@ -77,9 +75,9 @@ exists before claiming a check was run.
   `tools/`; server tests include the HTTP and security suites against a test
   PostgreSQL).
 - Build command: `flutter build appbundle` (Android),
-  `flutter build web --release` (Web), server release via the deploy script from
-  task T05, data build via the Deno tool (command defined in T14; do not invent
-  it before then).
+  `flutter build web --release` (Web), server release via
+  `server/deploy/deploy.sh`, data build via `deno task data-build` (from
+  `tools/`).
 - Commit convention: Conventional Commits (`feat`, `fix`, `chore`, `docs`,
   `test`, `refactor`, `perf`, `security`).
 - Documentation directory: `docs/`, plus the root files listed in section 14.
@@ -93,18 +91,17 @@ exists before claiming a check was run.
 - Reuse existing project patterns before introducing new ones.
 - Prefer the smallest maintainable change that correctly solves the requested
   problem.
-- Work one task at a time, matching the task list in `PLAN.md` section 16 (one
-  logical change per change set). Do not start the next task until the current
-  acceptance criteria pass.
+- Work one logical change at a time (one change set per task). Do not start the
+  next change until the current acceptance criteria pass.
 - Do not rewrite working code without a concrete benefit.
 - Do not make unrelated improvements or speculative refactors.
 - Preserve existing behavior unless the requested change intentionally modifies
   it.
 - When requirements are ambiguous, infer from established project conventions
   when possible, then apply the combined ambiguity rule from section 1.
-- Run the spikes in `PLAN.md` (S1 to S4) before building on the assumptions they
-  cover. Items marked VERIFY in `PLAN.md` must be checked against official
-  sources and the result recorded in `DECISIONS.md`.
+- Spikes S1-S4 are complete; see `DECISIONS.md`. Items still marked VERIFY in
+  `PLAN.md` must be checked against official sources and the result recorded in
+  `DECISIONS.md`.
 - Never claim that work was performed or verified unless it actually was.
 - Report relevant limitations, failed checks, and unresolved issues honestly.
 

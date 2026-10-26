@@ -11,11 +11,11 @@ No affiliation with Viacao Sao Gabriel or the municipality.
 
 ## Layout
 
-- `app/` - Flutter client (Android + Web/PWA). Created in T02.
-- `server/` - Deno/TypeScript API + PostgreSQL migrations. Created in T06/T07.
+- `app/` - Flutter client (Android + Web/PWA).
+- `server/` - Deno/TypeScript API + PostgreSQL migrations.
 - `data/` - Static timetable source of truth (`data/lines/*.json`,
-  `data/routes/*`). Built in T14.
-- `tools/` - Deno tooling and simulator (T13/T14).
+  `data/routes/*`).
+- `tools/` - Deno tooling and simulator.
 - `docs/` - `privacy/`, `security/`, `runbooks/`, `field-tests/`.
 - `.github/` - CI and templates.
 
