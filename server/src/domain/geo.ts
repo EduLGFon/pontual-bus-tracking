@@ -198,3 +198,36 @@ export function distToShapeM(
   if (edge > maxM) return edge;
   return distToPolylineM(lat, lng, shape.pts);
 }
+
+
+/** Encode a list of lat/lng points as a Google polyline at the given
+ * precision. Mirrors tools/route/main.ts. */
+export function encodePolyline(
+  pts: { lat: number; lng: number }[],
+  precision = 5,
+): string {
+  const factor = 10 ** precision;
+  let prevLat = 0;
+  let prevLng = 0;
+  let out = "";
+  for (const p of pts) {
+    const lat = Math.round(p.lat * factor);
+    const lng = Math.round(p.lng * factor);
+    out += encodeSigned(lat - prevLat);
+    out += encodeSigned(lng - prevLng);
+    prevLat = lat;
+    prevLng = lng;
+  }
+  return out;
+}
+
+function encodeSigned(n: number): string {
+  let v = n < 0 ? ~(n << 1) : n << 1;
+  let out = "";
+  while (v >= 0x20) {
+    out += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+    v >>= 5;
+  }
+  out += String.fromCharCode(v + 63);
+  return out;
+}

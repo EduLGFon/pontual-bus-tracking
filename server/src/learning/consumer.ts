@@ -2,7 +2,7 @@
 // events, maintains per-trip working state in memory, and accumulates
 // de-identified aggregates that are flushed to PostgreSQL periodically.
 // See docs/data-learning.md sections 3-5.
-import { distM } from "../domain/geo.ts";
+import { distM, encodePolyline } from "../domain/geo.ts";
 import type { EngineEvent } from "../domain/types.ts";
 import type { Sql } from "../db/client.ts";
 import type {
@@ -449,9 +449,21 @@ export class LearningConsumer {
 
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
-    // Route recompute gating: if watermark trips >= threshold, recompute.
-    // For v1 we store accumulators as candidate rows via upsert of counts
-    // only; full polyline recompute is triggered separately.
+    // Persist learned route polylines from accumulated bins.
+    for (const acc of this.routeAccs.values()) {
+      if (acc.tripCount < this.config.minRouteTrips) continue;
+      const keys = [...acc.bins.keys()].sort((a, b) => a - b);
+      const pts: Array<{ lat: number; lng: number }> = [];
+      for (const bi of keys) {
+        const b = acc.bins.get(bi);
+        if (!b || b.lats.length === 0) continue;
+        pts.push({ lat: median(b.lats), lng: median(b.lngs) });
+      }
+      if (pts.length < 2) continue;
+      const poly = encodePolyline(pts, 5);
+      await this.upsertRoute(acc, poly, pts.length);
+    }
+
     // Persist watermarks
     for (const [k, n] of this.watermarkTrips) {
       const [lineId, direction] = k.split(":").map(Number);
@@ -496,6 +508,23 @@ export class LearningConsumer {
     // keep clusters in memory for ordinal assignment? Clear to bound memory;
     // reload from DB on read. For v1 we clear.
     this.stopClusters.clear();
+  }
+
+  private async upsertRoute(
+    acc: { lineId: number; direction: number; tripCount: number },
+    polyline: string,
+    pointCount: number,
+  ): Promise<void> {
+    const rows = await this.deps.sql`
+      select coalesce(max(version), 0) as v
+      from learned_routes
+      where line_id = ${acc.lineId} and direction = ${acc.direction}
+    `;
+    const version = Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
+    await this.deps.sql`
+      insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, computed_at)
+      values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, now())
+    `;
   }
 
   private async upsertWatermark(
