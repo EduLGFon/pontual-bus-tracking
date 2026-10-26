@@ -14,9 +14,28 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Centro",
+      "times": [
+        "05:30",
+        "11:40",
+        "17:40"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Guriri",
+      "times": [
+        "06:20",
+        "12:30",
+        "18:30"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

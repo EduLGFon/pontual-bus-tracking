@@ -14,9 +14,49 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Ayrton Senna",
+      "times": [
+        "06:30",
+        "07:20",
+        "08:10",
+        "12:20",
+        "18:10"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Roberto Silvares",
+      "times": [
+        "07:20",
+        "08:10",
+        "09:00",
+        "11:30",
+        "13:10",
+        "17:20",
+        "18:10",
+        "19:00"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Ayrton Senna",
+      "times": [
+        "07:20"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Roberto Silvares",
+      "times": [
+        "08:00"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

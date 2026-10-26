@@ -12,9 +12,38 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Paulista",
+      "times": [
+        "07:00"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Saída de São Mateus",
+      "times": [
+        "06:10"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Paulista",
+      "times": [
+        "07:00"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Saída de São Mateus",
+      "times": [
+        "06:00"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

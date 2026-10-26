@@ -14,9 +14,60 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Santo Antônio",
+      "times": [
+        "06:10",
+        "07:20",
+        "08:40",
+        "10:00",
+        "15:30",
+        "16:40",
+        "18:00"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Aviação",
+      "times": [
+        "06:10",
+        "06:40",
+        "07:20",
+        "08:00",
+        "09:20",
+        "10:40",
+        "16:00",
+        "17:20",
+        "18:30"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Santo Antônio",
+      "times": [
+        "06:10",
+        "07:20",
+        "08:40",
+        "10:00",
+        "11:20"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Aviação",
+      "times": [
+        "06:40",
+        "08:00",
+        "09:20",
+        "10:40",
+        "12:00"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

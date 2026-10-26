@@ -27,7 +27,7 @@ shows an "unofficial timetable" notice.
   duplicated 23:00 on line 60 Litorâneo were collapsed to one each.
 - Line 62 split into two pilot lines: 62 "Guriri / Ifes-Ufes via BR-101"
   (keeps the transcribed timetable) and 63 "Guriri / Ifes-Ufes via Jacuí"
-  (timetable pending). Line 21 has a separate operator variant
+  (no separate page on the source; timetable pending). Line 21 has a separate operator variant
   "Santo Antônio x Aviação via Jacuí" that is not yet split (candidate).
   Line 66 carries internal itinerary variants (via Rodonaldo/Centro) under
   one line number and is intentionally not split.
@@ -35,7 +35,7 @@ shows an "unofficial timetable" notice.
   (10 Aroeira / Morada do Ribeirão, 13 Aroeira / Cohab).
 - Lines 62 and 66 show weekday times only on the source; 41 shows
   Sunday/holiday only. Unknown whether that reflects operation or gaps.
-- Non-pilot lines carry names only; their timetables are pending.
+- Non-pilot lines now carry transcribed timetables from onibus.online (retrieved 2026-10-26); still unofficial (VERIFY before release).
 - Route geometry is pending owner field traces (T17).
 
 ## Stops
