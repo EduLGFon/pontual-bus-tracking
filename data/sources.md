@@ -40,29 +40,7 @@ shows an "unofficial timetable" notice.
 
 ## Stops
 
-- `osm-stops` - OpenStreetMap bus-stop nodes (`highway=bus_stop`,
-  `public_transport=platform`) inside the served area, retrieved
-  2026-10-13 via the Overpass API and stored as `data/stops.json`.
-  ODbL licence; attribution is shown in-app (map chip and About).
-  12 stops total: 8 near the center (6 unnamed, 2 named
-  "Ponto de ônibus") plus 4 the first seed missed although they
-  predate it - `Guriri` (named, served by the Guriri lines),
-  2x `Entrada do Jaguaré` (intermunicipal corridor), and one unnamed
-  stop on the northern coastal corridor. Full coverage still needs an
-  owner field survey, like route geometry (T17).
-  `public_transport=stop_position` nodes (on-road stopping points,
-  not waiting places) were excluded.
-  Re-checked 2026-10-20 via the OSM API for the same 12 node ids: only
-  `Guriri`, `Entrada do Jaguaré` (two nodes) and the generic
-  "Ponto de ônibus" (two nodes) have names; seven nodes have no
-  `name`. No new posted names were found, so none were invented.
-  A field survey is still needed for the unnamed stops; reports no longer depend on them (D83).
-- Other sources checked 2026-10-13, none usable for coordinates:
-  the operator site lists street itineraries only (no coordinates);
-  the Prefeitura page links to the SGBus app; onibus.online lists
-  street itineraries; SGBus (Mobilibus/Bus2 white-label) shows stops
-  in-app but exposes no public API or open data; Google Maps and
-  Moovit data are proprietary (Moovit scraping is also a repo hard
-  limit). No GTFS feed exists for Sao Mateus. Do not copy
-  coordinates from any of these; map new stops into OSM during the
-  field survey instead.
+- Stops are no longer shipped from internet/OSM data. All bus stop points are
+  learned from trip data (aggregated, anonymized). `data/stops.json` is empty.
+  See PLAN.md (stops learned from trips) and the privacy rules: no raw
+  location at rest.
