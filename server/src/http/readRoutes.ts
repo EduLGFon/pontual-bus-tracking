@@ -322,5 +322,80 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     }, 200);
   });
 
+  // Bulk learned routes (for place search). Returns one entry per
+  // (line, direction) with an active learned route.
+  app.get("/v1/learned-routes", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!learningPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    const bboxRaw = c.req.query("bbox");
+    let bbox:
+      | { latMin: number; lngMin: number; latMax: number; lngMax: number }
+      | null = null;
+    if (bboxRaw) {
+      const parts = bboxRaw.split(",").map((s) => Number(s.trim()));
+      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+        return c.json({ e: "bad_request" }, 400);
+      }
+      bbox = {
+        latMin: Math.min(parts[0], parts[2]),
+        lngMin: Math.min(parts[1], parts[3]),
+        latMax: Math.max(parts[0], parts[2]),
+        lngMax: Math.max(parts[1], parts[3]),
+      };
+    }
+    const routes = await deps.learning.allLearnedRoutes();
+    const stopsByLineDir = new Map<
+      string,
+      Awaited<ReturnType<typeof deps.learning.allLearnedStops>>[number]["stops"]
+    >();
+    for (const s of await deps.learning.allLearnedStops()) {
+      stopsByLineDir.set(`${s.lineId}:${s.direction}`, s.stops);
+    }
+    const entries: Array<Record<string, unknown>> = [];
+    for (const r of routes) {
+      const line = deps.lines(r.lineId);
+      if (!line || !line.isActive) continue;
+      const pts = decodePolyline(r.polyline, 5);
+      if (bbox) {
+        const hit = pts.some((p) =>
+          p.lat >= bbox!.latMin && p.lat <= bbox!.latMax &&
+          p.lng >= bbox!.lngMin && p.lng <= bbox!.lngMax
+        ) ||
+          (stopsByLineDir.get(`${r.lineId}:${r.direction}`) ?? []).some((s) =>
+            s.lat >= bbox!.latMin && s.lat <= bbox!.latMax &&
+            s.lng >= bbox!.lngMin && s.lng <= bbox!.lngMax
+          );
+        if (!hit) {
+          continue;
+        }
+      }
+      entries.push({
+        line: r.lineId,
+        code: line.code ?? String(r.lineId),
+        dir: r.direction,
+        polyline: r.polyline,
+        trips: r.trips,
+        computed_at: r.computedAt,
+        stops: (stopsByLineDir.get(`${r.lineId}:${r.direction}`) ?? []).map((
+          s,
+        ) => ({
+          id: s.id,
+          i: s.ordinal,
+          lat: s.lat,
+          lng: s.lng,
+          r: s.radiusM,
+          n: s.passes,
+        })),
+      });
+    }
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({ v: 1, routes: entries }, 200);
+  });
+
   return app;
 }

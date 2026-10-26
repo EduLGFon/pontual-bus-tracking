@@ -743,7 +743,7 @@ Behaviour:
   > terminal prefix > contains. Results update on every keystroke with no
   debounce (hundreds of lines is sub-millisecond).
 - Results are **grouped by kind** through the `SearchProvider` interface (kind:
-  line now; stop, place later) so new kinds add a group without UI changes.
+  line and place now; stop later) so new kinds add a group without UI changes.
   Group header only when more than one kind exists.
 - Empty query: Recentes (last 8 searches or opened lines, "Limpar") then
   Sugestões (live lines first).

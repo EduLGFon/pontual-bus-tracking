@@ -20,7 +20,9 @@ import 'package:pontual/data/prefs/token_store.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/learning/learning_repository.dart';
 import 'package:pontual/domain/learning/learned_route.dart';
+import 'package:pontual/domain/learning/learned_route_index.dart';
 import 'package:pontual/domain/learning/learned_stop.dart';
+import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/models/features.dart';
@@ -101,11 +103,11 @@ final Provider<Features> appFeaturesProvider = Provider<Features>(
 /// network calls until used.
 final Provider<LearningRepository> learningRepositoryProvider =
     Provider<LearningRepository>((Ref ref) {
-  return LearningRepository(
-    client: ref.watch(httpClientProvider),
-    baseUrl: () => apiBaseUrl,
-  );
-});
+      return LearningRepository(
+        client: ref.watch(httpClientProvider),
+        baseUrl: () => apiBaseUrl,
+      );
+    });
 
 /// Static data repository built from bundled assets.
 final FutureProvider<StaticDataRepository> staticDataRepoProvider =
@@ -176,8 +178,26 @@ final FutureProvider<List<StopPoint>> stopsProvider =
 
 /// Learned route polyline for a line id. Returns null when unavailable or
 /// not yet promoted; never throws.
-final learnedRouteProvider = FutureProvider.autoDispose
-    .family<String?, int>((Ref ref, int lineId) async {
+/// City public places for place search. Empty on any failure.
+final placesProvider = FutureProvider<List<Place>>((Ref ref) async {
+  try {
+    final String raw = await rootBundle.loadString('assets/data/places.json');
+    final List<dynamic> decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded
+        .map(
+          (dynamic e) => Place.fromJson(
+            (e as Map<dynamic, dynamic>).cast<String, dynamic>(),
+          ),
+        )
+        .toList(growable: false);
+  } catch (_) {
+    return const <Place>[];
+  }
+});
+final learnedRouteProvider = FutureProvider.autoDispose.family<String?, int>((
+  Ref ref,
+  int lineId,
+) async {
   try {
     final LearningRepository repo = ref.watch(learningRepositoryProvider);
     final Result<LearnedRoute?> res = await repo.fetchLearnedRoute(lineId);
@@ -196,28 +216,47 @@ final learnedRouteProvider = FutureProvider.autoDispose
 /// Learned stops for a line id. Null when unavailable.
 final learnedStopsProvider = FutureProvider.autoDispose
     .family<LearnedStopsResult?, int>((Ref ref, int lineId) async {
-  try {
-    final LearningRepository repo = ref.watch(learningRepositoryProvider);
-    final Result<LearnedStopsResult?> res = await repo.fetchStops(lineId);
-    if (res is Ok<LearnedStopsResult?>) return res.value;
-    return null;
-  } catch (_) {
-    return null;
-  }
-});
+      try {
+        final LearningRepository repo = ref.watch(learningRepositoryProvider);
+        final Result<LearnedStopsResult?> res = await repo.fetchStops(lineId);
+        if (res is Ok<LearnedStopsResult?>) return res.value;
+        return null;
+      } catch (_) {
+        return null;
+      }
+    });
 
-/// ETA for a line/stop.
-final etaProvider = FutureProvider.autoDispose
-    .family<EtaResult?, ({int lineId, String stopId})>((Ref ref, ({int lineId, String stopId}) args) async {
+/// Bulk learned-routes index for place search. Fetched once per app
+/// lifetime; empty on failure.
+final learnedRoutesIndexProvider = FutureProvider<LearnedRoutesIndex>((
+  Ref ref,
+) async {
   try {
     final LearningRepository repo = ref.watch(learningRepositoryProvider);
-    final Result<EtaResult?> res = await repo.fetchEta(args.lineId, args.stopId);
-    if (res is Ok<EtaResult?>) return res.value;
-    return null;
+    final Result<LearnedRoutesIndex> res = await repo.fetchLearnedRoutesIndex();
+    if (res is Ok<LearnedRoutesIndex>) return res.value;
+    return LearnedRoutesIndex.empty;
   } catch (_) {
-    return null;
+    return LearnedRoutesIndex.empty;
   }
 });
+final etaProvider = FutureProvider.autoDispose
+    .family<EtaResult?, ({int lineId, String stopId})>((
+      Ref ref,
+      ({int lineId, String stopId}) args,
+    ) async {
+      try {
+        final LearningRepository repo = ref.watch(learningRepositoryProvider);
+        final Result<EtaResult?> res = await repo.fetchEta(
+          args.lineId,
+          args.stopId,
+        );
+        if (res is Ok<EtaResult?>) return res.value;
+        return null;
+      } catch (_) {
+        return null;
+      }
+    });
 
 /// Route polyline for a single line code. Empty when the line has no route
 /// or the data is unavailable; never throws.

@@ -520,7 +520,8 @@ export class LearningConsumer {
       from learned_routes
       where line_id = ${acc.lineId} and direction = ${acc.direction}
     `;
-    const version = Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
+    const version =
+      Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
     await this.deps.sql`
       insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, computed_at)
       values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, now())
@@ -661,6 +662,123 @@ export class LearningConsumer {
       passes: r.sample_passes,
       active: r.active,
     }));
+  }
+
+  async allLearnedRoutes(): Promise<
+    Array<{
+      lineId: number;
+      direction: number;
+      version: number;
+      polyline: string;
+      trips: number;
+      computedAt: string;
+    }>
+  > {
+    if (!this.config.enabled) return [];
+    const rows = await this.deps.sql`
+      select line_id, direction, version, polyline, sample_trips, computed_at
+      from learned_routes
+      where status = 'active'
+      order by line_id asc, direction asc, version desc
+    `;
+    const seen = new Set<string>();
+    const out: Array<{
+      lineId: number;
+      direction: number;
+      version: number;
+      polyline: string;
+      trips: number;
+      computedAt: string;
+    }> = [];
+    for (
+      const r of rows as unknown as Array<{
+        line_id: number;
+        direction: number;
+        version: number;
+        polyline: string;
+        sample_trips: number;
+        computed_at: string;
+      }>
+    ) {
+      const key = `${r.line_id}:${r.direction}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        lineId: r.line_id,
+        direction: r.direction,
+        version: r.version,
+        polyline: r.polyline,
+        trips: r.sample_trips,
+        computedAt: r.computed_at,
+      });
+    }
+    return out;
+  }
+
+  async allLearnedStops(): Promise<
+    Array<{
+      lineId: number;
+      direction: number;
+      stops: Array<{
+        id: string;
+        ordinal: number;
+        lat: number;
+        lng: number;
+        radiusM: number;
+        passes: number;
+      }>;
+    }>
+  > {
+    if (!this.config.enabled) return [];
+    const rows = await this.deps.sql`
+      select line_id, direction, id, ordinal, lat, lng, radius_m, sample_passes
+      from learned_stops
+      where active = true
+      order by line_id asc, direction asc, ordinal asc
+    `;
+    const groups = new Map<
+      string,
+      {
+        lineId: number;
+        direction: number;
+        stops: Array<{
+          id: string;
+          ordinal: number;
+          lat: number;
+          lng: number;
+          radiusM: number;
+          passes: number;
+        }>;
+      }
+    >();
+    for (
+      const r of rows as unknown as Array<{
+        line_id: number;
+        direction: number;
+        id: string;
+        ordinal: number;
+        lat: number;
+        lng: number;
+        radius_m: number;
+        sample_passes: number;
+      }>
+    ) {
+      const key = `${r.line_id}:${r.direction}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = { lineId: r.line_id, direction: r.direction, stops: [] };
+        groups.set(key, g);
+      }
+      g.stops.push({
+        id: r.id,
+        ordinal: r.ordinal,
+        lat: r.lat,
+        lng: r.lng,
+        radiusM: r.radius_m,
+        passes: r.sample_passes,
+      });
+    }
+    return [...groups.values()];
   }
 
   async segmentStats(
