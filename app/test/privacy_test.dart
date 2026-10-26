@@ -32,7 +32,7 @@ void main() {
     test('delete clears token and prefs when online', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         tokenPrefsKey: 'bm1_x',
-        consentVersionKey: 1,
+        consentVersionKey: 2,
         themeModeKey: 'dark',
       });
       final PrivacyActions actions = PrivacyActions(
@@ -50,7 +50,7 @@ void main() {
 
     test('delete without a token just clears local data', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
-        consentVersionKey: 1,
+        consentVersionKey: 2,
       });
       final PrivacyActions actions = PrivacyActions(
         api: apiFor((_) async => http.Response('{}', 500)),
@@ -62,7 +62,7 @@ void main() {
     test('offline delete keeps everything', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         tokenPrefsKey: 'bm1_x',
-        consentVersionKey: 1,
+        consentVersionKey: 2,
       });
       final PrivacyActions actions = PrivacyActions(
         api: apiFor((_) async => http.Response('{}', 503)),
@@ -75,7 +75,7 @@ void main() {
     test('revoke clears consent and ends the trip best-effort', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         tokenPrefsKey: 'bm1_x',
-        consentVersionKey: 1,
+        consentVersionKey: 2,
         consentPostedKey: 1,
       });
       bool ended = false;

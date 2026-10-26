@@ -12,7 +12,7 @@ import 'package:pontual/ui/features/system/system_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const String bundle =
-    '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"","consent_version":1,"tile_url":"https://t.example/{z}/{x}/{y}.png"}';
+    '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"","consent_version":2,"tile_url":"https://t.example/{z}/{x}/{y}.png"}';
 
 int nowMs = 0;
 
@@ -45,7 +45,7 @@ void main() {
     final RemoteConfigRepository r = repo(
       MockClient((_) async {
         return http.Response(
-          '{"min_app_version":"0.1.0","maintenance":true,"message_pt":"Volta já","consent_version":1,"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
+          '{"min_app_version":"0.1.0","maintenance":true,"message_pt":"Volta já","consent_version":2,"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
           200,
         );
       }),

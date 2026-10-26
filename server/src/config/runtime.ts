@@ -14,7 +14,7 @@ export interface RuntimeConfig {
 export function defaultRuntimeConfig(): RuntimeConfig {
   return {
     serviceEnabled: true,
-    consentVersion: 1,
+    consentVersion: 2,
     maxActiveTrips: 300,
     reports: defaultReportsConfig(),
   };

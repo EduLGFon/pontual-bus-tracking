@@ -39,7 +39,7 @@ import 'trip_rig.dart';
 /// tests hermetic. See DECISIONS.md T36 test note.
 const String testBundleConfig =
     '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"",'
-    '"consent_version":1,"tile_url":"https://t.example/{z}/{x}/{y}.png"}';
+    '"consent_version":2,"tile_url":"https://t.example/{z}/{x}/{y}.png"}';
 
 /// Pilot line for share-flow tests.
 const StaticLine pilotLine = StaticLine(
@@ -164,7 +164,7 @@ Widget wrapFlow(Widget app, {required PermissionGateway gateway}) {
           staticBaseUrl: () => 'https://x.example',
           bundleConfigJson:
               '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"",'
-              '"consent_version":1,'
+              '"consent_version":2,'
               '"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
           prefs: SharedPreferences.getInstance,
           nowMs: () => 0,

@@ -19,7 +19,7 @@ ShareProgressTracker tracker({int nowMs = 100000}) {
   final int now = nowMs;
   return ShareProgressTracker(
     lineId: 60,
-    consentVersion: 1,
+    consentVersion: 2,
     host: 'api.example',
     nowMs: () => now,
   );

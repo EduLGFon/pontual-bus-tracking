@@ -120,7 +120,7 @@ Rig rig(
       ),
       gateway: gw,
       consentStore: const ConsentStore(),
-      consentVersion: 1,
+      consentVersion: 2,
       locations: () => LocationService(
         positionStream: (_) => positions.stream,
         batteryLevel: () async => 80,

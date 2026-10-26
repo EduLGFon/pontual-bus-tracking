@@ -29,7 +29,7 @@ export interface LearningConfig {
 
 export const defaultLearningConfig = (): LearningConfig => ({
   enabled: true,
-  minConsentVersion: 1,
+  minConsentVersion: 2,
   minRouteTrips: 1,
   minStopPasses: 1,
   kMin: 1,
