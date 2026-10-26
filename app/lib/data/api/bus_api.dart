@@ -181,6 +181,15 @@ class BusApi {
         : Err<bool>((res as Err<void>).failure);
   }
 
+  /// Revokes consent server-side. Best-effort; local revocation still
+  /// happens even if this fails.
+  Future<Result<bool>> revokeConsent(String token) async {
+    final Result<void> res = await _authedVoid(token, 'DELETE', '/v1/consents');
+    return res is Ok<void>
+        ? const Ok<bool>(true)
+        : Err<bool>((res as Err<void>).failure);
+  }
+
   /// Creates or retracts a passenger report. `area` is a coarse grid
   /// cell, never a coordinate; the server owns the timestamp. Returns the
   /// refreshed line reports so the caller can update immediately.
