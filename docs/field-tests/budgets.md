@@ -27,7 +27,7 @@ exists on this host (no phones, no usable browser, no Android SDK).
 - [ ] Viewer WebSocket <= ~0.05 MB per 10 min on a real network.
 - [ ] Merged-manifest audit and release flags (T45).
 
-Method notes: ping bodies measured with `curl -w size_upload/
-size_download` plus a `--trace-ascii` header capture; Dart client
-headers are comparable in size. TLS and Cloudflare add overhead
-amortized over the keep-alive connection; re-measure on staging.
+Method: ping bodies measured with `curl -w size_upload/size_download` plus
+a `--trace-ascii` header capture; Dart client headers are comparable in
+size. TLS and Cloudflare add overhead amortized over the keep-alive
+connection; re-measure on staging.

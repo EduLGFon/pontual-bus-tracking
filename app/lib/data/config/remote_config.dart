@@ -18,7 +18,11 @@ const String remoteConfigCheckKey = 'remote_config_check_ms';
 const Duration remoteCheckInterval = Duration(hours: 24);
 
 /// Current app version. Compared against min_app_version.
-const String appVersion = '0.1.0';
+/// Overridable via the APP_VERSION dart-define (env file).
+const String appVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: '0.1.0',
+);
 
 /// Remote flags controlling maintenance and forced update.
 class RemoteConfig {

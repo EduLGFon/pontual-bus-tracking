@@ -8,8 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/app/providers.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
+import 'package:pontual/ui/features/search/place_search.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
@@ -19,10 +21,12 @@ import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/domain/learning/learned_route_index.dart';
+import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/ui/models/line_vm.dart';
-import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/platform.dart';
 import 'package:pontual/ui/util/search_index.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// One search result. Another kind wraps its own model; the screen only
 /// reads [key] to record the opening in recents.
@@ -144,6 +148,17 @@ final _searchGroupsProvider = Provider<List<_Section>>((Ref ref) {
   final List<SearchProvider> providers = <SearchProvider>[
     _LineSearchProvider(ref.watch(lineIndexProvider)),
   ];
+  final LearnedRoutesIndex index =
+      ref.watch(learnedRoutesIndexProvider).asData?.value ??
+      LearnedRoutesIndex.empty;
+  final List<Place> places =
+      ref.watch(placesProvider).asData?.value ?? const <Place>[];
+  final List<LineVM> lines = ref.watch(linesVmProvider);
+  if (index.entries.isNotEmpty && places.isNotEmpty) {
+    providers.add(
+      PlaceSearchProvider(places: places, index: index, lines: lines),
+    );
+  }
   final List<_Section> sections = <_Section>[];
   for (final SearchProvider provider in providers) {
     final List<SearchHit> hits = provider.search(query);

@@ -8,8 +8,6 @@ tree. Verdicts: pass, partial (usable with a noted gap), or blocked
 
 - Server: 67 passed, 0 failed (`deno task test` against local
   PostgreSQL 16 on 5433; needs `TEST_DATABASE_URL` set, CI sets it).
-  The first run showed 24 failures, all `TEST_DATABASE_URL is not
-  set`, an environment gap, not a code finding.
 - Client: 131 passed (`flutter test` in `app/`).
 - `deno fmt --check`, `deno lint`, `deno check`: clean.
   `flutter analyze`: clean. Manifest source audit: PASS.

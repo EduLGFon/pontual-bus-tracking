@@ -14,9 +14,56 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Aroeira",
+      "times": [
+        "07:00",
+        "09:00",
+        "11:00",
+        "13:00",
+        "15:00",
+        "17:00",
+        "19:00"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Roberto Silvares",
+      "times": [
+        "08:00",
+        "10:00",
+        "12:00",
+        "14:00",
+        "16:00",
+        "18:00",
+        "20:00"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Aroeira",
+      "times": [
+        "07:00",
+        "09:00",
+        "11:00",
+        "13:00"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Roberto Silvares",
+      "times": [
+        "08:00",
+        "10:00",
+        "12:00",
+        "14:00"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

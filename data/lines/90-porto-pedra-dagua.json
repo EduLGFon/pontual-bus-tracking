@@ -14,9 +14,58 @@
   ],
   "is_active": true,
   "pilot": false,
-  "schedules": [],
+  "schedules": [
+    {
+      "day_type": "weekday",
+      "origin": "Porto",
+      "times": [
+        "06:25",
+        "08:10",
+        "09:50",
+        "11:30",
+        "13:10",
+        "14:50",
+        "16:30",
+        "18:10"
+      ]
+    },
+    {
+      "day_type": "weekday",
+      "origin": "Pedra d&#8221;Água",
+      "times": [
+        "07:20",
+        "09:00",
+        "10:40",
+        "12:20",
+        "14:00",
+        "15:40",
+        "17:20",
+        "19:00"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Porto",
+      "times": [
+        "06:25",
+        "08:10",
+        "09:50",
+        "11:30"
+      ]
+    },
+    {
+      "day_type": "saturday",
+      "origin": "Pedra d&#8221;Água",
+      "times": [
+        "07:20",
+        "09:00",
+        "10:40",
+        "12:20"
+      ]
+    }
+  ],
   "source_ids": [
     "onibus-online"
   ],
-  "verified_at": null
+  "verified_at": "2026-10-26"
 }

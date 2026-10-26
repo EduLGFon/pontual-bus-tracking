@@ -48,6 +48,7 @@ export function tick(
       const members = membersOf(store, v.id, nowMs, cfg.memberAliveS);
       if (members.length === 0) {
         removeVehicle(store, v.id);
+        events.push({ kind: "vehicleRemoved", lineId, vehicleId: v.id });
         changed.add(lineId);
         continue;
       }

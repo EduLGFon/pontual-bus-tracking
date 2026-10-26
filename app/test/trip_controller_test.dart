@@ -107,7 +107,7 @@ TripController controller(
       ),
       gateway: gateway ?? FakeGateway(),
       consentStore: const ConsentStore(),
-      consentVersion: 1,
+      consentVersion: 2,
       locations: () => LocationService(
         positionStream: (_) => positions.stream,
         batteryLevel: () async => 80,
@@ -226,7 +226,7 @@ void main() {
           ),
           gateway: FakeGateway(),
           consentStore: const ConsentStore(),
-          consentVersion: 1,
+          consentVersion: 2,
           locations: () => LocationService(
             positionStream: (_) => positions.stream,
             batteryLevel: () async => 80,
@@ -312,7 +312,7 @@ void main() {
           ),
           gateway: FakeGateway(),
           consentStore: const ConsentStore(),
-          consentVersion: 1,
+          consentVersion: 2,
           locations: () => LocationService(
             positionStream: (_) => positions.stream,
             batteryLevel: () async => 80,
@@ -430,7 +430,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -511,7 +511,7 @@ void main() {
         ),
         gateway: gateway,
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -794,7 +794,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -886,7 +886,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -983,7 +983,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -1081,7 +1081,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -1167,7 +1167,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -1255,7 +1255,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,
@@ -1333,7 +1333,7 @@ void main() {
         ),
         gateway: FakeGateway(),
         consentStore: const ConsentStore(),
-        consentVersion: 1,
+        consentVersion: 2,
         locations: () => LocationService(
           positionStream: (_) => positions.stream,
           batteryLevel: () async => 80,

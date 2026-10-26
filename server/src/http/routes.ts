@@ -3,8 +3,12 @@
 // See PLAN.md 6.5. No trip or session ids anywhere.
 import { Hono } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
-import { deleteDevice, insertDevice } from "../db/devices.ts";
-import { recordConsent } from "../db/consents.ts";
+import {
+  deleteDevice,
+  insertDevice,
+  setLearningOptOut,
+} from "../db/devices.ts";
+import { recordConsent, revokeConsent } from "../db/consents.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import { removeDeviceFromReports } from "../domain/reports.ts";
 import type { Store } from "../state/store.ts";
@@ -85,6 +89,16 @@ export function buildAccountRoutes(deps: {
     return c.json({ ok: true });
   });
 
+  app.delete("/v1/consents", auth, async (c) => {
+    const deviceId = c.get("deviceId");
+    if (!consentsPerDevice.hit(deviceId, Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    await revokeConsent(sql, deviceId);
+    return c.body(null, 204);
+  });
+
   app.delete("/v1/me", auth, async (c) => {
     const deviceId = c.get("deviceId");
     if (!deletePerDevice.hit(deviceId, Date.now())) {
@@ -101,6 +115,16 @@ export function buildAccountRoutes(deps: {
       const changed = removeDeviceFromReports(deps.store, deviceId);
       for (const lineId of changed) deps.onLineChanged?.(lineId);
     }
+    return c.body(null, 204);
+  });
+
+  app.delete("/v1/me/learning", auth, async (c) => {
+    const deviceId = c.get("deviceId");
+    if (!deletePerDevice.hit(deviceId, Date.now())) {
+      c.header("Retry-After", "60");
+      return c.json({ e: "rate" }, 429);
+    }
+    await setLearningOptOut(sql, deviceId, true);
     return c.body(null, 204);
   });
 

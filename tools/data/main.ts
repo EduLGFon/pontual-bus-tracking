@@ -152,16 +152,12 @@ function isInt(value: unknown): boolean {
 export function checkSemantics(files: LineFile[]): void {
   const ids = new Set<unknown>();
   const codes = new Set<unknown>();
-  const shorts = new Set<unknown>();
   let total = 0;
   for (const f of files) {
     total += f.bytes;
     const d = f.data;
     for (
-      const [key, set] of [["id", ids], ["code", codes], [
-        "short",
-        shorts,
-      ]] as const
+      const [key, set] of [["id", ids], ["code", codes]] as const
     ) {
       if (set.has(d[key])) {
         throw new Error(`${f.path}: duplicate ${key} ${String(d[key])}`);

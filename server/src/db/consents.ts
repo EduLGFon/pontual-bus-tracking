@@ -22,3 +22,10 @@ export async function latestConsentVersion(
   const row = rows[0] as { version: number } | undefined;
   return row ? row.version : null;
 }
+
+export async function revokeConsent(
+  sql: Sql,
+  deviceId: string,
+): Promise<void> {
+  await sql`delete from consents where device_id = ${deviceId}`;
+}

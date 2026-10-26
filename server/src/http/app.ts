@@ -17,6 +17,7 @@ import { buildReadRoutes } from "./readRoutes.ts";
 import { buildReportRoutes } from "./reportRoutes.ts";
 import { buildTripRoutes } from "./tripRoutes.ts";
 import type { Hub } from "../ws/hub.ts";
+import type { LearningConsumer } from "../learning/consumer.ts";
 
 export interface AppOptions {
   sql: Sql | null;
@@ -30,6 +31,8 @@ export interface AppOptions {
   reportsEnabled: () => boolean;
   /** Tunables owned by main.ts; test easy-publish mutates this object. */
   engine: EngineConfig;
+  /** Optional learning consumer. When absent, learning endpoints return 404. */
+  learning?: LearningConsumer;
   /**
    * Live runtime config. Production passes a cached getter refreshed
    * every 30 s; when omitted, each request loads it (tests, local).
@@ -140,6 +143,7 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         onLineChanged: opts.onLineChanged,
         engine: opts.engine,
         runtime,
+        learning: opts.learning,
       }),
     );
     app.route(
@@ -163,6 +167,7 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
         allowedOrigins: opts.allowedOrigins,
         trustCloudflare: opts.trustCloudflare,
         reportsEnabled: opts.reportsEnabled,
+        learning: opts.learning,
       }),
     );
   }

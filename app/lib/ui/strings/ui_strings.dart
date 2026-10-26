@@ -191,6 +191,12 @@ class UiStrings {
   /// Lines group header.
   static const String searchLines = 'Linhas';
 
+  /// Place search group header.
+  static const String searchPlaces = 'Linhas que passam por';
+
+  /// Caption shown on a place result row.
+  static String searchPlacePassesBy(String place) => 'Passa por $place';
+
   /// No results title.
   static const String searchEmptyTitle = 'Nada encontrado';
 

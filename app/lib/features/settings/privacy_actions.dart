@@ -65,6 +65,11 @@ class PrivacyActions {
       } catch (_) {
         // Best effort only; the server times trips out by itself.
       }
+      try {
+        await api.revokeConsent(token).timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // Best effort only; local revocation still applies.
+      }
     }
     await consentStore.clear();
     await consentStore.clearPosted();

@@ -1,22 +1,14 @@
 # PERF.md - UI performance baseline (U21)
 
 Date: 2026-10-11. Spec: `docs/ui/UI_SPEC.md` 2.1, 11, 17.4.
-Method: same device, same build mode, three runs, median. Device runs use
-`tools/perf/device_run.py` (cold start via the system's Displayed timing,
-profile soak driven by `app/integration_test/perf_app.dart`, PSS plus
-screenshots on logcat markers). Results JSON stays gitignored under
-`tools/perf/results/`; the method and medians live here.
+Method: same device, same build mode, three runs, median. Device runs use `tools/perf/device_run.py`. Results JSON stays gitignored under `tools/perf/results/`; method and medians live here.
 
 ## Device runs (2026-10-11)
 
-Device: `sdk_gphone64_x86_64` emulator (Medium_Phone_API_37.0,
-1080x2400), SwiftShader software GL, no KVM, profile mode. Software
-emulation inflates CPU-bound numbers (cold start, raster); build times,
-PSS and transfer sizes are representative. Hardware re-measurement is
-still wanted for raster p95, battery and field latency.
+Device: `sdk_gphone64_x86_64` emulator (Medium_Phone_API_37.0, 1080x2400), SwiftShader software GL, no KVM, profile mode. Software emulation inflates CPU-bound numbers (cold start, raster); build times, PSS and transfer sizes are representative. Hardware re-measurement still wanted for raster p95, battery and field latency.
 
 | Metric (UI_SPEC 2.1 / 17.4) | Budget | Measured | Verdict |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | Cold start to first frame | <= baseline +10 % (PLAN <= 2 s mid-range) | 2852, 2833, 2911 ms, median 2852 ms (Displayed, force-stop between) | emulator-only; no old-UI baseline exists, so the delta budget has nothing to compare against yet |
 | Home idle frames | ~0 %, no ticker | 4 frames in 25 s | PASS by construction (nothing animates without live data) |
 | Build p50/p95, line settle (213 frames) | p95 < 8 ms | p50 0.2 ms, p95 7.5 ms | PASS |
@@ -31,25 +23,18 @@ still wanted for raster p95, battery and field latency.
 | Web first load, Chrome path (gz) | PLAN <= 3 MB | ~3.10 MB (main.dart.js 971 KB + chromium/canvaskit.wasm 2.06 MB + js/fonts/html) | ~3 % over; canvaskit.wasm dominates, same class as the documented wasm overage |
 | Screenshots | 17.2 matrix, light/dark x 1.0/2.0 | web desktop/narrow/dark plus device lines/line shots in `tools/perf/results/` | partial; full matrix still wants a phone |
 
-AAB delta note: the 52.3 MB baseline (D-U16) was built with the CI
-release flags, and the same-flags rebuild of this tree is 52,337,359
-bytes (52.3 MB). Delta is inside the +400 KB budget. (A plain release
-without `--split-debug-info` is 56.1 MB; the debug info is what the flag
-strips.)
+AAB delta note: the 52.3 MB baseline (D-U16) was built with the CI release flags, and the same-flags rebuild of this tree is 52,337,359 bytes (52.3 MB). Delta is inside the +400 KB budget. (A plain release without `--split-debug-info` is 56.1 MB; the debug info is what the flag strips.)
 
-## Baselines
+## Baselines (new-UI baseline; delta budgets apply from here)
 
-U01 found no stored baseline for the old UI (see `docs/ui/AUDIT.md` 4.1:
-cold start, frame times, APK size and memory were never recorded). The
-numbers below are therefore the new-UI baseline; UI_SPEC delta budgets
-(Android +400 KB, web +120 KB, memory +15 MB) apply from here.
+U01 found no stored baseline for the old UI (cold start, frame times, APK size and memory were never recorded). The numbers below are the new-UI baseline.
 
 | Metric (UI_SPEC 2.1 / 17.4) | Budget | Measured (this host, release) | Verdict |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | Web `main.dart.js` (gz) | delta <= +120 KB | 950 KB gz | new baseline; PLAN 3 MB first-load budget holds (JS path 2.95 MB gz per `docs/field-tests/budgets.md`) |
 | Bundled Manrope subset | <= 70 KB | 50.5 KB (`app/assets/fonts/Manrope.ttf`) | inside |
 | CanvasKit payload | standard Flutter payload | 36.1 MB uncompressed, cached and compressed in practice | informational |
-| Release AAB (arm64-v8a, armeabi-v7a, x86_64, obfuscated) | PLAN <= 15 MB arm64 | 52.3 MB universal | new size baseline; needs the per-ABI split on the capable machine (see below) |
+| Release AAB (arm64-v8a, armeabi-v7a, x86_64, obfuscated) | PLAN <= 15 MB arm64 | 52.3 MB universal | new size baseline; needs the per-ABI split on the capable machine |
 | Cold start to first frame | <= baseline +10 % | TODO device | needs `adb shell am start -W -n com.spotnik.pontual/.MainActivity` |
 | Home first-paint to interactive | < 100 ms interaction | TODO device | needs `flutter run --profile --trace-startup` + DevTools |
 | Linha open to map visible | paints from cache, no spinner | TODO device | verify no blocking spinner on cached data |
@@ -60,29 +45,23 @@ numbers below are therefore the new-UI baseline; UI_SPEC delta budgets
 
 ## Static checks (this host, 2026-10-11)
 
-- Banned widgets: `grep -rn "Opacity(\|BackdropFilter\|ShaderMask\|ColorFiltered\|ImageFiltered" app/lib/ui` finds one `Opacity` in `arrival_row.dart` (past-scheduled dimming) plus a comment mention in `line_map.dart`. No `BackdropFilter`, `ShaderMask`, `ColorFiltered`, `ImageFiltered`. The `Opacity` case is tracked as a U21 fix (dim by colour alpha, not a saveLayer).
-- Tickers: `LivePulse` is the single shared pulse controller; it stops on reduced motion or `TickerMode` off. `EtaText` keeps the old child for 140 ms only on value change. No per-marker controllers. Home idle CPU still needs the DevTools check (no pending timers on Inicio).
+- Banned widgets: `grep -rn "Opacity(\|BackdropFilter\|ShaderMask\|ColorFiltered\|ImageFiltered" app/lib/ui` finds one `Opacity` in `arrival_row.dart` (past-scheduled dimming, fixed via colour alpha) plus a comment mention in `line_map.dart`. No `BackdropFilter`, `ShaderMask`, `ColorFiltered`, `ImageFiltered`. The `Opacity` case tracked as a U21 fix.
+- Tickers: `LivePulse` is the single shared pulse controller; stops on reduced motion or `TickerMode` off. `EtaText` keeps the old child for 140 ms only on value change. No per-marker controllers. Home idle CPU still needs the DevTools check.
 - Lists: `SliverList.builder` on search and lines; route polyline off (`Features.routeLine` false, manifest `routes` empty).
 - Deferred map import on web: missing (AUDIT gap 11). Tracked below.
 
 ## TODO for hardware and field runs (spec 17.4 protocol)
 
-- [ ] Raster p95 + map fps on a real GPU (emulator SwiftShader numbers do
-  not count).
+- [ ] Raster p95 + map fps on a real GPU (emulator SwiftShader numbers do not count).
 - [ ] Cold start on a mid-range and a low-end phone (emulator: 2852 ms).
 - [ ] Battery: leader extra drain <= ~4 %/h, follower <= ~2 %/h (T47).
 - [ ] Fix-to-map p95 latency <= 10 s on real phones with riders.
-- [ ] Lighthouse accessibility and best-practices >= 95 (no node toolchain
-  on this host).
-- [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release
-  PR; device lines/line plus web desktop/narrow/dark shots exist.
+- [ ] Lighthouse accessibility and best-practices >= 95 (no node toolchain on this host).
+- [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release PR; device lines/line plus web desktop/narrow/dark shots exist.
 
 ## Fixes from this audit (2026-10-11)
 
 1. Done: `arrival_row.dart` past dimming via colour alpha (no `Opacity`).
-2. Decided: deferred map import stays eager (see DECISIONS.md D-U20).
-   Revisit with measurements if the web budget regresses.
-3. Done: debug-only frame-timing logger (`summarizeBuildRaster` plus
-   `installFrameTimingLogger`, hooked in the debug gallery).
-4. Done: `docs/ui/PERF.md` created (this file); before/after table fills
-   in when device runs land.
+2. Decided: deferred map import stays eager (see DECISIONS.md D-U20). Revisit with measurements if the web budget regresses.
+3. Done: debug-only frame-timing logger (`summarizeBuildRaster` plus `installFrameTimingLogger`, hooked in the debug gallery).
+4. Done: `docs/ui/PERF.md` created (this file); before/after table fills in when device runs land.

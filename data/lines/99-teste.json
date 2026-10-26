@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": 99,
+  "code": "99-teste",
+  "short": "99",
+  "name": "Teste (campo)",
+  "terminals": [
+    "Teste"
+  ],
+  "area_tags": [
+    "Teste"
+  ],
+  "is_active": true,
+  "pilot": true,
+  "schedules": [],
+  "source_ids": [
+    "owner-test"
+  ],
+  "verified_at": null
+}

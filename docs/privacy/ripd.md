@@ -27,8 +27,8 @@ apagamento imediato a pedido.
 
 ## 3. Riscos
 
-| Risco | Causa | Probabilidade | Impacto | Controle |
-| ----- | ----- | ------------- | ------- | -------- |
+| Risco | Causa | Prob. | Impacto | Controle |
+| ----- | ----- | ----- | ------- | -------- |
 | Posição exata de um passageiro sozinho (KL2) | um só passageiro = veículo | Alta | Alto | aviso no consentimento; sem histórico; some ao descer |
 | Veículo fantasma (falsificação) | GPS falso ou abuso | Média | Médio | isMocked, plausibilidade, strikes, bloqueio, kill switch |
 | Exposição de posição em registros | log acidental | Baixa | Alto | Log sem coordenadas (testado AC17); auditoria de logs |
@@ -36,7 +36,7 @@ apagamento imediato a pedido.
 | Comprometimento do VPS | operação própria | Média | Alto | hardening, menor privilégio, backup cifrado, sem posição em disco |
 | Transferência internacional de IP | Cloudflare, OSM, Google | Alta | Baixo | divulgado na política; Brasil preferido para o VPS |
 | Menores expostos | estudantes usam | Média | Médio | mínimo de dados, sem perfil, sem anúncios |
-| Presença inferida por sinalização | "alguém esperando" em uma área de ~150 m | Baixa | Médio | sem coordenada exata; célula grosseira; contagem 1 vira "alguém"; público por ação do titular; TTL <= 2 h; sem histórico |
+| Presença inferida por sinalização | "alguém esperando" em ~150 m | Baixa | Médio | sem coordenada exata; célula grosseira; contagem 1 vira "alguém"; público por ação do titular; TTL <= 2 h; sem histórico |
 | Localização exata em log ou relatório | bug de instrumentação | Baixa | Alto | só a célula é enviada; serviço converte no aparelho; revisão de logs; sem persistência |
 | Sinalização falsa ou brigada | tokens gratuitos, retaliação | Média | Médio | tipos fechados, limites, teto por linha, TTL curto, texto "relato", kill switch |
 

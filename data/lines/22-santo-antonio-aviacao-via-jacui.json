@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": 22,
+  "code": "22-santo-antonio-aviacao-via-jacui",
+  "short": "21",
+  "name": "Santo Antônio / Aviação via Jacuí",
+  "terminals": [
+    "Santo Antônio",
+    "Aviação"
+  ],
+  "area_tags": [
+    "Santo Antônio",
+    "Aviação"
+  ],
+  "is_active": true,
+  "pilot": false,
+  "schedules": [],
+  "source_ids": [
+    "onibus-online"
+  ],
+  "verified_at": null
+}

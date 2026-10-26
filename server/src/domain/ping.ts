@@ -96,8 +96,10 @@ export function startTrip(
     return { ok: false, code: invalid === "bbox" ? "area" : "bad_request" };
   }
   if (store.trips.has(deviceId)) endTrip(store, events, deviceId);
+  const tripKey = crypto.randomUUID();
   store.trips.set(deviceId, {
     deviceId,
+    tripKey,
     lineId: line.id,
     vehicleId: null,
     startedAtMs: nowMs,
@@ -117,6 +119,14 @@ export function startTrip(
     strikes: 0,
     ledS: 0,
     offRoute: false,
+  });
+  events.push({
+    kind: "tripStarted",
+    lineId: line.id,
+    tripKey,
+    startedAtMs: nowMs,
+    lat: fix.lat,
+    lng: fix.lng,
   });
   return { ok: true, role: "W", intervalS: cfg.waitingIntervalS };
 }
@@ -173,11 +183,33 @@ export function applyPing(
     storeFix(trip, fix, nowMs, cfg);
     trip.vehicleId = null;
     trip.offRoute = true;
+    events.push({
+      kind: "fixAccepted",
+      lineId: trip.lineId,
+      tripKey: trip.tripKey,
+      atMs: nowMs,
+      lat: fix.lat,
+      lng: fix.lng,
+      speedMps: fix.speedMps,
+      heading: fix.heading,
+      accuracyM: fix.accuracyM,
+    });
     return { role: "W", intervalS: cfg.waitingIntervalS };
   }
   trip.offRoute = false;
   // 7. Store the fix.
   storeFix(trip, fix, nowMs, cfg);
+  events.push({
+    kind: "fixAccepted",
+    lineId: trip.lineId,
+    tripKey: trip.tripKey,
+    atMs: nowMs,
+    lat: fix.lat,
+    lng: fix.lng,
+    speedMps: fix.speedMps,
+    heading: fix.heading,
+    accuracyM: fix.accuracyM,
+  });
   // 8. Attach.
   if (trip.vehicleId === null) {
     const found = nearestVehicle(
@@ -345,6 +377,7 @@ export function endTrip(
   const trip = store.trips.get(deviceId);
   if (!trip) return;
   const lineId = trip.lineId;
+  const tripKey = trip.tripKey;
   const vehicleId = trip.vehicleId;
   store.trips.delete(deviceId);
   if (vehicleId !== null) {
@@ -352,7 +385,10 @@ export function endTrip(
     for (const t of store.trips.values()) {
       if (t.vehicleId === vehicleId) members += 1;
     }
-    if (members === 0) removeVehicle(store, vehicleId);
+    if (members === 0) {
+      removeVehicle(store, vehicleId);
+      events.push({ kind: "vehicleRemoved", lineId, vehicleId });
+    }
   }
-  events.push({ kind: "tripEnded", lineId, reason });
+  events.push({ kind: "tripEnded", lineId, tripKey, reason });
 }

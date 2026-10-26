@@ -5,6 +5,7 @@ import { Hono } from "@hono/hono";
 import * as v from "@valibot/valibot";
 import type { Sql } from "../db/client.ts";
 import { guardState } from "../db/guard.ts";
+import { getLearningOptOut } from "../db/devices.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import type { LineResolver } from "../data/lines.ts";
 import { applyPing, endTrip, isGone, startTrip } from "../domain/ping.ts";
@@ -36,6 +37,8 @@ export interface TripDeps {
   engine: EngineConfig;
   /** Live runtime config, cached in main.ts and refreshed every 30 s. */
   runtime: () => Promise<RuntimeConfig>;
+  /** Optional learning consumer. */
+  learning?: import("../learning/consumer.ts").LearningConsumer;
 }
 
 function jitterS(maxS: number): number {
@@ -125,6 +128,13 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       }
       return c.json({ e: "bad_request" }, 400);
     }
+    if (deps.learning) {
+      const optedOut = await getLearningOptOut(deps.sql, deviceId);
+      if (!optedOut) {
+        const rt2 = await deps.runtime();
+        for (const ev of events) deps.learning.handle(ev, rt2.consentVersion);
+      }
+    }
     return c.json({ r: out.role, n: out.intervalS }, 201);
   });
 
@@ -176,6 +186,10 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     ) {
       deps.onLineChanged(lineId);
     }
+    if (deps.learning) {
+      const rt2 = await deps.runtime();
+      for (const ev of events) deps.learning.handle(ev, rt2.consentVersion);
+    }
     if (out.end) return c.json({ r: out.role, n: out.intervalS, e: out.end });
     return c.json({ r: out.role, n: out.intervalS });
   });
@@ -191,7 +205,11 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       c.header("Retry-After", "60");
       return c.json({ e: "rate" }, 429);
     }
-    endTrip(deps.store, [], deviceId);
+    const evs: EngineEvent[] = [];
+    endTrip(deps.store, evs, deviceId);
+    if (deps.learning) {
+      for (const ev of evs) deps.learning.handle(ev, 1);
+    }
     return c.body(null, 204);
   });
 

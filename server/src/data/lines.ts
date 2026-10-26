@@ -5,6 +5,7 @@ import { decodePolyline, type RouteShape, routeShape } from "../domain/geo.ts";
 
 export interface LineRecord {
   id: number;
+  code?: string;
   isActive: boolean;
   route: RouteShape | null;
 }
@@ -61,6 +62,7 @@ export async function loadLinesFromDir(dataDir: string): Promise<LineRecord[]> {
   }
   return lines.map((l) => ({
     id: Number(l.id),
+    code: String(l.code ?? l.id),
     isActive: l.is_active === true,
     route: byCode.get(String(l.code)) ?? null,
   }));
