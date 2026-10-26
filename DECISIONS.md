@@ -3110,3 +3110,17 @@ from the data layer plus widget tests, which this pass could not run.
   SharedPreferences list, uploaded on app resume if opted in (default on,
   opt-out in settings). Opt-out clears the pending list.
 - No third-party SDK; first-party only, consistent with PRV06/RNF18.
+
+## ADR: Enable learning subsystem by default (2026-10-26)
+
+- Enabled `learning_enabled` by default (`defaultLearningConfig().enabled = true`).
+- Aligned `minConsentVersion` to 1 to match the consent version shipped by the
+  app (`consent_version` = 1) and the version passed during ingestion.
+- Lowered promotion thresholds (`minRouteTrips`, `minStopPasses`,
+  `stopMinDistinctDays`, `kMin`, `minRouteLengthM`, `minDwellS`) and
+  `flushIntervalS` so aggregates (routes, stops, segments, dwell) become
+  visible after the first qualifying trip and improve with subsequent trips.
+- Implemented learned route polyline persistence in `LearningConsumer.flush()`
+  (median per route bin, encoded as Google polyline) and added
+  `upsertRoute` against `learned_routes`.
+- Updated `docs/privacy/inventory.md` to include the new learned aggregates.
