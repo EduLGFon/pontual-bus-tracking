@@ -101,6 +101,9 @@ Future<void> _shareTrip(
   final RemoteConfigRepository remote = await container.read(
     remoteConfigRepoProvider.future,
   );
+  // Force a refresh so a bumped consent_version (or any server-side
+  // change) is picked up instead of a stale cached copy.
+  await remote.refresh(force: true);
   final int consentVersion = (await remote.current()).consentVersion;
   final TripController controller = TripController(
     TripDeps(

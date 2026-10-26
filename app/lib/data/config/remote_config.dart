@@ -126,10 +126,12 @@ class RemoteConfigRepository {
   }
 
   /// Refreshes flags at most once per day. Failures keep old flags.
-  Future<Result<bool>> refresh() async {
+  /// [force] bypasses the daily throttle (used when the cached copy is
+  /// known to be stale, for example after a consent-version bump).
+  Future<Result<bool>> refresh({bool force = false}) async {
     final SharedPreferences sp = await prefs();
     final int last = sp.getInt(remoteConfigCheckKey) ?? 0;
-    if (nowMs() - last < remoteCheckInterval.inMilliseconds) {
+    if (!force && nowMs() - last < remoteCheckInterval.inMilliseconds) {
       return const Ok<bool>(false);
     }
     await sp.setInt(remoteConfigCheckKey, nowMs());
