@@ -8,15 +8,15 @@ routine). Language: English. User-visible strings stay pt-BR in code.
 
 - The 60 m publish gate never moves (client `fixAccuracyMaxM`,
   server `accuracyMaxM`). No gate below tightens it.
-- Accuracy tiers used by the implementation, worst first:
-  above 60 m dropped on both ends; 40-60 m degraded (D64 holds the
-  faster stream up to 60 s); 30-40 m usable but flagged weak
-  (`weakGpsAccuracyM`); under 30 m good (start anchor and weak
-  threshold, D65); under 0.5 m/s the bearing is nulled (D66).
+- Accuracy tiers, worst first: above 60 m dropped on both ends;
+  40-60 m degraded (D64 holds the faster stream up to 60 s);
+  30-40 m usable but flagged weak (`weakGpsAccuracyM`); under 30 m
+  good (start anchor and weak threshold, D65); under 0.5 m/s the
+  bearing is nulled (D66).
 - Every gate is measured twice: once on an open-sky segment, once on
-  a weak-GPS segment (urban canyon, tree cover, or indoor start).
-  A step passes only if the weak-GPS column does not regress and
-  the open-sky column holds or improves.
+  a weak-GPS segment (urban canyon, tree cover, or indoor start). A
+  step passes only if the weak-GPS column does not regress and the
+  open-sky column holds or improves.
 - Builds under test are production-equivalent: default dart-defines
   (`FIX_ACCURACY_MAX_M` unset, `FORCE_PING_BUTTON` off) against
   staging or prod. `TEST_EASY_PUBLISH` stays off.

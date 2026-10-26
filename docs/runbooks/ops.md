@@ -118,7 +118,7 @@ datado em `docs/security/incidents.md` (sem dados pessoais).
 
 ## Registro de simulados
 
-- 2026-10-03: kill switch em instância isolada local (ver abaixo).
-  Start e ping retornaram `503 maint` em < 30 s; leituras e dados
+- 2026-10-03: kill switch em instância isolada local. Start e
+  ping retornaram `503 maint` em < 30 s; leituras e dados
   estáticos seguiram funcionando; rollback apagando a chave.
   Próximo simulado: no VPS após T04/T05.

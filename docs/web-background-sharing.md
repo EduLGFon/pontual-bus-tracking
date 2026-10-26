@@ -1,700 +1,194 @@
 # Web/PWA background location sharing: feasibility and test plan
 
-Status: option B (foreground-only gap recovery) approved by the owner and
-implemented on 2026-10-19. The field protocol in section 7 is still pending,
-so the platform behavior described here remains unverified outside unit and
-widget tests. No background coverage is claimed. See `DECISIONS.md` D74.
-Date: 2026-10-19.
-Related design: `PLAN.md` 8.12 (web/PWA specifics), D11 (no background
-location on Android), D-U24 (Android web is viewer-only), D59 (background
-survival), and the GPS gates in `docs/field-tests/gps-acceptance.md`.
+Status: option B (foreground-only gap recovery) approved and implemented 2026-10-19 (D74). Field protocol (section 7) still pending; platform behavior unverified outside unit/widget tests. No background coverage claimed.
+
+Related: PLAN.md 8.12; D11 (no background location on Android); D-U24 (Android web viewer-only); D59 (background survival); D63-D69; docs/field-tests/gps-acceptance.md.
 
 ## 0. Short answer
 
-Pure web/PWA background location is not available. The blocker is the
-Geolocation API itself, not a missing permission, manifest flag, service
-worker trick, or installed-app mode. The specification only delivers
-position updates to a fully active, visible document, and browsers suspend
-hidden pages. Installing the PWA does not add native privileges.
+Pure web/PWA background location is unavailable. The blocker is the Geolocation API itself, not a missing permission, manifest flag, service worker trick, or installed-app mode. The spec only delivers position updates to a fully active, visible document; browsers suspend hidden pages; installing the PWA adds no native privileges. PiP and notifications do not change this on mobile. Desktop Document PiP is an exception (section 5.12).
 
-Picture-in-picture and notifications do not change this on mobile. A web
-notification is a display surface, not an execution environment. Android video
-picture-in-picture keeps the video playing, but the page is hidden and
-geolocation is paused. Document Picture-in-Picture is a desktop-only
-exception: a Chromium desktop PiP window can stay visible while the user works
-in another app and can request geolocation from its own document. It is not
-available in Chrome for Android, Safari, or iOS, so it is not a mobile
-workaround. Section 5.12 covers it.
+Useful pure-web options: (1) foreground-only sharing with screen on and trip screen visible (current design, only reliable web mode); (2) prompt resume and gap recovery on visible (shortens post-return gap, no background coverage); (3) native Android app for screen-off sharing (existing, foreground service type `location`, no `ACCESS_BACKGROUND_LOCATION`).
 
-The useful pure-web options are therefore:
+TWA, Capacitor shell, or WebView wrapper can host a native foreground service, but that is a native app strategy, not a web workaround, and duplicates the existing Android app. iOS screen-off sharing is a separate native product decision.
 
-1. Keep sharing foreground-only, with the screen on and the trip screen
-   visible. This is the current design and the only reliable web mode.
-2. Add prompt resume and gap recovery when the page becomes visible again.
-   This shortens the post-return gap, but it does not create background
-   coverage.
-3. Use the native Android app for screen-off sharing. It already exists and
-   uses a foreground service with the `location` type, without
-   `ACCESS_BACKGROUND_LOCATION`.
+Recommendation: keep the foreground-only contract, add gap recovery (done), do not build a wrapper, keep the native Android app as the screen-off path.
 
-A TWA, Capacitor shell, or WebView wrapper can host a native foreground
-service, but that is a native app strategy, not a web workaround. It would
-duplicate the existing Android app. If iOS screen-off sharing is required,
-that is a separate native iOS product decision.
+## 1. What "background" means
 
-Recommendation: keep the foreground-only contract, add gap recovery, do not
-build a wrapper, and keep the Android native app as the screen-off path.
-
-## 1. What "background" means here
-
-The word covers several different platform states. They share one property:
-the page cannot be trusted to run JavaScript or receive geolocation.
-
-| State | Typical trigger | What the web app can rely on |
+| State | Trigger | What the web app can rely on |
 | --- | --- | --- |
-| Visible, screen on | Trip screen open, device unlocked | Location updates and timers can run; wake lock can be held |
-| Visible, screen off | Power button, timeout, lock screen | No reliable updates; wake lock is released or not applicable |
-| Hidden tab | Another tab, minimized browser | Page visibility is `hidden`; updates stop |
-| App switched | Home, another app, app switcher | Page is hidden; browser or OS may freeze it |
-| Frozen | Browser resource policy | Timers, fetch callbacks, and most tasks are suspended |
-| Discarded | Browser memory pressure | No JavaScript runs at all; the page may reload later |
-| Terminated | Tab closed, browser killed, OS kill | Nothing runs; in-memory trip state is lost |
-| Native foreground service | Android app only | Can continue with a persistent notification |
+| Visible, screen on | Trip screen open, unlocked | Location updates and timers run; wake lock can be held |
+| Visible, screen off | Power button, timeout, lock | No reliable updates; wake lock released or not applicable |
+| Hidden tab | Another tab, minimized browser | Visibility `hidden`; updates stop |
+| App switched | Home, another app, switcher | Page hidden; browser/OS may freeze |
+| Frozen | Browser resource policy | Timers, fetch callbacks, most tasks suspended |
+| Discarded | Memory pressure | No JS runs; page may reload later |
+| Terminated | Tab closed, browser/OS kill | Nothing runs; in-memory trip state lost |
+| Native foreground service | Android app only | Continues with persistent notification |
 
-The current web policy pauses sends after 60 s hidden. That is a product
-policy, not a platform guarantee. Chrome and the Geolocation specification
-stop delivering updates earlier, as soon as the document is hidden. A brief
-hide may produce a few opportunistic fixes in some browsers, but no test
-should treat that as supported behavior.
+Current web policy pauses sends after 60 s hidden (product policy, not platform guarantee; Chrome stops on hide).
 
-## 2. Platform evidence
+## 2. Platform evidence (sources accessed 2026-10-19)
 
-### 2.1 The specification requires a visible document
+2.1 Spec: Geolocation is `[Exposed=Window]`, not workers/service workers. `watchPosition()` waits if document not fully active or visibility != `visible`; note "Position updates are exclusively for fully-active visible documents." `getCurrentPosition()` waits for visibility; `timeout` does not cover wait time. Consequences: hidden page gets no fixes; keeping a subscription does not override the gate; service worker cannot acquire position. Source: W3C Geolocation (sections 5, 6.3, 6.5, 7.2).
 
-The W3C Geolocation Candidate Recommendation (26 March 2026) defines
-`Geolocation` as `[Exposed=Window]`. It is not exposed to workers or service
-workers. The algorithm for `watchPosition()` says that if the document is not
-fully active or its visibility state is not `visible`, the user agent waits
-for a significant position change and checks again. The specification's own
-note is explicit: "Position updates are exclusively for fully-active visible
-documents." Updates are silently dropped while hidden and resume only when
-the document is active and visible again.
+2.2 Chrome: geolocation runs only in the foreground tab and is "paused as soon as the page is in the background"; no background geolocation. One-time grant can expire after >=5 min background. Source: Chrome one-time permissions.
 
-`getCurrentPosition()` follows the same rule. If the document is hidden, the
-request waits for the page visibility change steps before acquiring a
-position. The `timeout` option does not cover time spent waiting for the page
-to become visible.
+2.3 Page Lifecycle: hidden -> frozen -> discarded -> terminated. Hidden page may never get `freeze`/`resume`/`pagehide`; Chrome treats hidden as last reliable point to persist state. Heartbeat timer best effort; page can die without notice. Source: Page Lifecycle API.
 
-Consequences:
+2.4 Screen Wake Lock: only visible documents can acquire; auto-released on hidden; not applicable after manual screen off; advisory (low battery, power saver). Useful for foreground mode only. Source: W3C Screen Wake Lock.
 
-- A hidden page does not receive a stream of fixes.
-- Keeping a `watchPosition()` subscription alive does not override the
-  visibility gate.
-- A service worker cannot acquire a position on behalf of the page.
+2.5 Workers/service workers: no `navigator.geolocation`. Background Sync retries data; Periodic Background Sync is installed-app-only, engagement-gated, browser-scheduled, not continuous; push wakes a worker but it still has no location. All data-only. Sources: MDN Service Worker; Chrome Periodic Background Sync.
 
-Source: W3C Geolocation, sections 5, 6.3, 6.5, and 7.2
-(https://www.w3.org/TR/geolocation/).
+2.6 PWA install: WebAPK/WebKit rendering; no native entitlement; no manifest field grants background geolocation. TWA host has no direct access to page state/cookies/storage; postMessage bridge only. Sources: Chrome TWA overview/postMessage.
 
-### 2.2 Chrome pauses geolocation in the background
+2.7 iOS: background location is native Core Location capability (location background mode, continuous updates, indicator); not available to web content. Behavior version-dependent; treat Safari tab and home-screen app as separate targets. Sources: Apple Developer.
 
-Chrome's one-time-permissions documentation states that geolocation can only
-run in the foreground tab and is "paused as soon as the page is in the
-background." It also states that Chrome does not allow background geolocation
-access. This is separate from the permission lifetime: even a persistent
-grant does not make geolocation work in a hidden tab.
-
-The same page notes that a one-time grant can expire after the page has been
-in the background for at least five minutes. That expiry is an additional
-reason not to rely on a long-lived hidden page, but it is not the primary
-blocker. The primary blocker is that position updates stop while hidden.
-
-Source: Chrome for Developers, "One-time permissions in Chrome", background
-tab section (https://developer.chrome.com/blog/one-time-permissions).
-
-### 2.3 Hidden pages can be frozen or discarded
-
-The Page Lifecycle API describes what happens after `visibilitychange`:
-
-- Hidden: the page is not visible. It may still run briefly, but the browser
-  is free to freeze or discard it.
-- Frozen: freezable tasks, including JavaScript timers and fetch callbacks,
-  are suspended.
-- Discarded: no tasks, event callbacks, or JavaScript run. The page must be
-  reloaded to be used again.
-- Terminated: the page is unloaded and cleared from memory.
-
-A hidden page is not guaranteed a `freeze`, `resume`, or `pagehide` event.
-Chrome's guidance treats the hidden state as the last reliable point at which
-to persist state, because the page may never become visible again.
-
-Consequences:
-
-- A heartbeat timer or a retry loop is best effort only.
-- A hidden page can die without notifying the app.
-- A service worker wake-up is not a substitute for a live geolocation stream.
-
-Source: Chrome for Developers, "Page Lifecycle API"
-(https://developer.chrome.com/docs/web-platform/page-lifecycle-api).
-
-### 2.4 The Screen Wake Lock is not a background lock
-
-The Screen Wake Lock specification allows only visible documents to acquire a
-screen wake lock. A request from a hidden document is rejected. The lock is
-automatically released when the document becomes hidden and is not applicable
-after the user manually switches the screen off. It is advisory: the browser
-may release it for low battery, power-saving mode, or abnormal operation.
-
-The wake lock is still useful for the foreground mode: it prevents the screen
-from turning off while the trip screen is visible. It cannot keep the page
-alive when the user locks the phone or switches apps.
-
-Source: W3C Screen Wake Lock
-(https://w3c.github.io/screen-wake-lock/), sections "Wake Locks", "The
-request() method", and "Auto-releasing wake locks".
-
-### 2.5 Workers and service workers cannot obtain location
-
-The Geolocation interface is exposed only to `Window`. A dedicated worker,
-shared worker, or service worker has no `navigator.geolocation` that can
-acquire a position. Service workers are event-driven and have no DOM. They can
-cache assets, intercept requests, and react to push or sync events, but they
-cannot ask the device for a location.
-
-The background sync family is also data-only:
-
-- Background Sync retries a failed network operation when connectivity
-  returns.
-- Periodic Background Sync lets an installed PWA refresh data on a schedule
-  chosen by the browser. It requires installation and user engagement, is not
-  available in a normal tab, and is not a continuous execution environment.
-- Push notifications can wake a service worker, but the worker still cannot
-  call the Geolocation API.
-
-None of these mechanisms can produce a position. They can only send data the
-page already has, which is the last known fix at best.
-
-Sources: MDN Service Worker API
-(https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API); Chrome
-for Developers, "Richer offline experiences with the Periodic Background Sync
-API" (https://developer.chrome.com/docs/capabilities/periodic-background-sync).
-
-### 2.6 Installing the PWA grants no background privileges
-
-An installed PWA on Android is still rendered by Chrome (WebAPK), and an
-installed web app on iOS is still rendered by WebKit. Installation changes how
-the app is launched and displayed, not what the browser engine is allowed to
-do. There is no web manifest field, service worker registration, or install
-prompt that grants background geolocation.
-
-A TWA is also rendered by the user's browser, in fullscreen. The Android host
-does not get direct access to the web page's state, cookies, or local storage.
-The host can coordinate through URLs or the postMessage bridge, but the web
-content remains web content and keeps the same visibility rules.
-
-Sources: Chrome for Developers, "Trusted Web Activity overview"
-(https://developer.chrome.com/docs/android/trusted-web-activity/overview);
-Chrome for Developers, "PostMessage for TWA"
-(https://developer.chrome.com/docs/android/post-message-twa).
-
-### 2.7 iOS does not expose a web background mode
-
-Safari and installed home-screen web apps are subject to WebKit and iOS
-lifecycle management. Apple documents background location as a native Core
-Location capability: the app enables the `location` background mode, receives
-continuous updates, and shows the background location indicator. That
-capability is available to native apps, not to web content.
-
-iOS behavior has changed across releases, and installed-PWA behavior is not
-identical to Safari-tab behavior. This report does not assume a specific iOS
-version. The device protocol below treats iOS Safari and the home-screen app
-as separate test targets.
-
-Source: Apple Developer, "Handling location updates in the background"
-(https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background);
-"allowsBackgroundLocationUpdates"
-(https://developer.apple.com/documentation/corelocation/cllocationmanager/allowsbackgroundlocationupdates).
-
-### 2.8 Android foreground services are a native feature
-
-Android 14 and later require a foreground service type. The `location` type
-requires `FOREGROUND_SERVICE_LOCATION`, a runtime location permission, and a
-visible notification. A location foreground service can be started while the
-app is visible and continue when the app goes to the background. Starting it
-from the background requires `ACCESS_BACKGROUND_LOCATION`, which this project
-does not request (D11).
-
-This is exactly what the existing Android app does. It is not something a web
-page can start or control.
-
-Source: Android Developers, "Foreground service types", Location section
-(https://developer.android.com/develop/background-work/services/fgs/service-types).
+2.8 Android foreground services: Android 14+ requires foreground service type; `location` type needs `FOREGROUND_SERVICE_LOCATION`, runtime location permission, visible notification; can start while visible and continue in background; starting from background needs `ACCESS_BACKGROUND_LOCATION` (not requested, D11). Existing app does this. Source: Android foreground service types.
 
 ## 3. Capability matrix
 
-| Mechanism | Pure web? | Location while hidden or screen off? | Why |
+| Mechanism | Pure web? | Location while hidden/screen off? | Why |
 | --- | --- | --- | --- |
-| Visible page + `watchPosition` | Yes | No | Spec waits for a visible document |
-| Visible page + Screen Wake Lock | Yes | No | Lock only applies while visible; screen-off releases it |
-| Hidden tab with timers | Yes | No | Browser pauses or freezes the page |
-| Dedicated or shared worker | Yes | No | Geolocation is `Window`-only |
-| Service worker | Yes | No | No DOM and no Geolocation API |
-| Background Sync | Yes | No | Retries data, does not acquire location |
-| Periodic Background Sync | Yes | No | Browser-scheduled data refresh; no location |
-| Push notification | Yes | No | Wakes a worker, but the worker has no location |
-| Web notification as a keepalive | Yes | No | Display and click target only; it does not execute location code |
-| Android video picture-in-picture | Yes | No | Video keeps playing, but the page is hidden and geolocation is paused |
-| Document Picture-in-Picture (desktop Chromium) | Yes, desktop only | Only while the PiP window stays visible | A same-origin PiP document can request geolocation; unsupported in Chrome for Android, Safari, and iOS |
-| Installed PWA / WebAPK | Yes | No | Same browser engine; no native entitlement |
-| TWA + native foreground service | No | Yes, while the service runs | The host app collects and sends location natively |
-| Capacitor/WebView + native plugin | No | Yes, with native service and permissions | Native shell, not a PWA |
+| Visible page + `watchPosition` | Yes | No | Spec waits for visible document |
+| Visible page + Screen Wake Lock | Yes | No | Lock only while visible; screen-off releases it |
+| Hidden tab with timers | Yes | No | Browser pauses/freezes page |
+| Dedicated/shared worker | Yes | No | Geolocation is `Window`-only |
+| Service worker | Yes | No | No DOM/Geolocation API |
+| Background Sync | Yes | No | Retries data, no location |
+| Periodic Background Sync | Yes | No | Browser-scheduled refresh; no location |
+| Push notification | Yes | No | Wakes worker, but no location |
+| Web notification as keepalive | Yes | No | Display/click target only |
+| Android video PiP | Yes | No | Video plays, page hidden, geolocation paused |
+| Document PiP (desktop Chromium) | Yes, desktop only | Only while PiP window visible | PiP document can request geolocation; no Android/iOS/Safari |
+| Installed PWA/WebAPK | Yes | No | Same engine, no native entitlement |
+| TWA + native foreground service | No | Yes, while service runs | Host collects/sends location natively |
+| Capacitor/WebView + native plugin | No | Yes, with native work | Native shell, not a PWA |
 | Native Android app | No | Yes | Foreground service type `location` |
-| Native iOS app | No | Yes, with background location mode | Core Location background updates |
+| Native iOS app | No | Yes, with Always auth | Core Location background updates |
 
-## 4. What the current implementation does
+## 4. Current implementation (foreground-only + gap recovery)
 
-The current web mode is a deliberate foreground-only design with best-effort
-gap recovery:
+- `TripScreen` requests wake lock while alive, returns on `resumed`, re-requests on every visible transition (`app/lib/ui/features/trip/trip_screen.dart`).
+- `WebVisibilityTracker` pauses after 60 s hidden; keeps hidden-since timestamp even if 5 s check timer frozen; reports real gap to controller on resume (`app/lib/platform/web/visibility.dart`).
+- `TripController.setWebHidden(true)` drops fixes while hidden. On visible, `recoverWebSharing` clears pause and asks `LocationService` for one high-accuracy one-shot; service restarts stream if dead/silent; one-shot emitted through normal filter (`trip_controller.dart`, `location_service.dart`).
+- Accepted fix uses `_nextPingAtMs` pacing; recovery does not bypass server interval. `TripFix.acceptedAtMs` lets controller drop a fix queued across the hide that would otherwise be published stale.
+- If hidden >= 10 min server-timeout fallback, next `gone` shown as `TripEndKind.automatic` detail `timeout`; not revived with stale fix. Short gaps keep one-time revive path for server restart/lost record.
+- `WebTripBanner` always visible during web trip: "Mantenha esta tela aberta e o celular desbloqueado."
+- Server ends trip after 600 s without ping (`trip_timeout_s = 600`); viewer hides vehicle after 120 s without fix.
 
-- `TripScreen` requests a wake lock while the trip screen is alive, returns on
-  `resumed`, and re-requests the lock on every visible transition
-  (`app/lib/ui/features/trip/trip_screen.dart`).
-- `WebVisibilityTracker` pauses after 60 s hidden. It keeps the hidden-since
-  timestamp even if the 5 s check timer was frozen, so resume can pass the
-  real gap to the controller (`app/lib/platform/web/visibility.dart`).
-- `TripController.setWebHidden(true)` drops fixes while hidden. On visible,
-  `recoverWebSharing` clears the pause and asks `LocationService` for one
-  high-accuracy one-shot. The service also restarts the stream when it is dead
-  or silent, then emits the one-shot through the normal filter
-  (`app/lib/features/trip/trip_controller.dart`,
-  `app/lib/features/trip/location_service.dart`).
-- The accepted fix uses the existing `_nextPingAtMs` pacing, so recovery does
-  not bypass the server interval. `TripFix.acceptedAtMs` lets the controller
-  drop a fix that sat in the stream queue across the hide and would otherwise
-  be published with a stale position.
-- If the page was hidden for at least the 10-minute server-timeout fallback,
-  the next `gone` is shown as `TripEndKind.automatic` with detail `timeout`.
-  It is not revived with a stale fix. Short gaps keep the existing one-time
-  revive path for server restarts or lost records.
-- `WebTripBanner` is always visible during a web trip and says: "Mantenha esta
-  tela aberta e o celular desbloqueado."
-- The server ends a trip after 600 s without a ping
-  (`trip_timeout_s = 600`), and the viewer hides a vehicle after 120 s without
-  a fix.
+Limits: no background acquisition; pause flag not guaranteed if frozen (tracker reports gap on resume); wake-lock reacquisition unverified on devices; timeout fallback is prediction, server authoritative; client never ends trip on its own.
 
-This is honest and matches the platform. Remaining limits:
-
-1. **There is no background acquisition.** The page still stops receiving
-   location when hidden, frozen, discarded, or terminated. Recovery only
-   shortens the post-return gap.
-2. **The pause flag is not a guarantee.** If the page is frozen, the 5 s
-   visibility timer does not run. The tracker reports the gap on resume, but
-   nothing ran while hidden.
-3. **Wake-lock reacquisition is unverified on devices.** The app re-requests
-   the lock and re-checks `enabled`, but the browser remains free to refuse or
-   release it. The release path has not been tested after a hide/show cycle.
-4. **The timeout fallback is a prediction.** The server remains authoritative.
-   A hide of 10 minutes or more marks the next `gone` as a timeout; a shorter
-   hide keeps the revive path. The client never ends a trip on its own.
-
-The unit and widget tests cover the visible transition, stream restart,
-one-shot filter path, one paced ping, stale queued fix rejection, wake-lock
-re-request, and the explicit timeout end. The device protocol below is still
-required for real latency and lifecycle behavior.
+Unit/widget tests cover visible transition, stream restart, one-shot filter path, one paced ping, stale queued fix rejection, wake-lock re-request, explicit timeout end. Device protocol (section 7) still required for real latency/lifecycle.
 
 ## 5. Candidate approaches
 
-| ID | Approach | Coverage while hidden | Main trade-off | Verdict |
-| --- | --- | --- | --- | --- |
-| A | Foreground sharing with wake lock | None | Screen stays on; battery; user cannot use the phone | Keep |
-| B | Immediate gap recovery on visible | None, but shortens the post-return gap | Small pure-web change; no new data | Implemented |
-| C | Silent audio or video keepalive | None or accidental | Does not override the geolocation gate; battery; policy and trust risk | Reject |
-| D | Service worker, Background Sync, Periodic Sync | None | No Geolocation API in workers | Reject |
-| E | Push notification wake-up | None | Worker still has no location | Reject |
-| F | Last known position or dead reckoning | Fake coverage | Shows a position the device may no longer be at | Reject |
-| G | Installed PWA / WebAPK | None | No native privilege | Not a solution |
-| H | TWA + native foreground service | Yes, if the native service collects location | Native app, Play policy, duplicate of existing app | Reject for now |
-| I | Capacitor/WebView + native plugin | Yes, with native work | Separate app, App Store review, custom plugin | Reject for now |
-| J | Native Android app | Yes | Already exists; persistent notification | Use |
-| K | Native iOS app | Yes, with Always authorization | Separate product, review, battery indicator | Separate decision |
-| L | Longer server timeout | Keeps a stale trip alive | Ghost position; contradicts freshness and retention | Reject |
-| M | Browser flags or experiments | None for users | Not shippable | Reject |
-| N | Document Picture-in-Picture (desktop) | Only while the PiP window is visible | Desktop Chromium only; needs a second location loop; not available on Android or iOS | Reject for this product |
-| O | Web notification or ongoing notification | None | Display surface only; no script, no location; a website cannot create a foreground-service notification | Reject |
+| ID | Approach | Coverage while hidden | Verdict |
+| --- | --- | --- | --- |
+| A | Foreground sharing with wake lock | None | Keep |
+| B | Immediate gap recovery on visible | None (shortens post-return gap) | Implemented |
+| C | Silent audio/video keepalive | None/accidental | Reject |
+| D | Service worker, Background Sync, Periodic Sync | None | Reject |
+| E | Push notification wake-up | None | Reject |
+| F | Last known position / dead reckoning | Fake coverage | Reject |
+| G | Installed PWA / WebAPK | None | Not a solution |
+| H | TWA + native foreground service | Yes, if native service collects | Reject for now |
+| I | Capacitor/WebView + native plugin | Yes, with native work | Reject for now |
+| J | Native Android app | Yes | Use |
+| K | Native iOS app | Yes, with Always auth | Separate decision |
+| L | Longer server timeout | Keeps stale trip alive | Reject |
+| M | Browser flags/experiments | None for users | Reject |
+| N | Document PiP (desktop) | Only while PiP window visible | Reject for this product |
+| O | Web notification / ongoing notification | None | Reject |
 
-### 5.1 A: foreground sharing with wake lock
-
-This is the current mode and the only reliable web mode. It works because the
-document is visible, the wake lock keeps the screen on, and the user is told
-to keep the screen open and unlocked. It has real costs: battery, screen
-burn-in risk, and the user cannot use the phone for anything else. The banner
-and brightness note already disclose this.
-
-Keep it. Do not describe it as background sharing.
-
-### 5.2 B: immediate gap recovery on visible
-
-This is the smallest useful improvement that stays pure web. It does not
-extend coverage while hidden. It reduces the period after return in which the
-map still shows the old position and no new ping has arrived.
-
-Implemented behavior:
-
-- On `visible` after a hidden period, clear the pause flag and, if a trip is
-  active, request one high-accuracy `getCurrentPosition()` with a 15 s
-  timeout. Feed the result through the existing `LocationService` filter, so
-  the 60 m accuracy gate, mock rejection, and 20 s age gate still apply.
-- Restart the position stream if it is dead or silent, instead of waiting for
-  the 30 s supervision round. Keep the existing stall watchdog as the
-  fallback.
-- If the fix is accepted and the server's interval allows a send, queue one
-  immediate ping. Do not bypass the per-device rate limit.
-- Re-request the wake lock on visible and re-check `enabled`. The app does not
-  assume the original sentinel is still held.
-- If the server ended the trip after a long hide, show the ended state as
-  `timeout`; do not silently revive it. A short hide keeps the one-time revive
-  path for server restarts or lost records.
-- Drop a queued fix that was accepted more than 20 s before delivery, so a fix
-  collected before the hide cannot be published as fresh after recovery.
-
-This is a frontend-only change: no new permission, no new wire field, no
-server change, no retention change. It is covered by unit and widget tests;
-the device protocol below is still required for actual latency.
-
-### 5.3 C: silent audio or video keepalive
-
-A silent looping video or Web Audio graph can keep some browsers from
-freezing a page, and libraries such as NoSleep use that trick for screen
-wake. It does not change the Geolocation visibility gate. Chrome explicitly
-pauses geolocation in the background regardless of media playback, and iOS
-can suspend the web app. The trick also risks a media session or notification,
-extra battery drain, and a user-hostile "why is this page playing audio?"
-experience. It is not reliable enough to ship and not honest enough to
-promise.
-
-Reject. The existing `wakelock_plus` fallback video is acceptable only as a
-screen-wake fallback in the foreground; it is not a background mechanism.
-
-### 5.4 D and E: service workers, background sync, push
-
-These mechanisms are useful for data refresh and retry, not for location
-acquisition. A service worker cannot call `navigator.geolocation`. Periodic
-Background Sync is installed-app-only, engagement-gated, and scheduled by the
-browser; it is not a continuous stream. Push can wake a worker, but the worker
-still has no location.
-
-There is no useful combination here. Reject.
-
-### 5.5 F: last known position and dead reckoning
-
-Showing the last known position is useful as a stale marker, which the viewer
-already does with its 120 s hide rule. Pretending it is live is not. Dead
-reckoning from speed and heading would fabricate movement and could place a
-bus where it is not, which is worse than showing a gap.
-
-Reject as a sharing mechanism. Keep the existing stale-state presentation.
-
-### 5.6 G: installed PWA or browser setting
-
-There is no web API to request background geolocation. Chrome's app-level
-location permission ("allow all the time" for Chrome as an Android app) is not
-a website permission and does not change the foreground rule. Browser flags
-and origin trials are not a shipping strategy.
-
-Not a solution.
-
-### 5.7 H: TWA with an Android foreground service
-
-A TWA is a native Android host that opens web content in Chrome. The host can
-run an Android foreground service with the `location` type, show the required
-notification, and keep collecting while the user switches apps or turns the
-screen off. That part is technically feasible.
-
-The hard part is the bridge and the product:
-
-- TWA content is rendered by Chrome, and the host does not have direct access
-  to the page's state, cookies, or local storage.
-- The postMessage bridge (Chrome 115+) can exchange messages after Digital
-  Asset Links validation, but it is a message channel, not a general native
-  API. While the page is hidden, Chrome may suspend it.
-- If the native service collects positions and sends pings, the web page is
-  only a UI. The location acquisition, token handling, retry policy, and
-  server contract have moved into native code. That is a native app.
-- It requires a new Android app, Play Console foreground-service declaration,
-  location permission, a persistent notification, and a release process. The
-  repository already has an Android app that does this and is distributed as
-  an APK/AAB.
-
-There is no advantage over the existing native app. Reject for now. If the
-owner ever wants a web-UI shell with native location, treat it as a new native
-product with its own ADR, privacy review, and Play policy work, not as a PWA
-feature.
-
-### 5.8 I: Capacitor or WebView wrapper
-
-Capacitor's official geolocation plugin says it "does not support background
-geolocation directly"; background behavior needs a native plugin or service.
-On iOS, background location needs the native background mode and Always
-authorization. A WebView wrapper has the same shape: native shell, native
-location service, native permissions, app-store review.
-
-This is a separate app, not a web workaround. Reject for the same reasons as
-the TWA. The existing Android app is the better path.
-
-Source: Capacitor Geolocation
-(https://capacitorjs.com/docs/apis/geolocation).
-
-### 5.9 J: native Android app
-
-The existing app uses a foreground service with the `location` type, a
-persistent notification, and no `ACCESS_BACKGROUND_LOCATION` (D11). It stops
-when the user swipes the app away. This is the supported way to share with
-the screen off on Android.
-
-The web banner already points Android users to the native app (D-U24). Keep
-that path. Do not duplicate it in a wrapper.
-
-### 5.10 K: native iOS app
-
-If iOS screen-off sharing is a product requirement, the supported path is a
-native iOS app with Core Location background updates, the `location` background
-mode, Always authorization, and the system's background location indicator.
-That is a product and review decision, not a web fix. It is outside this
-investigation.
-
-### 5.11 L: longer server timeout
-
-The 10-minute timeout is a safety and privacy feature: a trip with no pings is
-ended, and its in-memory location is dropped. Extending it for web users would
-keep a ghost trip alive and conflict with the freshness rules. The viewer
-already hides a vehicle after 120 s without a fix.
-
-Reject.
-
-### 5.12 N: Document Picture-in-Picture (desktop only)
-
-Document Picture-in-Picture (Document PiP) opens an always-on-top window
-containing arbitrary same-origin HTML. It is available in Chrome and Edge
-desktop 116 and later. It is not available in Chrome for Android, Safari, or
-iOS, and it is not the Android video PiP surface.
-
-Unlike a background tab, the PiP window can stay visible while the user works
-in another desktop application. The PiP document is a top-level, fully active,
-same-origin document, so geolocation requested from that document is not
-blocked by the visibility gate while the PiP window is visible and the origin
-already has location permission. The specification warns that the opener may
-be throttled and recommends running application logic inside the PiP window.
-A real implementation would therefore need a second location loop inside a
-small HTML and JavaScript document, with its own permission check, filtering,
-interval pacing, token use, and ping sender. Forwarding fixes to a throttled
-Flutter opener is not enough.
-
-Limits:
-
-- No Chrome for Android, Safari, or iOS. It cannot help a phone user who
-  switches to another app, which is the requirement that matters here.
-- The PiP window must stay open and visible. Closing it, covering it with a
-  fullscreen app, locking the screen, or closing the opener stops the loop.
-- It requires a user gesture to open, and only one PiP window exists.
-- It duplicates location and credential logic outside the Dart app, which is
-  a security and maintenance cost. CSP and Permissions-Policy inheritance for
-  the PiP document would need review before it handled a device token.
-- It is untested on this project and is not part of the mobile device matrix.
-
-Verdict: this is the only pure-web mechanism that can technically keep
-location updates flowing while the user works in another desktop app. It is
-not a mobile solution and not worth adding to the alpha. If desktop web
-sharing ever becomes a product requirement, prototype it separately and keep
-it explicitly best-effort.
-
-### 5.13 O: Notifications
-
-A web notification is a user-visible message, not an execution context. A page
-can display one while it is alive, and a service worker can display one from a
-push or notification event, but the notification itself runs no JavaScript.
-Clicking it is handled by the page or service worker, which can focus or open
-the app. A notification action wakes the service worker briefly; the worker
-still has no Geolocation API. Push can wake the worker, but the worker cannot
-acquire a position, and the browser shuts it down after the event.
-
-There is no web API for an ongoing or foreground-service notification. An
-installed PWA is still a website and cannot declare an Android foreground
-service. A notification displayed during a web trip would be cosmetic: it
-would not prove that pings are flowing, and it would be misleading if the page
-were hidden. The only persistent notification that keeps location alive is
-the one from the native Android foreground service, which the existing app
-already uses.
-
-Reject. Do not use a notification as a keepalive or as a sharing indicator.
+Notes on non-obvious verdicts:
+- A (keep): only reliable web mode; screen stays on; costs battery, screen burn-in, user cannot use phone otherwise; banner and brightness note disclose this. Do not describe as background sharing.
+- B (implemented): smallest useful pure-web improvement; no new permission/wire field/server change/retention change. Behavior: one-shot `getCurrentPosition()` (15 s timeout) on visible fed through existing filter (60 m accuracy, mock rejection, 20 s age gate); restart stream if dead/silent; one paced ping when fresh fix accepted; wake-lock re-request + `enabled` re-check on visible; explicit ended state after server timeout, no silent revival; reject queued fix accepted >20 s before delivery.
+- J (use): existing app uses foreground service type `location`, persistent notification, no `ACCESS_BACKGROUND_LOCATION` (D11); stops when swiped away. Web banner points Android users to native app (D-U24).
+- K (separate): native iOS app with Core Location background updates, `location` background mode, Always auth, system indicator; product/review decision, outside this investigation.
+- N (desktop only): Chromium desktop 116+; PiP window can stay visible while user works in another app; PiP document is top-level fully active same-origin, so geolocation not blocked by visibility gate while window visible and origin has permission. Needs a second location loop inside a small HTML/JS document with its own permission check, filtering, interval pacing, token use, ping sender; forwarding to a throttled Flutter opener is insufficient. Not available on Chrome for Android/Safari/iOS; stops when window closes/covered/screen locks; requires user gesture; one PiP window; duplicates location/credential logic (security/maintenance cost); untested on this project. Only pure-web mechanism that can keep location flowing while user works in another desktop app, but not mobile and not worth alpha. Prototype separately if desktop sharing becomes a requirement, explicitly best-effort.
+- O (reject): notification is a display surface, not execution context; no ongoing/foreground-service notification API for websites; an installed PWA is still a website. Never use notification as keepalive or sharing indicator.
+- C (reject): silent audio/video keepalive does not override geolocation gate; Chrome pauses geolocation in background regardless of media; iOS can suspend web app; risks media session/notification, battery, user-hostile experience. Existing `wakelock_plus` fallback video acceptable only as foreground screen-wake fallback.
+- D/E (reject): workers cannot call `navigator.geolocation`; Periodic Background Sync installed-only, engagement-gated, browser-scheduled; push wakes worker but no location. No useful combination.
+- F (reject): showing last known position useful as stale marker (viewer already 120 s hide rule); pretending live is not; dead reckoning fabricates movement. Keep as stale marker only.
+- G (reject): no web API for background geolocation; Chrome app-level location permission is not a website permission.
+- H (reject): TWA host cannot directly access page state/cookies/storage; while page hidden Chrome may suspend it; if native service collects/sends, web page is only UI and location acquisition, token handling, retry, server contract move to native code (that is a native app). Requires new Android app, Play Console foreground-service declaration, location permission, persistent notification, release process; existing Android app already does this. No advantage.
+- I (reject): Capacitor geolocation plugin "does not support background geolocation directly"; iOS needs native background mode + Always auth. Separate app, not web workaround.
+- L (reject): 10 min timeout is safety/privacy feature (no pings -> trip ended, in-memory location dropped). Extending creates ghost trip, conflicts with freshness/retention. Viewer already hides vehicle after 120 s.
+- M (reject): not shippable.
 
 ## 6. Expected behavior and failure modes
-
-This table describes what the product should do when the platform stops
-sharing. "Expected" is about honest behavior, not about keeping the ping
-alive.
 
 | Situation | Platform behavior | Current app behavior | Product requirement |
 | --- | --- | --- | --- |
 | Screen on, trip screen visible | Fixes and pings flow | Works | Keep; wake lock held; banner visible |
-| Brief hide, under 60 s | Updates may stop immediately | No pause flag; return triggers one-shot recovery | Do not claim continuity; recover promptly |
-| Hide 60 s to 10 min | No updates while hidden | Pause flag after 60 s if timers run; resume restarts a dead stream and one-shots | Resume on return; show gap/age |
-| Hide over 10 min | No updates; server timeout | Long-gap `gone` shows an explicit `timeout` end; no revival | Show ended or explicit restart; never silent ghost |
-| Screen locked | Wake lock released; updates stop | Same as hide; resume recovery is best effort | Screen-off is not supported on web |
-| App switched | Page hidden or frozen | Same as hide; recovery runs on visible | Same |
-| Another app, Android video PiP | Video keeps playing; the page is hidden and geolocation pauses | Not implemented | Do not treat video PiP as sharing |
-| Another app, desktop Document PiP | PiP window stays visible and can keep fixes while the opener is hidden; closing or covering it stops | Not implemented | Desktop-only best effort; never offered as mobile sharing |
-| Another app, web notification | Notification is shown, but no code runs; location stops | Not implemented | Never present a notification as proof of sharing |
-| Low battery or power saver | Wake lock may be ignored; timers throttled | Banner may say wake lock unsupported | Warn; do not promise |
-| Process killed or tab discarded | No JS; in-memory trip lost | Trip lost; server times out | Restart required; no resurrection |
-| Permission revoked | Stream errors or stops | Supervisory end | End with guidance |
+| Brief hide <60 s | Updates may stop immediately | No pause flag; return triggers one-shot recovery | Do not claim continuity; recover promptly |
+| Hide 60 s-10 min | No updates while hidden | Pause flag after 60 s if timers run; resume restarts dead stream and one-shots | Resume on return; show gap/age |
+| Hide >10 min | No updates; server timeout | Long-gap `gone` shows explicit `timeout` end; no revival | Show ended or explicit restart; never silent ghost |
+| Screen locked | Wake lock released; updates stop | Same as hide; resume recovery best effort | Screen-off not supported on web |
+| App switched | Page hidden/frozen | Same as hide; recovery on visible | Same |
+| Another app, Android video PiP | Video plays; page hidden; geolocation paused | Not implemented | Do not treat video PiP as sharing |
+| Another app, desktop Document PiP | PiP window stays visible; can keep fixes while opener hidden; closing/covering stops | Not implemented | Desktop-only best effort; never offered as mobile sharing |
+| Another app, web notification | Notification shown, no code runs; location stops | Not implemented | Never present notification as proof of sharing |
+| Low battery/power saver | Wake lock may be ignored; timers throttled | Banner may say wake lock unsupported | Warn; do not promise |
+| Process killed/tab discarded | No JS; in-memory trip lost | Trip lost; server times out | Restart required; no resurrection |
+| Permission revoked | Stream errors/stops | Supervisory end | End with guidance |
 | Network loss | No pings; offline saver | Offline saver, probes | Recover when online; no background claim |
 | Viewer after 120 s without fix | Vehicle hidden | Viewer hides | No stale "live" marker |
 | Native Android, screen off | Foreground service continues | Works with notification | Supported path |
 | Native iOS, screen off | Core Location background mode | Not in this app | Separate product decision |
 
-Two failure modes now have regression cover:
-
-- **Silent revival after timeout.** The long-gap `gone` path now ends with
-  detail `timeout` instead of reviving. The controller test asserts the
-  explicit end. A short gap still revives once, which covers a server restart
-  or a lost record.
-- **Stale wake-lock state.** The widget test asserts that a visible transition
-  re-requests the lock. Device behavior on Android Chrome and iOS Safari/PWA
-  still needs the field protocol below, because the browser can refuse the
-  request or release it again.
+Regression cover:
+- Silent revival after timeout: long-gap `gone` ends with detail `timeout` instead of reviving; controller test asserts explicit end. Short gap still revives once (server restart or lost record).
+- Stale wake-lock state: widget test asserts visible transition re-requests lock. Device behavior on Android Chrome and iOS Safari/PWA still needs field protocol (browser can refuse/release).
 
 ## 7. Device test protocol
 
-This protocol complements `docs/field-tests/gps-acceptance.md`. It uses the
-same privacy rules: no coordinates in logs or notes, no raw GPS traces, and
-no production personal data. Use a staging server or a test receiver that
-discards request bodies and records only timestamps and status codes.
+Complements `docs/field-tests/gps-acceptance.md`. Same privacy rules: no coordinates in logs/notes, no raw GPS traces, no production personal data. Use staging server or test receiver that discards bodies and records only timestamps/status.
 
-### 7.1 Goals
+7.1 Goals: confirm foreground baseline (wake lock, cadence, pings visible+screen on); confirm platform boundary (screen off, app switch, lock, low power, long hidden); measure post-return recovery (time to first accepted fix and first ping); confirm honest product (no false live, no silent revival, no stale fix published); compare Android Chrome tab, Android installed PWA, iOS Safari, iOS home-screen web app.
 
-1. Confirm the foreground baseline: wake lock, cadence, and pings while the
-   trip screen is visible and the screen is on.
-2. Confirm the platform boundary: what happens on screen off, app switch,
-   lock screen, low power, and long hidden periods.
-3. Measure post-return recovery: time to first accepted fix and first ping.
-4. Confirm the product is honest: no false "live" state, no silent revival,
-   no stale fix published.
-5. Compare Android Chrome tab, Android installed PWA, iOS Safari, and iOS
-   home-screen web app.
+7.2 Pass criteria (background scenarios expected to stop; pass means app handles correctly, not defeats platform):
+- Foreground baseline: >=90% expected pings at server interval; wake lock held; banner visible.
+- Hidden/screen off: no crash, no false "sharing" claim, no coordinates in logs, no ping with stale fix after return.
+- Resume: first accepted fix within 15 s and first ping within 20 s after visible (proposed targets; record misses, do not relax silently).
+- Timeout: after >10 min hidden, UI shows ended trip or explicit restart; silent new trip is failure.
+- Wake lock: held again after hide/show; if refused, banner must say so.
+- PWA parity: installed PWA matches tab or difference recorded with OS/browser version.
+If a background scenario delivers fixes by accident, record duration and do not turn into product guarantee.
 
-### 7.2 Pass criteria
+7.3 Devices/builds: Android Chrome stable tab (reference Android web); Android installed PWA (confirms install changes nothing); second OEM skin if available (Samsung/Xiaomi); iPhone Safari tab; iPhone home-screen web app; second phone/desktop viewer. Release web build over HTTPS with staging API origin; grant precise location; start unplugged, battery saver off; repeat low-power with saver on. Record OS/browser/PWA install method. No debug build with extra logging that changes timing.
 
-The background scenarios are expected to stop delivering fixes. A test passes
-when the app handles that correctly, not when it defeats the platform.
+7.4 Scenario matrix (run S0 first on every target; fresh trip per cell; repeat twice):
 
-- Foreground baseline: at least 90 percent of the expected pings arrive at the
-  server interval; the wake lock is held; the banner is visible.
-- Hidden or screen off: no crash, no false "sharing" claim, no coordinates in
-  logs, and no ping with a stale fix after return.
-- Resume: first accepted fix within 15 s and first ping within 20 s after the
-  page becomes visible. These are proposed targets for the gap-recovery work;
-  record misses rather than relaxing them silently.
-- Timeout: after more than 10 minutes hidden, the UI shows an ended trip or an
-  explicit restart. A silent new trip is a failure.
-- Wake lock: held again after returning from a hide/show cycle. If the
-  browser refuses, the banner must say so.
-- PWA parity: installed PWA behavior matches the browser tab, or the
-  difference is recorded with the OS and browser version.
-
-If a background scenario delivers a few fixes by accident, record the
-duration and do not turn it into a product guarantee.
-
-### 7.3 Devices and builds
-
-Minimum useful matrix:
-
-| Target | Why |
-| --- | --- |
-| Android, Chrome stable, browser tab | Reference Android web behavior |
-| Android, installed PWA (WebAPK) | Confirms install does not change privileges |
-| Android, second OEM skin if available (Samsung or Xiaomi) | Background restrictions vary |
-| iPhone, Safari tab | Reference iOS web behavior |
-| iPhone, home-screen web app | Standalone PWA behavior |
-| Second phone or desktop, viewer | Independent observation of last update |
-
-Use a release web build served over HTTPS with the staging API origin. Grant
-precise location. Start with the phone unplugged and battery saver off. Repeat
-the low-power scenario with battery saver on. Record the exact OS, browser,
-and PWA install method. Do not use a debug build with extra logging that
-changes timing.
-
-### 7.4 Scenario matrix
-
-Run S0 first on every target. Run the background scenarios in order, with a
-fresh trip for each cell. Repeat each cell twice; one run is not enough for a
-mobile browser.
-
-| ID | Scenario | Duration | Expected platform result | Product check |
+| ID | Scenario | Duration | Expected platform | Product check |
 | --- | --- | --- | --- | --- |
 | S0 | Visible, screen on, no interaction | 5 min | Pings at server cadence | Wake lock, banner, no pause |
-| S1 | App switch to another app | 30 s | Updates stop or become sparse | Return resumes; gap measured |
+| S1 | App switch | 30 s | Updates stop/sparse | Return resumes; gap measured |
 | S2 | App switch | 61 s | No updates while hidden | Pause threshold observed |
 | S3 | App switch | 2 min | No updates while hidden | Resume; first fix/ping measured |
-| S4 | Screen lock (power button) | 2 min | Wake lock released; no updates | Return resumes; lock reacquired |
-| S5 | Screen lock | 9 min | No updates; trip still within timeout | Resume before timeout |
+| S4 | Screen lock (power) | 2 min | Wake lock released; no updates | Return resumes; lock reacquired |
+| S5 | Screen lock | 9 min | No updates; within timeout | Resume before timeout |
 | S6 | Screen lock | 11 min | Server timeout | UI ends or explicitly restarts |
-| S7 | Installed PWA, repeat S0, S2, S4, S6 | as above | Same limits as tab | No extra privilege |
-| S8 | Battery saver or low power mode, visible and locked | 2 min | Wake lock may fail; timers throttled | Banner honest; no crash |
+| S7 | Installed PWA: S0,S2,S4,S6 | as above | Same limits as tab | No extra privilege |
+| S8 | Battery saver/low power, visible+locked | 2 min | Wake lock may fail; timers throttled | Banner honest; no crash |
 | S9 | Wi-Fi to cellular while visible | 1 min | Network transition | Reconnect; no duplicate trip |
-| S10 | Swipe away or force-stop the app | immediate | No JS; trip lost | Restart required; server timeout |
-| S11 | Revoke location or switch to approximate | immediate | Stream stops or fixes fail gate | Trip ends with guidance |
-| S12 | iOS Safari vs home-screen app | S0, S2, S4, S6 | Version-dependent | Record differences |
+| S10 | Swipe away/force-stop | immediate | No JS; trip lost | Restart required; server timeout |
+| S11 | Revoke location or approximate | immediate | Stream stops or fixes fail gate | Trip ends with guidance |
+| S12 | iOS Safari vs home-screen app | S0,S2,S4,S6 | Version-dependent | Record differences |
 
-### 7.5 Procedure
+7.5 Procedure: prepare test receiver/staging (record only timestamp, route, status, random run id; discard body; never log coordinates/tokens/device ids). Open viewer on second device, keep awake. On sharer clear app data, grant precise location, start trip on test line, confirm viewer shows vehicle. Record t0 and last server ping. Apply scenario exactly; note wall-clock time. At checkpoints (30 s, 60 s, 2, 5, 9, 11 min) record viewer last-update age and server last ping; do not wake sharer to inspect. Return, unlock, start stopwatch; record first accepted fix, first new ping, banner state, wake-lock state. If trip ended, record end reason; if new trip, record start time and first position age. End trip and clean up test record. Repeat cell twice (third if runs differ, record range).
 
-1. Prepare the test receiver or staging server. It must record only request
-   timestamp, route, status, and a random test-run id. It must discard the
-   body and never log coordinates, tokens, or device identifiers.
-2. Open the viewer on the second device and keep it awake.
-3. On the sharer, clear app data, grant precise location, start a trip on the
-   test line, and confirm the viewer shows the vehicle.
-4. Record `t0` and the last server ping timestamp. Do not interact with the
-   sharer during the hidden period.
-5. Apply the scenario exactly: switch apps, press power, enable battery
-   saver, or force-stop. Note the wall-clock time.
-6. At the checkpoints for the scenario (30 s, 60 s, 2 min, 5 min, 9 min,
-   11 min), record the viewer's last-update age and the server's last ping
-   timestamp. Do not wake the sharer just to inspect it.
-7. Return to the app, unlock the screen, and start a stopwatch. Record the
-   first accepted fix, the first new ping, the banner state, and the wake-lock
-   state.
-8. If the trip ended, record the end reason shown. If a new trip appeared,
-   record its start time and first position age.
-9. End the trip and clean up the test record. Delete any test data that is not
-   needed.
-10. Repeat the cell twice. If the two runs differ, run a third time and record
-    the range.
+7.6 Measurements: server ping timestamps/status only (no bodies); time to first accepted fix after visible; time to first new ping; wake-lock state on return; trip state (active/paused/ended/revived); battery % change; network transition if tested; screenshots/UI state with no real location visible. Never record coordinates, raw GPS traces, tokens, device ids, or IPs. Client logs event names/reasons only; if remote debugging, filter to lifecycle/wake-lock events.
 
-### 7.6 Measurements
-
-Record only what is needed:
-
-- Server ping timestamps and status codes, no bodies.
-- Time to first accepted fix after visible.
-- Time to first new ping after visible.
-- Wake-lock state on return.
-- Trip state: active, paused, ended, or revived.
-- Battery percentage change over the scenario, from system settings.
-- Network type transition, if tested.
-- Screen recording or screenshots of the UI state, with no real location
-  visible.
-
-Do not record coordinates, raw GPS traces, tokens, device ids, or IP
-addresses. Client logs should contain event names and reasons only; the `Log`
-wrapper already has no coordinate API. If browser remote debugging is used,
-filter to lifecycle and wake-lock events.
-
-### 7.7 Result template
+7.7 Result template:
 
 | Field | Value |
 | --- | --- |
 | Date | |
 | Device, OS, browser | |
-| Install mode (tab / PWA) | |
+| Install mode (tab/PWA) | |
 | Build and API origin | |
 | Scenario ID | |
 | Duration | |
@@ -709,133 +203,45 @@ filter to lifecycle and wake-lock events.
 
 ## 8. Recommendation
 
-### 8.1 Adopt
+8.1 Adopt: foreground-only product contract (banner states it; native Android covers screen-off). Gap recovery implemented as small pure-web improvement: one-shot position on visible through existing filter; immediate stream restart when dead/silent; one paced ping on fresh fix; wake-lock re-request and `enabled` re-check on visible; explicit ended state after server timeout with no silent revival; rejection of queued fix already stale by delivery. No server change, new permission, dependency, or data field. Unit/widget tests cover visible transition, one-shot path, stream restart, pacing, stale queued fix, wake lock, timeout end. S1-S6 field cells still required before claiming measured latency.
 
-Keep the foreground-only product contract. The web banner already states it,
-and the Android native app already covers screen-off sharing. This is the only
-configuration that is both reliable and honest on the web.
+8.2 Do not adopt: silent audio/video keepalive; service worker/Background Sync/Periodic Sync/push as location mechanism; Document PiP as mobile workaround; web notifications as keepalive or "ongoing sharing" indicator; Android video PiP as sharing mode; last-fix dead reckoning as if live (stale marker only); TWA or Capacitor wrapper (native app, duplicates existing); longer server timeout (ghost trips, weakens retention); browser flags/undocumented behavior.
 
-Gap recovery is implemented as a small, pure-web improvement:
+8.3 If owner wants more: iOS screen-off -> native iOS app with Core Location background updates and Always auth (separate product with review, battery, privacy, App Store work; not a PWA feature). Web-UI shell with native location on Android -> new native app, not TWA side project (existing app already implements service, token, retry, notification).
 
-- one-shot position on visible, fed through the existing filter;
-- immediate stream restart when the stream is dead or silent;
-- one paced ping when a fresh fix is accepted;
-- wake-lock re-request and `enabled` re-check on visible;
-- an explicit ended state after a server timeout, with no silent revival;
-- rejection of a queued fix that is already stale by delivery.
+## 9. Open questions
 
-No server change, new permission, new dependency, or new data field is needed.
-Unit and widget tests cover the visible transition, one-shot path, stream
-restart, pacing, stale queued fix, wake lock, and timeout end. The S1-S6 field
-cells above are still required before claiming measured latency.
+1. Is foreground-only web sharing acceptable for alpha given Android users can install native app?
+2. Should gap recovery be implemented now or only after device tests confirm current recovery latency?
+3. Is iOS screen-off sharing a real requirement? If yes, funded and reviewed native iOS app?
+4. After server timeout, should web app always show ended trip, or may it offer explicit "continue sharing"? Current revive path ambiguous.
+5. Is 15 s first-fix and 20 s first-ping target after return acceptable, or longer "reconnecting" state?
+6. Should trip screen show age of last position on web, in addition to banner?
+7. Is desktop web sharing in scope at all? If yes, is desktop-only Document PiP prototype worth second location loop (still stops on screen lock/PiP close)?
 
-### 8.2 Do not adopt
-
-- Silent audio or video keepalive. It does not override the geolocation gate
-  and creates battery, policy, and trust problems.
-- Service worker, Background Sync, Periodic Sync, or push as a location
-  mechanism. They cannot acquire location.
-- Document Picture-in-Picture as a mobile workaround. It is desktop Chromium
-  only, needs a second location loop inside the PiP document, and stops when
-  the window is closed, covered, or the screen locks.
-- Web notifications as a keepalive or as an "ongoing sharing" indicator. They
-  display only and cannot acquire location.
-- Android video picture-in-picture as a sharing mode. It keeps video playing
-  but not geolocation.
-- Last-fix dead reckoning as if it were live. Keep it as a stale marker only.
-- A TWA or Capacitor wrapper. It is a native app, not a web workaround, and it
-  duplicates the existing Android app.
-- A longer server timeout. It creates ghost trips and weakens retention.
-- Browser flags or undocumented behavior. Not shippable.
-
-### 8.3 If the owner wants more
-
-If screen-off sharing on iOS is a hard requirement, evaluate a native iOS app
-with Core Location background updates and Always authorization. That is a
-separate product with its own review, battery, privacy, and App Store work. It
-is not a PWA feature.
-
-If the owner wants a web-UI shell with native location on Android, treat it as
-a new native app, not a TWA side project. The existing Android app already
-implements the service, token, retry, and notification path.
-
-## 9. Open questions for the owner
-
-1. Is foreground-only web sharing acceptable for the alpha, given that Android
-   users can install the native app?
-2. Should gap recovery be implemented now, or only after the device tests
-   confirm the current recovery latency?
-3. Is iOS screen-off sharing a real requirement? If yes, is a native iOS app
-   funded and reviewed?
-4. After a server timeout, should the web app always show an ended trip, or
-   may it offer an explicit "continue sharing" action? The current revive path
-   is ambiguous.
-5. Is a 15 s first-fix and 20 s first-ping target after return acceptable, or
-   should the product show a longer "reconnecting" state?
-6. Should the trip screen show the age of the last position on web, in
-   addition to the banner?
-7. Is desktop web sharing in scope at all? If it is, is a desktop-only
-   Document PiP prototype worth the second location loop, knowing that it
-   still stops when the screen locks or the PiP window closes?
-
-Questions 1, 2, and 4 are answered by D74: foreground-only sharing is
-accepted for the alpha, gap recovery is implemented now, and a long-gap
-server timeout is shown as an explicit end. Questions 3, 5, 6, and 7 remain
-open. This document is evidence; the decision itself lives in
-`DECISIONS.md`.
+D74 answers 1, 2, 4: foreground-only accepted for alpha, gap recovery implemented now, long-gap server timeout shown as explicit end. Questions 3, 5, 6, 7 remain open. This document is evidence; decisions live in `DECISIONS.md`.
 
 ## 10. Sources
 
 All web sources accessed 2026-10-19.
 
-- W3C, Geolocation, Candidate Recommendation Snapshot, 26 March 2026.
-  https://www.w3.org/TR/geolocation/
-- Chrome for Developers, "One-time permissions in Chrome".
-  https://developer.chrome.com/blog/one-time-permissions
-- MDN, Document Picture-in-Picture API.
-  https://developer.mozilla.org/en-US/docs/Web/API/Document_Picture-in-Picture_API
-- WICG, Document Picture-in-Picture specification.
-  https://wicg.github.io/document-picture-in-picture/
-- Chrome for Developers, "Picture-in-Picture for any Element, not just
-  video".
-  https://developer.chrome.com/docs/web-platform/document-picture-in-picture
-- Can I use, DocumentPictureInPicture API.
-  https://caniuse.com/mdn-api_documentpictureinpicture
-- MDN, Notifications API.
-  https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
-- Chrome for Developers, "Page Lifecycle API".
-  https://developer.chrome.com/docs/web-platform/page-lifecycle-api
-- W3C, Screen Wake Lock.
-  https://w3c.github.io/screen-wake-lock/
-- Chrome for Developers, "Richer offline experiences with the Periodic
-  Background Sync API".
-  https://developer.chrome.com/docs/capabilities/periodic-background-sync
-- MDN, Service Worker API.
-  https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
-- Chrome for Developers, "Trusted Web Activity overview".
-  https://developer.chrome.com/docs/android/trusted-web-activity/overview
-- Chrome for Developers, "PostMessage for TWA".
-  https://developer.chrome.com/docs/android/post-message-twa
-- Capacitor, Geolocation plugin.
-  https://capacitorjs.com/docs/apis/geolocation
-- Android Developers, "Foreground service types", Location.
-  https://developer.android.com/develop/background-work/services/fgs/service-types
-- Apple Developer, "Handling location updates in the background".
-  https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background
-- Apple Developer, "allowsBackgroundLocationUpdates".
-  https://developer.apple.com/documentation/corelocation/cllocationmanager/allowsbackgroundlocationupdates
-- WebKit, "WebKit Features in Safari 16.4" (wake lock and PWA context).
-  https://webkit.org/blog/13966/webkit-features-in-safari-16-4/
+- W3C, Geolocation, Candidate Recommendation Snapshot, 26 March 2026. https://www.w3.org/TR/geolocation/
+- Chrome for Developers, "One-time permissions in Chrome". https://developer.chrome.com/blog/one-time-permissions
+- MDN, Document Picture-in-Picture API. https://developer.mozilla.org/en-US/docs/Web/API/Document_Picture-in-Picture_API
+- WICG, Document Picture-in-Picture specification. https://wicg.github.io/document-picture-in-picture/
+- Chrome for Developers, "Picture-in-Picture for any Element, not just video". https://developer.chrome.com/docs/web-platform/document-picture-in-picture
+- Can I use, DocumentPictureInPicture API. https://caniuse.com/mdn-api_documentpictureinpicture
+- MDN, Notifications API. https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
+- Chrome for Developers, "Page Lifecycle API". https://developer.chrome.com/docs/web-platform/page-lifecycle-api
+- W3C, Screen Wake Lock. https://w3c.github.io/screen-wake-lock/
+- Chrome for Developers, "Richer offline experiences with the Periodic Background Sync API". https://developer.chrome.com/docs/capabilities/periodic-background-sync
+- MDN, Service Worker API. https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
+- Chrome for Developers, "Trusted Web Activity overview". https://developer.chrome.com/docs/android/trusted-web-activity/overview
+- Chrome for Developers, "PostMessage for TWA". https://developer.chrome.com/docs/android/post-message-twa
+- Capacitor, Geolocation plugin. https://capacitorjs.com/docs/apis/geolocation
+- Android Developers, "Foreground service types", Location. https://developer.android.com/develop/background-work/services/fgs/service-types
+- Apple Developer, "Handling location updates in the background". https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background
+- Apple Developer, "allowsBackgroundLocationUpdates". https://developer.apple.com/documentation/corelocation/cllocationmanager/allowsbackgroundlocationupdates
+- WebKit, "WebKit Features in Safari 16.4". https://webkit.org/blog/13966/webkit-features-in-safari-16-4/
 
-Project references:
-
-- `PLAN.md` 8.12, 13.2, 13.4, RF04, PRV03.
-- `DECISIONS.md` D11, D-U24, D59, D63-D69.
-- `app/lib/platform/web/visibility.dart`
-- `app/lib/platform/web/wake_lock.dart`
-- `app/lib/platform/web/web_banner.dart`
-- `app/lib/ui/features/trip/trip_screen.dart`
-- `app/lib/features/trip/location_service.dart`
-- `app/lib/features/trip/trip_controller.dart`
-- `server/src/domain/types.ts` (`tripTimeoutS`)
-- `docs/field-tests/gps-acceptance.md`
+Project references: PLAN.md 8.12, 13.2, 13.4, RF04, PRV03; DECISIONS.md D11, D-U24, D59, D63-D69; app/lib/platform/web/visibility.dart; app/lib/platform/web/wake_lock.dart; app/lib/platform/web/web_banner.dart; app/lib/ui/features/trip/trip_screen.dart; app/lib/features/trip/location_service.dart; app/lib/features/trip/trip_controller.dart; server/src/domain/types.ts (tripTimeoutS); docs/field-tests/gps-acceptance.md.
