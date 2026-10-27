@@ -180,10 +180,7 @@ void main() {
       switch (req.url.path) {
         case '/v1/devices':
           registrations += 1;
-          return http.Response(
-            '{"token":"bm1_fresh","exp":1,"id":"d"}',
-            201,
-          );
+          return http.Response('{"token":"bm1_fresh","exp":1,"id":"d"}', 201);
         case '/v1/consents':
           consentTokens.add(req.headers['authorization']);
           if (req.headers['authorization']!.endsWith('bm1_expired')) {
@@ -202,10 +199,7 @@ void main() {
           return http.Response('{}', 404);
       }
     });
-    final TripController c = controller(
-      client,
-      initialToken: 'bm1_expired',
-    );
+    final TripController c = controller(client, initialToken: 'bm1_expired');
 
     final bool started = await c.startTrip(
       lineId: 7,
@@ -232,10 +226,7 @@ void main() {
       switch (req.url.path) {
         case '/v1/devices':
           registrations += 1;
-          return http.Response(
-            '{"token":"bm1_fresh","exp":1,"id":"d"}',
-            201,
-          );
+          return http.Response('{"token":"bm1_fresh","exp":1,"id":"d"}', 201);
         case '/v1/consents':
           consentPosts += 1;
           expect(req.headers['authorization']!.endsWith('bm1_fresh'), isTrue);
@@ -256,10 +247,7 @@ void main() {
           return http.Response('{}', 404);
       }
     });
-    final TripController c = controller(
-      client,
-      initialToken: 'bm1_expired',
-    );
+    final TripController c = controller(client, initialToken: 'bm1_expired');
 
     final bool started = await c.startTrip(
       lineId: 7,
