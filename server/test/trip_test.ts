@@ -55,7 +55,7 @@ async function device(hono: ReturnType<typeof buildApp>): Promise<string> {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
     },
-    body: '{"version":1}',
+    body: '{"version":2}',
   });
   assertEquals(consent.status, 200);
   return token;
@@ -99,7 +99,7 @@ Deno.test("AC10: start requires current consent", async () => {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
       },
-      body: '{"version":1}',
+      body: '{"version":2}',
     });
     const ok = await hono.request("/v1/trip", {
       method: "POST",
@@ -120,7 +120,7 @@ Deno.test("AC10: old consent version rejected", async () => {
   const { sql, hono } = app();
   try {
     const token = await device(hono);
-    await sql`insert into app_config (key, value) values ('consent_version', '2')`;
+    await sql`insert into app_config (key, value) values ('consent_version', '3')`;
     const stale = await hono.request("/v1/trip", {
       method: "POST",
       headers: {

@@ -200,7 +200,7 @@ Deno.test("AC08: device ping flood is contained", async () => {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
       },
-      body: '{"version":1}',
+      body: '{"version":2}',
     });
     await hono.request("/v1/trip", {
       method: "POST",
