@@ -47,10 +47,8 @@ Reconciling `PLAN.md` and this file:
 
 ## 2. Project Standards
 
-Values below come from `PLAN.md`. The repository may not exist yet: until the
-milestone that creates a tool or command has landed (T02 and T03 for Flutter and
-CI, T14 for the data tool), treat the command as intended, and check that it
-exists before claiming a check was run.
+Values below come from `PLAN.md`. Check that a tool or command exists before
+claiming a check was run; do not invent commands.
 
 - Runtime: Flutter (Android and Web/PWA) for the app; a Deno (TypeScript) API in
   `server/` running on the owner's VPS behind Caddy and Cloudflare; PostgreSQL
@@ -77,9 +75,9 @@ exists before claiming a check was run.
   `tools/`; server tests include the HTTP and security suites against a test
   PostgreSQL).
 - Build command: `flutter build appbundle` (Android),
-  `flutter build web --release` (Web), server release via the deploy script from
-  task T05, data build via the Deno tool (command defined in T14; do not invent
-  it before then).
+  `flutter build web --release` (Web), server release via
+  `server/deploy/deploy.sh`, data build via `deno task data-build` (from
+  `tools/`).
 - Commit convention: Conventional Commits (`feat`, `fix`, `chore`, `docs`,
   `test`, `refactor`, `perf`, `security`).
 - Documentation directory: `docs/`, plus the root files listed in section 14.
@@ -93,18 +91,17 @@ exists before claiming a check was run.
 - Reuse existing project patterns before introducing new ones.
 - Prefer the smallest maintainable change that correctly solves the requested
   problem.
-- Work one task at a time, matching the task list in `PLAN.md` section 16 (one
-  logical change per change set). Do not start the next task until the current
-  acceptance criteria pass.
+- Work one logical change at a time (one change set per task). Do not start the
+  next change until the current acceptance criteria pass.
 - Do not rewrite working code without a concrete benefit.
 - Do not make unrelated improvements or speculative refactors.
 - Preserve existing behavior unless the requested change intentionally modifies
   it.
 - When requirements are ambiguous, infer from established project conventions
   when possible, then apply the combined ambiguity rule from section 1.
-- Run the spikes in `PLAN.md` (S1 to S4) before building on the assumptions they
-  cover. Items marked VERIFY in `PLAN.md` must be checked against official
-  sources and the result recorded in `DECISIONS.md`.
+- Spikes S1-S4 are complete; see `DECISIONS.md`. Items still marked VERIFY in
+  `PLAN.md` must be checked against official sources and the result recorded in
+  `DECISIONS.md`.
 - Never claim that work was performed or verified unless it actually was.
 - Report relevant limitations, failed checks, and unresolved issues honestly.
 
@@ -606,17 +603,11 @@ replacements.
 - Do not rely on memory when current external information materially affects the
   implementation. Package APIs, platform limits, free-tier quotas, store
   policies, and legal deadlines change.
-- Sub-agents are always allowed.
-- Use sub-agents proactively for independent workstreams, repository
-  exploration, research, code review, testing, or context-heavy investigation
-  when they can improve the result. Security review of SQL and consent flows is
-  a good use.
-- Delegate independent work rather than unnecessarily performing it
-  sequentially.
-- Handle trivial or tightly coupled work directly when delegation adds overhead.
-- Sub-agents follow this file. Do not give them secrets or personal data.
-- Review and verify sub-agent results before relying on them.
-- Never treat sub-agent output as authoritative without validation.
+- Delegate per section 17. Sub-agents follow this file; never give them secrets
+  or personal data.
+- Review and verify sub-agent results before relying on them; never treat output
+  as authoritative without validation.
+- Security review of SQL and consent flows is a good delegation target.
 
 ## 14. Documentation
 
@@ -668,3 +659,41 @@ replacements.
 - Batch independent reads and independent tool calls in one block.
 - Do not re-run checks that already passed for the current tree. Re-verify only
   what the latest change could affect, and say what was skipped and why.
+
+## 17. Token and Model Efficiency
+
+Token use:
+
+- Minimize input, reasoning, and output tokens without sacrificing correctness,
+  security, or maintainability.
+- Read only relevant files and ranges; prefer targeted search over full
+  exploration. Reuse prior findings; do not reread files or repeat successful
+  checks.
+- Make the smallest complete change. Follow existing conventions and utilities.
+  Avoid unrelated refactors, speculative abstractions, and new dependencies.
+- Prefer concise code, but never trade away readability, type safety, security,
+  or tests. Do not add docs, comments, tests, or examples unless required.
+- Run only checks affected by the change. Report changes, validation, and
+  blockers concisely; omit narration and repetition.
+- Ask only when missing information blocks a correct result; otherwise assume
+  reasonably and proceed.
+- Never claim commands, tests, or validations that were not actually run.
+  Correctness and task completion always override token savings.
+
+Model delegation:
+
+- Orchestrate. Delegate well-scoped routine work to the cheapest reliable model;
+  keep architecture, decomposition, security-sensitive changes, hard debugging,
+  and final integration on the primary model.
+- Delegate exploration, searches, reference tracing, simple tests, boilerplate,
+  docs, and mechanical edits. Skip delegation when overhead exceeds the saving.
+- Give each subagent a short brief: task, paths, constraints, expected output.
+  Do not pass the full conversation or repository.
+- Run independent tasks in parallel; never overlap files or work.
+- Use read-only agents for investigation; grant writes only when needed and
+  scope them to the task.
+- Require concise findings, changed files, validation, and open issues.
+- Verify delegated work with diffs and targeted tests. Do not recursively
+  delegate unless supported and clearly worth it.
+- If no cheaper option exists, do the work directly. Never reduce correctness,
+  security, or maintainability for cost.

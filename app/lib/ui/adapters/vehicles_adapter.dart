@@ -9,6 +9,7 @@ import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/util/lifecycle_ticks.dart';
 
 /// Seconds of moving prediction past the staleness onset. Straight-line
 /// dead reckoning leaves the road within seconds on curves, so the horizon
@@ -99,11 +100,11 @@ List<VehicleVM> orderVehicles(List<ClientVehicle> vehicles, String lineKey) {
 /// labels and the staleness flip, exactly like the previous map tab. No
 /// stream is opened by this provider, the repository owns the socket.
 ///
-/// Auto-disposed: the tick stops when no line screen watches it, instead
-/// of waking the isolate every 5 s for the whole app lifetime.
+/// Auto-disposed and paused while the app is not resumed: the tick stops
+/// when no line screen watches it and never rebuilds an invisible screen.
 final StreamProvider<int> vehicleTickProvider = StreamProvider.autoDispose<int>(
   (Ref ref) {
-    return Stream<int>.periodic(const Duration(seconds: 5), (int i) => i);
+    return lifecycleTicks(const Duration(seconds: 5));
   },
 );
 

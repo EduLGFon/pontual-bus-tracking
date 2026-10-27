@@ -88,6 +88,7 @@ class LearningRepository {
     }
   }
 
+  /// Fetches the ETA for [lineId] at [stopId]. Null on 404.
   Future<Result<EtaResult?>> fetchEta(int lineId, String stopId) async {
     try {
       final http.Response res = await client

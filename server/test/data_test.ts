@@ -22,7 +22,9 @@ Deno.test("built bundle loads lines", async () => {
       JSON.stringify({ lines: "lines.abc123def456.json", routes: {} }),
     );
     const loaded = await loadLinesFromDir(dir);
-    assertEquals(loaded, [{ id: 7, isActive: true, route: null }]);
+    assertEquals(loaded, [
+      { id: 7, code: "seven", isActive: true, route: null },
+    ]);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

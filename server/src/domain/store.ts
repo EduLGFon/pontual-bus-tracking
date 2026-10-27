@@ -65,3 +65,27 @@ export function membersOf(
   }
   return out;
 }
+
+/**
+ * Group alive trips by vehicle in one pass. Snapshot and tick paths call
+ * this once per pass instead of scanning every trip once per vehicle.
+ * Trips with no accepted fix yet (null lastSeenAtMs) are omitted, exactly
+ * like [membersOf].
+ */
+export function membersByVehicle(
+  store: Store,
+  nowMs: number,
+  aliveS: number,
+): Map<number, Trip[]> {
+  const out = new Map<number, Trip[]>();
+  for (const t of store.trips.values()) {
+    if (t.lastSeenAtMs === null) continue;
+    if (nowMs - t.lastSeenAtMs > aliveS * 1000) continue;
+    const id = t.vehicleId;
+    if (id === null) continue;
+    const list = out.get(id);
+    if (list) list.push(t);
+    else out.set(id, [t]);
+  }
+  return out;
+}

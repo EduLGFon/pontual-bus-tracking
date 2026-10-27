@@ -4,7 +4,7 @@
 import { buildSnapshot } from "../domain/snapshot.ts";
 import type { SnapshotRow } from "../domain/snapshot.ts";
 import { reportRows } from "../domain/reports.ts";
-import { membersOf, vehiclesOfLine } from "../domain/store.ts";
+import { membersByVehicle, vehiclesOfLine } from "../domain/store.ts";
 import type { Store } from "../domain/store.ts";
 
 /** Structured vehicle rows for one line, without stringifying. */
@@ -16,10 +16,7 @@ export function snapshotRows(
   memberAliveS: number,
 ): SnapshotRow[] {
   const vehicles = vehiclesOfLine(store, lineId);
-  const members = new Map();
-  for (const v of vehicles) {
-    members.set(v.id, membersOf(store, v.id, nowMs, memberAliveS));
-  }
+  const members = membersByVehicle(store, nowMs, memberAliveS);
   return buildSnapshot(vehicles, members, lineId, nowMs, publishTtlS).v;
 }
 
@@ -48,12 +45,18 @@ export function livePayload(
   store: Store,
   nowMs: number,
   publishTtlS: number,
-  memberAliveS: number,
 ): { body: string } {
   const rows: [number, number][] = [];
-  for (const [lineId] of store.byLine) {
-    const count =
-      snapshotRows(store, lineId, nowMs, publishTtlS, memberAliveS).length;
+  for (const [lineId, ids] of store.byLine) {
+    // Count published vehicles directly: building a full snapshot per
+    // line only to read its length wastes CPU on every /v1/live call.
+    let count = 0;
+    for (const id of ids) {
+      const v = store.vehicles.get(id);
+      if (v && Math.floor((nowMs - v.fixAtMs) / 1000) <= publishTtlS) {
+        count++;
+      }
+    }
     if (count > 0) rows.push([lineId, count]);
   }
   rows.sort((a, b) => a[0] - b[0]);

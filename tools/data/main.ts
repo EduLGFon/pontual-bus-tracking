@@ -332,7 +332,7 @@ export async function buildBundle(
     min_app_version: "0.1.0",
     maintenance: false,
     message_pt: "",
-    consent_version: 1,
+    consent_version: 2,
     tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   };
   await Deno.writeTextFile(

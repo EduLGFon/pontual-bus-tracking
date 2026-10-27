@@ -199,7 +199,6 @@ export function distToShapeM(
   return distToPolylineM(lat, lng, shape.pts);
 }
 
-
 /** Encode a list of lat/lng points as a Google polyline at the given
  * precision. Mirrors tools/route/main.ts. */
 export function encodePolyline(
