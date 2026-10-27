@@ -55,6 +55,21 @@ void main() {
     expect((await r.current()).messagePt, 'Volta já');
   });
 
+  test('stale remote consent version cannot downgrade bundled version', () async {
+    final RemoteConfigRepository r = repo(
+      MockClient((_) async {
+        return http.Response(
+          '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"",'
+          '"consent_version":1,"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
+          200,
+        );
+      }),
+    );
+
+    expect(await r.refresh(force: true), isA<Ok<bool>>());
+    expect((await r.current()).consentVersion, 2);
+  });
+
   test('corrupt flags keep old values', () async {
     final RemoteConfigRepository r = repo(
       MockClient((_) async {

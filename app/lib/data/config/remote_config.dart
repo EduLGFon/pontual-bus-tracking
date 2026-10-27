@@ -50,6 +50,17 @@ class RemoteConfig {
   /// Tile URL template.
   final String tileUrl;
 
+  /// Returns a copy with [consentVersion], preserving other remote flags.
+  RemoteConfig withConsentVersion(int consentVersion) {
+    return RemoteConfig(
+      minAppVersion: minAppVersion,
+      maintenance: maintenance,
+      messagePt: messagePt,
+      consentVersion: consentVersion,
+      tileUrl: tileUrl,
+    );
+  }
+
   /// Parses flags. Throws [FormatException] on bad shapes.
   factory RemoteConfig.fromJson(Map<String, dynamic> json) {
     return RemoteConfig(
@@ -112,17 +123,22 @@ class RemoteConfigRepository {
   /// Returns cached flags, falling back to the bundle. Never throws.
   Future<RemoteConfig> current() async {
     final SharedPreferences sp = await prefs();
+    final RemoteConfig bundled = RemoteConfig.bundled(bundleConfigJson);
     final String? cached = sp.getString(remoteConfigKey);
     if (cached != null) {
       try {
-        return RemoteConfig.fromJson(
+        final RemoteConfig config = RemoteConfig.fromJson(
           jsonDecode(cached) as Map<String, dynamic>,
         );
+        if (config.consentVersion < bundled.consentVersion) {
+          return config.withConsentVersion(bundled.consentVersion);
+        }
+        return config;
       } catch (_) {
         // Fall through to the bundle.
       }
     }
-    return RemoteConfig.bundled(bundleConfigJson);
+    return bundled;
   }
 
   /// Refreshes flags at most once per day. Failures keep old flags.
