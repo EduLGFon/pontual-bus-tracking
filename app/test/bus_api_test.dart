@@ -63,6 +63,26 @@ void main() {
       expect(second, isA<Ok<String>>());
     });
 
+    test('forced registration replaces a rejected saved token', () async {
+      String? stored = 'bm1_expired';
+      int calls = 0;
+      final BusApi api = BusApi(
+        client: MockClient((_) async {
+          calls += 1;
+          return http.Response('{"token":"bm1_fresh","exp":1,"id":"d"}', 201);
+        }),
+        baseUrl: () => 'http://127.0.0.1:8080',
+        readToken: () async => stored,
+        writeToken: (String token) async => stored = token,
+      );
+
+      final Result<String> result = await api.ensureRegistered(force: true);
+
+      expect(result, isA<Ok<String>>());
+      expect(calls, 1);
+      expect(stored, 'bm1_fresh');
+    });
+
     test('server errors map to failures', () async {
       final MockClient client = MockClient((_) async {
         return http.Response('{"e":"rate"}', 429);

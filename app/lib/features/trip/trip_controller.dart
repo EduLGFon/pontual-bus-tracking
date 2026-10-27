@@ -415,6 +415,25 @@ class TripController extends ChangeNotifier {
     return 'failed';
   }
 
+  Future<Result<String>> _registerAndRecordConsent() async {
+    final Result<String> registration = await _deps.api.ensureRegistered(
+      force: true,
+    );
+    if (registration is Err<String>) {
+      return registration;
+    }
+    final String token = (registration as Ok<String>).value;
+    final Result<bool> posted = await _deps.api.postConsents(
+      token,
+      _deps.consentVersion,
+    );
+    if (posted is Err<bool>) {
+      return Err<String>(posted.failure);
+    }
+    await _deps.consentStore.markPosted(_deps.consentVersion);
+    return Ok<String>(token);
+  }
+
   /// Starts a trip on [lineId]. Returns false when consent is declined.
   /// [firstFixTimeout] bounds the wait for the first accepted GPS fix;
   /// expiry sets [failReason] to [StartFailure.noGps]. [onPhase] reports
@@ -480,12 +499,20 @@ class TripController extends ChangeNotifier {
       postConsents: () async {
         final Result<String> reg = await _deps.api.ensureRegistered();
         if (reg is Err<String>) {
-          return const Err<bool>(NetworkFailure('register failed'));
+          return Err<bool>(reg.failure);
         }
         final Result<bool> posted = await _deps.api.postConsents(
           (reg as Ok<String>).value,
           _deps.consentVersion,
         );
+        if (posted is Err<bool> &&
+            posted.failure is ServerFailure &&
+            (posted.failure as ServerFailure).code == 'auth') {
+          final Result<String> renewed = await _registerAndRecordConsent();
+          return renewed is Ok<String>
+              ? const Ok<bool>(true)
+              : Err<bool>((renewed as Err<String>).failure);
+        }
         return posted;
       },
     );
@@ -585,7 +612,7 @@ class TripController extends ChangeNotifier {
       return false;
     }
     phase(SharePhase.register, SharePhaseStatus.done);
-    final String token = (reg as Ok<String>).value;
+    String token = (reg as Ok<String>).value;
     // Wait for the first accepted fix so POST /v1/trip carries real
     // coordinates inside the bbox. Single subscription: the run loop
     // reuses the same broadcast stream below.
@@ -651,7 +678,7 @@ class TripController extends ChangeNotifier {
     }
     phase(SharePhase.gps, SharePhaseStatus.done);
     phase(SharePhase.start, SharePhaseStatus.active);
-    final Result<TripInstruction> started;
+    Result<TripInstruction> started;
     try {
       started = await _deps.api.startTrip(
         token,
@@ -662,6 +689,25 @@ class TripController extends ChangeNotifier {
         batteryPct: first.batteryPct,
         charging: first.charging,
       );
+      if (started is Err<TripInstruction> &&
+          started.failure is ServerFailure &&
+          (started.failure as ServerFailure).code == 'auth') {
+        final Result<String> renewed = await _registerAndRecordConsent();
+        if (renewed is Err<String>) {
+          started = Err<TripInstruction>(renewed.failure);
+        } else {
+          token = (renewed as Ok<String>).value;
+          started = await _deps.api.startTrip(
+            token,
+            lineId: lineId,
+            lat: first.lat,
+            lng: first.lng,
+            accuracyM: first.accuracyM,
+            batteryPct: first.batteryPct,
+            charging: first.charging,
+          );
+        }
+      }
     } catch (_) {
       phase(SharePhase.start, SharePhaseStatus.failed, errorCode: 'offline');
       await _stopLocal();
@@ -670,6 +716,7 @@ class TripController extends ChangeNotifier {
       _set(const TripIdle());
       return false;
     }
+
     if (started is Err<TripInstruction>) {
       await _stopLocal();
       final AppFailure failure = started.failure;

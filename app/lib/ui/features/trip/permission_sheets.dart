@@ -35,6 +35,7 @@ class ConsentBody extends StatelessWidget {
           const _ConsentBullet(UiStrings.consentBulletPurpose),
           const _ConsentBullet(UiStrings.consentBulletNoIdentity),
           const _ConsentBullet(UiStrings.consentBulletDeleted),
+          const _ConsentBullet(UiStrings.consentBulletLearning),
           const _ConsentBullet(UiStrings.consentBulletOthers),
           const _ConsentBullet(UiStrings.consentBulletControl),
           const SizedBox(height: Space.x4),

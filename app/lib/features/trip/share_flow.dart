@@ -9,8 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
-import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/core/config/env.dart';
+import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/data/prefs/consent_store.dart';
@@ -24,6 +24,7 @@ import 'package:pontual/features/trip/share_progress_tracker.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/android/notification_permission.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Starts sharing a trip on [line]. Shows consent and permission UI,
 /// then a phased progress sheet for the network and GPS steps, and
@@ -41,10 +42,10 @@ Future<void> shareTrip(
   PermissionGateway gateway = const GeolocatorPermissionGateway(),
   Future<bool> Function() ensureNotifications = ensureNotificationPermission,
   bool legacySheets = true,
-  // When the caller already disclosed consent (the new UI ConsentBody),
-  // it passes an answer here so the flow records without showing the
-  // legacy sheet a second time. Null keeps the legacy behavior byte
-  // for byte: the consent sheet is shown inside the start.
+  int? consentVersion,
+  // The new UI passes a callback that consumes its first disclosure and
+  // presents another one if a later retry sees a newer consent version.
+  // Null keeps the legacy ConsentSheet behavior.
   Future<bool> Function()? consentAnswer,
 }) async {
   if (!line.pilot) {
@@ -59,6 +60,7 @@ Future<void> shareTrip(
       ensureNotifications,
       legacySheets: legacySheets,
       consentAnswer: consentAnswer,
+      consentVersion: consentVersion,
     );
   } catch (_) {
     // Any unexpected failure (for example the flags fetch throwing
@@ -80,6 +82,7 @@ Future<void> _shareTrip(
   Future<bool> Function() ensureNotifications, {
   bool legacySheets = true,
   Future<bool> Function()? consentAnswer,
+  int? consentVersion,
 }) async {
   if (!await gateway.servicesOn()) {
     // The new UI renders its own services-off card through the caller,
@@ -101,16 +104,25 @@ Future<void> _shareTrip(
   final RemoteConfigRepository remote = await container.read(
     remoteConfigRepoProvider.future,
   );
-  // Force a refresh so a bumped consent_version (or any server-side
-  // change) is picked up instead of a stale cached copy.
-  await remote.refresh(force: true);
-  final int consentVersion = (await remote.current()).consentVersion;
+  final int currentConsentVersion;
+  if (consentVersion != null) {
+    currentConsentVersion = consentVersion;
+  } else {
+    // Retries must not reuse a stale version: consent changes are a
+    // server-side start gate and require a fresh disclosure.
+    final Result<bool> refreshed = await remote.refresh(force: true);
+    if (refreshed is Err<bool>) {
+      _tell(context, UiStrings.shareNoConnection);
+      return;
+    }
+    currentConsentVersion = (await remote.current()).consentVersion;
+  }
   final TripController controller = TripController(
     TripDeps(
       api: container.read(busApiProvider),
       gateway: gateway,
       consentStore: const ConsentStore(),
-      consentVersion: consentVersion,
+      consentVersion: currentConsentVersion,
       locations: LocationService.production,
       clock: SystemClock(),
     ),
@@ -121,7 +133,7 @@ Future<void> _shareTrip(
   }
   final ShareProgressTracker tracker = ShareProgressTracker(
     lineId: line.id,
-    consentVersion: consentVersion,
+    consentVersion: currentConsentVersion,
     host: _hostOf(apiBaseUrl),
     nowMs: () => DateTime.now().millisecondsSinceEpoch,
   );
@@ -185,9 +197,6 @@ Future<void> _shareTrip(
     lineId: line.id,
     lineLabel: line.name,
     showConsent: () async {
-      // The new UI already disclosed and accepted above; record without
-      // showing the legacy sheet a second time. Double consent sheets
-      // stalled the flow: riders accepted once and never saw progress.
       if (consentAnswer != null) {
         return consentAnswer();
       }
