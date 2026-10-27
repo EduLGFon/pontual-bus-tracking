@@ -424,6 +424,11 @@ class UiStrings {
   /// Consent bullet: deletion.
   static const String consentBulletDeleted = 'É apagada quando a viagem acaba';
 
+  /// Consent bullet: anonymized trip data may improve predictions.
+  static const String consentBulletLearning =
+      'Dados anonimizados da viagem (rotas, paradas e tempos) podem ser '
+      'mantidos para melhorar previsões, sem identificação';
+
   /// Consent bullet: others see the bus.
   static const String consentBulletOthers =
       'Outros veem o ônibus, não quem está nele. Se só você compartilha, a '

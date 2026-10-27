@@ -945,7 +945,7 @@ latency weekly (§18).
   3. `build/manifest.json` -
      `{ "data_version": "...", "lines": "lines.<hash>.json", "routes": {"<code>": "routes/<code>.<hash>.json"}, "generated_at": "..." }`.
   4. `build/config.json` - remote flags:
-     `{ "min_app_version": "0.1.0", "maintenance": false, "message_pt": "", "consent_version": 1, "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png" }`.
+     `{ "min_app_version": "0.1.0", "maintenance": false, "message_pt": "", "consent_version": 2, "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png" }`.
   5. A **server data bundle** (the same lines JSON and route files) deployed
      with the API release to `DATA_DIR`; the API loads it at boot and on
      `SIGHUP`.

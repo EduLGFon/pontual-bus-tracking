@@ -93,8 +93,9 @@ TripController controller(
   MockClient client, {
   bool feed = true,
   PermissionGateway? gateway,
+  String? initialToken,
 }) {
-  String? token;
+  String? token = initialToken;
   // ignore: close_sinks - single buffered test event; the service owns it.
   final StreamController<Position> positions = StreamController<Position>();
   final TripController controller = TripController(
@@ -169,6 +170,108 @@ void main() {
     await c.endTrip();
     expect(c.state, isA<TripIdle>());
     expect(c.endKind, TripEndKind.user);
+    c.dispose();
+  });
+
+  test('expired token is replaced when the consent request gets 401', () async {
+    final List<String?> consentTokens = <String?>[];
+    int registrations = 0;
+    final MockClient client = MockClient((http.Request req) async {
+      switch (req.url.path) {
+        case '/v1/devices':
+          registrations += 1;
+          return http.Response(
+            '{"token":"bm1_fresh","exp":1,"id":"d"}',
+            201,
+          );
+        case '/v1/consents':
+          consentTokens.add(req.headers['authorization']);
+          if (req.headers['authorization']!.endsWith('bm1_expired')) {
+            return http.Response('{"e":"auth"}', 401);
+          }
+          return http.Response('{"ok":true}', 200);
+        case '/v1/trip':
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          expect(req.headers['authorization']!.endsWith('bm1_fresh'), isTrue);
+          return http.Response('{"r":"W","n":20}', 201);
+        case '/v1/trip/ping':
+          return http.Response('{"r":"L","n":15}', 200);
+        default:
+          return http.Response('{}', 404);
+      }
+    });
+    final TripController c = controller(
+      client,
+      initialToken: 'bm1_expired',
+    );
+
+    final bool started = await c.startTrip(
+      lineId: 7,
+      lineLabel: '7',
+      showConsent: () async => true,
+      showPermissions: () async {},
+    );
+
+    expect(started, isTrue);
+    expect(registrations, 1);
+    expect(consentTokens, hasLength(2));
+    expect(consentTokens.first!.endsWith('bm1_expired'), isTrue);
+    expect(consentTokens.last!.endsWith('bm1_fresh'), isTrue);
+    c.dispose();
+  });
+
+  test('expired token at trip start is renewed and consent reposted', () async {
+    await const ConsentStore().write(2);
+    await const ConsentStore().markPosted(2);
+    int registrations = 0;
+    int consentPosts = 0;
+    int tripStarts = 0;
+    final MockClient client = MockClient((http.Request req) async {
+      switch (req.url.path) {
+        case '/v1/devices':
+          registrations += 1;
+          return http.Response(
+            '{"token":"bm1_fresh","exp":1,"id":"d"}',
+            201,
+          );
+        case '/v1/consents':
+          consentPosts += 1;
+          expect(req.headers['authorization']!.endsWith('bm1_fresh'), isTrue);
+          return http.Response('{"ok":true}', 200);
+        case '/v1/trip':
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          tripStarts += 1;
+          if (req.headers['authorization']!.endsWith('bm1_expired')) {
+            return http.Response('{"e":"auth"}', 401);
+          }
+          expect(req.headers['authorization']!.endsWith('bm1_fresh'), isTrue);
+          return http.Response('{"r":"W","n":20}', 201);
+        case '/v1/trip/ping':
+          return http.Response('{"r":"L","n":15}', 200);
+        default:
+          return http.Response('{}', 404);
+      }
+    });
+    final TripController c = controller(
+      client,
+      initialToken: 'bm1_expired',
+    );
+
+    final bool started = await c.startTrip(
+      lineId: 7,
+      lineLabel: '7',
+      showConsent: () async => fail('Already accepted consent must be reused'),
+      showPermissions: () async {},
+    );
+
+    expect(started, isTrue);
+    expect(registrations, 1);
+    expect(consentPosts, 1);
+    expect(tripStarts, 2);
     c.dispose();
   });
 

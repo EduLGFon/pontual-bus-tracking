@@ -66,7 +66,11 @@ const StaticLine regularLine = StaticLine(
 Widget shareButton(StaticLine line) {
   final MutableGateway gateway = MutableGateway();
   final MockClient client = MockClient((_) async {
-    throw StateError('no network in share-flow tests');
+    return http.Response(
+      '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"",'
+      '"consent_version":2,"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
+      200,
+    );
   });
   return ProviderScope(
     overrides: [
@@ -134,6 +138,9 @@ final DateTime fixedNow = DateTime.utc(2026, 10, 14, 10, 0);
 /// Scope with deterministic lines, flags, API and prefs.
 Widget wrapFlow(Widget app, {required PermissionGateway gateway}) {
   final MockClient client = MockClient((http.Request req) async {
+    if (req.url.path == '/config.json') {
+      return http.Response(testBundleConfig, 200);
+    }
     if (req.url.path == '/v1/live') {
       return http.Response('[]', 200);
     }
@@ -448,6 +455,38 @@ void main() {
       expect(find.text(UiStrings.consentTitle), findsNothing);
       expect(gateway.requested, isFalse);
       expect(await const ConsentStore().read(), isNull);
+    });
+
+    testWidgets('cached v1 prompts for the refreshed v2 disclosure', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        consentVersionKey: 1,
+        consentPostedKey: 1,
+        remoteConfigKey:
+            '{"min_app_version":"0.1.0","maintenance":false,"message_pt":"",'
+            '"consent_version":1,"tile_url":"https://t.example/{z}/{x}/{y}.png"}',
+      });
+      final RecordingGateway gateway = RecordingGateway();
+      const LineVM line = LineVM(
+        key: '60-litoraneo-aviacao',
+        name: 'Litorâneo / Aviação',
+        short: '60',
+        supportsSharing: true,
+      );
+      await tester.pumpWidget(flowButton(line, gateway));
+      await tester.tap(find.text('share'));
+      await tester.pumpAndSettle();
+      expect(find.text(UiStrings.consentTitle), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text(UiStrings.consentBulletLearning),
+        200,
+      );
+      expect(find.text(UiStrings.consentBulletLearning), findsOneWidget);
+      await tester.scrollUntilVisible(find.text(UiStrings.consentDecline), 200);
+      await tester.tap(find.text(UiStrings.consentDecline));
+      await tester.pumpAndSettle();
+      expect(gateway.requested, isFalse);
     });
 
     testWidgets('permission denial renders the permission card', (

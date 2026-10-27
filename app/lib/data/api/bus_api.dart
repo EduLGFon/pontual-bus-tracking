@@ -59,8 +59,8 @@ class BusApi {
 
   /// Returns the device token, registering once per install when needed.
   /// Callers outside trip sharing never invoke this.
-  Future<Result<String>> ensureRegistered() async {
-    final String? cached = _cachedToken ?? await readToken();
+  Future<Result<String>> ensureRegistered({bool force = false}) async {
+    final String? cached = force ? null : _cachedToken ?? await readToken();
     if (cached != null && cached.isNotEmpty) {
       _cachedToken = cached;
       return Ok<String>(cached);

@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
+import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/data/prefs/consent_store.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -101,17 +102,42 @@ Future<void> _startShare(
   if (!context.mounted) {
     return;
   }
+  final RemoteConfigRepository config = await container.read(
+    remoteConfigRepoProvider.future,
+  );
+  final Result<bool> refreshed = await config.refresh(force: true);
+  if (!context.mounted) {
+    return;
+  }
+  if (refreshed is Err<bool>) {
+    _tell(context, UiStrings.shareNoConnection);
+    return;
+  }
+  final int consentVersion = (await config.current()).consentVersion;
+  bool initialConsentPending = false;
   // The disclosure is presented before the first trip and whenever the
   // consent version changes; a rider who already accepted it goes
   // straight to the permission pre-prompt.
-  if (await _consentNeeded(container)) {
+  if (!await const ConsentStore().covers(consentVersion)) {
     if (!context.mounted || !await _consentStep(context)) {
       return;
     }
+    initialConsentPending = true;
   }
   if (!context.mounted) {
     return;
   }
+  Future<bool> showConsent() async {
+    if (initialConsentPending) {
+      initialConsentPending = false;
+      return true;
+    }
+    if (!context.mounted) {
+      return false;
+    }
+    return _consentStep(context);
+  }
+
   await _permissionStep(
     context,
     container,
@@ -119,22 +145,9 @@ Future<void> _startShare(
     chosen,
     gateway,
     ensureNotifications,
+    consentVersion,
+    showConsent,
   );
-}
-
-/// True while the rider has to accept the current consent version. Reads
-/// the same store and version the share flow uses; it never writes them.
-Future<bool> _consentNeeded(ProviderContainer container) async {
-  try {
-    final RemoteConfigRepository config = await container.read(
-      remoteConfigRepoProvider.future,
-    );
-    final int version = (await config.current()).consentVersion;
-    return !await const ConsentStore().covers(version);
-  } on Object {
-    // Flags unavailable: ask, the safest answer.
-    return true;
-  }
 }
 
 /// Attaches a started controller to the trip host so the dock and the trip
@@ -198,6 +211,8 @@ Future<void> _permissionStep(
   LineVM line,
   PermissionGateway gateway,
   Future<bool> Function() ensureNotifications,
+  int consentVersion,
+  Future<bool> Function() showConsent,
 ) async {
   if (!await _prePromptStep(context)) {
     return;
@@ -213,10 +228,8 @@ Future<void> _permissionStep(
     gateway: recorder,
     ensureNotifications: ensureNotifications,
     legacySheets: false,
-    // Disclosure already accepted above (or not needed): record without
-    // a second consent sheet. The flow still writes the store and posts
-    // to the server through ensureConsent exactly once.
-    consentAnswer: () async => true,
+    consentVersion: consentVersion,
+    consentAnswer: showConsent,
   );
   if (!context.mounted) {
     return;
@@ -234,6 +247,8 @@ Future<void> _permissionStep(
       line,
       gateway,
       ensureNotifications,
+      consentVersion,
+      showConsent,
     );
   }
 }

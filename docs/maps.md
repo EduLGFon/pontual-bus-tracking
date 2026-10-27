@@ -55,20 +55,20 @@ deno task map-extract  # builds sao_mateus.pmtiles (~21 s, ~46 MB transfer)
 deno task map-verify   # pmtiles verify + header + size report
 ```
 
-Pinned inputs in `tools/map/bbox.json`: Protomaps build `20261019`, extract bbox `-40.46,-19.20,-39.50,-18.39` (municipality relation 1834958 plus buffer, extended east for app pan bounds over Guriri waters). Bump build date for refresh; bbox changes only if municipality boundary or app bounds change.
+Pinned inputs in `tools/map/bbox.json`: Protomaps build `20261026`, extract bbox `-40.46,-19.20,-39.50,-18.39` (municipality relation 1834958 plus buffer, extended east for app pan bounds over Guriri waters). Bump build date for refresh; bbox changes only if municipality boundary or app bounds change.
 
 Glyphs (one-time, then committed): generate PBF glyphs from Noto Sans Regular (OFL) for the `fonts/{fontstack}/{range}.pbf` path the styles reference. VERIFY exact `font-maker` invocation at build time; output goes next to tiles on static host (`maps/fonts/`), never to third-party host.
 
 ## 4. Update routine (OSM data changes)
 
-1. Pick new daily build date from `https://maps.protomaps.com/builds/`.
+1. Pick a build date listed at `https://maps.protomaps.com/builds/` and verify its `.pmtiles` URL is available before pinning it.
 2. Set `protomaps_build` in `tools/map/bbox.json`.
 3. Run the three commands above; confirm `map-bbox` passes (fails when any committed route trace leaves bbox) and note printed size.
 4. Deploy file to static host (section 5) and record build date plus size in `DECISIONS.md`.
 
 ## 5. Hosting and runtime
 
-- File: `sao_mateus.pmtiles`, 41.6 MB at z0-15 (measured 2026-10-20). CI builds on every static deploy (`deploy-static.yml`: installs pmtiles 1.31.2, runs `map-bbox`, `map-extract`, `map-verify`) and publishes at `maps/sao_mateus.pmtiles`. Never commit the file (`*.pmtiles` gitignored); local `deno task map-extract` is for verification/size only. Pinned daily build is hotlinked; refresh within Protomaps retention window (D75).
+- File: `sao_mateus.pmtiles`, 41.6 MB at z0-15 (measured 2026-10-27). CI builds on every static deploy (`deploy-static.yml`: installs pmtiles 1.31.2, runs `map-bbox`, `map-extract`, `map-verify`) and publishes at `maps/sao_mateus.pmtiles`. Never commit the file (`*.pmtiles` gitignored); local `deno task map-extract` is for verification/size only. The pinned upstream build must remain available; replace the pin if its URL returns 404.
 - Web: serve from our Pages host at `maps/sao_mateus.pmtiles`, read via HTTP range requests so browser fetches only needed chunks. Verify ranges after deploy: `curl -s -r 0-100 -o /dev/null -w "%{http_code}" https://<static>/maps/sao_mateus.pmtiles` must print `206`. If not, client falls back to one-time full download with progress (documented graceful path); ranges stay VERIFY.
 - Android: fully offline. File NOT bundled in APK (41.6 MB would break 15 MB RNF14 budget); fetched once from our own host on first map use and stored in app storage (native renderers need a file path, never a flutter asset). Missing/corrupt file falls back to current OSM raster path with same attribution.
 - Styles: `app/assets/map/protomaps-light.json` / `protomaps-dark.json` (MapLibre v8, Protomaps v4 schema only). No sprites; glyphs resolve relative to style location on our host. Labels use `coalesce(name:pt, name)`; `name:pt` presence is VERIFY at render test (probed z14 centro tile contains `name:pt`; Guriri tile has `name` only, so fallback matters).
