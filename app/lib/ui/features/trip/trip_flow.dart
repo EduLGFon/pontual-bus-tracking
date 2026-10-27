@@ -106,6 +106,9 @@ Future<void> _startShare(
     remoteConfigRepoProvider.future,
   );
   final Result<bool> refreshed = await config.refresh(force: true);
+  if (!context.mounted) {
+    return;
+  }
   if (refreshed is Err<bool>) {
     _tell(context, UiStrings.shareNoConnection);
     return;
@@ -134,6 +137,7 @@ Future<void> _startShare(
     }
     return _consentStep(context);
   }
+
   await _permissionStep(
     context,
     container,

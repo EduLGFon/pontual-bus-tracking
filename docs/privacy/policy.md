@@ -1,7 +1,7 @@
 # Política de Privacidade do Pontual (minuta)
 
 Status: MINUTA para revisão do responsável e de advogado. Não publicar
-antes da revisão. Versão 2026-10-20 (minuta), texto do consentimento v1.
+antes da revisão. Versão 2026-10-27 (minuta), texto do consentimento v2.
 
 Itens marcados com [DEFINIR] dependem de decisão do responsável
 (identidade e contato, domínio, região do VPS). Ver DECISIONS.md
@@ -27,6 +27,8 @@ Coletamos somente:
   bateria do celular. Fica só na memória do servidor e some
   quando a viagem termina (no máximo 10 minutos após o último
   envio).
+- Dados anonimizados da viagem, como rotas, paradas e tempos,
+  podem ser mantidos para melhorar previsões, sem identificação.
 - Ônibus na tela: posição estimada do veículo (vários passageiros
   no mesmo ônibus viram um só ponto no mapa).
 - Para segurança: limites de uso por aparelho e por rede (só na
@@ -49,6 +51,7 @@ limitar abuso; a sinalização não é guardada junto desse código.
 - Escolher qual celular envia com mais frequência (economia de
   bateria de todos).
 - Provar o seu consentimento e proteger o serviço contra abuso.
+- Melhorar previsões com dados anonimizados agregados de viagens.
 - Mostrar sinalizações públicas de passageiros por alguns minutos.
 
 ## 4. Base legal (LGPD)

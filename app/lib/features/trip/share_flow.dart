@@ -111,6 +111,9 @@ Future<void> _shareTrip(
     // Retries must not reuse a stale version: consent changes are a
     // server-side start gate and require a fresh disclosure.
     final Result<bool> refreshed = await remote.refresh(force: true);
+    if (!context.mounted) {
+      return;
+    }
     if (refreshed is Err<bool>) {
       _tell(context, UiStrings.shareNoConnection);
       return;
