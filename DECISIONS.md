@@ -191,6 +191,7 @@ D81 (2026-10-20, Accepted): permanent Android download link in web settings.
 <a id="D82"></a>D82 (2026-10-20, Accepted, target model superseded by D83): passenger reports.
 <a id="D83"></a>D83 (2026-10-20, Accepted): reports use coarse location area not stop picker.
 D84 (2026-10-22, Accepted): live dots on demand, one trip clock, tighter HTTP timeouts.
+D85 (2026-10-27, Accepted): Protomaps source pin updated to available build 20261026 after 20261019 returned 404; extracted and verified the city PMTiles at 41.6 MB.
 
 ## 10. ADRs
 

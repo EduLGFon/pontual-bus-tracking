@@ -22,7 +22,7 @@
     "west": -40.25,
     "east": -39.55
   },
-  "protomaps_build": "20261019",
+  "protomaps_build": "20261026",
   "protomaps_url_pattern": "https://build.protomaps.com/<YYYYMMDD>.pmtiles",
   "pmtiles_cli": "1.31.2"
 }
