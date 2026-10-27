@@ -296,6 +296,11 @@ void main() {
       await tester.pumpWidget(shareButton(pilotLine));
       await tester.tap(find.text('share'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Aceitar e continuar'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Aceitar e continuar'));
       await tester.pumpAndSettle();
       expect(find.text('Continuar'), findsOneWidget);

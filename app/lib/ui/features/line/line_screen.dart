@@ -50,7 +50,8 @@ class LineScreen extends ConsumerStatefulWidget {
   ConsumerState<LineScreen> createState() => _LineScreenState();
 }
 
-class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
+class _LineScreenState extends ConsumerState<LineScreen>
+    with RouteAware, WidgetsBindingObserver {
   final DraggableScrollableController _sheet = DraggableScrollableController();
   final GlobalKey<LineMapState> _mapKey = GlobalKey<LineMapState>();
 
@@ -91,8 +92,27 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // The camera never moves when the sheet is dragged: expanding the line
     // details must not change the map focus. See _ensureInitialFit.
+  }
+
+  /// Backgrounding the app hides this screen without a route change, so
+  /// close the socket and stop the 5 s ticker. Resuming reopens only when
+  /// no full page covers the screen. PLAN.md 8.8.4 and 10.4.6.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final StaticLine? line = _staticLine;
+      if (_routeVisible && line != null && line.pilot) {
+        _startStream(line.id);
+      }
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _stopStream();
+    }
   }
 
   @override
@@ -128,6 +148,7 @@ class _LineScreenState extends ConsumerState<LineScreen> with RouteAware {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     appPageRouteObserver.unsubscribe(this);
     _sheet.dispose();
     // The repository is kept in a field: reading a provider in dispose of a

@@ -69,7 +69,7 @@ void main() {
       );
       expect(await actions.deleteMyData(), DeleteOutcome.offline);
       expect(await const TokenStore().read(), 'bm1_x');
-      expect(await const ConsentStore().read(), 1);
+      expect(await const ConsentStore().read(), 2);
     });
 
     test('revoke clears consent and ends the trip best-effort', () async {

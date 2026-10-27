@@ -5,7 +5,7 @@ import { bestMember } from "./election.ts";
 import { prunePassages } from "./arrivals.ts";
 import { endTrip } from "./ping.ts";
 import { pruneReports } from "./reports.ts";
-import { membersOf, removeVehicle, vehiclesOfLine } from "./store.ts";
+import { membersByVehicle, removeVehicle, vehiclesOfLine } from "./store.ts";
 import type { Store } from "./store.ts";
 import type { EngineConfig, EngineEvent } from "./types.ts";
 
@@ -43,9 +43,13 @@ export function tick(
   for (const t of store.trips.values()) lineIds.add(t.lineId);
   for (const v of store.vehicles.values()) lineIds.add(v.lineId);
 
+  // Index trips once. Scanning every trip per vehicle made the tick
+  // O(vehicles * trips); membership lookups below are O(1).
+  const membersIndex = membersByVehicle(store, nowMs, cfg.memberAliveS);
+
   for (const lineId of lineIds) {
     for (const v of vehiclesOfLine(store, lineId)) {
-      const members = membersOf(store, v.id, nowMs, cfg.memberAliveS);
+      const members = membersIndex.get(v.id) ?? [];
       if (members.length === 0) {
         removeVehicle(store, v.id);
         events.push({ kind: "vehicleRemoved", lineId, vehicleId: v.id });

@@ -78,12 +78,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
       recordHttp429();
       return c.json({ e: "rate" }, 429);
     }
-    const { body } = livePayload(
-      deps.store,
-      Date.now(),
-      cfg.publishTtlS,
-      cfg.memberAliveS,
-    );
+    const { body } = livePayload(deps.store, Date.now(), cfg.publishTtlS);
     c.header("Cache-Control", "public, max-age=10");
     return c.body(body, 200, { "content-type": "application/json" });
   });

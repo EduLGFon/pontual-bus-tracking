@@ -194,6 +194,8 @@ final placesProvider = FutureProvider<List<Place>>((Ref ref) async {
     return const <Place>[];
   }
 });
+
+/// Learned route polyline for a line id. Null when unavailable.
 final learnedRouteProvider = FutureProvider.autoDispose.family<String?, int>((
   Ref ref,
   int lineId,
@@ -240,6 +242,8 @@ final learnedRoutesIndexProvider = FutureProvider<LearnedRoutesIndex>((
     return LearnedRoutesIndex.empty;
   }
 });
+
+/// ETA estimate for a line at a stop. Null when unavailable.
 final etaProvider = FutureProvider.autoDispose
     .family<EtaResult?, ({int lineId, String stopId})>((
       Ref ref,

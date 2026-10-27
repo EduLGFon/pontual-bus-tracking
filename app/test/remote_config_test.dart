@@ -38,7 +38,7 @@ void main() {
     });
     final RemoteConfig cfg = await repo(client).current();
     expect(cfg.maintenance, isFalse);
-    expect(cfg.consentVersion, 1);
+    expect(cfg.consentVersion, 2);
   });
 
   test('maintenance flag refreshes', () async {
