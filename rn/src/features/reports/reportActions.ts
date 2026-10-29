@@ -1,6 +1,5 @@
-// Report actions. Mirrors app/lib/ui/features/reports/report_actions.dart (simplified).
-import { busApi } from "../data/api/busApi";
-import { reportArea } from "../domain/reporting/report";
+import { busApi } from "../../data/api/busApi";
+import { reportArea } from "../../domain/reporting/report";
 
 export async function createReport(
   token: string,
@@ -16,4 +15,3 @@ export async function createReport(
 export async function retractReport(token: string, kind: string, lineId: number) {
   return busApi.postReport(token, { op: "retract", kind, lineId });
 }
-EOF
