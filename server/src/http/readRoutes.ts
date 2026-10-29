@@ -101,7 +101,8 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
 
   app.get("/v1/stream", (c) => {
     const origin = c.req.header("origin");
-    if (origin && !deps.allowedOrigins.includes(origin)) {
+    const normOrigin = origin ? origin.replace(/\/+$/, "") : null;
+    if (origin && normOrigin && !deps.allowedOrigins.includes(normOrigin)) {
       recordHttp403();
       return c.json({ e: "auth" }, 403);
     }

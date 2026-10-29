@@ -65,7 +65,8 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
     c.header("referrer-policy", "no-referrer");
     c.header("cache-control", "no-store");
     const origin = c.req.header("origin");
-    if (origin && opts.allowedOrigins.includes(origin)) {
+    const normOrigin = origin ? origin.replace(/\/+$/, "") : null;
+    if (origin && normOrigin && opts.allowedOrigins.includes(normOrigin)) {
       c.header("access-control-allow-origin", origin);
       c.header("vary", "Origin");
     }
@@ -89,7 +90,8 @@ export function buildApp(opts: AppOptions): Hono<Vars> {
     // (POST with a JSON body, DELETE, authed calls). Without this the
     // preflight 404s and the browser blocks the real request.
     const origin = c.req.header("origin");
-    if (origin && opts.allowedOrigins.includes(origin)) {
+    const normOrigin = origin ? origin.replace(/\/+$/, "") : null;
+    if (origin && normOrigin && opts.allowedOrigins.includes(normOrigin)) {
       c.header("access-control-allow-origin", origin);
       c.header("vary", "Origin");
       c.header("access-control-allow-methods", "GET, POST, DELETE, OPTIONS");

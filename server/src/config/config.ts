@@ -76,9 +76,10 @@ export function loadConfig(
     throw new Error("invalid env DATABASE_URL");
   }
   const allowedRaw = required("ALLOWED_ORIGINS", env);
-  const allowedOrigins = allowedRaw.split(",").map((s) => s.trim()).filter((
-    s,
-  ) => s !== "");
+  const allowedOrigins = allowedRaw
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter((s) => s !== "");
   if (allowedOrigins.length === 0) {
     throw new Error("invalid env ALLOWED_ORIGINS");
   }
