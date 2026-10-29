@@ -1,20 +1,18 @@
 # STEP
 
-Current step: Phase 1/2 - Core parity scaffolded in `rn/`. Web export and Android prebuild pass. Typecheck clean.
+Current step: Phase 1 - Core parity scaffold complete and verified.
 
-Status: in progress
+Status: verified
 Branch: RN
 Working dir: rn/
 
-Completed:
-- Expo SDK 58 project scaffolded
-- Core/data/domain/features/ui/screens implemented (basic)
-- MapLibre native + web split working (web export ok)
-- Android prebuild ok
-- Static data offline-first, WS vehicle repo, trip service, consent store
+Verified:
+- npx tsc --noEmit: clean
+- npx expo export --platform web: success
+- npx expo prebuild --platform android: success
 
-Next:
-- Field-test against local server
-- Reports wiring in UI
-- Learning overlay
+Remaining (future iterations):
+- Reports UI wiring
+- Learning overlay in line screen
 - EAS profiles + CI
+- Field test against local server
