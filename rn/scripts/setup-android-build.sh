@@ -10,28 +10,60 @@ SDK_ROOT="${ANDROID_HOME:-$HOME/android-sdk}"
 JAVA_HOME_DEFAULT="/usr/lib/jvm/java-17-openjdk-amd64"
 CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 
+# Detect distro family
+DISTRO_ID=""
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  DISTRO_ID="${ID:-}"
+  DISTRO_LIKE="${ID_LIKE:-}"
+fi
+IS_ARCH=0
+case "$DISTRO_ID $DISTRO_LIKE" in
+  *arch*|*cachyos*) IS_ARCH=1 ;;
+esac
+
+install_pkgs() {
+  if [ "$IS_ARCH" = "1" ]; then
+    sudo pacman -Sy --needed --noconfirm "$@"
+  else
+    sudo apt-get update
+    sudo apt-get install -y "$@"
+  fi
+}
+
 # 1. JDK 17
 if ! command -v java >/dev/null 2>&1 || ! java -version 2>&1 | grep -q '17\.'; then
   echo "Installing OpenJDK 17..."
-  sudo apt-get update
-  sudo apt-get install -y openjdk-17-jdk
+  if [ "$IS_ARCH" = "1" ]; then
+    install_pkgs jdk17-openjdk unzip curl wget
+    JAVA_HOME_DEFAULT="/usr/lib/jvm/java-17-openjdk"
+  else
+    install_pkgs openjdk-17-jdk
+  fi
 fi
 if [ -d "$JAVA_HOME_DEFAULT" ]; then
   JAVA_HOME="$JAVA_HOME_DEFAULT"
 fi
 export JAVA_HOME
 
-# 2. Node.js (>=20) via nvm if missing
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/v//' | cut -d. -f1)" -lt 20 ]; then
-  echo "Installing Node.js via nvm..."
-  if [ ! -d "$HOME/.nvm" ]; then
-    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+# 2. Node.js (>=20)
+if ! command -v node >/dev/null 2>&1 || [ "$(node -v 2>/dev/null | sed 's/v//' | cut -d. -f1)" -lt 20 ]; then
+  echo "Installing Node.js..."
+  if [ "$IS_ARCH" = "1" ]; then
+    install_pkgs nodejs npm
+  else
+    if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/v//' | cut -d. -f1)" -lt 20 ]; then
+      echo "Installing Node.js via nvm..."
+      if [ ! -d "$HOME/.nvm" ]; then
+        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+      fi
+      export NVM_DIR="$HOME/.nvm"
+      # shellcheck disable=SC1091
+      . "$NVM_DIR/nvm.sh"
+      nvm install 22
+      nvm use 22
+    fi
   fi
-  export NVM_DIR="$HOME/.nvm"
-  # shellcheck disable=SC1091
-  . "$NVM_DIR/nvm.sh"
-  nvm install 22
-  nvm use 22
 fi
 
 # 3. Android command line tools
