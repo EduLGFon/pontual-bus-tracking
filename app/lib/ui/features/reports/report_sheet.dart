@@ -187,6 +187,11 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
       area = (result as ReportAreaOk).areaId;
     }
     if (!mounted) return;
+    final String optimisticKey = reportKeyOf(widget.lineId, kind, area);
+    // Optimistic: mark the report as ours before the round trip, so the
+    // strip and the detail sheet reflect the tap immediately. Roll back on
+    // failure so a rejected report never looks sent.
+    ref.read(myReportsProvider.notifier).mark(optimisticKey);
     setState(() {
       _locating = false;
       _sending = true;
@@ -201,14 +206,12 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
     );
     if (!mounted) return;
     if (result is Ok<List<ReportDTO>>) {
-      ref
-          .read(myReportsProvider.notifier)
-          .mark(reportKeyOf(widget.lineId, kind, area));
       ref.read(toastControllerProvider.notifier).show(UiStrings.reportSent);
       await widget.onSubmitted?.call();
       if (mounted) Navigator.of(context).pop();
       return;
     }
+    ref.read(myReportsProvider.notifier).remove(optimisticKey);
     setState(() {
       _sending = false;
       _error = reportFailureMessage((result as Err<List<ReportDTO>>).failure);

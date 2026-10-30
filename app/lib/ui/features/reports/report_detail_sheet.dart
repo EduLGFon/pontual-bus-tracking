@@ -99,6 +99,9 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
       _busy = true;
       _error = null;
     });
+    // Optimistic: forget the report locally before the round trip, then
+    // restore it if the server rejects the retract.
+    ref.read(myReportsProvider.notifier).remove(report.key);
     final Result<List<ReportDTO>> result = await sendReport(
       api: ref.read(busApiProvider),
       op: 'retract',
@@ -108,7 +111,6 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
     );
     if (!mounted) return;
     if (result is Ok<List<ReportDTO>>) {
-      ref.read(myReportsProvider.notifier).remove(report.key);
       ref
           .read(toastControllerProvider.notifier)
           .show(UiStrings.reportRetracted);
@@ -116,6 +118,7 @@ class _ReportDetailSheetState extends ConsumerState<ReportDetailSheet> {
       if (mounted) Navigator.of(context).pop();
       return;
     }
+    ref.read(myReportsProvider.notifier).mark(report.key);
     setState(() {
       _busy = false;
       _error = reportFailureMessage((result as Err<List<ReportDTO>>).failure);
