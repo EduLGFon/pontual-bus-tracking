@@ -7,6 +7,18 @@ import type { TripRole } from "../../domain/trip/tripState";
 import { samplingIntervalMs } from "../../domain/trip/autoEnd";
 
 let locationSub: Location.LocationSubscription | null = null;
+
+export async function grantConsent(): Promise<void> {
+  const rc = (await import("../../data/config/remoteConfig")).remoteConfigRepo;
+  const cfg = await rc.current();
+  const cv = cfg.consent_version;
+  await consentStore.write(cv);
+  const reg = await busApi.getOrCreateToken();
+  if (reg.ok) {
+    const posted = await busApi.postConsents(reg.value, cv);
+    if (posted.ok) await consentStore.markPosted(cv);
+  }
+}
 let pingTimer: any = null;
 let currentToken: string | null = null;
 let currentLineId: number | null = null;
