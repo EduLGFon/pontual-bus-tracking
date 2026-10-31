@@ -25,9 +25,12 @@ npx expo export --platform android
 
 echo "==> Building release APK (arm64-v8a only)"
 cd "$RN_DIR/android"
+# NOTE: no --offline flag. The first build after any native-dependency
+# upgrade must reach the network to populate the Gradle cache
+# (expo-modules gradle plugin et al.); later builds reuse the cache
+# and stay fast via --build-cache and the Gradle daemon.
 ./gradlew assembleRelease \
   -PreactNativeArchitectures=arm64-v8a \
-  --offline \
   --parallel \
   --build-cache
 
