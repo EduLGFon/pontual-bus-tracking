@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FlatList, Text, View, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { staticData } from "../data/static/staticData";
+import { busApi } from "../data/api/busApi";
 import { useStaticStore, useRemoteConfigStore } from "../stores";
 import type { StaticLine } from "../data/static/staticData";
 
@@ -11,6 +12,7 @@ export default function HomeScreen() {
   const setLines = useStaticStore((s) => s.setLines);
   const rc = useRemoteConfigStore((s) => s.config);
   const [q, setQ] = useState("");
+  const [live, setLive] = useState<Record<number, number>>({});
 
   useEffect(() => {
     (async () => {
@@ -21,8 +23,33 @@ export default function HomeScreen() {
       const cfg = await remoteConfigRepo.current();
       useRemoteConfigStore.getState().setConfig(cfg);
       void remoteConfigRepo.refresh();
+      const loadLive = async () => {
+        const r = await busApi.getLive();
+        if (r.ok) {
+          const m: Record<number, number> = {};
+          for (const row of r.value as any) {
+            m[row[0]] = row[1];
+          }
+          setLive(m);
+        }
+      };
+      void loadLive();
     })();
   }, [setLines]);
+
+  useEffect(() => {
+    const loadLive = async () => {
+      const r = await busApi.getLive();
+      if (r.ok) {
+        const m: Record<number, number> = {};
+        for (const row of r.value as any) m[row[0]] = row[1];
+        setLive(m);
+      }
+    };
+    void loadLive();
+    const t = setInterval(loadLive, 10000);
+    return () => clearInterval(t);
+  }, []);
 
   const filtered = lines.filter((l) =>
     l.is_active && (q === "" || l.name.toLowerCase().includes(q.toLowerCase()) || l.short.includes(q)),
@@ -59,6 +86,7 @@ export default function HomeScreen() {
             </Text>
             <Text style={{ color: "#666", fontSize: 12 }}>
               {item.pilot ? "piloto" : "horários"}
+              {live[item.id] ? ` • ${live[item.id]} ao vivo` : ""}
             </Text>
           </Pressable>
         )}

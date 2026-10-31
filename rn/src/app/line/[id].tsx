@@ -6,6 +6,9 @@ import { busApi } from "../../data/api/busApi";
 import { Map } from "../../ui/components/Map";
 import type { StaticLine } from "../../data/static/staticData";
 import { useStaticStore } from "../../stores";
+import * as reportActions from "../../features/reports/reportActions";
+import * as tokenStore from "../../data/prefs/tokenStore";
+import { learningRepo } from "../../data/learning/learningRepository";
 
 export default function LineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -15,6 +18,9 @@ export default function LineScreen() {
   const [fetchedLine, setFetchedLine] = useState<StaticLine | null>(null);
   const [vehicles, setVehicles] = useState<{ id: number; lat: number; lng: number }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [arrivals, setArrivals] = useState<number[]>([]);
+  const [reportMsg, setReportMsg] = useState("");
+  const [learnedStops, setLearnedStops] = useState<any[]>([]);
 
   useEffect(() => {
     if (lines.some((x) => x.id === lineId)) return;
@@ -44,6 +50,14 @@ export default function LineScreen() {
         }));
         setVehicles(vs);
       }
+      const a = await busApi.getArrivals(lineId);
+      if (mounted && a.ok) {
+        setArrivals((a.value as any)?.passages ?? []);
+      }
+      const ls = await learningRepo.learnedStops(lineId);
+      if (mounted && ls) {
+        setLearnedStops((ls as any)?.stops ?? []);
+      }
       setLoading(false);
     }
     load();
@@ -53,6 +67,22 @@ export default function LineScreen() {
       clearInterval(t);
     };
   }, [lineId]);
+
+  async function onReport(kind: string) {
+    setReportMsg("");
+    let t = await tokenStore.readToken();
+    if (!t) {
+      const r = await busApi.getOrCreateToken();
+      if (!r.ok) {
+        setReportMsg("Falha ao registrar dispositivo");
+        return;
+      }
+      t = r.value;
+    }
+    const res = await reportActions.createReport(t, kind, lineId, -18.7, -39.85);
+    if (res.ok) setReportMsg("Reporte enviado");
+    else setReportMsg("Falha no reporte");
+  }
 
   if (!line) {
     return (
@@ -70,10 +100,7 @@ export default function LineScreen() {
     <View style={{ flex: 1 }}>
       <View style={{ height: 260 }}>
         <Map
-          styleUrl={
-            (line as any)?.tile_url ||
-            "https://demotiles.maplibre.org/style.json"
-          }
+          styleUrl="https://demotiles.maplibre.org/style.json"
           initialCenter={center}
           initialZoom={12}
           markers={vehicles.map((v) => ({ id: String(v.id), lat: v.lat, lng: v.lng }))}
@@ -86,6 +113,43 @@ export default function LineScreen() {
         <Text style={{ color: "#666" }}>
           {loading ? "Atualizando..." : `${vehicles.length} veículo(s)`}
         </Text>
+
+        <Text style={{ marginTop: 12, fontWeight: "bold" }}>Próximas chegadas</Text>
+        {arrivals.length === 0 ? (
+          <Text style={{ fontSize: 12, color: "#666" }}>Sem dados</Text>
+        ) : (
+          arrivals.map((a, i) => (
+            <Text key={i} style={{ fontSize: 12 }}>
+              {a}s
+            </Text>
+          ))
+        )}
+
+        <Text style={{ marginTop: 12, fontWeight: "bold" }}>Reportar</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+          {["waiting", "full", "broken", "blocked"].map((k) => (
+            <Pressable
+              key={k}
+              onPress={() => onReport(k)}
+              style={{ padding: 8, backgroundColor: "#eee", borderRadius: 6 }}
+            >
+              <Text style={{ fontSize: 12 }}>{k}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {reportMsg ? <Text style={{ marginTop: 6, color: "#666" }}>{reportMsg}</Text> : null}
+
+        <Text style={{ marginTop: 12, fontWeight: "bold" }}>Paradas aprendidas</Text>
+        {learnedStops.length === 0 ? (
+          <Text style={{ fontSize: 12, color: "#666" }}>Sem dados</Text>
+        ) : (
+          learnedStops.slice(0, 5).map((s: any, i: number) => (
+            <Text key={i} style={{ fontSize: 12 }}>
+              {s.id} ({s.lat.toFixed(4)}, {s.lng.toFixed(4)})
+            </Text>
+          ))
+        )}
+
         <Pressable
           onPress={() => router.push("/trip")}
           style={{ marginTop: 12, padding: 10, backgroundColor: "#208AEF", borderRadius: 6 }}
