@@ -12,20 +12,23 @@ export default function LineScreen() {
   const lineId = Number(id);
   const router = useRouter();
   const lines = useStaticStore((s) => s.lines);
-  const [line, setLine] = useState<StaticLine | null>(null);
+  const [fetchedLine, setFetchedLine] = useState<StaticLine | null>(null);
   const [vehicles, setVehicles] = useState<{ id: number; lat: number; lng: number }[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const l = lines.find((x) => x.id === lineId) ?? null;
-    setLine(l);
-    if (!l) {
-      (async () => {
-        const ls = await staticData.currentLines();
-        setLine(ls.find((x) => x.id === lineId) ?? null);
-      })();
-    }
+    if (lines.some((x) => x.id === lineId)) return;
+    let cancelled = false;
+    (async () => {
+      const ls = await staticData.currentLines();
+      if (!cancelled) setFetchedLine(ls.find((x) => x.id === lineId) ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [lines, lineId]);
+
+  const line = lines.find((x) => x.id === lineId) ?? fetchedLine;
 
   useEffect(() => {
     let mounted = true;
