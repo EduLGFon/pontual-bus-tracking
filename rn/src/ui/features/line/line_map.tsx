@@ -10,11 +10,13 @@ export function LineMap({
   tileUrl,
   vehicles,
   center,
+  routePoints,
   onSelect,
 }: {
   tileUrl: string;
   vehicles: VehicleVM[];
   center: { lat: number; lng: number };
+  routePoints?: { lat: number; lng: number }[];
   onSelect?: (key: number) => void;
 }) {
   void onSelect;
@@ -25,6 +27,7 @@ export function LineMap({
         initialCenter={center}
         initialZoom={13}
         markers={vehicles.map((v) => ({ id: String(v.key), lat: v.lat, lng: v.lng }))}
+        route={routePoints}
       />
     </View>
   );

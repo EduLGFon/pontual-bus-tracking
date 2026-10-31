@@ -17,6 +17,8 @@ import type { ArrivalVM } from "../../models/arrival_vm";
 import { uiStrings } from "../../strings/uiStrings";
 import { useFavorites } from "../lines/favorites_bridge";
 import { useReports } from "../reports/reports_providers";
+import { learningRepo } from "../../../data/learning/learningRepository";
+import { decodePolyline } from "../../../core/geo/geo";
 import { LineDock } from "./line_dock";
 import { LineExpanded } from "./line_expanded";
 import { LineMap } from "./line_map";
@@ -53,6 +55,7 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
   const [snapshot, setSnapshot] = useState<VehiclesSnapshot | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [arrivals, setArrivals] = useState<ArrivalVM[]>([]);
+  const [routePoints, setRoutePoints] = useState<{ lat: number; lng: number }[]>([]);
   const [activeTab, setActiveTab] = useState<LineTab>(tab === "horarios" ? "horarios" : "agora");
   const [following, setFollowing] = useState(false);
   const { width } = useWindowDimensions();
@@ -105,6 +108,17 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
       void client.getArrivals(lineId).then(applyArrivals);
     };
     load();
+    // Learned route overlay, fetched once per line. Silent when absent:
+    // viewers still get vehicles, reports, and arrivals.
+    void (async () => {
+      try {
+        const lr = await learningRepo.fetchLearnedRoute(lineId);
+        const poly = lr?.polyline;
+        if (mounted && typeof poly === "string" && poly.length > 0) {
+          setRoutePoints(decodePolyline(poly).map((p) => ({ lat: p.lat, lng: p.lng })));
+        }
+      } catch {}
+    })();
     const id = setInterval(() => {
       if (mounted && AppState.currentState === "active") load();
     }, pollMs);
@@ -178,7 +192,7 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
   return (
     <View style={styles.root}>
       <View style={wide ? styles.wideMap : styles.map}>
-        <LineMap tileUrl={tileFallback} vehicles={vehicles} center={center} />
+        <LineMap tileUrl={tileFallback} vehicles={vehicles} center={center} routePoints={routePoints} />
         <View style={styles.controls}>
           <LineMapControls
             status={line.pilot ? status : "empty"}
