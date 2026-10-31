@@ -10,5 +10,6 @@ export function openDb(databaseUrl: string): Sql {
     max: 5,
     idle_timeout: 20,
     connect_timeout: 5,
+    infer: true,
   });
 }

@@ -133,8 +133,9 @@ class _LiveIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ReduceMotionMode motionMode =
-        ref.watch(settingsProvider).reduceMotionMode;
+    final ReduceMotionMode motionMode = ref
+        .watch(settingsProvider)
+        .reduceMotionMode;
     final Certainty certainty = switch (overall) {
       SharingOverall.live => Certainty.live,
       SharingOverall.paused => Certainty.stale,

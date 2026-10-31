@@ -8,11 +8,7 @@ import 'package:pontual/ui/design/tokens/motion.dart';
 /// Hosts the shared live-pulse controller for its subtree.
 class LivePulse extends StatefulWidget {
   /// Creates the host.
-  const LivePulse({
-    required this.child,
-    this.reduceMotionMode,
-    super.key,
-  });
+  const LivePulse({required this.child, this.reduceMotionMode, super.key});
 
   /// Subtree that can read the controller through [LivePulseScope].
   final Widget child;

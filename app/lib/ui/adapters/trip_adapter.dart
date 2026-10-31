@@ -48,4 +48,3 @@ String _roleOf(TripState state) {
   final TripRole? role = activeRole(state);
   return role?.name ?? 'waiting';
 }
-

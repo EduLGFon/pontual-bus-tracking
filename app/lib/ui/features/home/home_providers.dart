@@ -34,8 +34,7 @@ final Provider<List<LineVM>> homeLiveLinesProvider = Provider<List<LineVM>>((
       .where((LineVM line) => line.isLive)
       .toList();
   live.sort(
-    (LineVM a, LineVM b) =>
-        b.liveVehicleCount.compareTo(a.liveVehicleCount),
+    (LineVM a, LineVM b) => b.liveVehicleCount.compareTo(a.liveVehicleCount),
   );
   return List<LineVM>.unmodifiable(live);
 });
