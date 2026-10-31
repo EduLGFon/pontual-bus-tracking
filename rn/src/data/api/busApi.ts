@@ -16,10 +16,11 @@ import {
   LiveLinesSchema,
   VehiclesSnapshotSchema,
   TripInstructionSchema,
+  parseReports,
 } from "./dto";
 import * as tokenStore from "../prefs/tokenStore";
+import { requestTimeout as REQUEST_TIMEOUT_MS } from "../net/httpClient";
 
-const REQUEST_TIMEOUT_MS = 15000;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; failure: any };
 
@@ -218,9 +219,8 @@ export class BusApi {
     if (opts.area) body.area = opts.area;
     const r = await this.authed(token, "POST", "/v1/reports", body);
     if (!r.ok) return err(r.failure);
-    const reports = (r.value?.r ?? []) as any;
-    // validate loosely
-    return ok(reports as ReportDTO[]);
+    const reports = parseReports(r.value?.r);
+    return ok(reports);
   }
 
   async getVehicles(lineId: number): Promise<Result<VehiclesSnapshot>> {

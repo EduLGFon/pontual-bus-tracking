@@ -3,15 +3,13 @@ import * as Location from "expo-location";
 import { busApi } from "../../data/api/busApi";
 import { consentStore } from "../../data/prefs/consentStore";
 import { useTripStore } from "../../stores";
-import type { TripRole } from "../../domain/trip/tripState";
-import { samplingIntervalMs } from "../../domain/trip/autoEnd";
+import type { ServerTripRole } from "../../domain/trip/tripState";
 
 let locationSub: Location.LocationSubscription | null = null;
-let pingTimer: any = null;
 let currentToken: string | null = null;
 let currentLineId: number | null = null;
 let seq = 0;
-let lastRole: TripRole = "W";
+let lastRole: ServerTripRole = "W";
 
 export async function startSharing(lineId: number, firstFix: { lat: number; lng: number; accuracyM: number; batteryPct: number; charging: boolean }) {
   const ts = useTripStore.getState();
@@ -51,7 +49,7 @@ export async function startSharing(lineId: number, firstFix: { lat: number; lng:
     throw start.failure;
   }
   currentLineId = lineId;
-  lastRole = start.value.r as TripRole;
+  lastRole = start.value.r as ServerTripRole;
   const intervalS = start.value.n;
   seq = 1;
   ts.setTrip({ lineId, role: lastRole, intervalS, seq });
@@ -80,7 +78,7 @@ export async function startSharing(lineId: number, firstFix: { lat: number; lng:
         }
         return;
       }
-      lastRole = res.value.r as TripRole;
+      lastRole = res.value.r as ServerTripRole;
       const intervalS = res.value.n;
       if (res.value.e) {
         await stopSharing();
@@ -96,7 +94,6 @@ export async function startSharing(lineId: number, firstFix: { lat: number; lng:
   );
   // Note: watchPositionAsync already drives pings; intervalS from server
   // is advisory. We keep it in state for UI.
-  void samplingIntervalMs;
 }
 
 export async function stopSharing() {
