@@ -211,7 +211,7 @@ const jobs = startJobs({
     );
   },
   onTickEvents: (evs) => {
-    for (const ev of evs) learningConsumer.handle(ev, 1);
+    for (const ev of evs) learningConsumer.handle(ev, learningConfig.minConsentVersion);
   },
 });
 

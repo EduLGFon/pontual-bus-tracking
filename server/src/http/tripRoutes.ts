@@ -199,7 +199,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
   // is never stranded in-trip while reads degrade. Rate limit still
   // applies. SECURITY: auth runs first; endTrip is idempotent and scoped
   // to the caller device id only.
-  app.delete("/v1/trip", auth, (c) => {
+  app.delete("/v1/trip", auth, async (c) => {
     const deviceId = c.get("deviceId");
     if (!endsPerDevice.hit(deviceId, Date.now())) {
       c.header("Retry-After", "60");
@@ -208,7 +208,8 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     const evs: EngineEvent[] = [];
     endTrip(deps.store, evs, deviceId);
     if (deps.learning) {
-      for (const ev of evs) deps.learning.handle(ev, 1);
+      const rt = await deps.runtime();
+      for (const ev of evs) deps.learning.handle(ev, rt.consentVersion);
     }
     return c.body(null, 204);
   });

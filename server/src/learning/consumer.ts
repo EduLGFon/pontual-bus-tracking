@@ -197,20 +197,14 @@ export class LearningConsumer {
     }
     let direction = 0;
     if (dirs.size > 0) {
-      // find nearest direction by comparing to a stored mean vector; we
-      // store mean in a parallel map? For simplicity, reuse first acc's vector.
-      // Fallback: if second direction exists, check angle.
+      const a0 = this.routeAccs.get(this.key(work.lineId, 0));
+      const mean0 = a0 ? this.accMeanVector(a0) : null;
+      const ang0 = mean0
+        ? this.angleBetween(vLat, vLng, mean0.lat, mean0.lng)
+        : 0;
       if (dirs.has(1)) {
-        // compute mean vector for dir 0 and 1 from first acc bin endpoints
-        // Simplified: assign 1 if vector differs > 60 deg from dir0 mean.
-        // We approximate by checking the first acc's first/last bin centroid.
-        const a0 = this.routeAccs.get(this.key(work.lineId, 0));
         const a1 = this.routeAccs.get(this.key(work.lineId, 1));
-        const mean0 = a0 ? this.accMeanVector(a0) : null;
         const mean1 = a1 ? this.accMeanVector(a1) : null;
-        const ang0 = mean0
-          ? this.angleBetween(vLat, vLng, mean0.lat, mean0.lng)
-          : 0;
         const ang1 = mean1
           ? this.angleBetween(vLat, vLng, mean1.lat, mean1.lng)
           : 180;
@@ -218,6 +212,14 @@ export class LearningConsumer {
         else if (ang0 < 60) direction = 0;
         else if (dirs.size < 2) direction = 1;
         else return; // discard
+      } else if (ang0 > 60) {
+        // A second direction can be created when the trip vector differs
+        // enough from the only known direction. Previously this branch was
+        // missing, so direction 1 was never created and opposite trips were
+        // merged into one polyline (crazy routes).
+        direction = 1;
+      } else {
+        direction = 0;
       }
     }
     work.direction = direction;
