@@ -13,6 +13,8 @@ import type { ReportVM } from "../../models/report_vm";
 import { uiStrings } from "../../strings/uiStrings";
 import { TimetableTab } from "../timetable/timetable_tab";
 import { LineSheetHeader } from "./line_sheet_header";
+import { ArrivalRow } from "../../design/components/arrival_row";
+import type { ArrivalVM } from "../../models/arrival_vm";
 import { ReportDetailSheet } from "../reports/report_detail_sheet";
 import { ReportSheet } from "../reports/report_sheet";
 import { ReportStrip } from "../reports/report_strip";
@@ -25,6 +27,7 @@ export function LineSheet({
   lineVM,
   liveCount,
   vehicles,
+  arrivals,
   reports,
   tab,
   onTab,
@@ -35,6 +38,7 @@ export function LineSheet({
   lineVM: LineVM;
   liveCount: number;
   vehicles: VehicleVM[];
+  arrivals: ArrivalVM[];
   reports: ReportVM[];
   tab: LineTab;
   onTab: (t: LineTab) => void;
@@ -73,6 +77,14 @@ export function LineSheet({
           ) : (
             vehicles.map((v) => <VehicleRow key={v.key} vehicle={v} />)
           )}
+          {arrivals.length > 0 ? (
+            <View style={styles.arrivals} accessibilityRole="list" accessibilityLabel={uiStrings.nextDepartures}>
+              <Text style={[t.text.label, { color: t.colors.inkMuted }]}>{uiStrings.nextDepartures}</Text>
+              {arrivals.map((a, i) => (
+                <ArrivalRow key={`${a.at.getTime()}-${i}`} arrival={a} />
+              ))}
+            </View>
+          ) : null}
         </View>
       ) : (
         <View style={styles.tab}>
@@ -113,6 +125,7 @@ const styles = StyleSheet.create({
   tabBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999 },
   favRow: { alignItems: "flex-start", marginTop: 4 },
   tab: { marginTop: 12, gap: 8 },
+  arrivals: { marginTop: 8, gap: 4 },
   reports: { gap: 8 },
   modal: { flex: 1, paddingTop: 48, paddingHorizontal: 16 },
 });

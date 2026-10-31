@@ -13,6 +13,7 @@ import type { VehiclesSnapshot } from "../../../data/api/dto";
 import * as storage from "../../../data/prefs/storage";
 import { recentsKey } from "../../adapters/local_stores";
 import type { VehicleVM } from "../../models/vehicle_vm";
+import type { ArrivalVM } from "../../models/arrival_vm";
 import { uiStrings } from "../../strings/uiStrings";
 import { useFavorites } from "../lines/favorites_bridge";
 import { useReports } from "../reports/reports_providers";
@@ -51,6 +52,7 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
   const setStoreLines = useStaticStore((s) => s.setLines);
   const [snapshot, setSnapshot] = useState<VehiclesSnapshot | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
+  const [arrivals, setArrivals] = useState<ArrivalVM[]>([]);
   const [activeTab, setActiveTab] = useState<LineTab>(tab === "horarios" ? "horarios" : "agora");
   const [following, setFollowing] = useState(false);
   const { width } = useWindowDimensions();
@@ -86,9 +88,25 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
         setFetchFailed(true);
       }
     };
-    void client.getVehicles(lineId).then(apply);
+    const applyArrivals = (r: Awaited<ReturnType<BusApi["getArrivals"]>>) => {
+      if (!mounted || !r.ok) return;
+      const at = new Date();
+      setArrivals(
+        (r.value.passages ?? []).slice(0, 4).map((s) => ({
+          lineKey: line.code,
+          at: new Date(at.getTime() + Math.max(0, s) * 1000),
+          certainty: "predicted" as const,
+          asOf: at,
+        })),
+      );
+    };
+    const load = () => {
+      void client.getVehicles(lineId).then(apply);
+      void client.getArrivals(lineId).then(applyArrivals);
+    };
+    load();
     const id = setInterval(() => {
-      if (mounted && AppState.currentState === "active") void client.getVehicles(lineId).then(apply);
+      if (mounted && AppState.currentState === "active") load();
     }, pollMs);
     const sub = AppState.addEventListener("change", (st) => {
       if (st === "active" && mounted) void client.getVehicles(lineId).then(apply);
@@ -147,6 +165,7 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
       lineVM={lineVM}
       liveCount={liveCount}
       vehicles={vehicles}
+      arrivals={arrivals}
       reports={reports}
       tab={activeTab}
       onTab={setActiveTab}
@@ -178,6 +197,7 @@ export function LineScreen({ lineKey, tab, api }: { lineKey: string; tab?: strin
             lineVM={lineVM}
             liveCount={liveCount}
             vehicles={vehicles}
+            arrivals={arrivals}
             reports={reports}
             tab={activeTab}
             onTab={setActiveTab}

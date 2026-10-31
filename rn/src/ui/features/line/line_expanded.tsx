@@ -6,6 +6,7 @@ import type { StaticLine } from "../../../data/static/staticData";
 import type { LineVM } from "../../models/line_vm";
 import type { ReportVM } from "../../models/report_vm";
 import type { VehicleVM } from "../../models/vehicle_vm";
+import type { ArrivalVM } from "../../models/arrival_vm";
 import { LineSheet, type LineTab } from "./line_sheet";
 
 export function LineExpanded(props: {
@@ -13,6 +14,7 @@ export function LineExpanded(props: {
   lineVM: LineVM;
   liveCount: number;
   vehicles: VehicleVM[];
+  arrivals: ArrivalVM[];
   reports: ReportVM[];
   tab: LineTab;
   onTab: (t: LineTab) => void;
