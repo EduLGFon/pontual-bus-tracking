@@ -116,7 +116,7 @@ async function main(): Promise<void> {
       const reg = await post(args.base, "/v1/devices", null, {});
       const token = (reg.json as { token?: string }).token;
       if (!token) throw new Error(`register failed: ${reg.status}`);
-      await post(args.base, "/v1/consents", token, { version: 1 });
+      await post(args.base, "/v1/consents", token, { version: 2 });
       riders.push({ token, role: "W", pings: 0, bus: b });
     }
   }
@@ -216,7 +216,7 @@ async function main(): Promise<void> {
     const reg = await post(args.base, "/v1/devices", null, {});
     const token = (reg.json as { token?: string }).token;
     if (token) {
-      await post(args.base, "/v1/consents", token, { version: 1 });
+      await post(args.base, "/v1/consents", token, { version: 2 });
       // Spoof: far fixed position next to the real buses.
       const spoof = await post(args.base, "/v1/trip", token, {
         line: args.line,
