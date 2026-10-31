@@ -6,7 +6,7 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   const t = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={[styles.chip, { backgroundColor: selected ? t.colors.primary : t.colors.surfaceSunken, minHeight: 36 }]}>
-      <Text style={{ color: selected ? t.colors.onPrimary : t.colors.ink, ...t.text.label }}>{label}</Text>
+      <Text style={{ ...t.text.label, color: selected ? t.colors.onPrimary : t.colors.ink }}>{label}</Text>
     </Pressable>
   );
 }
