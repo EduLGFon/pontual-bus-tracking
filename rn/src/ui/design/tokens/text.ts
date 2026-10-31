@@ -1,7 +1,6 @@
 // Text tokens. Port of app/lib/ui/design/tokens/text.dart.
+// System font only.
 import type { TextStyle } from "react-native";
-
-const F = undefined; // system font
 
 export const PontualText = {
   etaHero: { fontSize: 56, lineHeight: 56, fontWeight: "800", letterSpacing: -1.5 } as TextStyle,

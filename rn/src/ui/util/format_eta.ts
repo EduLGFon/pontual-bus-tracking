@@ -1,6 +1,5 @@
 // ETA formatting. Port of app/lib/ui/util/format_eta.dart.
 import type { ArrivalVM } from "../models/arrival_vm";
-import type { Certainty } from "../models/certainty";
 
 export interface EtaFormat {
   primary: string;
