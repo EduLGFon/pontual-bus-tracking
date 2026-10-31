@@ -60,17 +60,8 @@ class HomeScreen extends ConsumerWidget {
     // clock directly.
     final String greeting = ref.watch(currentNowProvider.select(greetingFor));
 
-    int liveTotal = 0;
-    for (final LineVM line in lines) {
-      if (line.isLive) {
-        liveTotal += line.liveVehicleCount;
-      }
-    }
-    final List<LineVM> liveLines = lines.where((LineVM l) => l.isLive).toList()
-      ..sort(
-        (LineVM a, LineVM b) =>
-            b.liveVehicleCount.compareTo(a.liveVehicleCount),
-      );
+    final int liveTotal = ref.watch(homeLiveTotalProvider);
+    final List<LineVM> liveLines = ref.watch(homeLiveLinesProvider);
     final List<LineVM> liveCapped = liveLines.take(_liveSectionMax).toList();
 
     final double margin = marginFor(context);

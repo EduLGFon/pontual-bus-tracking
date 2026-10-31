@@ -8,10 +8,19 @@ import 'package:pontual/ui/design/tokens/motion.dart';
 /// Hosts the shared live-pulse controller for its subtree.
 class LivePulse extends StatefulWidget {
   /// Creates the host.
-  const LivePulse({required this.child, super.key});
+  const LivePulse({
+    required this.child,
+    this.reduceMotionMode,
+    super.key,
+  });
 
   /// Subtree that can read the controller through [LivePulseScope].
   final Widget child;
+
+  /// Optional stored reduce-motion preference. When null, the system
+  /// accessibility flag alone decides, preserving the old behaviour for
+  /// callers that do not have a settings reference.
+  final ReduceMotionMode? reduceMotionMode;
 
   @override
   State<LivePulse> createState() => _LivePulseState();
@@ -41,7 +50,9 @@ class _LivePulseState extends State<LivePulse>
     if (!mounted) {
       return;
     }
-    final bool reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final bool reduce = widget.reduceMotionMode == null
+        ? (MediaQuery.maybeDisableAnimationsOf(context) ?? false)
+        : AppMotion.reduced(context, widget.reduceMotionMode!);
     final bool tickerOn = TickerMode.valuesOf(context).enabled;
     if (reduce || !tickerOn) {
       _controller.stop();

@@ -49,10 +49,3 @@ String _roleOf(TripState state) {
   return role?.name ?? 'waiting';
 }
 
-/// Formats mm:ss for the trip elapsed timer.
-String formatElapsed(int elapsedS) {
-  final String hh = (elapsedS ~/ 3600).toString().padLeft(2, '0');
-  final String mm = ((elapsedS ~/ 60) % 60).toString().padLeft(2, '0');
-  final String ss = (elapsedS % 60).toString().padLeft(2, '0');
-  return '$hh:$mm:$ss';
-}

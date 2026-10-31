@@ -185,6 +185,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
       );
     }
     return LivePulse(
+      reduceMotionMode: ref.watch(settingsProvider).reduceMotionMode,
       child: Scaffold(
         backgroundColor: context.colors.bg,
         body: SafeArea(

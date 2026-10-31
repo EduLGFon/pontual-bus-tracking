@@ -10,9 +10,11 @@ import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
+import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/components/chip.dart' as pontual;
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
+import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
@@ -122,7 +124,7 @@ class TripHero extends ConsumerWidget {
 /// Truthful live indicator. Green pulses only while positions flow;
 /// paused is a static amber dot, starting and ended are neutral.
 /// The dot draws inside its own box and never overflows the app bar.
-class _LiveIndicator extends StatelessWidget {
+class _LiveIndicator extends ConsumerWidget {
   /// Creates the indicator for [overall].
   const _LiveIndicator({required this.overall, super.key});
 
@@ -130,7 +132,9 @@ class _LiveIndicator extends StatelessWidget {
   final SharingOverall overall;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ReduceMotionMode motionMode =
+        ref.watch(settingsProvider).reduceMotionMode;
     final Certainty certainty = switch (overall) {
       SharingOverall.live => Certainty.live,
       SharingOverall.paused => Certainty.stale,
@@ -147,7 +151,10 @@ class _LiveIndicator extends StatelessWidget {
       label: label,
       excludeSemantics: true,
       child: Center(
-        child: LivePulse(child: LiveDot(certainty: certainty, size: 14)),
+        child: LivePulse(
+          reduceMotionMode: motionMode,
+          child: LiveDot(certainty: certainty, size: 14),
+        ),
       ),
     );
   }

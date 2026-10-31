@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/models/features.dart';
 import 'package:pontual/ui/models/line_vm.dart';
@@ -12,6 +13,32 @@ import 'package:pontual/ui/models/line_vm.dart';
 final Provider<Features> homeFeaturesProvider = Provider<Features>(
   (Ref ref) => const Features(),
 );
+
+/// Total live vehicles across live lines, derived once per lines change.
+final Provider<int> homeLiveTotalProvider = Provider<int>((Ref ref) {
+  int total = 0;
+  for (final LineVM line in ref.watch(linesVmProvider)) {
+    if (line.isLive) {
+      total += line.liveVehicleCount;
+    }
+  }
+  return total;
+});
+
+/// Live lines sorted by live vehicle count, derived once per lines change.
+final Provider<List<LineVM>> homeLiveLinesProvider = Provider<List<LineVM>>((
+  Ref ref,
+) {
+  final List<LineVM> live = ref
+      .watch(linesVmProvider)
+      .where((LineVM line) => line.isLive)
+      .toList();
+  live.sort(
+    (LineVM a, LineVM b) =>
+        b.liveVehicleCount.compareTo(a.liveVehicleCount),
+  );
+  return List<LineVM>.unmodifiable(live);
+});
 
 /// Finds a line view-model by key in an already-available list.
 LineVM? lineByKey(List<LineVM> lines, String key) {

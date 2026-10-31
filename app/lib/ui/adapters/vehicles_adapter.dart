@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
+import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/util/lifecycle_ticks.dart';
@@ -104,7 +105,14 @@ List<VehicleVM> orderVehicles(List<ClientVehicle> vehicles, String lineKey) {
 /// when no line screen watches it and never rebuilds an invisible screen.
 final StreamProvider<int> vehicleTickProvider = StreamProvider.autoDispose<int>(
   (Ref ref) {
-    return lifecycleTicks(const Duration(seconds: 5));
+    // Data saver stretches the live tick from 5 s to 30 s so a rider on
+    // a metered connection does not pay for per-vehicle age labels every
+    // few seconds. The repository still owns the socket; only the UI
+    // age labels slow down.
+    final bool dataSaver = ref.watch(settingsProvider).dataSaver;
+    return lifecycleTicks(
+      dataSaver ? const Duration(seconds: 30) : const Duration(seconds: 5),
+    );
   },
 );
 
