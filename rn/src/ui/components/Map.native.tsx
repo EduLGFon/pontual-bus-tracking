@@ -1,5 +1,5 @@
 import { Map as MapLibreMap, Camera, Marker } from "@maplibre/maplibre-react-native";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { MapProps } from "./MapProps";
 
 export function Map(props: MapProps) {
@@ -13,7 +13,7 @@ export function Map(props: MapProps) {
       />
       {props.markers.map((m) => (
         <Marker key={m.id} lngLat={[m.lng, m.lat]}>
-          <></>
+          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#208AEF" }} />
         </Marker>
       ))}
     </MapLibreMap>

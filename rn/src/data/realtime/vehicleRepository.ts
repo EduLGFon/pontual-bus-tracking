@@ -34,7 +34,7 @@ export class VehicleRepository {
       ws.onopen = () => {
         this.attempt = 0;
         try {
-          ws.send(JSON.stringify(this.lineId));
+          ws.send(JSON.stringify({ op: "sub", line: this.lineId }));
         } catch {}
       };
       ws.onmessage = (ev) => {

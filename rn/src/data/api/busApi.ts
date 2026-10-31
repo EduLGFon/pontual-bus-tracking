@@ -58,13 +58,15 @@ export class BusApi {
       }
     }
     try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
       const res = await fetch(`${this.baseUrl()}/v1/devices`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
+        signal: ctrl.signal,
       });
-      const timeout = setTimeout(() => {}, REQUEST_TIMEOUT_MS);
-      clearTimeout(timeout);
+      clearTimeout(to);
       if (res.status !== 201) {
         return err(new ServerFailure("register failed", "register"));
       }
