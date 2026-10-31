@@ -196,60 +196,14 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
         notificationText: 'Toque para abrir ou encerrar',
         setOngoing: true,
       );
-  switch (mode) {
-    case SamplingMode.waiting:
-      // High accuracy: the waiting phase must engage the GPS receiver so
-      // the first fix is a real GPS fix (sub-30 m) instead of a coarse
-      // network fix. Medium/balanced accuracy (PRIORITY_BALANCED_POWER)
-      // can resolve on WiFi/cell towers, never turns on GPS (no GPS
-      // indicator), and yields fixes above the 60 m gate, which made the
-      // start stall the full 60 s window and then fail. The waiting window
-      // is bounded (<= 60 s) and short-lived, so the battery cost of high
-      // accuracy here is acceptable. See PLAN.md 8.6.
-      return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        intervalDuration: const Duration(seconds: 5),
-        foregroundNotificationConfig: notification,
-      );
-    case SamplingMode.leaderMoving:
-      return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        intervalDuration: const Duration(seconds: 5),
-        foregroundNotificationConfig: notification,
-      );
-    case SamplingMode.leaderStill:
-      return AndroidSettings(
-        accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 15),
-        foregroundNotificationConfig: notification,
-      );
-    case SamplingMode.follower:
-      // Balanced, not low power: follower fixes must pass the same 60 m
-      // gate as leader fixes, and low power (cell/WiFi, often 50 m to
-      // 1 km) starves followers exactly in weak-GPS areas where the
-      // next handover needs them. Interval stays 45 s. See D63.
-      return AndroidSettings(
-        accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 45),
-        foregroundNotificationConfig: notification,
-      );
-    case SamplingMode.offlineSaver:
-      return AndroidSettings(
-        accuracy: LocationAccuracy.low,
-        intervalDuration: const Duration(seconds: 45),
-        foregroundNotificationConfig: notification,
-      );
-    case SamplingMode.paused:
-      // Keep the foreground service while paused (GPS off, permission
-      // flap): dropping to a bare LocationSettings would release the
-      // service and let the OS kill the process while waiting for GPS
-      // to return. Low power with the same persistent notification.
-      return AndroidSettings(
-        accuracy: LocationAccuracy.low,
-        intervalDuration: const Duration(seconds: 45),
-        foregroundNotificationConfig: notification,
-      );
-  }
+  // GPS stays high accuracy at a 5 s cadence for every sampling mode, so
+  // sharing never silently drops to a coarse/infrequent fix. The
+  // foreground service notification stays attached in all modes.
+  return AndroidSettings(
+    accuracy: LocationAccuracy.high,
+    intervalDuration: const Duration(seconds: 5),
+    foregroundNotificationConfig: notification,
+  );
 }
 
 /// Produces filtered fixes for the active trip. Only TripController drives
@@ -345,6 +299,15 @@ class LocationService {
     _listen(mode, controller);
     _mode = mode;
     _lastChangeMs = _nowMs();
+    _watchdog?.cancel();
+    _watchdog = Timer.periodic(const Duration(seconds: 10), (_) async {
+      if (controller.isClosed) return;
+      final int nowMs = _nowMs();
+      if (_streamDead || _needsRestart(nowMs)) {
+        _lastChangeMs = nowMs;
+        await _relisten(_mode, controller);
+      }
+    });
     // No onCancel handler by design: TripController awaits stream.first
     // for the start fix, and cancelling the position stream when that
     // one-shot subscription ends would starve the run loop. Only stop()
@@ -587,10 +550,16 @@ class LocationService {
 
   StreamController<TripFix>? _controller;
 
+  /// Watchdog that restarts a dead or stalled position stream even when
+  /// the supervision timer is suspended (for example in the background).
+  Timer? _watchdog;
+
   /// Stops the position stream and closes the fix stream. Fire and
   /// forget by design: awaiting cancellations can stall test zones, and
   /// nothing after a stop needs their results.
   void stop() {
+    _watchdog?.cancel();
+    _watchdog = null;
     final StreamSubscription<Position>? sub = _sub;
     _sub = null;
     if (sub != null) {
