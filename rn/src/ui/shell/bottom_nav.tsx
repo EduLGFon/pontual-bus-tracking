@@ -21,7 +21,7 @@ export function BottomNav({ items, active, onSelect }: BottomNavProps) {
           accessibilityLabel={it.label}
           style={styles.item}
         >
-          <Text style={{ color: active === it.key ? t.colors.primary : t.colors.inkMuted, ...t.text.label }}>
+          <Text style={[t.text.label, { color: active === it.key ? t.colors.primary : t.colors.inkMuted }]}>
             {it.label}
           </Text>
         </Pressable>
