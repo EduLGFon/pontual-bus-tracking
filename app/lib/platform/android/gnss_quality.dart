@@ -64,7 +64,9 @@ Stream<GnssQuality> watchGnssQuality({GnssQualityReader? reader}) {
   if (reader != null) {
     return reader();
   }
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+  if (kIsWeb ||
+      (defaultTargetPlatform != TargetPlatform.android &&
+          defaultTargetPlatform != TargetPlatform.iOS)) {
     return const Stream.empty();
   }
   try {

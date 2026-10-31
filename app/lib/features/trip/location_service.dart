@@ -186,23 +186,29 @@ LocationSettings oneShotSettingsFor() => const LocationSettings(
 
 /// Location settings per sampling mode.
 LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
-  // The notification is ongoing and persistent: the foreground service
-  // must survive screen-off and background on OEM skins that aggressively
-  // kill background work. setOngoing needs no extra permission and does
-  // not request background location, wake locks, or exemptions.
-  final ForegroundNotificationConfig notification =
-      ForegroundNotificationConfig(
-        notificationTitle: 'Compartilhando viagem - $lineLabel',
-        notificationText: 'Toque para abrir ou encerrar',
-        setOngoing: true,
-      );
-  // GPS stays high accuracy at a 5 s cadence for every sampling mode, so
-  // sharing never silently drops to a coarse/infrequent fix. The
-  // foreground service notification stays attached in all modes.
-  return AndroidSettings(
+  // GPS stays high accuracy at a 5 s cadence for every sampling mode and
+  // every platform, so sharing never silently drops to a coarse or
+  // infrequent fix.
+  final bool isAndroid = !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+  if (isAndroid) {
+    // The foreground service notification is Android-only and keeps the
+    // process alive in the background.
+    final ForegroundNotificationConfig notification =
+        ForegroundNotificationConfig(
+      notificationTitle: 'Compartilhando viagem - $lineLabel',
+      notificationText: 'Toque para abrir ou encerrar',
+      setOngoing: true,
+    );
+    return AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      intervalDuration: const Duration(seconds: 5),
+      foregroundNotificationConfig: notification,
+    );
+  }
+  return const LocationSettings(
     accuracy: LocationAccuracy.high,
-    intervalDuration: const Duration(seconds: 5),
-    foregroundNotificationConfig: notification,
+    distanceFilter: 0,
   );
 }
 

@@ -837,8 +837,8 @@ class TripController extends ChangeNotifier {
     // and never reaches the server. Notifies only when the displayed
     // satellite count changes, so the 1 Hz native stream does not
     // rebuild the trip screen every second. See D69.
-    _gnssSub = watchGnssQuality(reader: _deps.gnssReader)
-        .listen((GnssQuality q) {
+    _gnssSub = watchGnssQuality(reader: _deps.gnssReader).listen(
+      (GnssQuality q) {
           if (_disposed) {
             return;
           }
@@ -847,7 +847,7 @@ class TripController extends ChangeNotifier {
           if (prev != q.satsUsed) {
             notifyListeners();
           }
-        });
+        }, onError: (_) {});
   }
 
   void _onFix(TripFix fix) {
