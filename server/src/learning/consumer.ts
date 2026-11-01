@@ -55,6 +55,7 @@ export class LearningConsumer {
   private dwellAccs = new Map<string, DwellAcc>();
   private segmentAccs = new Map<string, SegmentAcc>();
   private watermarkTrips = new Map<string, number>();
+  private terminusStopIds = new Set<string>();
   private config: LearningConfig;
 
   constructor(private deps: ConsumerDeps) {
@@ -71,10 +72,12 @@ export class LearningConsumer {
       const rows = await this.deps.sql`
         select distinct line_id, direction from learned_routes where status = 'active'
       `;
-      for (const r of rows as unknown as Array<{
-        line_id: number;
-        direction: number;
-      }>) {
+      for (
+        const r of rows as unknown as Array<{
+          line_id: number;
+          direction: number;
+        }>
+      ) {
         const k = this.key(r.line_id, r.direction);
         if (this.routeAccs.has(k)) continue;
         this.routeAccs.set(k, {
@@ -98,15 +101,17 @@ export class LearningConsumer {
         from learned_stops
         where active = true
       `;
-      for (const r of rows as unknown as Array<{
-        id: string;
-        line_id: number;
-        direction: number;
-        lat: number;
-        lng: number;
-        radius_m: number;
-        sample_passes: number;
-      }>) {
+      for (
+        const r of rows as unknown as Array<{
+          id: string;
+          line_id: number;
+          direction: number;
+          lat: number;
+          lng: number;
+          radius_m: number;
+          sample_passes: number;
+        }>
+      ) {
         if (this.stopClusters.has(r.id)) continue;
         const c: StopCluster = {
           id: r.id,
@@ -418,15 +423,17 @@ export class LearningConsumer {
       // store dwell centroids for now.
     }
 
-    // segment stats: pair consecutive dwells that map to stops
-    // We approximate by using the detected dwell clusters in order.
-    const orderedStops: StopCluster[] = [];
-    // map each dwell to its cluster by re-running nearest (already created)
-    const dwellClusters: StopCluster[] = [];
+    // segment stats: pair consecutive dwells that map to stops. Track
+    // dwell boundaries so travel time = next.start - prev.end (F4).
+    interface DwellHit {
+      cluster: StopCluster;
+      startMs: number;
+      endMs: number;
+    }
+    const hits: DwellHit[] = [];
     for (const d of work.dwells) {
       if (d.endMs - d.startMs < cfg.minDwellS * 1000) continue;
       if (d.startMs < trimStart || d.endMs > trimEnd) continue;
-      // find cluster
       let cl: StopCluster | undefined;
       for (const c of this.stopClusters.values()) {
         if (c.lineId !== work.lineId || c.direction !== direction) continue;
@@ -438,33 +445,44 @@ export class LearningConsumer {
           break;
         }
       }
-      if (cl) dwellClusters.push(cl);
+      if (cl) hits.push({ cluster: cl, startMs: d.startMs, endMs: d.endMs });
     }
-    // dedupe consecutive same cluster
-    for (const c of dwellClusters) {
-      if (
-        orderedStops.length === 0 ||
-        orderedStops[orderedStops.length - 1].id !== c.id
-      ) {
-        orderedStops.push(c);
+    // dedupe consecutive same cluster, merging dwell boundaries
+    const ordered: DwellHit[] = [];
+    for (const h of hits) {
+      const last = ordered[ordered.length - 1];
+      if (last && last.cluster.id === h.cluster.id) {
+        last.endMs = Math.max(last.endMs, h.endMs);
+      } else {
+        ordered.push({
+          cluster: h.cluster,
+          startMs: h.startMs,
+          endMs: h.endMs,
+        });
       }
     }
-    for (let i = 0; i + 1 < orderedStops.length; i++) {
-      const from = orderedStops[i];
-      const to = orderedStops[i + 1];
-      // travel time: from end of dwell i to start of dwell i+1
-      // approximate using dwells array indices; use cluster pass timing not stored.
-      // We don't have per-pair timing here easily; skip precise timing in v1
-      // and rely on dwell durations only. Segment timing added when we track
-      // dwell boundaries per stop, which requires richer state. For now,
-      // record distance only with a placeholder count.
+    // terminus suppression: drop first and last stop's dwell stats (F4).
+    // Segment stats still use them for connectivity, but dwell stats for
+    // termini are suppressed by skipping upsertDwell for first/last cluster
+    // ids of this trip. We mark them via a set checked in flush.
+    const terminusIds = new Set<string>();
+    if (ordered.length >= 1) terminusIds.add(ordered[0].cluster.id);
+    if (ordered.length >= 2) {
+      terminusIds.add(ordered[ordered.length - 1].cluster.id);
+    }
+    for (const id of terminusIds) this.terminusStopIds.add(id);
+    for (let i = 0; i + 1 < ordered.length; i++) {
+      const from = ordered[i];
+      const to = ordered[i + 1];
+      const travelS = Math.max(0, (to.startMs - from.endMs) / 1000);
       const dist = distM(
-        from.centroidLat,
-        from.centroidLng,
-        to.centroidLat,
-        to.centroidLng,
+        from.cluster.centroidLat,
+        from.cluster.centroidLng,
+        to.cluster.centroidLat,
+        to.cluster.centroidLng,
       );
-      const segKey = `${work.lineId}:${direction}:${from.id}:${to.id}`;
+      const segKey =
+        `${work.lineId}:${direction}:${from.cluster.id}:${to.cluster.id}`;
       const hb = hourBucket(work.startedAtMs);
       const dow = dayOfWeek(work.startedAtMs);
       const key = `${segKey}:${hb}:${dow}`;
@@ -473,20 +491,28 @@ export class LearningConsumer {
         sa = {
           lineId: work.lineId,
           direction,
-          fromStop: from.id,
-          toStop: to.id,
+          fromStop: from.cluster.id,
+          toStop: to.cluster.id,
           hourBucket: hb,
           dayOfWeek: dow,
           count: 0,
           sumS: 0,
-          minS: 0,
-          maxS: 0,
+          minS: travelS,
+          maxS: travelS,
           distanceM: dist,
           reservoir: [],
         };
         this.segmentAccs.set(key, sa);
       }
       sa.count += 1;
+      sa.sumS += travelS;
+      sa.minS = Math.min(sa.minS, travelS);
+      sa.maxS = Math.max(sa.maxS, travelS);
+      if (sa.reservoir.length < 64) sa.reservoir.push(travelS);
+      else {
+        const j = Math.floor(Math.random() * sa.count);
+        if (j < 64) sa.reservoir[j] = travelS;
+      }
       sa.distanceM = dist;
     }
   }
@@ -589,6 +615,7 @@ export class LearningConsumer {
       const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
       if (acc.count < this.config.kMin) continue;
       if (!qualifyingStopIds.has(acc.stopId)) continue;
+      if (this.terminusStopIds.has(acc.stopId)) continue;
       await this.upsertDwell(acc, p50, p90);
     }
     this.dwellAccs.clear();
@@ -616,6 +643,7 @@ export class LearningConsumer {
     }
     this.segmentAccs.clear();
 
+    this.terminusStopIds.clear();
     // Keep stop clusters in memory across flushes so their ids stay stable
     // and centroids accumulate (F2). Bounded by the in-memory cluster set;
     // decay/pruning is handled by the retention job (F6).
