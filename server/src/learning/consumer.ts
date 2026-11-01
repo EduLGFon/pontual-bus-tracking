@@ -473,19 +473,41 @@ export class LearningConsumer {
     }
     this.watermarkTrips.clear();
 
-    // Persist dwell stats
+    // Determine which stop clusters qualify for promotion. Only promoted
+    // stops get a learned_stops row, so dwell/segment stats (which FK to
+    // learned_stops) must be gated on the same set. Upsert stops FIRST so
+    // the foreign keys resolve.
+    const qualifyingStopIds = new Set<string>();
+    for (const c of this.stopClusters.values()) {
+      if (c.passCount < this.config.minStopPasses) continue;
+      if (c.distinctDays.size < this.config.stopMinDistinctDays) continue;
+      qualifyingStopIds.add(c.id);
+    }
+    for (const c of this.stopClusters.values()) {
+      if (!qualifyingStopIds.has(c.id)) continue;
+      await this.upsertStop(c);
+    }
+
+    // Persist dwell stats (only for promoted stops)
     for (const acc of this.dwellAccs.values()) {
       const p50 = percentile(acc.reservoir, 0.5) ||
         acc.sumS / Math.max(1, acc.count);
       const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
       if (acc.count < this.config.kMin) continue;
+      if (!qualifyingStopIds.has(acc.stopId)) continue;
       await this.upsertDwell(acc, p50, p90);
     }
     this.dwellAccs.clear();
 
-    // Persist segment stats
+    // Persist segment stats (only when both endpoints are promoted stops)
     for (const acc of this.segmentAccs.values()) {
       if (acc.count < this.config.kMin) continue;
+      if (
+        !qualifyingStopIds.has(acc.fromStop) ||
+        !qualifyingStopIds.has(acc.toStop)
+      ) {
+        continue;
+      }
       const p50 = percentile(
         acc.reservoir.length
           ? acc.reservoir
@@ -500,13 +522,6 @@ export class LearningConsumer {
     }
     this.segmentAccs.clear();
 
-    // Stop clusters: upsert learned_stops if passCount >= minStopPasses
-    // and distinctDays >= stopMinDistinctDays
-    for (const c of this.stopClusters.values()) {
-      if (c.passCount < this.config.minStopPasses) continue;
-      if (c.distinctDays.size < this.config.stopMinDistinctDays) continue;
-      await this.upsertStop(c);
-    }
     // keep clusters in memory for ordinal assignment? Clear to bound memory;
     // reload from DB on read. For v1 we clear.
     this.stopClusters.clear();
