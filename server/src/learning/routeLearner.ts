@@ -21,6 +21,36 @@ function perpDistM(p: Pt, a: Pt, b: Pt): number {
 }
 
 /** Douglas-Peucker simplification, keeps endpoints. */
+/** Median distance in meters between two polylines, sampled at 50 points. */
+export function medianDeviationM(a: Pt[], b: Pt[]): number {
+  if (a.length < 2 || b.length < 2) return Infinity;
+  const samples: number[] = [];
+  const n = 50;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const idx = t * (a.length - 1);
+    const i0 = Math.floor(idx);
+    const i1 = Math.min(a.length - 1, i0 + 1);
+    const frac = idx - i0;
+    const p: Pt = {
+      lat: a[i0].lat + (a[i1].lat - a[i0].lat) * frac,
+      lng: a[i0].lng + (a[i1].lng - a[i0].lng) * frac,
+    };
+    // distance to polyline b (linear scan)
+    let best = Infinity;
+    for (let j = 0; j < b.length - 1; j++) {
+      const d = perpDistM(p, b[j], b[j + 1]);
+      if (d < best) best = d;
+    }
+    samples.push(best);
+  }
+  samples.sort((x, y) => x - y);
+  const m = Math.floor(samples.length / 2);
+  return samples.length % 2 === 0
+    ? (samples[m - 1] + samples[m]) / 2
+    : samples[m];
+}
+
 export function simplify(points: Pt[], tolM: number): Pt[] {
   if (points.length <= 2) return [...points];
   const keep = new Array<boolean>(points.length).fill(false);

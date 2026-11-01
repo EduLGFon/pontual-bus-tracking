@@ -2,8 +2,12 @@
 // events, maintains per-trip working state in memory, and accumulates
 // de-identified aggregates that are flushed to PostgreSQL periodically.
 // See docs/data-learning.md sections 3-5.
-import { distM, encodePolyline } from "../domain/geo.ts";
-import { buildRoutePoints, simplify } from "./routeLearner.ts";
+import { decodePolyline, distM, encodePolyline } from "../domain/geo.ts";
+import {
+  buildRoutePoints,
+  medianDeviationM,
+  simplify,
+} from "./routeLearner.ts";
 import type { EngineEvent } from "../domain/types.ts";
 import type { Sql } from "../db/client.ts";
 import type {
@@ -476,18 +480,22 @@ export class LearningConsumer {
         binned[bi] = { lat: median(b.lats), lng: median(b.lngs) };
       }
       const pts = buildRoutePoints(binned);
-      if (!pts || pts.length < 2) continue;
+      if (!pts || pts.length < 2) {
+        acc.lastFlushedTripCount = acc.tripCount;
+        continue;
+      }
       let poly = encodePolyline(pts, 5);
+      let pointCount = pts.length;
       if (poly.length > 8192) {
-        // retry at 10 m tolerance (buildRoutePoints already did 5->10 on
-        // point count; re-simplify explicitly here for the byte cap)
         const pts2 = simplify(pts, 10);
         poly = encodePolyline(pts2, 5);
-        if (poly.length > 8192) continue; // reject publication
-        await this.upsertRoute(acc, poly, pts2.length);
-      } else {
-        await this.upsertRoute(acc, poly, pts.length);
+        if (poly.length > 8192) {
+          acc.lastFlushedTripCount = acc.tripCount;
+          continue; // reject publication
+        }
+        pointCount = pts2.length;
       }
+      await this.upsertRoute(acc, poly, pointCount, pts);
       acc.lastFlushedTripCount = acc.tripCount;
     }
 
@@ -556,7 +564,30 @@ export class LearningConsumer {
     acc: { lineId: number; direction: number; tripCount: number },
     polyline: string,
     pointCount: number,
+    points: Array<{ lat: number; lng: number }>,
   ): Promise<void> {
+    // No-flap gate: if an active route exists and the new polyline deviates
+    // less than 15 m on median, keep the old version (docs 5.1).
+    const activeRows = await this.deps.sql`
+      select polyline from learned_routes
+      where line_id = ${acc.lineId} and direction = ${acc.direction}
+        and status = 'active'
+      order by version desc
+      limit 1
+    `;
+    const active = (activeRows as unknown as Array<{ polyline: string }>)[0];
+    if (active) {
+      let activePts: Array<{ lat: number; lng: number }> = [];
+      try {
+        activePts = decodePolyline(active.polyline, 5);
+      } catch {
+        activePts = [];
+      }
+      if (activePts.length >= 2) {
+        const dev = medianDeviationM(points, activePts);
+        if (dev < 15) return; // no flap
+      }
+    }
     const rows = await this.deps.sql`
       select coalesce(max(version), 0) as v
       from learned_routes
@@ -572,9 +603,21 @@ export class LearningConsumer {
       where line_id = ${acc.lineId} and direction = ${acc.direction}
         and status = 'active'
     `;
+    const dev = active
+      ? medianDeviationM(
+        points,
+        (() => {
+          try {
+            return decodePolyline(active.polyline, 5);
+          } catch {
+            return [];
+          }
+        })(),
+      )
+      : null;
     await this.deps.sql`
-      insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, computed_at)
-      values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, now())
+      insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, median_deviation_m, computed_at)
+      values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, ${dev}, now())
     `;
   }
 
