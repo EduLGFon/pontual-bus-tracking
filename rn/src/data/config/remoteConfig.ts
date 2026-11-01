@@ -47,7 +47,7 @@ export const remoteConfigRepo = {
   async refresh(force = false): Promise<boolean> {
     const last = Number((await storage.getItem(CHECK_KEY)) ?? "0");
     const now = Date.now();
-    if (!force && now - last < CHECK_INTERVAL_MS) return false;
+    if (!force && now - last < CHECK_INTERVAL_MS) return true;
     await storage.setItem(CHECK_KEY, String(now));
     try {
       const res = await fetch(`${STATIC_BASE_URL}/config.json`);
@@ -56,7 +56,7 @@ export const remoteConfigRepo = {
       const parsed = RemoteConfigSchema.safeParse(json);
       if (!parsed.success) return false;
       await storage.setItem(CONFIG_KEY, JSON.stringify(parsed.data));
-      return parsed.data.maintenance;
+      return true;
     } catch {
       return false;
     }
