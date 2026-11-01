@@ -44,6 +44,7 @@ export class LearningConsumer {
     direction: number;
     bins: Map<number, { lats: number[]; lngs: number[] }>;
     tripCount: number;
+    lastFlushedTripCount: number;
   }>();
   private stopClusters = new Map<string, StopCluster>();
   private dwellAccs = new Map<string, DwellAcc>();
@@ -228,7 +229,13 @@ export class LearningConsumer {
     const accKey = this.key(work.lineId, direction);
     let acc = this.routeAccs.get(accKey);
     if (!acc) {
-      acc = { lineId: work.lineId, direction, bins: new Map(), tripCount: 0 };
+      acc = {
+        lineId: work.lineId,
+        direction,
+        bins: new Map(),
+        tripCount: 0,
+        lastFlushedTripCount: 0,
+      };
       this.routeAccs.set(accKey, acc);
     }
     const bins = new Map<number, { lats: number[]; lngs: number[] }>();
@@ -451,9 +458,12 @@ export class LearningConsumer {
 
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
-    // Persist learned route polylines from accumulated bins.
+    // Persist learned route polylines from accumulated bins. Skip when no
+    // new trips since the last flush (T1): prevents one stale trip from
+    // generating a new version every flush cycle.
     for (const acc of this.routeAccs.values()) {
       if (acc.tripCount < this.config.minRouteTrips) continue;
+      if (acc.tripCount <= acc.lastFlushedTripCount) continue;
       const keys = [...acc.bins.keys()].sort((a, b) => a - b);
       const pts: Array<{ lat: number; lng: number }> = [];
       for (const bi of keys) {
@@ -464,6 +474,7 @@ export class LearningConsumer {
       if (pts.length < 2) continue;
       const poly = encodePolyline(pts, 5);
       await this.upsertRoute(acc, poly, pts.length);
+      acc.lastFlushedTripCount = acc.tripCount;
     }
 
     // Persist watermarks
@@ -539,6 +550,14 @@ export class LearningConsumer {
     `;
     const version =
       Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
+    // Retire any prior active version so only one active row per
+    // (line, direction) survives (T1). Retained 30 days per docs.
+    await this.deps.sql`
+      update learned_routes
+      set status = 'retired', retired_at = now()
+      where line_id = ${acc.lineId} and direction = ${acc.direction}
+        and status = 'active'
+    `;
     await this.deps.sql`
       insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, computed_at)
       values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, now())
