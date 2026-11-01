@@ -101,14 +101,20 @@ export PATH="\$ANDROID_HOME/cmdline-tools/latest/bin:\$ANDROID_HOME/platform-too
 EOF
 echo "Wrote $ENV_FILE"
 
-# 7. Install npm deps + prebuild (if rn/ exists)
+# 7. Install Bun deps + prebuild (if rn/ exists)
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 if [ -d "$REPO_ROOT/rn" ]; then
   cd "$REPO_ROOT/rn"
-  echo "Installing npm dependencies..."
-  npm install
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "Installing Bun..."
+    curl -fsSL https://bun.sh/install | bash
+    export BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+  fi
+  echo "Installing dependencies with Bun..."
+  bun install
   echo "Running expo prebuild (android)..."
-  npx expo prebuild --platform android --no-install
+  bunx expo prebuild --platform android --no-install
 fi
 
 echo ""

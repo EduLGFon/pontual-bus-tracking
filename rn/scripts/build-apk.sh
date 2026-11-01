@@ -21,7 +21,7 @@ export EXPO_PUBLIC_FORCE_PING_BUTTON="${EXPO_PUBLIC_FORCE_PING_BUTTON:-true}"
 export EXPO_PUBLIC_APP_VERSION="${EXPO_PUBLIC_APP_VERSION:-0.3.2}"
 
 echo "==> Exporting JS bundle + assets"
-npx expo export --platform android
+bunx expo export --platform android
 
 echo "==> Building release APK (arm64-v8a only)"
 cd "$RN_DIR/android"
