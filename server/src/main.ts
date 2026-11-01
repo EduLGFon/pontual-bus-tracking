@@ -90,6 +90,8 @@ const learningConsumer = new LearningConsumer({
   config: () => learningConfig,
   now: () => Date.now(),
 });
+// Seed persisted stop clusters for id stability (F2). Best-effort.
+learningConsumer.loadLearnedStops().catch(() => {});
 const engine = defaultEngineConfig();
 if (config.testEasyPublish) {
   // Testing only: publish on the first ping and count every fix as

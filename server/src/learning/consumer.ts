@@ -65,6 +65,42 @@ export class LearningConsumer {
     this.config = this.deps.config();
   }
 
+  /** Seed in-memory stop clusters from persisted learned_stops (F2). */
+  async loadLearnedStops(): Promise<void> {
+    try {
+      const rows = await this.deps.sql`
+        select id, line_id, direction, lat, lng, radius_m, sample_passes
+        from learned_stops
+        where active = true
+      `;
+      for (const r of rows as unknown as Array<{
+        id: string;
+        line_id: number;
+        direction: number;
+        lat: number;
+        lng: number;
+        radius_m: number;
+        sample_passes: number;
+      }>) {
+        if (this.stopClusters.has(r.id)) continue;
+        const c: StopCluster = {
+          id: r.id,
+          lineId: r.line_id,
+          direction: r.direction,
+          centroidLat: r.lat,
+          centroidLng: r.lng,
+          radiusM: r.radius_m,
+          passCount: r.sample_passes,
+          distinctDays: new Set(["seed", "seed2", "seed3"]),
+          reservoir: [],
+        };
+        this.stopClusters.set(r.id, c);
+      }
+    } catch {
+      // DB down: skip seeding.
+    }
+  }
+
   isEnabled(): boolean {
     return this.config.enabled;
   }
@@ -555,9 +591,9 @@ export class LearningConsumer {
     }
     this.segmentAccs.clear();
 
-    // keep clusters in memory for ordinal assignment? Clear to bound memory;
-    // reload from DB on read. For v1 we clear.
-    this.stopClusters.clear();
+    // Keep stop clusters in memory across flushes so their ids stay stable
+    // and centroids accumulate (F2). Bounded by the in-memory cluster set;
+    // decay/pruning is handled by the retention job (F6).
   }
 
   private async upsertRoute(
