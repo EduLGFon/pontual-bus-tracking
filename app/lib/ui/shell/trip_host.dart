@@ -13,12 +13,28 @@ class TripHost extends Notifier<TripController?> {
 
   /// Attaches a started controller. Disposes a different previous one:
   /// a superseded share flow must never keep pinging behind the new trip.
+  /// Callers must end the previous trip before starting a new one; with
+  /// the entry guard in the share flow the previous instance is always
+  /// idle here, so this dispose carries no native subscription and can
+  /// never kill the new foreground service.
   void attach(TripController controller) {
     final TripController? current = state;
     state = controller;
     if (current != null && current != controller) {
       current.dispose();
     }
+  }
+
+  /// True while a trip occupies the device (sharing or winding down).
+  /// The share flow checks this before subscribing: only one trip at a
+  /// time, so a new start never races the previous foreground-service
+  /// teardown.
+  bool get hasLiveTrip {
+    final TripController? current = state;
+    if (current == null) {
+      return false;
+    }
+    return tripInProgress(current.state);
   }
 
   /// Detaches and disposes the controller.

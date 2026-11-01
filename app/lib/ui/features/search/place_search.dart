@@ -31,11 +31,24 @@ class PlaceHit implements SearchHit {
 /// Searches lines by the places their learned route passes through.
 class PlaceSearchProvider implements SearchProvider {
   /// Creates a provider over [places], [index] and [lines].
+  /// Normalized place names and the line code map are built once here,
+  /// so per-keystroke `search` does no string normalization of the
+  /// gazetteer and no linear line scan.
   PlaceSearchProvider({
     required this.places,
     required this.index,
     required this.lines,
-  });
+  }) : _normPlaces = <_NormPlace>[
+         for (final Place p in places)
+           _NormPlace(
+             place: p,
+             normFields: <String>[
+               p.name,
+               ...p.aliases,
+             ].map(normalizeText).toList(),
+           ),
+       ],
+       _lineByCode = <String, LineVM>{for (final LineVM l in lines) l.key: l};
 
   /// Bundled gazetteer.
   final List<Place> places;
@@ -46,6 +59,9 @@ class PlaceSearchProvider implements SearchProvider {
   /// Available lines.
   final List<LineVM> lines;
 
+  final List<_NormPlace> _normPlaces;
+  final Map<String, LineVM> _lineByCode;
+
   @override
   String get groupLabel => UiStrings.searchPlaces;
 
@@ -53,28 +69,34 @@ class PlaceSearchProvider implements SearchProvider {
   List<SearchHit> search(String query) {
     final String q = normalizeText(query);
     if (q.isEmpty) return const <SearchHit>[];
-    // Places matching the query.
-    final List<Place> matchedPlaces = places.where((Place p) {
-      final List<String> fields = <String>[p.name, ...p.aliases];
-      return matchesAllTokens(fields.map(normalizeText).toList(), q) ||
-          fields.map(normalizeText).any((String f) => f.contains(q));
+    // Places matching the query, using pre-normalized fields.
+    final List<_NormPlace> matchedPlaces = _normPlaces.where((_NormPlace n) {
+      return matchesAllTokens(n.normFields, q) ||
+          n.normFields.any((String f) => f.contains(q));
     }).toList();
     if (matchedPlaces.isEmpty) return const <SearchHit>[];
 
     final Map<String, _Scored> best = <String, _Scored>{};
-    for (final Place place in matchedPlaces) {
+    for (final _NormPlace n in matchedPlaces) {
       for (final LearnedRouteEntry entry in index.entries) {
-        if (!linePassesNear(place: place.point, entry: entry)) continue;
-        final LineVM? line = _lineForCode(entry.code);
+        // Single route scan per pair; the stop scan runs only on a miss.
+        final double routeD = minDistanceToPolylineM(
+          n.place.point,
+          entry.points,
+        );
+        final bool near =
+            routeD <= 500 ||
+            minDistanceToEntryStopsM(n.place.point, entry) <= 300;
+        if (!near) continue;
+        final LineVM? line = _lineByCode[entry.code];
         if (line == null) continue;
-        final double d = minDistanceToPolylineM(place.point, entry.points);
         final _Scored candidate = _Scored(
           line: line,
-          place: place.name,
-          distance: d,
+          place: n.place.name,
+          distance: routeD,
         );
         final _Scored? prev = best[line.key];
-        if (prev == null || d < prev.distance) {
+        if (prev == null || routeD < prev.distance) {
           best[line.key] = candidate;
         }
       }
@@ -88,13 +110,6 @@ class PlaceSearchProvider implements SearchProvider {
     return sorted
         .map((_Scored s) => PlaceHit(line: s.line, placeName: s.place))
         .toList();
-  }
-
-  LineVM? _lineForCode(String code) {
-    for (final LineVM line in lines) {
-      if (line.key == code) return line;
-    }
-    return null;
   }
 
   @override
@@ -168,4 +183,11 @@ class _Scored {
   final LineVM line;
   final String place;
   final double distance;
+}
+
+class _NormPlace {
+  const _NormPlace({required this.place, required this.normFields});
+
+  final Place place;
+  final List<String> normFields;
 }

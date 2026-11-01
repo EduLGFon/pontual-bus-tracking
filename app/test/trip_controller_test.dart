@@ -152,6 +152,8 @@ MockClient happy() {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    LocationService.resetGateForTest();
+    TripController.resetActiveForTest();
   });
 
   test('solo ride: consent to active to user end', () async {
@@ -180,10 +182,7 @@ void main() {
       switch (req.url.path) {
         case '/v1/devices':
           registrations += 1;
-          return http.Response(
-            '{"token":"bm1_fresh","exp":1,"id":"d"}',
-            201,
-          );
+          return http.Response('{"token":"bm1_fresh","exp":1,"id":"d"}', 201);
         case '/v1/consents':
           consentTokens.add(req.headers['authorization']);
           if (req.headers['authorization']!.endsWith('bm1_expired')) {
@@ -202,10 +201,7 @@ void main() {
           return http.Response('{}', 404);
       }
     });
-    final TripController c = controller(
-      client,
-      initialToken: 'bm1_expired',
-    );
+    final TripController c = controller(client, initialToken: 'bm1_expired');
 
     final bool started = await c.startTrip(
       lineId: 7,
@@ -232,10 +228,7 @@ void main() {
       switch (req.url.path) {
         case '/v1/devices':
           registrations += 1;
-          return http.Response(
-            '{"token":"bm1_fresh","exp":1,"id":"d"}',
-            201,
-          );
+          return http.Response('{"token":"bm1_fresh","exp":1,"id":"d"}', 201);
         case '/v1/consents':
           consentPosts += 1;
           expect(req.headers['authorization']!.endsWith('bm1_fresh'), isTrue);
@@ -256,10 +249,7 @@ void main() {
           return http.Response('{}', 404);
       }
     });
-    final TripController c = controller(
-      client,
-      initialToken: 'bm1_expired',
-    );
+    final TripController c = controller(client, initialToken: 'bm1_expired');
 
     final bool started = await c.startTrip(
       lineId: 7,
@@ -743,6 +733,69 @@ void main() {
     expect(c.failReason, StartFailure.failed);
     expect(c.state, isA<TripIdle>());
     c.dispose();
+  });
+
+  test('position stream failure reports service, never silent', () async {
+    // Regression: when the native position stream cannot start, the
+    // trip must fail visibly instead of showing sharing with no
+    // notification and no background fixes.
+    String? token;
+    final TripController c = TripController(
+      TripDeps(
+        api: BusApi(
+          client: happy(),
+          baseUrl: () => 'http://127.0.0.1:8080',
+          readToken: () async => token,
+          writeToken: (String t) async => token = t,
+        ),
+        gateway: FakeGateway(),
+        consentStore: const ConsentStore(),
+        consentVersion: 2,
+        locations: () => LocationService(
+          positionStream: (_) => throw StateError('no stream'),
+          batteryLevel: () async => 80,
+          charging: () async => false,
+          nowMs: () => 100000,
+        ),
+        clock: FakeClock(100000),
+      ),
+    );
+    final bool started = await c.startTrip(
+      lineId: 7,
+      lineLabel: '7',
+      showConsent: () async => true,
+      showPermissions: () async {},
+    );
+    expect(started, isFalse);
+    expect(c.failReason, StartFailure.service);
+    expect(c.state, isA<TripIdle>());
+    c.dispose();
+  });
+
+  test('second concurrent trip reports busy', () async {
+    // Permanent guard: two controllers must never share the process-wide
+    // foreground service. The UI reopens the live trip; this static guard
+    // covers any future caller that bypasses the UI.
+    final TripController first = controller(happy());
+    final bool ok = await first.startTrip(
+      lineId: 7,
+      lineLabel: '7',
+      showConsent: () async => true,
+      showPermissions: () async {},
+    );
+    expect(ok, isTrue);
+    final TripController second = controller(happy());
+    final bool retry = await second.startTrip(
+      lineId: 7,
+      lineLabel: '7',
+      showConsent: () async => true,
+      showPermissions: () async {},
+    );
+    expect(retry, isFalse);
+    expect(second.failReason, StartFailure.busy);
+    await first.endTrip();
+    first.dispose();
+    second.dispose();
   });
 
   test('rate-limited start reports busy', () async {

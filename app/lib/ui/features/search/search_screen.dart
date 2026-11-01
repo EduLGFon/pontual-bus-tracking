@@ -187,12 +187,16 @@ List<LineVM> _recentLinesOf(List<String> recents, List<LineVM> all) {
 
 /// A line hit.
 class _LineHit implements SearchHit {
-  _LineHit({required this.line, required this.query});
+  _LineHit({required this.line, required this.query})
+    : normQuery = normalizeText(query);
 
   final LineVM line;
 
-  /// Normalised query, used to highlight the match.
+  /// Raw query, kept for debugging; highlighting uses [normQuery].
   final String query;
+
+  /// Query normalized once per search, reused by every row.
+  final String normQuery;
 
   @override
   String get key => line.key;
@@ -220,7 +224,7 @@ class _LineSearchProvider implements SearchProvider {
     if (hit is! _LineHit) {
       return const SizedBox.shrink();
     }
-    return _ResultRow(line: hit.line, query: hit.query, onTap: onTap);
+    return _ResultRow(line: hit.line, normQuery: hit.normQuery, onTap: onTap);
   }
 }
 
@@ -260,11 +264,13 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _fieldFocus = FocusNode();
+  Timer? _queryDebounce;
   List<SearchHit> _navHits = const <SearchHit>[];
   int _focused = 0;
 
   @override
   void dispose() {
+    _queryDebounce?.cancel();
     _controller.dispose();
     _fieldFocus.dispose();
     super.dispose();
@@ -322,8 +328,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _onQueryChanged(String value) {
-    ref.read(_queryProvider.notifier).set(value);
     setState(() => _focused = 0);
+    // Debounce the geo-heavy place scan: fast typing runs one search per
+    // pause instead of one per keystroke. Line-name matching is cheap
+    // enough to ride along with the same delay.
+    _queryDebounce?.cancel();
+    _queryDebounce = Timer(const Duration(milliseconds: 180), () {
+      if (mounted) {
+        ref.read(_queryProvider.notifier).set(value);
+      }
+    });
   }
 
   /// Opens the first hit on Enter, leaving the browse state alone.
@@ -509,12 +523,12 @@ class _TopBar extends StatelessWidget {
 class _ResultRow extends StatelessWidget {
   const _ResultRow({
     required this.line,
-    required this.query,
+    required this.normQuery,
     required this.onTap,
   });
 
   final LineVM line;
-  final String query;
+  final String normQuery;
   final VoidCallback onTap;
 
   @override
@@ -560,7 +574,7 @@ class _ResultRow extends StatelessWidget {
   List<TextSpan> _spans(BuildContext context) {
     final TextStyle base = context.text.headline;
     final TextStyle strong = base.copyWith(fontWeight: FontWeight.w700);
-    final List<int> range = highlightRanges(line.name, query);
+    final List<int> range = highlightRangesWithNeedle(line.name, normQuery);
     if (range.length < 2) {
       return <TextSpan>[TextSpan(text: line.name, style: base)];
     }

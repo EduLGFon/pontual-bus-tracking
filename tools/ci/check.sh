@@ -183,9 +183,12 @@ if want deploy; then
     run bash -c "cd '$ROOT/tools' && export PATH=\"$TMPBASE/pmtiles-bin:\$PATH\" && deno task map-bbox && deno task map-extract ../build/sao_mateus.pmtiles && deno task map-verify ../build/sao_mateus.pmtiles"
   fi
   PAGES="$(mktemp -d "$TMPBASE/pages-dryrun.XXXXXX")"
-  # Same globs as the workflow assemble step; nullglob-style failure
-  # surfaces here instead of shipping a half-empty site.
-  run bash -c "rm -rf '$PAGES' && mkdir -p '$PAGES/data' '$PAGES/maps' && cp -r '$ROOT/app/build/web/.' '$PAGES/' && cp '$ROOT'/build/lines.*.json '$ROOT'/build/stops.*.json '$ROOT'/build/manifest.json '$ROOT'/build/config.json '$PAGES/data/' && cp '$PAGES/index.html' '$PAGES/404.html' && touch '$PAGES/.nojekyll' && ls '$PAGES/data'"
+  # Stops are optional until learned stops are available; all other bundle
+  # files remain required just as in the workflow.
+  run bash -c "rm -rf '$PAGES' && mkdir -p '$PAGES/data' '$PAGES/maps' && cp -r '$ROOT/app/build/web/.' '$PAGES/' && cp '$ROOT'/build/lines.*.json '$ROOT'/build/manifest.json '$ROOT'/build/config.json '$PAGES/data/' && cp '$PAGES/index.html' '$PAGES/404.html' && touch '$PAGES/.nojekyll' && ls '$PAGES/data'"
+  if compgen -G "$ROOT"/build/stops.*.json > /dev/null; then
+    run cp "$ROOT"/build/stops.*.json "$PAGES/data/"
+  fi
   if [ "$WITH_TILES" -eq 1 ]; then
     run bash -c "cp '$ROOT/build/sao_mateus.pmtiles' '$PAGES/maps/'"
   fi

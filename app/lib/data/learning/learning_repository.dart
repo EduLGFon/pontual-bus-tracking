@@ -91,8 +91,10 @@ class LearningRepository {
   /// Fetches the ETA for [lineId] at [stopId]. Null on 404.
   Future<Result<EtaResult?>> fetchEta(int lineId, String stopId) async {
     try {
+      final Uri uri = Uri.parse('${baseUrl()}/v1/lines/$lineId/eta')
+          .replace(queryParameters: <String, String>{'stop': stopId});
       final http.Response res = await client
-          .get(Uri.parse('${baseUrl()}/v1/lines/$lineId/eta?stop=$stopId'))
+          .get(uri)
           .timeout(const Duration(seconds: 8));
       if (res.statusCode == 404) {
         return const Ok<EtaResult?>(null);

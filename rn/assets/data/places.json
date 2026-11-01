@@ -1,0 +1,22 @@
+[
+  { "id": "centro", "name": "Centro", "aliases": ["centro da cidade", "praca"], "lat": -18.716, "lng": -39.858 },
+  { "id": "ufes", "name": "UFES", "aliases": ["universidade federal", "campus ufes", "ufes sao mateus"], "lat": -18.698, "lng": -39.848 },
+  { "id": "ifes", "name": "IFES", "aliases": ["instituto federal", "ifes sao mateus"], "lat": -18.722, "lng": -39.852 },
+  { "id": "guriri", "name": "Guriri", "aliases": ["praia de guriri", "guriri praia"], "lat": -18.663, "lng": -39.775 },
+  { "id": "villages", "name": "Villages", "aliases": ["villages sao mateus"], "lat": -18.705, "lng": -39.870 },
+  { "id": "roberto-silvares", "name": "Roberto Silvares", "aliases": ["roberto silvares"], "lat": -18.735, "lng": -39.860 },
+  { "id": "jacuipe", "name": "Jacuipe", "aliases": ["jacui"], "lat": -18.745, "lng": -39.830 },
+  { "id": "santo-antonio", "name": "Santo Antonio", "aliases": ["santo antonio"], "lat": -18.700, "lng": -39.870 },
+  { "id": "cohab", "name": "Cohab", "aliases": ["cohab sao mateus"], "lat": -18.710, "lng": -39.875 },
+  { "id": "aroeira", "name": "Aroeira", "aliases": ["aroeira sao mateus"], "lat": -18.685, "lng": -39.820 },
+  { "id": "aviacao", "name": "Aviacao", "aliases": ["aviacao sao mateus"], "lat": -18.690, "lng": -39.800 },
+  { "id": "pedra-dagua", "name": "Pedra D'Agua", "aliases": ["pedra dagua"], "lat": -18.730, "lng": -39.810 },
+  { "id": "porto", "name": "Porto", "aliases": ["porto sao mateus"], "lat": -18.700, "lng": -39.840 },
+  { "id": "morada-do-lago", "name": "Morada do Lago", "aliases": ["morada lago"], "lat": -18.720, "lng": -39.845 },
+  { "id": "bosque", "name": "Bosque", "aliases": ["bosque sao mateus"], "lat": -18.705, "lng": -39.865 },
+  { "id": "seac", "name": "SEAC", "aliases": ["terminal seac"], "lat": -18.712, "lng": -39.855 },
+  { "id": "alvorada", "name": "Alvorada", "aliases": ["alvorada sao mateus"], "lat": -18.725, "lng": -39.840 },
+  { "id": "liberdade", "name": "Liberdade", "aliases": ["liberdade sao mateus"], "lat": -18.718, "lng": -39.862 },
+  { "id": "santa-tereza", "name": "Santa Tereza", "aliases": ["santa tereza"], "lat": -18.732, "lng": -39.825 },
+  { "id": "paulista", "name": "Paulista", "aliases": ["paulista sao mateus"], "lat": -18.695, "lng": -39.835 }
+]

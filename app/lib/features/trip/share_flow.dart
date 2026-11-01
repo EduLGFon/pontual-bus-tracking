@@ -325,6 +325,10 @@ String _messageFor(StartFailure? reason) {
       return UiStrings.shareOutsideArea;
     case StartFailure.imprecise:
       return UiStrings.impreciseLocation;
+    case StartFailure.service:
+      // Foreground service failed to start: the trip would show sharing
+      // with no notification and no background fixes. Visible retry.
+      return UiStrings.shareStartFailed;
     case StartFailure.permission:
     case StartFailure.declined:
     case StartFailure.failed:
