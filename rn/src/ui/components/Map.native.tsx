@@ -1,30 +1,10 @@
-import { StyleSheet, View, Text } from "react-native";
+import { Map as MapLibreMap, Camera, Marker, GeoJSONSource, Layer } from "@maplibre/maplibre-react-native";
+import { StyleSheet } from "react-native";
 import type { MapProps } from "./MapProps";
 
-// MapLibre native is loaded lazily so a missing native module (e.g. running in
-// Expo Go or an incompatible dev build) degrades to a placeholder instead of
-// crashing the whole route.
-let MapLibre: any = null;
-let loadError: string | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  MapLibre = require("@maplibre/maplibre-react-native");
-} catch (e: any) {
-  loadError = String(e?.message ?? e);
-}
-
 export function Map(props: MapProps) {
-  if (!MapLibre) {
-    return (
-      <View style={[styles.map, { alignItems: "center", justifyContent: "center" }]}>
-        <Text style={{ color: "#666", textAlign: "center", padding: 12 }}>
-          Mapa indisponível neste build.{"\n"}
-          {loadError ? loadError.slice(0, 120) : ""}
-        </Text>
-      </View>
-    );
-  }
-  const { Map: MapLibreMap, Camera, Marker } = MapLibre;
+  const route = props.route ?? [];
+  const coords = route.map((p) => [p.lng, p.lat]);
   return (
     <MapLibreMap style={styles.map} mapStyle={props.styleUrl}>
       <Camera
@@ -33,9 +13,21 @@ export function Map(props: MapProps) {
           zoom: props.initialZoom,
         }}
       />
+      {coords.length >= 2 ? (
+        <GeoJSONSource
+          id="learned-route"
+          data={{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }}
+        >
+          <Layer
+            id="learned-route-line"
+            type="line"
+            style={{ lineColor: "#0B6E4F", lineWidth: 3, lineOpacity: 0.85 }}
+          />
+        </GeoJSONSource>
+      ) : null}
       {props.markers.map((m) => (
         <Marker key={m.id} lngLat={[m.lng, m.lat]}>
-          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#208AEF" }} />
+          <></>
         </Marker>
       ))}
     </MapLibreMap>

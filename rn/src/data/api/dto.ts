@@ -43,7 +43,7 @@ export const LearnedRouteSchema = z.object({
   polyline: z.string().nullable().optional(),
   points: z.number().int().nullable().optional(),
   trips: z.number().int(),
-  computed_at: z.number().nullable().optional(),
+  computed_at: z.string().nullable().optional(),
   fallback: z.boolean().optional(),
 });
 export type LearnedRoute = z.infer<typeof LearnedRouteSchema>;

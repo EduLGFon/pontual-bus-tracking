@@ -3,9 +3,12 @@ import 'dart:math' as math;
 
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/domain/learning/learned_route_index.dart';
+import 'package:pontual/domain/learning/learned_stop.dart';
 
 /// Minimum distance in meters from [point] to any segment of [polyline].
 /// Returns [double.infinity] when the polyline has fewer than two points.
+/// The longitude scale is hoisted from [point] latitude once: city-scale
+/// error versus per-segment mid-latitude is negligible for the 500 m gate.
 double minDistanceToPolylineM(LatLng point, List<LatLng> polyline) {
   if (polyline.length < 2) {
     if (polyline.length == 1) {
@@ -13,18 +16,29 @@ double minDistanceToPolylineM(LatLng point, List<LatLng> polyline) {
     }
     return double.infinity;
   }
+  const double mPerDegLat = 111320.0;
+  final double mPerDegLng = 111320.0 * math.cos(point.lat * math.pi / 180.0);
   double best = double.infinity;
   for (int i = 0; i < polyline.length - 1; i++) {
-    final double d = _pointToSegmentM(point, polyline[i], polyline[i + 1]);
+    final double d = _pointToSegmentM(
+      point,
+      polyline[i],
+      polyline[i + 1],
+      mPerDegLat,
+      mPerDegLng,
+    );
     if (d < best) best = d;
   }
   return best;
 }
 
-double _pointToSegmentM(LatLng p, LatLng a, LatLng b) {
-  const double mPerDegLat = 111320.0;
-  final double midLat = (a.lat + b.lat) / 2;
-  final double mPerDegLng = 111320.0 * math.cos(midLat * math.pi / 180.0);
+double _pointToSegmentM(
+  LatLng p,
+  LatLng a,
+  LatLng b,
+  double mPerDegLat,
+  double mPerDegLng,
+) {
   final double ax = a.lng * mPerDegLng;
   final double ay = a.lat * mPerDegLat;
   final double bx = b.lng * mPerDegLng;
@@ -57,7 +71,8 @@ double minDistanceToStopsM(LatLng point, List<LatLng> stops) {
   return best;
 }
 
-/// Whether a line entry passes near a place point.
+/// Whether a line entry passes near a place point. No allocation on
+/// the route hit path; the stop scan reads learned stops directly.
 bool linePassesNear({
   required LatLng place,
   required LearnedRouteEntry entry,
@@ -66,9 +81,17 @@ bool linePassesNear({
 }) {
   final double routeD = minDistanceToPolylineM(place, entry.points);
   if (routeD <= routeRadiusM) return true;
-  final List<LatLng> stopPoints = entry.stops
-      .map((s) => LatLng(s.lat, s.lng))
-      .toList();
-  final double stopD = minDistanceToStopsM(place, stopPoints);
-  return stopD <= stopRadiusM;
+  return minDistanceToEntryStopsM(place, entry) <= stopRadiusM;
+}
+
+/// Minimum distance in meters from [point] to the learned stops of
+/// [entry]. Reads stops directly, no intermediate point list.
+double minDistanceToEntryStopsM(LatLng point, LearnedRouteEntry entry) {
+  if (entry.stops.isEmpty) return double.infinity;
+  double best = double.infinity;
+  for (final LearnedStop s in entry.stops) {
+    final double d = distM(point.lat, point.lng, s.lat, s.lng);
+    if (d < best) best = d;
+  }
+  return best;
 }

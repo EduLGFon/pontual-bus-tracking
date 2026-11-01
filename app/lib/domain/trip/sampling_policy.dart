@@ -37,8 +37,17 @@ const int streamHysteresisMs = 30000;
 /// publishes one interval after motion starts; the W to L switch is
 /// still an accuracy upgrade (medium to high) and bypasses hysteresis.
 int intervalSForMode(SamplingMode mode) {
-  // High accuracy, 5 s cadence for every mode.
-  return 5;
+  switch (mode) {
+    case SamplingMode.leaderMoving:
+    case SamplingMode.waiting:
+      return 5;
+    case SamplingMode.leaderStill:
+      return 15;
+    case SamplingMode.follower:
+    case SamplingMode.offlineSaver:
+    case SamplingMode.paused:
+      return 45;
+  }
 }
 
 /// Decides the sampling mode. Returns [current] unchanged when only the

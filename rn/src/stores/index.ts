@@ -1,14 +1,14 @@
 // Zustand stores. Mirrors app/lib/app/providers.dart.
 import { create } from "zustand";
 import type { StaticLine } from "../data/static/staticData";
-import type { TripState, SharePhase } from "../domain/trip/tripState";
+import type { ActiveTrip, SharePhase } from "../domain/trip/tripState";
 import type { RemoteConfig } from "../data/api/dto";
 
 interface TripStore {
   phase: SharePhase;
-  trip: TripState | null;
+  trip: ActiveTrip | null;
   setPhase: (p: SharePhase) => void;
-  setTrip: (t: TripState | null) => void;
+  setTrip: (t: ActiveTrip | null) => void;
   reset: () => void;
 }
 export const useTripStore = create<TripStore>((set) => ({

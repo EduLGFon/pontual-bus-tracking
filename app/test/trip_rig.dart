@@ -107,6 +107,10 @@ Rig rig(
   String? token;
   final MutableGateway gw = gateway ?? MutableGateway();
   final FakeClock clk = clock ?? FakeClock(100000);
+  // Isolate the process-wide teardown gate per rig: a previous test's
+  // unawaited stop must never consume this test's pump budget.
+  LocationService.resetGateForTest();
+  TripController.resetActiveForTest();
   // ignore: close_sinks - closed at the end of each test.
   final StreamController<Position> positions =
       StreamController<Position>.broadcast();

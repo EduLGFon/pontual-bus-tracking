@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' as latlong2;
-import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -327,21 +326,9 @@ class _LineScreenState extends ConsumerState<LineScreen>
         ref.watch(stopsProvider).value ?? const <StopPoint>[];
     final String code = _staticLine?.code ?? '';
     final int? lineId = _staticLine?.id;
-    List<latlong2.LatLng> routePoints = const <latlong2.LatLng>[];
-    if (code.isNotEmpty) {
-      final String? learnedPoly = lineId == null
-          ? null
-          : ref.watch(learnedRouteProvider(lineId)).value;
-      if (learnedPoly != null) {
-        routePoints = geo
-            .decodePolyline(learnedPoly)
-            .map((geo.LatLng p) => latlong2.LatLng(p.lat, p.lng))
-            .toList(growable: false);
-      } else {
-        routePoints =
-            ref.watch(routeProvider(code)).value ?? const <latlong2.LatLng>[];
-      }
-    }
+    final List<latlong2.LatLng> routePoints = (code.isEmpty || lineId == null)
+        ? const <latlong2.LatLng>[]
+        : ref.watch(decodedRouteProvider((lineId: lineId, code: code)));
     return LineMap(
       // Global key so the parent can command the camera without rebuilding
       // the map when the sheet moves.

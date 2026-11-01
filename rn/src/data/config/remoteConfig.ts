@@ -1,5 +1,5 @@
 // Remote config (config.json). Mirrors app/lib/data/config/remote_config.dart.
-import { STATIC_BASE_URL } from "../../core/config/env";
+import { STATIC_BASE_URL, APP_VERSION } from "../../core/config/env";
 import * as storage from "../prefs/storage";
 import { RemoteConfigSchema, type RemoteConfig } from "../api/dto";
 
@@ -14,6 +14,18 @@ const BUNDLED_DEFAULT: RemoteConfig = {
   consent_version: 2,
   tile_url: "",
 };
+
+export function updateRequired(version: string, min: string): boolean {
+  const parts = (v: string) => v.split(".").map((e) => Number(e) || 0);
+  const have = parts(version);
+  const need = parts(min);
+  for (let i = 0; i < 3; i++) {
+    const h = i < have.length ? have[i] : 0;
+    const n = i < need.length ? need[i] : 0;
+    if (h !== n) return h < n;
+  }
+  return false;
+}
 
 export const remoteConfigRepo = {
   async current(): Promise<RemoteConfig> {
@@ -30,12 +42,12 @@ export const remoteConfigRepo = {
         }
       } catch {}
     }
-    return BUNDLED_DEFAULT;
+    return { ...BUNDLED_DEFAULT, min_app_version: APP_VERSION >= "0.1.0" ? BUNDLED_DEFAULT.min_app_version : BUNDLED_DEFAULT.min_app_version };
   },
   async refresh(force = false): Promise<boolean> {
     const last = Number((await storage.getItem(CHECK_KEY)) ?? "0");
     const now = Date.now();
-    if (!force && now - last < CHECK_INTERVAL_MS) return false;
+    if (!force && now - last < CHECK_INTERVAL_MS) return true;
     await storage.setItem(CHECK_KEY, String(now));
     try {
       const res = await fetch(`${STATIC_BASE_URL}/config.json`);
@@ -44,7 +56,7 @@ export const remoteConfigRepo = {
       const parsed = RemoteConfigSchema.safeParse(json);
       if (!parsed.success) return false;
       await storage.setItem(CONFIG_KEY, JSON.stringify(parsed.data));
-      return parsed.data.maintenance;
+      return true;
     } catch {
       return false;
     }

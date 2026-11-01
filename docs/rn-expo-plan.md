@@ -376,7 +376,7 @@ Routing with expo-router: file names under `src/app/` (configure `app` dir in
 
 ## 6. Dependency allow-list
 
-All versions VERIFY against npm at scaffolding time. Use `npx expo install` to
+All versions VERIFY against npm at scaffolding time. Use `bunx expo install` to
 align to SDK 58.
 
 Core:
@@ -742,9 +742,9 @@ Inherit PLAN.md 10.1 budgets. RN-specific notes:
 
 Commands:
 - `npm test` (jest)
-- `npx tsc --noEmit`
-- `npx expo export --platform web`
-- `npx expo run:android` (dev build)
+- `bunx tsc --noEmit`
+- `bunx expo export --platform web`
+- `bunx expo run:android` (dev build)
 
 ---
 
@@ -839,9 +839,9 @@ Each task: one change set, acceptance criteria pass before next.
 
 ## 23. Verification checklist (per release)
 
-- [ ] `npx tsc --noEmit` clean
+- [ ] `bunx tsc --noEmit` clean
 - [ ] `npm test` green
-- [ ] `npx expo export --platform web` succeeds
+- [ ] `bunx expo export --platform web` succeeds
 - [ ] Android dev build installs and launches
 - [ ] Map renders on both platforms with vehicle markers
 - [ ] Trip start/ping/end round-trips against local server

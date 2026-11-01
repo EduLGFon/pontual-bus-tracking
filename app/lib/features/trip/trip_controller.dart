@@ -50,6 +50,11 @@ enum StartFailure {
   /// Fix outside the served area.
   outsideArea,
 
+  /// Foreground service or position stream failed to start. The trip
+  /// must fail visibly instead of showing sharing with no notification
+  /// and no background fixes.
+  service,
+
   /// Anything else, including consent mismatches after reposting.
   failed,
 }
@@ -127,6 +132,19 @@ class TripDeps {
 class TripController extends ChangeNotifier {
   /// Creates a controller. Starts in [TripIdle].
   TripController(this._deps) : _state = const TripIdle();
+
+  /// Process-wide live trip. The foreground service is process-wide, so
+  /// two concurrent controllers would race one subscription against the
+  /// other's teardown. The UI guard reopens the live trip; this static
+  /// guard is defense in depth for any future caller that bypasses it.
+  static TripController? _active;
+
+  /// Clears the process-wide live trip. Test-only: isolates suites that
+  /// share one isolate across many controllers.
+  @visibleForTesting
+  static void resetActiveForTest() {
+    _active = null;
+  }
 
   final TripDeps _deps;
 
@@ -457,6 +475,13 @@ class TripController extends ChangeNotifier {
       _failReason = StartFailure.busy;
       return false;
     }
+    final TripController? live = _active;
+    if (live != null && live != this && tripInProgress(live.state)) {
+      // Another controller owns the process-wide foreground service.
+      // Reopen it instead of racing its teardown.
+      _failReason = StartFailure.busy;
+      return false;
+    }
     _lineId = lineId;
     _lineLabel = lineLabel;
     _endKind = null;
@@ -613,14 +638,43 @@ class TripController extends ChangeNotifier {
     }
     phase(SharePhase.register, SharePhaseStatus.done);
     String token = (reg as Ok<String>).value;
+    // Serialize against the previous trip's native teardown: the
+    // geolocator foreground service is process-wide, and subscribing
+    // before the old cancel completes flickers or kills the new service
+    // (no notification, no background fixes). Bounded wait; a stuck
+    // teardown never blocks sharing forever.
+    try {
+      await LocationService.awaitQuiescent().timeout(
+        const Duration(seconds: 3),
+      );
+    } catch (_) {
+      // Best effort: proceed with the new subscription regardless.
+    }
+    if (aborted()) {
+      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'cancel');
+      await _stopLocal();
+      _failReason = StartFailure.declined;
+      _set(const TripIdle());
+      return false;
+    }
     // Wait for the first accepted fix so POST /v1/trip carries real
     // coordinates inside the bbox. Single subscription: the run loop
     // reuses the same broadcast stream below.
     _locations = _deps.locations();
-    final Stream<TripFix> stream = _locations!.fixes(
-      mode: SamplingMode.waiting,
-      lineLabel: _lineLabel,
-    );
+    final Stream<TripFix> stream;
+    try {
+      stream = _locations!.fixes(
+        mode: SamplingMode.waiting,
+        lineLabel: _lineLabel,
+      );
+    } catch (_) {
+      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'service');
+      await _stopLocal();
+      _failReason = StartFailure.service;
+      _lastErrorCode = 'service';
+      _set(const TripIdle());
+      return false;
+    }
     phase(SharePhase.gps, SharePhaseStatus.active);
     // Anchor on the first good fix (at or under [firstFixGoodAccuracyM])
     // when one arrives inside the GPS window, else the best-seen
@@ -662,17 +716,17 @@ class TripController extends ChangeNotifier {
       return false;
     }
     first ??= best;
-    if (first == null) {
-      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'gps-timeout');
-      await _stopLocal();
-      _failReason = StartFailure.noGps;
-      _set(const TripIdle());
-      return false;
-    }
     if (aborted()) {
       phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'cancel');
       await _stopLocal();
       _failReason = StartFailure.declined;
+      _set(const TripIdle());
+      return false;
+    }
+    if (first == null) {
+      phase(SharePhase.gps, SharePhaseStatus.failed, errorCode: 'gps-timeout');
+      await _stopLocal();
+      _failReason = StartFailure.noGps;
       _set(const TripIdle());
       return false;
     }
@@ -749,6 +803,22 @@ class TripController extends ChangeNotifier {
     _set(tripReduce(_state, TripEvent.startConfirmed));
     final int firstIntervalS = (started as Ok<TripInstruction>).value.intervalS;
     _intervalS = firstIntervalS;
+    // Startup handshake: the foreground service must still be attached
+    // after the create POST. If the native subscription died between the
+    // first fix and now (teardown race, OS kill), fail visibly instead
+    // of showing sharing with no notification and no background fixes.
+    final LocationService? startedLocations = _locations;
+    if (startedLocations == null ||
+        !startedLocations.hasActiveSubscription ||
+        !startedLocations.hasOpenFixStream) {
+      phase(SharePhase.start, SharePhaseStatus.failed, errorCode: 'service');
+      await _stopLocal();
+      _failReason = StartFailure.service;
+      _lastErrorCode = 'service';
+      _set(const TripIdle());
+      return false;
+    }
+    _active = this;
     _runLoop(token, stream, firstIntervalS);
     return true;
   }
@@ -837,8 +907,8 @@ class TripController extends ChangeNotifier {
     // and never reaches the server. Notifies only when the displayed
     // satellite count changes, so the 1 Hz native stream does not
     // rebuild the trip screen every second. See D69.
-    _gnssSub = watchGnssQuality(reader: _deps.gnssReader).listen(
-      (GnssQuality q) {
+    _gnssSub = watchGnssQuality(reader: _deps.gnssReader)
+        .listen((GnssQuality q) {
           if (_disposed) {
             return;
           }
@@ -977,7 +1047,7 @@ class TripController extends ChangeNotifier {
     } else if (outcome.role == 'F') {
       _set(tripReduce(_state, TripEvent.roleFollower));
     }
-    _applyRound(supervisor);
+    unawaited(_applyRound(supervisor, token: token));
   }
 
   /// Re-creates the server trip after a spurious `gone`, at most once per
@@ -1067,6 +1137,24 @@ class TripController extends ChangeNotifier {
   /// Applies one supervision round: ends, offline flips, sampling, prompt.
   Future<void> _applyRound(TripSupervisor supervisor, {String? token}) async {
     if (_startedAtMs == null || !tripInProgress(_state)) {
+      return;
+    }
+    // Mid-trip subscription invariant: the fix broadcast must stay open
+    // with a native subscription attached. If it is gone (unexpected
+    // teardown, OS kill that the stream callbacks missed), end visibly
+    // instead of showing sharing that sends nothing. Never silent.
+    final LocationService? liveLocations = _locations;
+    if (liveLocations == null ||
+        !liveLocations.hasOpenFixStream ||
+        !liveLocations.hasActiveSubscription) {
+      if (token != null) {
+        await _finish(token, TripEndKind.automatic, 'service');
+      } else {
+        await _stopLocal();
+        _endKind = TripEndKind.automatic;
+        _endDetail = 'service';
+        _set(const TripIdle());
+      }
       return;
     }
     final bool hadPrompt = supervisor.promptVisible;
@@ -1182,6 +1270,9 @@ class TripController extends ChangeNotifier {
   }
 
   Future<void> _stopLocal() async {
+    if (_active == this) {
+      _active = null;
+    }
     _autoEndTimer?.cancel();
     _autoEndTimer = null;
     _activeToken = null;
@@ -1197,8 +1288,18 @@ class TripController extends ChangeNotifier {
     if (sub != null) {
       unawaited(sub.cancel());
     }
-    _locations?.stop();
+    final LocationService? locations = _locations;
     _locations = null;
+    if (locations != null) {
+      // Awaited: the teardown registers in the process-wide gate so the
+      // next trip cannot subscribe until the native foreground-service
+      // disable completes. Bounded by the service timeout (2 s).
+      try {
+        await locations.stop();
+      } catch (_) {
+        // Best effort: teardown never fails a trip.
+      }
+    }
     final StreamSubscription<GnssQuality>? gnss = _gnssSub;
     _gnssSub = null;
     _lastGnssQuality = null;

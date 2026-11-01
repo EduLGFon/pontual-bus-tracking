@@ -7,11 +7,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/config/remote_config.dart';
 import 'package:pontual/data/prefs/consent_store.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/share_flow.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
@@ -63,6 +65,20 @@ Future<void> startShare(
     // is disposed.
     final ProviderContainer container = ProviderScope.containerOf(context);
     rootContext = Navigator.of(context, rootNavigator: true).context;
+    // Single-trip guard: a live trip owns the process-wide foreground
+    // service. Starting a second one would race its teardown and kill
+    // background fixes for both. Reopen the live trip instead.
+    try {
+      final TripController? live = container.read(tripHostProvider);
+      if (live != null && tripInProgress(live.state)) {
+        if (rootContext.mounted) {
+          unawaited(rootContext.push('/trip', extra: live));
+        }
+        return;
+      }
+    } catch (_) {
+      // Best effort: without a host reading, sharing proceeds as before.
+    }
     await _startShare(
       rootContext,
       container,

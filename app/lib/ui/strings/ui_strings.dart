@@ -939,6 +939,10 @@ class UiStrings {
   static const String endTimeout =
       'Encerramos porque a viagem ficou sem sinal por muito tempo.';
 
+  /// Automatic end reason: sharing stopped unexpectedly.
+  static const String endService =
+      'Encerramos porque o compartilhamento parou. Tente de novo.';
+
   /// Automatic end reason: GPS off.
   static const String endGps =
       'Encerramos porque a localização ficou desligada.';

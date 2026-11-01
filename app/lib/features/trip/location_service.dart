@@ -186,30 +186,70 @@ LocationSettings oneShotSettingsFor() => const LocationSettings(
 
 /// Location settings per sampling mode.
 LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
-  // GPS stays high accuracy at a 5 s cadence for every sampling mode and
-  // every platform, so sharing never silently drops to a coarse or
-  // infrequent fix.
-  final bool isAndroid = !kIsWeb &&
-      defaultTargetPlatform == TargetPlatform.android;
-  if (isAndroid) {
-    // The foreground service notification is Android-only and keeps the
-    // process alive in the background.
-    final ForegroundNotificationConfig notification =
-        ForegroundNotificationConfig(
-      notificationTitle: 'Compartilhando viagem - $lineLabel',
-      notificationText: 'Toque para abrir ou encerrar',
-      setOngoing: true,
-    );
-    return AndroidSettings(
-      accuracy: LocationAccuracy.high,
-      intervalDuration: const Duration(seconds: 5),
-      foregroundNotificationConfig: notification,
-    );
+  // The notification is ongoing and persistent: the foreground service
+  // must survive screen-off and background on OEM skins that aggressively
+  // kill background work. setOngoing needs no extra permission and does
+  // not request background location, wake locks, or exemptions.
+  final ForegroundNotificationConfig notification =
+      ForegroundNotificationConfig(
+        notificationTitle: 'Compartilhando viagem - $lineLabel',
+        notificationText: 'Toque para abrir ou encerrar',
+        setOngoing: true,
+      );
+  switch (mode) {
+    case SamplingMode.waiting:
+      // High accuracy: the waiting phase must engage the GPS receiver so
+      // the first fix is a real GPS fix (sub-30 m) instead of a coarse
+      // network fix. Medium/balanced accuracy (PRIORITY_BALANCED_POWER)
+      // can resolve on WiFi/cell towers, never turns on GPS (no GPS
+      // indicator), and yields fixes above the 60 m gate, which made the
+      // start stall the full 60 s window and then fail. The waiting window
+      // is bounded (<= 60 s) and short-lived, so the battery cost of high
+      // accuracy here is acceptable. See PLAN.md 8.6.
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        intervalDuration: const Duration(seconds: 5),
+        foregroundNotificationConfig: notification,
+      );
+    case SamplingMode.leaderMoving:
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        intervalDuration: const Duration(seconds: 5),
+        foregroundNotificationConfig: notification,
+      );
+    case SamplingMode.leaderStill:
+      return AndroidSettings(
+        accuracy: LocationAccuracy.medium,
+        intervalDuration: const Duration(seconds: 15),
+        foregroundNotificationConfig: notification,
+      );
+    case SamplingMode.follower:
+      // Balanced, not low power: follower fixes must pass the same 60 m
+      // gate as leader fixes, and low power (cell/WiFi, often 50 m to
+      // 1 km) starves followers exactly in weak-GPS areas where the
+      // next handover needs them. Interval stays 45 s. See D63.
+      return AndroidSettings(
+        accuracy: LocationAccuracy.medium,
+        intervalDuration: const Duration(seconds: 45),
+        foregroundNotificationConfig: notification,
+      );
+    case SamplingMode.offlineSaver:
+      return AndroidSettings(
+        accuracy: LocationAccuracy.low,
+        intervalDuration: const Duration(seconds: 45),
+        foregroundNotificationConfig: notification,
+      );
+    case SamplingMode.paused:
+      // Keep the foreground service while paused (GPS off, permission
+      // flap): dropping to a bare LocationSettings would release the
+      // service and let the OS kill the process while waiting for GPS
+      // to return. Low power with the same persistent notification.
+      return AndroidSettings(
+        accuracy: LocationAccuracy.low,
+        intervalDuration: const Duration(seconds: 45),
+        foregroundNotificationConfig: notification,
+      );
   }
-  return const LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 0,
-  );
 }
 
 /// Produces filtered fixes for the active trip. Only TripController drives
@@ -305,15 +345,6 @@ class LocationService {
     _listen(mode, controller);
     _mode = mode;
     _lastChangeMs = _nowMs();
-    _watchdog?.cancel();
-    _watchdog = Timer.periodic(const Duration(seconds: 10), (_) async {
-      if (controller.isClosed) return;
-      final int nowMs = _nowMs();
-      if (_streamDead || _needsRestart(nowMs)) {
-        _lastChangeMs = nowMs;
-        await _relisten(_mode, controller);
-      }
-    });
     // No onCancel handler by design: TripController awaits stream.first
     // for the start fix, and cancelling the position stream when that
     // one-shot subscription ends would starve the run loop. Only stop()
@@ -556,25 +587,60 @@ class LocationService {
 
   StreamController<TripFix>? _controller;
 
-  /// Watchdog that restarts a dead or stalled position stream even when
-  /// the supervision timer is suspended (for example in the background).
-  Timer? _watchdog;
+  /// Process-wide teardown gate. Native geolocator teardown is async and
+  /// shared: an unawaited cancel from trip N can land after trip N+1
+  /// subscribes and flicker or kill the new foreground service. Every
+  /// [stop] chains its native cancel into [_teardownGate]; every new trip
+  /// awaits [awaitQuiescent] before subscribing, so teardown N always
+  /// completes before subscription N+1 starts.
+  static Future<void> _teardownGate = Future<void>.value();
 
-  /// Stops the position stream and closes the fix stream. Fire and
-  /// forget by design: awaiting cancellations can stall test zones, and
-  /// nothing after a stop needs their results.
-  void stop() {
-    _watchdog?.cancel();
-    _watchdog = null;
+  /// Waits until all pending native teardowns complete. Bounded by the
+  /// caller with a timeout; never throws.
+  static Future<void> awaitQuiescent() => _teardownGate;
+
+  /// Resets the process-wide teardown gate. Test-only: unit and widget
+  /// tests share one isolate, and an unawaited teardown from a previous
+  /// test must never force the next test to burn its pump budget waiting
+  /// on a fake that will never complete. Production never calls this.
+  @visibleForTesting
+  static void resetGateForTest() {
+    _teardownGate = Future<void>.value();
+  }
+
+  /// True while a native position subscription is attached. After a
+  /// successful start this must stay true; a trip with no subscription
+  /// is a silent trip and must fail visibly instead.
+  bool get hasActiveSubscription => _sub != null;
+
+  /// True while the fix broadcast is open for listeners.
+  bool get hasOpenFixStream => _controller != null && !_controller!.isClosed;
+
+  /// Stops the position stream and closes the fix stream. Never blocks
+  /// the caller (awaiting native cancellations stalls widget test zones):
+  /// the native cancel is bounded (2 s) and chained into the
+  /// process-wide gate, so the next trip's [awaitQuiescent] still
+  /// observes it. Returns immediately; the gate owns the async work.
+  Future<void> stop() {
     final StreamSubscription<Position>? sub = _sub;
     _sub = null;
-    if (sub != null) {
-      unawaited(sub.cancel());
-    }
     final StreamController<TripFix>? c = _controller;
     _controller = null;
-    if (c != null && !c.isClosed) {
-      unawaited(c.close());
+    Future<void> cancelWork = Future<void>.value();
+    if (sub != null) {
+      cancelWork = sub
+          .cancel()
+          .timeout(const Duration(seconds: 2))
+          .then((_) {}, onError: (_) {});
     }
+    // Chain first so a concurrent start observes the pending work even
+    // though this stop returns immediately.
+    final Future<void> gated = _teardownGate.then((_) => cancelWork);
+    _teardownGate = gated.catchError((Object e, StackTrace s) {});
+    unawaited(_teardownGate);
+    if (c != null && !c.isClosed) {
+      unawaited(c.close().then((_) {}, onError: (_) {}));
+    }
+    return Future<void>.value();
   }
 }

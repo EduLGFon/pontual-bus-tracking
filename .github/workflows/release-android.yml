@@ -79,16 +79,16 @@ jobs:
       - name: Merged manifest audit
         working-directory: app
         run: |
-          MANIFEST=$(find build -path "*merged_manifest*" -name AndroidManifest.xml | grep -i release | head -1)
-          if [ -z "$MANIFEST" ]; then MANIFEST=$(find build -name AndroidManifest.xml | head -1); fi
+          MANIFEST=$(find build/app -path "*merged_manifest*" -name AndroidManifest.xml | grep -i release | head -1)
+          if [ -z "$MANIFEST" ]; then MANIFEST=$(find build/app -name AndroidManifest.xml | head -1); fi
           echo "merged manifest: $MANIFEST"
           test -n "$MANIFEST"
-          ! grep -q "ACCESS_BACKGROUND_LOCATION" "$MANIFEST"
-          ! grep -q "RECEIVE_BOOT_COMPLETED" "$MANIFEST"
+          ! grep -q "android.permission.ACCESS_BACKGROUND_LOCATION" "$MANIFEST"
+          ! grep -q "android.permission.RECEIVE_BOOT_COMPLETED" "$MANIFEST"
           # D61: REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is owner-approved and
           # expected in the merged manifest.
-          grep -q "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" "$MANIFEST"
-          ! grep -q "WAKE_LOCK" "$MANIFEST"
+          grep -q "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" "$MANIFEST"
+          ! grep -q "android.permission.WAKE_LOCK" "$MANIFEST"
           grep -q 'allowBackup="false"' "$MANIFEST"
           grep -q "android:debuggable" "$MANIFEST" && exit 1 || true
           echo "merged manifest audit: PASS"

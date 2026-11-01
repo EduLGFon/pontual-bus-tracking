@@ -11,10 +11,9 @@ import 'package:pontual/core/logging/log.dart';
 /// Requests the notification permission on Android, best effort.
 /// No-op on web and non-Android platforms. Never throws.
 Future<bool> ensureNotificationPermission() async {
-  final bool isAndroid = !kIsWeb &&
-      defaultTargetPlatform == TargetPlatform.android;
-  final bool isIOS = !kIsWeb &&
-      defaultTargetPlatform == TargetPlatform.iOS;
+  final bool isAndroid =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  final bool isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
   if (!isAndroid && !isIOS) {
     return true;
   }
