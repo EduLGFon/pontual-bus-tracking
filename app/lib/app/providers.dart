@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/errors/failures.dart';
+import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/api/dto.dart';
@@ -115,47 +116,60 @@ final FutureProvider<StaticDataRepository> staticDataRepoProvider =
       final String manifest = await rootBundle.loadString(
         'assets/data/manifest.json',
       );
-      final String linesName = _linesNameOf(manifest);
-      final String lines = await rootBundle.loadString(
+      Map<String, dynamic>? decodedManifest;
+      try {
+        decodedManifest = jsonDecode(manifest) as Map<String, dynamic>;
+      } catch (_) {
+        decodedManifest = null;
+      }
+      final String linesName = _linesNameOfManifest(decodedManifest, manifest);
+      final String stopsName = _stopsNameOfManifest(decodedManifest);
+      final Future<String> linesFuture = rootBundle.loadString(
         'assets/data/$linesName',
       );
-      final String stopsName = _stopsNameOf(manifest);
-      String stops = '[]';
-      if (stopsName.isNotEmpty) {
-        try {
-          stops = await rootBundle.loadString('assets/data/$stopsName');
-        } catch (_) {
-          // No bundled stops: the repository serves an empty list.
-        }
+      final Future<String> stopsFuture = stopsName.isEmpty
+          ? Future<String>.value('[]')
+          : rootBundle
+                .loadString('assets/data/$stopsName')
+                .catchError((Object _) => '[]');
+      final Map<String, dynamic>? routes =
+          decodedManifest?['routes'] as Map<String, dynamic>?;
+      final Future<Map<String, String>> routesFuture;
+      if (routes == null || routes.isEmpty) {
+        routesFuture = Future<Map<String, String>>.value(<String, String>{});
+      } else {
+        routesFuture =
+            Future.wait(
+              routes.entries.map((MapEntry<String, dynamic> e) async {
+                try {
+                  final String body = await rootBundle.loadString(
+                    'assets/data/${e.value}',
+                  );
+                  return MapEntry<String, String>(e.key, body);
+                } catch (_) {
+                  // Missing asset: fall back to network later.
+                  return null;
+                }
+              }),
+            ).then(
+              (List<MapEntry<String, String>?> entries) => <String, String>{
+                for (final MapEntry<String, String>? e in entries)
+                  if (e != null) e.key: e.value,
+              },
+            );
       }
-      // Bundle route files shipped under assets/data/routes/, keyed by code.
-      final Map<String, String> bundleRoutes = <String, String>{};
-      try {
-        final Map<String, dynamic> decodedManifest =
-            jsonDecode(manifest) as Map<String, dynamic>;
-        final Map<String, dynamic>? routes =
-            decodedManifest['routes'] as Map<String, dynamic>?;
-        if (routes != null) {
-          for (final MapEntry<String, dynamic> e in routes.entries) {
-            try {
-              bundleRoutes[e.key] = await rootBundle.loadString(
-                'assets/data/${e.value}',
-              );
-            } catch (_) {
-              // Missing asset: fall back to network later.
-            }
-          }
-        }
-      } catch (_) {
-        // Manifest without routes: nothing to bundle.
-      }
+      final List<dynamic> loaded = await Future.wait(<Future<dynamic>>[
+        linesFuture,
+        stopsFuture,
+        routesFuture,
+      ]);
       return StaticDataRepository(
         client: ref.watch(httpClientProvider),
         staticBaseUrl: () => staticBaseUrl,
         bundleManifestJson: manifest,
-        bundleLinesJson: lines,
-        bundleStopsJson: stops,
-        bundleRoutes: bundleRoutes,
+        bundleLinesJson: loaded[0] as String,
+        bundleStopsJson: loaded[1] as String,
+        bundleRoutes: loaded[2] as Map<String, String>,
         prefs: SharedPreferences.getInstance,
         nowMs: () => DateTime.now().millisecondsSinceEpoch,
       );
@@ -276,35 +290,57 @@ final routeProvider = FutureProvider.autoDispose
       }
     });
 
-/// Extracts the lines file name from a manifest document.
-String _linesNameOf(String manifest) {
-  try {
-    final Map<String, dynamic> decoded =
-        jsonDecode(manifest) as Map<String, dynamic>;
-    final String? name = decoded['lines'] as String?;
-    if (name != null && name.isNotEmpty) {
-      return name;
-    }
-  } catch (_) {
-    // Fall through to the fallback name.
+/// Decoded route points for a line id, memoized per line. Prefers the
+/// learned polyline when published, else the static route. Decoded once
+/// per input change so the 5 s vehicle tick does not re-decode a
+/// hundreds-point polyline on the UI thread.
+final decodedRouteProvider = Provider.autoDispose
+    .family<List<latlong2.LatLng>, ({int lineId, String code})>((
+      Ref ref,
+      ({int lineId, String code}) args,
+    ) {
+      final String? learnedPoly = ref
+          .watch(learnedRouteProvider(args.lineId))
+          .value;
+      if (learnedPoly != null) {
+        try {
+          return geo
+              .decodePolyline(learnedPoly)
+              .map((geo.LatLng p) => latlong2.LatLng(p.lat, p.lng))
+              .toList(growable: false);
+        } catch (_) {
+          // Fall through to the static route.
+        }
+      }
+      return ref.watch(routeProvider(args.code)).value ??
+          const <latlong2.LatLng>[];
+    });
+
+/// Lines name from an already-decoded manifest. Parses once per load.
+String _linesNameOfManifest(Map<String, dynamic>? decoded, String manifest) {
+  final Map<String, dynamic>? doc = decoded ?? _tryDecodeManifest(manifest);
+  final String? name = doc?['lines'] as String?;
+  if (name != null && name.isNotEmpty) {
+    return name;
   }
   return 'lines.json';
 }
 
-/// Extracts the stops file name from a manifest document. Empty when the
-/// manifest names none: the map then stands without stop dots.
-String _stopsNameOf(String manifest) {
-  try {
-    final Map<String, dynamic> decoded =
-        jsonDecode(manifest) as Map<String, dynamic>;
-    final String? name = decoded['stops'] as String?;
-    if (name != null && name.isNotEmpty) {
-      return name;
-    }
-  } catch (_) {
-    // Fall through to the empty fallback.
+/// Stops name from an already-decoded manifest.
+String _stopsNameOfManifest(Map<String, dynamic>? decoded) {
+  final String? name = decoded?['stops'] as String?;
+  if (name != null && name.isNotEmpty) {
+    return name;
   }
   return '';
+}
+
+Map<String, dynamic>? _tryDecodeManifest(String manifest) {
+  try {
+    return jsonDecode(manifest) as Map<String, dynamic>;
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Cached lines shown instantly on first paint.

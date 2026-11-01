@@ -587,19 +587,60 @@ class LocationService {
 
   StreamController<TripFix>? _controller;
 
-  /// Stops the position stream and closes the fix stream. Fire and
-  /// forget by design: awaiting cancellations can stall test zones, and
-  /// nothing after a stop needs their results.
-  void stop() {
+  /// Process-wide teardown gate. Native geolocator teardown is async and
+  /// shared: an unawaited cancel from trip N can land after trip N+1
+  /// subscribes and flicker or kill the new foreground service. Every
+  /// [stop] chains its native cancel into [_teardownGate]; every new trip
+  /// awaits [awaitQuiescent] before subscribing, so teardown N always
+  /// completes before subscription N+1 starts.
+  static Future<void> _teardownGate = Future<void>.value();
+
+  /// Waits until all pending native teardowns complete. Bounded by the
+  /// caller with a timeout; never throws.
+  static Future<void> awaitQuiescent() => _teardownGate;
+
+  /// Resets the process-wide teardown gate. Test-only: unit and widget
+  /// tests share one isolate, and an unawaited teardown from a previous
+  /// test must never force the next test to burn its pump budget waiting
+  /// on a fake that will never complete. Production never calls this.
+  @visibleForTesting
+  static void resetGateForTest() {
+    _teardownGate = Future<void>.value();
+  }
+
+  /// True while a native position subscription is attached. After a
+  /// successful start this must stay true; a trip with no subscription
+  /// is a silent trip and must fail visibly instead.
+  bool get hasActiveSubscription => _sub != null;
+
+  /// True while the fix broadcast is open for listeners.
+  bool get hasOpenFixStream => _controller != null && !_controller!.isClosed;
+
+  /// Stops the position stream and closes the fix stream. Never blocks
+  /// the caller (awaiting native cancellations stalls widget test zones):
+  /// the native cancel is bounded (2 s) and chained into the
+  /// process-wide gate, so the next trip's [awaitQuiescent] still
+  /// observes it. Returns immediately; the gate owns the async work.
+  Future<void> stop() {
     final StreamSubscription<Position>? sub = _sub;
     _sub = null;
-    if (sub != null) {
-      unawaited(sub.cancel());
-    }
     final StreamController<TripFix>? c = _controller;
     _controller = null;
-    if (c != null && !c.isClosed) {
-      unawaited(c.close());
+    Future<void> cancelWork = Future<void>.value();
+    if (sub != null) {
+      cancelWork = sub
+          .cancel()
+          .timeout(const Duration(seconds: 2))
+          .then((_) {}, onError: (_) {});
     }
+    // Chain first so a concurrent start observes the pending work even
+    // though this stop returns immediately.
+    final Future<void> gated = _teardownGate.then((_) => cancelWork);
+    _teardownGate = gated.catchError((Object e, StackTrace s) {});
+    unawaited(_teardownGate);
+    if (c != null && !c.isClosed) {
+      unawaited(c.close().then((_) {}, onError: (_) {}));
+    }
+    return Future<void>.value();
   }
 }

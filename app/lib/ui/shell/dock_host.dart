@@ -78,8 +78,16 @@ class LiveDockHost extends ConsumerWidget {
           // The trip route boots from the controller in extra: without
           // it the router renders not-found and the live trip is lost.
           // Push so minimizing returns to the screen the dock was on
-          // (DECISIONS.md#D77).
-          onTap: () => context.push('/trip', extra: controller),
+          // (DECISIONS.md#D77). Never stack a second /trip on top of
+          // the live one: two routes would share one controller and the
+          // attach/dispose ordering could tear down the live service.
+          onTap: () {
+            final String loc = GoRouterState.of(context).uri.path;
+            if (loc == '/trip') {
+              return;
+            }
+            context.push('/trip', extra: controller);
+          },
         );
       },
     );

@@ -1,5 +1,6 @@
 // T31 tests: fix filters, rounding, mode settings, permission mapping.
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,6 +10,11 @@ import 'package:pontual/platform/android/notification_permission.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
 
 void main() {
+  setUp(() {
+    // Isolate the process-wide teardown gate: an unawaited stop from a
+    // previous test must never consume the next test's pump budget.
+    LocationService.resetGateForTest();
+  });
   test('filter drops mocked, stale, bad, and far fixes', () {
     const RawFix good = RawFix(
       lat: -18.72,
@@ -209,7 +215,7 @@ void main() {
     // the hysteresis window.
     await service.requestMode(SamplingMode.follower, 100000 + 2000);
     expect(opens, 2);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -253,7 +259,7 @@ void main() {
     // Would timeout if the fix waited for the 3 s battery reads.
     final TripFix fix = await first.timeout(const Duration(seconds: 1));
     expect(fix.seq, 1);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -292,7 +298,7 @@ void main() {
     expect(fix.seq, 1);
     expect(fix.batteryPct, 100);
     expect(fix.charging, isFalse);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -345,7 +351,7 @@ void main() {
     final TripFix next = await third.timeout(const Duration(seconds: 5));
     expect(next.batteryPct, 80);
     expect(reads, 1);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -373,7 +379,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await service.requestMode(SamplingMode.waiting, 100000);
     expect(opens, 2);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -440,7 +446,7 @@ void main() {
       SamplingMode.follower,
     );
     expect(opens, 2);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -487,7 +493,7 @@ void main() {
       SamplingMode.follower,
     );
     expect(opens, 2);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -547,7 +553,7 @@ void main() {
       SamplingMode.paused,
     );
     expect(opens, 3);
-    service.stop();
+    await service.stop();
     await positions.close();
   });
 
@@ -611,7 +617,7 @@ void main() {
       expect(opens, 2);
       final TripFix fix = await recovered.timeout(const Duration(seconds: 5));
       expect(fix.seq, 2);
-      service.stop();
+      await service.stop();
       await positions.close();
     },
   );
@@ -657,7 +663,7 @@ void main() {
       // swallowed and the regular stream keeps working.
       expect(await service.recoverNow(), isFalse);
       expect(opens, 1);
-      service.stop();
+      await service.stop();
       await positions.close();
     },
   );
@@ -706,7 +712,88 @@ void main() {
     now = 100000 + LocationService.stallRestartMs + 1000;
     await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 2);
-    service.stop();
+    await service.stop();
     await positions.close();
+  });
+
+  test('subscription liveness tracks fixes and stop', () async {
+    // Regression: a trip with no native subscription must fail visibly
+    // instead of showing sharing with no notification or fixes.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    final LocationService service = LocationService(
+      positionStream: (_) => positions.stream,
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    expect(service.hasActiveSubscription, isFalse);
+    expect(service.hasOpenFixStream, isFalse);
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(service.hasActiveSubscription, isTrue);
+    expect(service.hasOpenFixStream, isTrue);
+    await service.stop();
+    expect(service.hasActiveSubscription, isFalse);
+    expect(service.hasOpenFixStream, isFalse);
+    await positions.close();
+  });
+
+  test('next start observes the previous teardown', () async {
+    // Regression: an unawaited stop from trip N must complete before
+    // trip N+1 subscribes, or the native disable lands after the new
+    // enable and kills the new foreground service.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    final LocationService first = LocationService(
+      positionStream: (_) => positions.stream,
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    first.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    // Fire and forget, like TripController disposal paths.
+    unawaited(first.stop());
+    // The gate observes the pending teardown even though stop was not
+    // awaited. A bounded wait keeps a stuck native cancel from blocking
+    // sharing forever.
+    await LocationService.awaitQuiescent().timeout(const Duration(seconds: 5));
+    final LocationService second = LocationService(
+      positionStream: (_) => positions.stream,
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    second.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(second.hasActiveSubscription, isTrue);
+    await second.stop();
+    await positions.close();
+  });
+
+  test('position stream has a single owner', () {
+    // Permanent guard: the native foreground service is process-wide.
+    // Only LocationService may call getPositionStream; any direct call
+    // elsewhere reintroduces the teardown race this fix removes.
+    final Directory lib = Directory('lib');
+    expect(lib.existsSync(), isTrue);
+    final List<File> offenders = <File>[];
+    for (final FileSystemEntity e in lib.listSync(recursive: true)) {
+      if (e is! File || !e.path.endsWith('.dart')) {
+        continue;
+      }
+      if (e.path.endsWith('location_service.dart')) {
+        continue;
+      }
+      final String body = e.readAsStringSync();
+      if (body.contains('getPositionStream')) {
+        offenders.add(e);
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'direct getPositionStream outside LocationService',
+    );
   });
 }

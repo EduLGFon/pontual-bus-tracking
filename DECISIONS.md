@@ -192,6 +192,12 @@ D81 (2026-10-20, Accepted): permanent Android download link in web settings.
 <a id="D83"></a>D83 (2026-10-20, Accepted): reports use coarse location area not stop picker.
 D84 (2026-10-22, Accepted): live dots on demand, one trip clock, tighter HTTP timeouts.
 D85 (2026-10-27, Accepted): Protomaps source pin updated to available build 20261026 after 20261019 returned 404; extracted and verified the city PMTiles at 41.6 MB.
+D86 (2026-10-31, Accepted): GPS wait keeps `stream.first` loop per T34; cancel checked before gps-timeout so Cancelar reports declined, not noGps.
+D87 (2026-10-31, Accepted): place search pre-normalizes gazetteer, single route scan per pair, code map lookup, 180 ms debounce; radii 500/300 unchanged.
+D88 (2026-10-31, Accepted): line map decodes route once per input via memoized provider; vehicle tick only re-sorts markers.
+D89 (2026-10-31, Accepted): remote-config check timestamp written only on successful fetch; bundled flags parsed once per instance.
+D90 (2026-11-01, Accepted): foreground-service teardown serialized, startup handshake, single-trip guard. Root cause of silent trips with no notification on first start and on rapid restarts: native geolocator teardown is async and process-wide, and every stop was fire-and-forget, so a new subscription could race the previous disable; stacked /trip routes plus TripHost.attach dispose amplified it. Fix: process-wide teardown gate in LocationService (stop registers bounded 2 s cancel, start awaits quiescent up to 3 s), non-blocking stop that never stalls test zones, startup handshake that fails visibly as StartFailure.service when no native subscription exists after the create POST, single-trip guard that reopens the live trip instead of starting a second one. No new dependencies, no wake lock, no background location, cadence and budgets unchanged.
+D91 (2026-11-01, Accepted): permanent anti-regression for background sharing. Startup handshake extended into a mid-trip subscription invariant (every supervision round ends visibly with detail service when the native subscription or fix broadcast is gone, never silent); process-wide TripController._active blocks any second concurrent start with busy even if a future caller bypasses the UI guard; dock never stacks a second /trip on the live one; new endService end-card copy; new architecture test fails on any direct getPositionStream outside LocationService; teardown gate plus active-trip state are reset per test so suites cannot poison each other.
 
 ## 10. ADRs
 

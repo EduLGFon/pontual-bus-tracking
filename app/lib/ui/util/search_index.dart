@@ -167,13 +167,18 @@ bool matchesAllTokens(List<String> haystack, String query) {
 /// Highlight ranges of [query] inside [text], for the search result rows.
 /// Empty when there is nothing to highlight.
 List<int> highlightRanges(String text, String query) {
-  final String needle = normalizeText(query);
-  if (needle.isEmpty) {
+  return highlightRangesWithNeedle(text, normalizeText(query));
+}
+
+/// Highlight ranges with an already-normalized needle. Callers that render
+/// many rows for one query normalize once and reuse it here.
+List<int> highlightRangesWithNeedle(String text, String normNeedle) {
+  if (normNeedle.isEmpty) {
     return const <int>[];
   }
-  final int at = normalizeText(text).indexOf(needle);
+  final int at = normalizeText(text).indexOf(normNeedle);
   if (at < 0) {
     return const <int>[];
   }
-  return <int>[at, at + needle.length];
+  return <int>[at, at + normNeedle.length];
 }

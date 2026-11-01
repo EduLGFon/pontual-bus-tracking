@@ -97,7 +97,7 @@ class RemoteConfig {
 /// Repository for remote flags with offline-first semantics.
 class RemoteConfigRepository {
   /// Creates a repository. No network calls happen until [refresh].
-  const RemoteConfigRepository({
+  RemoteConfigRepository({
     required this.client,
     required this.staticBaseUrl,
     required this.bundleConfigJson,
@@ -120,10 +120,25 @@ class RemoteConfigRepository {
   /// Clock in milliseconds.
   final int Function() nowMs;
 
+  RemoteConfig? _bundledCache;
+  String? _bundledCacheKey;
+
+  /// Bundled flags parsed once per bundle text. The bundle never changes
+  /// at runtime, so repeated `current()` calls do no extra JSON work.
+  RemoteConfig _bundled() {
+    if (_bundledCache != null && _bundledCacheKey == bundleConfigJson) {
+      return _bundledCache!;
+    }
+    final RemoteConfig parsed = RemoteConfig.bundled(bundleConfigJson);
+    _bundledCache = parsed;
+    _bundledCacheKey = bundleConfigJson;
+    return parsed;
+  }
+
   /// Returns cached flags, falling back to the bundle. Never throws.
   Future<RemoteConfig> current() async {
     final SharedPreferences sp = await prefs();
-    final RemoteConfig bundled = RemoteConfig.bundled(bundleConfigJson);
+    final RemoteConfig bundled = _bundled();
     final String? cached = sp.getString(remoteConfigKey);
     if (cached != null) {
       try {
@@ -150,7 +165,6 @@ class RemoteConfigRepository {
     if (!force && nowMs() - last < remoteCheckInterval.inMilliseconds) {
       return const Ok<bool>(false);
     }
-    await sp.setInt(remoteConfigCheckKey, nowMs());
     try {
       final http.Response res = await client
           .get(Uri.parse('${staticBaseUrl()}/config.json'))
@@ -162,6 +176,7 @@ class RemoteConfigRepository {
         jsonDecode(res.body) as Map<String, dynamic>,
       );
       await sp.setString(remoteConfigKey, res.body);
+      await sp.setInt(remoteConfigCheckKey, nowMs());
       return Ok<bool>(parsed.maintenance);
     } on FormatException {
       return const Err<bool>(ServerFailure('corrupt config', 'static'));
