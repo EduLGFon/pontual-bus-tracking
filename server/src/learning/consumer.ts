@@ -4,6 +4,12 @@
 // See docs/data-learning.md sections 3-5.
 import { decodePolyline, distM, encodePolyline } from "../domain/geo.ts";
 import {
+  recordLearningFlush,
+  recordLearningRoutePublished,
+  recordLearningRouteRetired,
+  recordLearningTripsContributed,
+} from "../observability/metrics.ts";
+import {
   buildRoutePoints,
   medianDeviationM,
   simplify,
@@ -550,6 +556,10 @@ export class LearningConsumer {
 
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
+    recordLearningFlush();
+    let contributed = 0;
+    for (const n of this.watermarkTrips.values()) contributed += n;
+    recordLearningTripsContributed(contributed);
     // Persist learned route polylines from accumulated bins. Skip when no
     // new trips since the last flush (T1): prevents one stale trip from
     // generating a new version every flush cycle.
@@ -686,12 +696,14 @@ export class LearningConsumer {
       Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
     // Retire any prior active version so only one active row per
     // (line, direction) survives (T1). Retained 30 days per docs.
-    await this.deps.sql`
+    const retired = await this.deps.sql`
       update learned_routes
       set status = 'retired', retired_at = now()
       where line_id = ${acc.lineId} and direction = ${acc.direction}
         and status = 'active'
+      returning id
     `;
+    recordLearningRouteRetired((retired as unknown[]).length);
     const dev = active
       ? medianDeviationM(
         points,
@@ -708,6 +720,7 @@ export class LearningConsumer {
       insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, median_deviation_m, computed_at)
       values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, ${dev}, now())
     `;
+    recordLearningRoutePublished();
   }
 
   private async upsertWatermark(
