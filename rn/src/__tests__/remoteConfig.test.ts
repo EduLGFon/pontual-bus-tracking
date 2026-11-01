@@ -2,8 +2,8 @@ import { remoteConfigRepo } from "../data/config/remoteConfig";
 
 describe("remoteConfig refresh", () => {
   test("returns true on success (maintenance false)", async () => {
-    const originalFetch = global.fetch;
-    global.fetch = async () => ({
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
       ok: true,
       json: async () => ({
         min_app_version: "0.1.0",
@@ -17,7 +17,7 @@ describe("remoteConfig refresh", () => {
       const ok = await remoteConfigRepo.refresh(true);
       expect(ok).toBe(true);
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 });
