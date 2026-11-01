@@ -3,6 +3,7 @@
 // de-identified aggregates that are flushed to PostgreSQL periodically.
 // See docs/data-learning.md sections 3-5.
 import { distM, encodePolyline } from "../domain/geo.ts";
+import { buildRoutePoints, simplify } from "./routeLearner.ts";
 import type { EngineEvent } from "../domain/types.ts";
 import type { Sql } from "../db/client.ts";
 import type {
@@ -464,16 +465,29 @@ export class LearningConsumer {
     for (const acc of this.routeAccs.values()) {
       if (acc.tripCount < this.config.minRouteTrips) continue;
       if (acc.tripCount <= acc.lastFlushedTripCount) continue;
-      const keys = [...acc.bins.keys()].sort((a, b) => a - b);
-      const pts: Array<{ lat: number; lng: number }> = [];
-      for (const bi of keys) {
-        const b = acc.bins.get(bi);
+      // Build a full progress-binned array (null where no data) so the
+      // missing-bin gate and interpolation in routeLearner apply.
+      const binned: Array<{ lat: number; lng: number } | null> = new Array(
+        this.config.routeBins,
+      ).fill(null);
+      for (const [bi, b] of acc.bins) {
         if (!b || b.lats.length === 0) continue;
-        pts.push({ lat: median(b.lats), lng: median(b.lngs) });
+        if (bi < 0 || bi >= this.config.routeBins) continue;
+        binned[bi] = { lat: median(b.lats), lng: median(b.lngs) };
       }
-      if (pts.length < 2) continue;
-      const poly = encodePolyline(pts, 5);
-      await this.upsertRoute(acc, poly, pts.length);
+      const pts = buildRoutePoints(binned);
+      if (!pts || pts.length < 2) continue;
+      let poly = encodePolyline(pts, 5);
+      if (poly.length > 8192) {
+        // retry at 10 m tolerance (buildRoutePoints already did 5->10 on
+        // point count; re-simplify explicitly here for the byte cap)
+        const pts2 = simplify(pts, 10);
+        poly = encodePolyline(pts2, 5);
+        if (poly.length > 8192) continue; // reject publication
+        await this.upsertRoute(acc, poly, pts2.length);
+      } else {
+        await this.upsertRoute(acc, poly, pts.length);
+      }
       acc.lastFlushedTripCount = acc.tripCount;
     }
 
