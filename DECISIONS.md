@@ -204,6 +204,8 @@ D91 (2026-11-01, Accepted): permanent anti-regression for background sharing. St
 ADR (2026-10-26, Accepted): first-party diagnostics (opt-out, 14-day retention).
 ADR (2026-10-26, Accepted): enable learning subsystem by default; learned route persistence.
 
+ADR (2026-11-01, Accepted): migrate RN client package manager/runtime from npm to Bun. Trusted dependencies: @parcel/watcher, unrs-resolver. Node.js retained for expo prebuild/templates. EAS auto-detects Bun via bun.lock; no eas.json version pin (default image version). No app/runtime behavior change.
+
 ## 11. Pending / owner-blocked
 
 - Lawyer/DPO; operator outreach owner/timing; backup target/key holder (INFRA-09).
