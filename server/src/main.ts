@@ -90,7 +90,8 @@ const learningConsumer = new LearningConsumer({
   config: () => learningConfig,
   now: () => Date.now(),
 });
-// Seed persisted stop clusters for id stability (F2). Best-effort.
+// Seed persisted direction slots and stop clusters (F2/F3). Best-effort.
+learningConsumer.loadLearnedRoutes().catch(() => {});
 learningConsumer.loadLearnedStops().catch(() => {});
 const engine = defaultEngineConfig();
 if (config.testEasyPublish) {

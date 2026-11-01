@@ -65,6 +65,31 @@ export class LearningConsumer {
     this.config = this.deps.config();
   }
 
+  /** Seed direction slots from persisted learned_routes (F3). */
+  async loadLearnedRoutes(): Promise<void> {
+    try {
+      const rows = await this.deps.sql`
+        select distinct line_id, direction from learned_routes where status = 'active'
+      `;
+      for (const r of rows as unknown as Array<{
+        line_id: number;
+        direction: number;
+      }>) {
+        const k = this.key(r.line_id, r.direction);
+        if (this.routeAccs.has(k)) continue;
+        this.routeAccs.set(k, {
+          lineId: r.line_id,
+          direction: r.direction,
+          bins: new Map(),
+          tripCount: 0,
+          lastFlushedTripCount: 0,
+        });
+      }
+    } catch {
+      // DB down.
+    }
+  }
+
   /** Seed in-memory stop clusters from persisted learned_stops (F2). */
   async loadLearnedStops(): Promise<void> {
     try {
