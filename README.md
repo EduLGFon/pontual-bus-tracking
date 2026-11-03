@@ -106,6 +106,40 @@ database; the suite truncates device rows and toggles the kill switch.
   `--dart-define`); `STATIC_ORIGIN` is optional and auto-detected from the
   Pages custom domain. See Domains below for the production values.
 
+### Build speed
+
+Android release builds are CPU-bound (Dart kernel/AOT plus R8), so they take
+roughly 1-2 minutes warm on a 4-core machine. Iterate with debug `flutter run`
+and reserve release builds for artifacts. Gradle uses a 4 GiB heap, parallel execution and
+the local build cache (`app/android/gradle.properties`); do not run
+`flutter clean` between builds.
+
+From `app/`:
+
+```sh
+# Android device: debug + hot reload, arm64 only
+flutter run --debug --target-platform android-arm64 \
+  -d <device> --dart-define-from-file=../env/phone.json
+
+# Faster on-device check without hot reload
+flutter build apk --debug --target-platform android-arm64 \
+  --dart-define-from-file=../env/phone.json
+
+# Android release appbundle, arm64 only, production defines
+flutter build appbundle --release --target-platform android-arm64 \
+  --dart-define-from-file=../env/phone.json \
+  --obfuscate --split-debug-info=build/symbols/android-<version>
+
+# Chrome: debug + hot reload
+flutter run -d chrome --web-port 5000 \
+  --dart-define-from-file=../env/example.json
+```
+
+`permission_handler` stays on 12.x: 13.x requires compileSdk 37, which
+Flutter 3.47 and AGP 9.1 do not support (DECISIONS.md). Do not pass `--no-pub`
+after `flutter pub get`; pub get writes a debug plugin registrant that includes
+`integration_test` and breaks release Java compilation.
+
 ## Domains
 
 - App/PWA: `https://pontual.spotnik.space` (GitHub Pages custom domain).
