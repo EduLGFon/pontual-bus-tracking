@@ -4,6 +4,16 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- Trip sharing cadence: every role (`waiting`, `leaderMoving`, `leaderStill`,
+  `follower`) now samples and pings every 5 s; offline saver and paused keep the
+  45 s power-saving cadence. Follower jitter is removed so the server
+  instruction is exactly 5 s, and the next send slot is measured from the send
+  rather than the response so a slow round trip cannot halve the cadence. See
+  DECISIONS.md D94.
+- Location stall watchdog no longer recreates the position stream when a run of
+  coarse fixes is filtered out or when a slow power mode is between fixes, which
+  was stopping and restarting the Android foreground service every ~30 s. See
+  DECISIONS.md D93.
 - Production domains: app at `https://pontual.spotnik.space` (GitHub Pages
   custom domain) and API at `https://api-pontual.spotnik.space` (Cloudflare
   Tunnel). Fixed the missing DNS record and the API CORS allow-list. See

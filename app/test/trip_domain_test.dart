@@ -133,9 +133,10 @@ void main() {
     );
   });
 
-  test('upgrades to faster cadence bypass hysteresis', () {
-    // Waiting (10 s) to leaderMoving (5 s) applies immediately: holding a
-    // fresh leader at the old rate was the steady-state latency behind the
+  test('leaderMoving upgrade bypasses hysteresis', () {
+    // Every role now samples at 5 s. Waiting (balanced) to leaderMoving
+    // (high accuracy) still applies immediately: holding a fresh leader
+    // on the balanced stream was the steady-state latency behind the
     // 15-25 s map delays.
     const TripModeInput leader = TripModeInput(
       role: 'L',
@@ -155,8 +156,11 @@ void main() {
     );
     expect(intervalSForMode(SamplingMode.leaderMoving), 5);
     expect(intervalSForMode(SamplingMode.waiting), 5);
-    expect(intervalSForMode(SamplingMode.leaderStill), 15);
-    expect(intervalSForMode(SamplingMode.follower), 45);
+    expect(intervalSForMode(SamplingMode.leaderStill), 5);
+    expect(intervalSForMode(SamplingMode.follower), 5);
+    // Power modes keep the slow cadence; they carry no upload duty.
+    expect(intervalSForMode(SamplingMode.offlineSaver), 45);
+    expect(intervalSForMode(SamplingMode.paused), 45);
   });
 
   test('auto-end fires in priority order', () {

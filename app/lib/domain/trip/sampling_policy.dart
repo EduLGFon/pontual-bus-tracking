@@ -13,10 +13,10 @@ enum SamplingMode {
   /// Role L moving: high accuracy about every 5 s.
   leaderMoving,
 
-  /// Role L still: balanced about every 15 s.
+  /// Role L still: balanced about every 5 s.
   leaderStill,
 
-  /// Role F: low power about every 45 s with jitter.
+  /// Role F: balanced about every 5 s.
   follower,
 
   /// Offline: follower-like sampling, probes only.
@@ -33,17 +33,18 @@ const int streamHysteresisMs = 30000;
 
 /// Nominal stream interval per mode in seconds. Mirrors
 /// `settingsFor` in the location service: faster means smaller.
-/// Waiting and leaderMoving share the 5 s rate so the first vehicle
-/// publishes one interval after motion starts; the W to L switch is
-/// still an accuracy upgrade (medium to high) and bypasses hysteresis.
+/// Every role samples at 5 s (owner directive); only the power modes
+/// (offline saver and paused) keep the slow 45 s cadence. Waiting and
+/// leaderMoving share the 5 s rate so the first vehicle publishes one
+/// interval after motion starts; the W to L switch is still an accuracy
+/// upgrade (medium to high) and bypasses hysteresis.
 int intervalSForMode(SamplingMode mode) {
   switch (mode) {
     case SamplingMode.leaderMoving:
     case SamplingMode.waiting:
-      return 5;
     case SamplingMode.leaderStill:
-      return 15;
     case SamplingMode.follower:
+      return 5;
     case SamplingMode.offlineSaver:
     case SamplingMode.paused:
       return 45;

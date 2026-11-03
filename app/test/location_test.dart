@@ -151,9 +151,12 @@ void main() {
       active.foregroundNotificationConfig?.notificationTitle,
       contains('60'),
     );
+    final AndroidSettings still =
+        settingsFor(SamplingMode.leaderStill, '60') as AndroidSettings;
+    expect(still.intervalDuration, const Duration(seconds: 5));
     final AndroidSettings follower =
         settingsFor(SamplingMode.follower, '60') as AndroidSettings;
-    expect(follower.intervalDuration, const Duration(seconds: 45));
+    expect(follower.intervalDuration, const Duration(seconds: 5));
     // D63: followers need balanced accuracy so their fixes pass the 60 m
     // gate in weak-GPS areas; low power would starve handovers.
     expect(follower.accuracy, LocationAccuracy.medium);
@@ -162,6 +165,7 @@ void main() {
     final AndroidSettings saver =
         settingsFor(SamplingMode.offlineSaver, '60') as AndroidSettings;
     expect(saver.accuracy, LocationAccuracy.low);
+    expect(saver.intervalDuration, const Duration(seconds: 45));
     final AndroidSettings paused =
         settingsFor(SamplingMode.paused, '60') as AndroidSettings;
     expect(paused.accuracy, LocationAccuracy.low);
@@ -191,7 +195,7 @@ void main() {
     expect(paused.intervalDuration, const Duration(seconds: 45));
   });
 
-  test('upgrades to faster cadence bypass hysteresis', () async {
+  test('leaderMoving upgrade bypasses hysteresis', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
@@ -207,12 +211,11 @@ void main() {
     );
     service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
     expect(opens, 1);
-    // Waiting (10 s) to leaderMoving (5 s) is an upgrade: it recreates
-    // immediately even inside the 30 s window.
+    // Waiting to leaderMoving is an accuracy upgrade: it recreates
+    // immediately even inside the 30 s window, despite the equal cadence.
     await service.requestMode(SamplingMode.leaderMoving, 100000 + 1000);
     expect(opens, 2);
-    // LeaderMoving (5 s) to follower (45 s) is a downgrade: it waits out
-    // the hysteresis window.
+    // A role change back inside the hysteresis window waits.
     await service.requestMode(SamplingMode.follower, 100000 + 2000);
     expect(opens, 2);
     await service.stop();
@@ -383,7 +386,9 @@ void main() {
     await positions.close();
   });
 
-  test('degraded accuracy extends the downgrade guard', () async {
+  test('degraded accuracy extends the role-change guard', () async {
+    // Every role samples at 5 s, so this guard now protects the accuracy
+    // downgrade (high to balanced) in coarse patches, not a cadence drop.
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
@@ -450,7 +455,7 @@ void main() {
     await positions.close();
   });
 
-  test('good accuracy keeps the normal downgrade guard', () async {
+  test('good accuracy keeps the normal role-change guard', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
@@ -710,6 +715,117 @@ void main() {
     expect(opens, 1);
     // Past it with no fix since, the stream recreates.
     now = 100000 + LocationService.stallRestartMs + 1000;
+    await service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 2);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('slow cadence does not look like a stalled stream', () async {
+    // Regression: offline saver and paused run at a 45 s cadence, longer
+    // than the old fixed 30 s stall window. Every round recreated the
+    // stream before the first fix of the cycle was due, so the Android
+    // foreground service stopped and restarted forever.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    int now = 100000;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.waiting,
+      lineLabel: 't',
+    );
+    expect(opens, 1);
+    Position at(int ms) => Position(
+      latitude: -18.72,
+      longitude: -39.85,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(ms),
+      accuracy: 10,
+      altitude: 0,
+      heading: 90,
+      speed: 8,
+      speedAccuracy: 1,
+      altitudeAccuracy: 1,
+      headingAccuracy: 1,
+    );
+    final Future<TripFix> first = stream.first;
+    positions.add(at(100000));
+    await first.timeout(const Duration(seconds: 5));
+    // Waiting to offline saver is a downgrade: it waits out the
+    // hysteresis.
+    now = 130000;
+    await service.requestMode(SamplingMode.offlineSaver, now);
+    expect(opens, 2);
+    // Halfway through the 45 s cycle, before the first fix is due, the
+    // stream must stay up.
+    now = 160000;
+    await service.requestMode(SamplingMode.offlineSaver, now);
+    expect(opens, 2, reason: 'the first 45 s fix is not due yet');
+    // A genuine silence past the slow-mode window still recovers.
+    now = 130000 + LocationService.stallRestartMs + 46000;
+    await service.requestMode(SamplingMode.offlineSaver, now);
+    expect(opens, 3);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('filtered fixes keep the stall watchdog quiet', () async {
+    // Regression: the watchdog tracked accepted fixes, so a run of
+    // coarse fixes dropped by the 60 m gate looked like a frozen stream
+    // and recreated the foreground service every window. Any position
+    // event proves the OS stream is alive.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    int now = 100000;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    final Stream<TripFix> stream = service.fixes(
+      mode: SamplingMode.waiting,
+      lineLabel: 't',
+    );
+    Position at(int ms, double accuracy) => Position(
+      latitude: -18.72,
+      longitude: -39.85,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(ms),
+      accuracy: accuracy,
+      altitude: 0,
+      heading: 90,
+      speed: 8,
+      speedAccuracy: 1,
+      altitudeAccuracy: 1,
+      headingAccuracy: 1,
+    );
+    final Future<TripFix> first = stream.first;
+    positions.add(at(100000, 10));
+    await first.timeout(const Duration(seconds: 5));
+    // Every later position is too coarse to publish, but keeps arriving.
+    for (final int ms in <int>[110000, 120000, 130000, 140000]) {
+      now = ms;
+      positions.add(at(ms, 500));
+      await Future<void>.delayed(Duration.zero);
+    }
+    await service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 1, reason: 'coarse fixes are still stream activity');
+    // Silence after the last event still triggers recovery.
+    now = 140000 + LocationService.stallRestartMs + 1000;
     await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 2);
     await service.stop();

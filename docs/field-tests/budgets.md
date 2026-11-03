@@ -22,7 +22,7 @@ exists on this host (no phones, no usable browser, no Android SDK).
 - [ ] First Flutter frame (<= 2 s mid-range, <= 3.5 s low-end).
 - [ ] RAM: <= 150 MB PSS map visible, <= 80 MB trip screen off.
 - [ ] CPU: trip screen off average < 2 %; map pan >= 55 fps on low-end.
-- [ ] Battery: leader extra drain <= ~4 %/h, follower <= ~2 %/h.
+- [ ] Battery: every role <= ~4 %/h extra drain (D94); power modes lower.
 - [ ] Fix-to-map p95 latency <= 10 s on real phones (local sim: p50 4-7 ms, p95 ~5 s snapshot cadence).
 - [ ] Viewer WebSocket <= ~0.05 MB per 10 min on a real network.
 - [ ] Merged-manifest audit and release flags (T45).

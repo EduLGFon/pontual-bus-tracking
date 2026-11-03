@@ -198,6 +198,12 @@ class TripController extends ChangeNotifier {
   /// update, and fast web streams trip the server rate strikes (D29).
   int _nextPingAtMs = 0;
 
+  /// When the last ping request left the client, in ms. The next slot
+  /// is measured from here, not from the response, so a slow round trip
+  /// cannot stretch the server interval into a longer effective cadence.
+  /// See PLAN.md 8.7.
+  int _lastPingSentAtMs = 0;
+
   /// True after [cancelStart]. Checked between start steps so the
   /// progress sheet Cancelar button stops the flow promptly.
   bool _cancelled = false;
@@ -829,6 +835,7 @@ class TripController extends ChangeNotifier {
     _nextPingAtMs = _deps.clock.nowMs() + firstIntervalS * 1000;
     _ping = PingClient(
       send: (Map<String, dynamic> fix) async {
+        _lastPingSentAtMs = _deps.clock.nowMs();
         final Result<TripInstruction> res = await _deps.api.pingTrip(
           token,
           seq: fix['seq'] as int,
@@ -1031,7 +1038,7 @@ class TripController extends ChangeNotifier {
       finish();
       return;
     }
-    _nextPingAtMs = _deps.clock.nowMs() + outcome.intervalS * 1000;
+    _nextPingAtMs = _lastPingSentAtMs + outcome.intervalS * 1000;
     _intervalS = outcome.intervalS;
     _webTimeoutLikely = false;
     final TripSupervisor? supervisor = _supervisor;

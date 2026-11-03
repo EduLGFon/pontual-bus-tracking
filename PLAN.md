@@ -209,7 +209,7 @@ table below lists the binding ones that affect architecture.
 | D06 | Roles changed by server; client implied to learn it | Role and next interval returned **in the `ping` response** (`{"r":"L","n":15}`); leader hand-over is **two-phase** | No extra connection on the reporter; no gap at hand-over |
 | D07 | `schedules` table in Postgres | Timetables are **static, versioned JSON on the CDN, bundled in the app**; server loads the same built data from disk; PostgreSQL does not store lines/timetables | Zero DB load, cacheable, works offline |
 | D08 | Client sends `recorded_at` | **Server time only** | Client clocks are wrong or spoofable |
-| D09 | RNF03 "poucas dezenas de KB" per trip | Revised measurable budget (§10.1): leader <= ~0.15 MB/h, follower <= ~0.03 MB/h, viewer WS <= ~0.05 MB per 10 min | HTTP headers dominate; real data is tiny |
+| D09 | RNF03 "poucas dezenas de KB" per trip | Revised measurable budget (§10.1, D94): every reporting role <= ~0.45 MB/h at 5 s, viewer WS <= ~0.05 MB per 10 min | HTTP headers dominate; real data is tiny |
 | D10 | Legal basis "legitimate interest" | **Consent (LGPD art. 7, I)** for location sharing, prominent in-app disclosure at "start trip", recorded server-side by consent version. Legitimate interest only for plain map viewing | Sharing is opt-in per trip; matches Play prominent-disclosure rule |
 | D11 | (Implicit) background location | **No `ACCESS_BACKGROUND_LOCATION`.** Foreground service (type `location`) started from the visible app. **Swiping the app away ends the trip.** | Avoids Play background-location review; more privacy-preserving |
 | D12 | OSM tiles as the map | **OSM raster tiles with `flutter_map` built-in cache (>= 8.2.0), behind a `TileSource` abstraction**, with an exit plan before Phase 2 | Public OSM tile server is for light use and forbids bulk download |
@@ -226,8 +226,8 @@ table below lists the binding ones that affect architecture.
 ### Known limitations accepted for alpha
 
 - **KL1 - Promotion latency.** A follower learns it became leader only at its
-  next ping (<= ~45 s). Mitigations: staggered follower phases; two-phase
-  hand-over (no gap on planned rotation); vehicle shows "last seen N s ago".
+  next ping (<= ~5 s with the D94 cadence). Mitigations: two-phase hand-over
+  (no gap on planned rotation); vehicle shows "last seen N s ago".
 - **KL2 - Lone rider = exact bus position = that rider's position.** Unavoidable
   for a crowdsourced bus tracker; disclosed in the consent text (§9, S06).
 - **KL3 - Bunching.** Two buses of the same line closer than the tolerance
@@ -311,7 +311,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 | RF05 | App sends periodic fixes: lat, lng, speed, heading, accuracy, battery (5 % steps), charging flag. | A | **No client timestamp** (D08). |
 | RF06 | Backend attaches trips of the same line that are close and coherent to one **vehicle**. | A | Attach-at-ping (D04). |
 | RF07 | Backend elects a leader per vehicle: prefers charging, then highest battery (>= 15 % unless alone), tie -> least time led. | A | |
-| RF08 | Leader reports every ~5 s while moving (~15 s still); followers every ~45 s +/- jitter; waiting trips every ~5 s. | A | Server tells the client the next interval in each response. |
+| RF08 | Every reporting role sends every ~5 s while moving (owner directive, D94); offline-saver and paused modes keep the slow ~45 s cadence. | A | Server tells the client the next interval in each response. |
 | RF09 | Leadership re-evaluated every ~5 min and immediately if the leader is dead (>45 s silent). Two-phase hand-over. | A | |
 | RF10 | User sees vehicles (not individual users) of the selected line on a map and in a list. | A | |
 | RF11 | User can view timetables of any line without any live data. | A | Static JSON. |
@@ -338,8 +338,8 @@ silently relax.
 | ID | Requirement | Tag |
 | --- | --- | --- |
 | RNF01 | No new recurring cost: the owner's existing VPS and PostgreSQL plus free tiers (Cloudflare, GitHub). One-time Play fee (US$25) is a separate "legal" cost. | A |
-| RNF02 | Battery: leader phone's extra drain <= ~4 %/h over idle baseline; follower <= ~2 %/h; viewing map <= a typical map app. | A |
-| RNF03 | Data (revised, D09, D45): leader <= ~0.45 MB/h at 5 s cadence, follower <= ~0.05 MB/h; viewer stream <= ~0.05 MB/10 min; first map view <= ~1.5 MB (tiles), repeat views <= ~0.1 MB (cache). | A |
+| RNF02 | Battery: leader phone's extra drain <= ~4 %/h over idle baseline; follower <= ~4 %/h (owner directive: every role samples at 5 s); viewing map <= a typical map app. | A |
+| RNF03 | Data (revised, D09, D45, D94): every reporting role <= ~0.45 MB/h at 5 s cadence; viewer stream <= ~0.05 MB/10 min; first map view <= ~1.5 MB (tiles), repeat views <= ~0.1 MB (cache). | A |
 | RNF04 | Fix -> viewer map update: target < 15 s, alpha target p95 <= 10 s. | A |
 | RNF05 | Usable on unstable 3G/4G: no blocking spinners on cached data, bounded timeouts, backoff, latest-wins semantics (§11). | A |
 | RNF06 | Data minimisation and short retention (§13.4). | A |
@@ -555,8 +555,8 @@ s. Defaults are compiled in; the DB only overrides.
 | `attach_base_tol_m` / `attach_speed_factor` / `attach_tol_max_m` | `80` / `0.5` / `400` | attach tolerance: `min(max, base + factor * speed * age)` |
 | `coherence_fails_to_detach` | `2` | |
 | `moving_speed_mps` / `moving_ticks_to_publish` | `3` / `1` | a new vehicle is created on the first moving ping (D60) |
-| `leader_interval_moving_s` / `leader_interval_still_s` | `5` / `15` | |
-| `follower_interval_s` / `follower_jitter_s` | `45` / `10` | |
+| `leader_interval_moving_s` / `leader_interval_still_s` | `5` / `5` | |
+| `follower_interval_s` / `follower_jitter_s` | `5` / `0` | D94: every role sends every 5 s |
 | `waiting_interval_s` | `5` | shares the leader-moving rate so cold start is one interval (D60) |
 | `leader_dead_after_s` | `45` | |
 | `member_alive_s` | `300` | |
@@ -1133,9 +1133,9 @@ keep one request in flight; coalesce (latest wins).**
 | --- | --- | --- | --- |
 | `waiting` | role `W` | balanced accuracy, ~5 s | every fix (~5 s) |
 | `leaderMoving` | role `L`, moving | high accuracy, ~5 s interval | server `n` (~5 s) |
-| `leaderStill` | role `L`, still >= 60 s | balanced, ~15 s | server `n` (~15 s) |
-| `follower` | role `F` | low-power/balanced, ~45 s interval (stream recreated with long interval) | server `n` (~45 s +/- jitter) |
-| `offlineSaver` | 3 failed sends or no success for 120 s | follower-like sampling, no uploads except **probes** (30 -> 60 -> 120 s, jitter) | probe only |
+| `leaderStill` | role `L`, still >= 60 s | balanced, ~5 s | server `n` (~5 s) |
+| `follower` | role `F` | balanced, ~5 s interval | server `n` (~5 s) |
+| `offlineSaver` | 3 failed sends or no success for 120 s | low-power ~45 s, no uploads except **probes** (30 -> 60 -> 120 s, jitter) | probe only |
 | `paused` | permission revoked / location services off / mock detected | low-power foreground service kept, ~45 s | none; show banner (see below) |
 
 Rules:
@@ -1536,11 +1536,11 @@ happened and what to do**. Never blame the user.
 | RAM (PSS) | <= 150 MB map visible; <= 80 MB trip with screen off |
 | CPU during trip, screen off | average < 2 % |
 | UI | build p95 < 8 ms, raster p95 < 8 ms on mid-range; map pan >= 55 fps (>= 90 % frames) on low-end |
-| Leader data | <= ~0.15 MB/h (about 240 fixes x <= 0.6 KB) |
-| Follower data | <= ~0.03 MB/h (about 40 fixes x <= 0.6 KB) |
+| Leader data | <= ~0.45 MB/h (about 720 fixes x <= 0.6 KB) |
+| Follower data | <= ~0.45 MB/h (same 5 s cadence as every role, D94) |
 | Viewer stream | <= ~0.05 MB per 10 min |
 | First map view | <= ~1.5 MB tiles; repeat <= ~0.1 MB |
-| Battery | leader <= ~4 %/h above idle; follower <= ~2 %/h |
+| Battery | every role <= ~4 %/h above idle; offline saver and paused lower |
 | Latency | fix -> viewer p95 <= 10 s (target < 15 s) |
 
 **Reference devices (minimum):** one low-end Android (<= 2 GB RAM, Android 9-10),
@@ -1571,8 +1571,8 @@ models in `docs/field-tests/devices.md`.
 ### 10.3 Rules (battery)
 
 1. Foreground service **only** during an active trip; stop it on any end path.
-2. Followers sample GPS rarely (low-power mode, long interval); leaders sample
-   at the minimum rate that meets the 15 s cadence.
+2. Every reporting role samples at 5 s (owner directive); only offline-saver and
+   paused drop to the slow 45 s cadence to save battery.
 3. Prefer _fewer, well-spaced_ radio wake-ups; do not add extra timers/polls.
    Viewer screens never poll while the socket is healthy.
 4. No wake locks on Android. On web the screen wake lock is used **only** on the
@@ -1588,8 +1588,8 @@ models in `docs/field-tests/devices.md`.
    to 5 decimals, numbers not strings.
 2. **Latest-wins**: never upload backlog. No batching of old fixes.
 3. Keep-alive HTTP connection for pings (a fresh TLS handshake costs more than
-   the ping). VERIFY in S2 how long the edge keeps idle connections; choose the
-   follower interval (60-90 s) to maximise reuse if it matters.
+   the ping). VERIFY in S2 how long the edge keeps idle connections; the 5 s
+   role cadence already maximises reuse.
 4. Static data: conditional GET, content-hashed immutable files, gzip/brotli
    from the CDN.
 5. Map: capped zoom, no retina, disk cache, no prefetch.

@@ -43,8 +43,8 @@ routine). Language: English. User-visible strings stay pt-BR in code.
 5. Battery per RNF02 comes from system battery stats per app over
    at least one hour per role; note the role shown on the trip
    screen (leader vs follower). Data per RNF03 comes from system
-   network stats (D45 changed the budgets: leader ~0.45 MB/h,
-   follower ~0.05 MB/h).
+   network stats (D45 and D94: every reporting role ~0.45 MB/h at
+   the 5 s cadence).
 
 ## 2. Gates per step
 
@@ -52,8 +52,8 @@ routine). Language: English. User-visible strings stay pt-BR in code.
 | ---- | ------ | ------------ | ------------ |
 | D63 follower medium | follower fixes accepted (acc <= 60 m) | >= 95 % | strictly above the low-power baseline; every handover has a live candidate |
 | D63 follower medium | leader-death to promotion gap (KL1) | <= 45 s | <= 45 s, no visible gap over 20 s on the viewer (alpha exit criterion 2) |
-| D64 degraded hold | slow-cadence gaps inside a degraded episode | unchanged | fewer 45 s gaps than the 30 s-only rule; map freezes shorten |
-| D64 degraded hold | battery (RNF02) | follower <= ~2 %/h | same budget; the hold is bounded per episode and self-clears |
+| D64 degraded hold | accuracy downgrade inside a degraded episode | unchanged | high accuracy held longer before the balanced stream; map freezes shorten |
+| D64 degraded hold | battery (RNF02) | every role <= ~4 %/h | same budget; the hold is bounded per episode and self-clears |
 | D65 best-fix start | first published fix accuracy | <= 30 m on every start | best-seen inside the window; never worse than the old first-fix rule |
 | D65 best-fix start | tap-to-active latency | unchanged (good fix arrives at once) | bounded by the same 60 s window as before |
 | D66 standstill heading | published fixes with null heading while speed < 0.5 m/s | ~100 % | ~100 %; marker stops spinning at stops |

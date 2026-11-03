@@ -54,7 +54,7 @@ U01 found no stored baseline for the old UI (cold start, frame times, APK size a
 
 - [ ] Raster p95 + map fps on a real GPU (emulator SwiftShader numbers do not count).
 - [ ] Cold start on a mid-range and a low-end phone (emulator: 2852 ms).
-- [ ] Battery: leader extra drain <= ~4 %/h, follower <= ~2 %/h (T47).
+- [ ] Battery: every role <= ~4 %/h extra drain (D94); power modes lower (T47).
 - [ ] Fix-to-map p95 latency <= 10 s on real phones with riders.
 - [ ] Lighthouse accessibility and best-practices >= 95 (no node toolchain on this host).
 - [ ] Screenshot matrix 17.2 (light/dark x 1.0/2.0) attached to the release PR; device lines/line plus web desktop/narrow/dark shots exist.

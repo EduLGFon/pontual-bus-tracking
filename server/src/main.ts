@@ -143,7 +143,9 @@ const app = buildApp({
   store,
   lines,
   hub,
-  followerJitterS: 10,
+  // Owner directive: every role is instructed to ping every 5 s, so the
+  // follower interval carries no jitter. See DECISIONS.md D94.
+  followerJitterS: 0,
   trustCloudflare: config.trustCloudflare,
   allowedOrigins: config.allowedOrigins,
   onLineChanged: broadcastLine,

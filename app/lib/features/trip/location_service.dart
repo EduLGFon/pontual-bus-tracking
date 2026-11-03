@@ -34,11 +34,12 @@ const int fixMaxAgeMs = 20000;
 const double degradedAccuracyM = 40;
 
 /// Downgrade guard in milliseconds while the last accepted fix is
-/// degraded. Dropping from high accuracy to a 45 s cadence right when
-/// fixes turn coarse powers down GPS exactly when it is needed most;
-/// holding the faster stream up to 60 s costs a bounded amount of
-/// battery for more chances at a sub-60 m fix. Offline saver and paused
-/// keep the normal guard: with no uploads, faster GPS buys nothing.
+/// degraded. Dropping from high accuracy to the balanced stream right
+/// when fixes turn coarse powers down GPS exactly when it is needed
+/// most; holding the high-accuracy stream up to 60 s costs a bounded
+/// amount of battery for more chances at a sub-60 m fix. Offline saver
+/// and paused keep the normal guard: with no uploads, faster GPS buys
+/// nothing.
 const int degradedHoldMs = 60 * 1000;
 
 /// One accepted fix ready to send.
@@ -218,19 +219,23 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderStill:
+      // Owner directive: every role samples every 5 s. Balanced accuracy
+      // keeps battery below the high-accuracy moving stream; only the
+      // power modes (offline saver, paused) keep a slow cadence.
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 15),
+        intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.follower:
       // Balanced, not low power: follower fixes must pass the same 60 m
       // gate as leader fixes, and low power (cell/WiFi, often 50 m to
       // 1 km) starves followers exactly in weak-GPS areas where the
-      // next handover needs them. Interval stays 45 s. See D63.
+      // next handover needs them. Cadence matches every other role at
+      // 5 s (owner directive). See D63.
       return AndroidSettings(
         accuracy: LocationAccuracy.medium,
-        intervalDuration: const Duration(seconds: 45),
+        intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.offlineSaver:
@@ -316,7 +321,7 @@ class LocationService {
   static const int batteryCacheTtlMs = 60 * 1000;
   int? _lastBatteryReadMs;
 
-  /// Silence without any accepted fix that forces a position-stream
+  /// Silence without any position event that forces a position-stream
   /// restart even for the same mode. The OS can freeze GPS delivery
   /// without closing the stream (notably with the screen off on OEM
   /// skins), and no error ever marks it dead: without this the trip goes
@@ -324,7 +329,25 @@ class LocationService {
   /// window, so a frozen background stream recovers within ~30 s instead
   /// of a full minute of silence.
   static const int stallRestartMs = 30 * 1000;
-  int? _lastFixAtMs;
+
+  /// Last position event seen on the native stream, accepted or filtered,
+  /// in milliseconds. Stall detection must use this instead of the last
+  /// accepted fix: a stream that keeps delivering coarse fixes is alive,
+  /// and recreating it cannot improve accuracy. It would only stop and
+  /// restart the Android foreground service.
+  int? _lastPositionAtMs;
+
+  /// Effective silence window for [mode]. Slow modes legitimately go
+  /// [intervalSForMode] seconds between fixes, so the fixed 30 s window
+  /// would recreate the stream before the first fix of every slow cycle
+  /// (offline saver and paused run at 45 s), leaving a foreground service
+  /// that stops and restarts forever.
+  int _stallWindowMs(SamplingMode mode) {
+    final int cadenceMs = intervalSForMode(mode) * 1000;
+    return cadenceMs > stallRestartMs
+        ? cadenceMs + stallRestartMs
+        : stallRestartMs;
+  }
 
   /// Accuracy of the last accepted fix, null before the first one.
   /// Drives the degraded downgrade guard in [requestMode] only; it
@@ -361,6 +384,7 @@ class LocationService {
     unawaited(_sub?.cancel());
     _sub = null;
     _streamDead = false;
+    _lastPositionAtMs = _nowMs();
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) => _emit(p, controller),
       onError: (Object e) {
@@ -399,6 +423,7 @@ class LocationService {
       }
     }
     _streamDead = false;
+    _lastPositionAtMs = _nowMs();
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) => _emit(p, controller),
       onError: (Object e) {
@@ -429,6 +454,10 @@ class LocationService {
       timestampMs: p.timestamp.millisecondsSinceEpoch,
     );
     final int atMs = _nowMs();
+    // Any position event proves the OS stream is alive, even when the
+    // filter drops it below. The stall watchdog must not recreate a
+    // healthy stream just because every fix in a patch is too coarse.
+    _lastPositionAtMs = atMs;
     final String? reason = dropReason(raw, atMs);
     if (reason != null) {
       Log.d('fix dropped', reason);
@@ -452,7 +481,6 @@ class LocationService {
         acceptedAtMs: atMs,
       ),
     );
-    _lastFixAtMs = atMs;
     _lastAccuracyM = raw.accuracyM;
     final int? lastRead = _lastBatteryReadMs;
     if (lastRead == null || atMs - lastRead >= batteryCacheTtlMs) {
@@ -482,17 +510,19 @@ class LocationService {
     }
   }
 
-  /// True when the position stream is dead or has been silent past the
-  /// stall window. Used by both the supervision round and web recovery.
+  /// True when the position stream is dead or has gone silent past the
+  /// stall window for its current sampling cadence. Used by both the
+  /// supervision round and web recovery.
   bool _needsRestart(int nowMs) {
     if (_streamDead) {
       return true;
     }
-    final int? fixAt = _lastFixAtMs;
+    final int? eventAt = _lastPositionAtMs;
+    final int windowMs = _stallWindowMs(_mode);
     return _seq > 0 &&
-        fixAt != null &&
-        nowMs - fixAt > stallRestartMs &&
-        nowMs - _lastChangeMs >= stallRestartMs;
+        eventAt != null &&
+        nowMs - eventAt > windowMs &&
+        nowMs - _lastChangeMs >= windowMs;
   }
 
   /// Web gap recovery: restarts a dead or silent stream and requests one
@@ -545,9 +575,10 @@ class LocationService {
   /// because faster GPS buys nothing with no uploads. A dead position
   /// stream recreates immediately, even for the same mode and inside
   /// hysteresis: the trip has no fixes until it does. A silent stream
-  /// (fixes flowed, then nothing for [stallRestartMs]) recreates too, at
-  /// most once per stall window: some devices freeze delivery without
-  /// ever erroring. Returns the active mode.
+  /// (no position event for one full stall window of the current cadence)
+  /// recreates too, at most once per window: some devices freeze delivery
+  /// without ever erroring, while coarse fixes are still delivery and
+  /// never trigger a restart. Returns the active mode.
   Future<SamplingMode> requestMode(SamplingMode mode, int nowMs) async {
     final bool restartDead = _streamDead;
     final bool stalled = !restartDead && _needsRestart(nowMs);
