@@ -33,6 +33,13 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // The app ships arm64 only. Flutter already limits its engine and AOT
+        // output via --target-platform; this also drops helper libs that
+        // plugin AARs (jni) bundle for other ABIs.
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     if (keystorePropertiesFile.exists()) {
@@ -59,6 +66,14 @@ android {
             )
             signingConfig = if (keystorePropertiesFile.exists())
                 signingConfigs.getByName("release") else signingConfigs.getByName("debug")        }
+    }
+
+    packaging {
+        jniLibs {
+            // The app is arm64 only. AARs such as jni still carry helper
+            // libraries for other ABIs; drop them from the bundle.
+            excludes.addAll(listOf("lib/armeabi-v7a/**", "lib/x86/**", "lib/x86_64/**"))
+        }
     }
 }
 
