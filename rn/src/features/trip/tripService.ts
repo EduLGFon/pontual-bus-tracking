@@ -8,7 +8,11 @@ import { consentStore } from "../../data/prefs/consentStore";
 import { useTripStore } from "../../stores";
 import type { ServerTripRole } from "../../domain/trip/tripState";
 import { PingClient } from "./pingClient";
-import { TripSupervisor } from "./tripSupervisor";
+import { TripSupervisor, offlineAfterFailures, offlineAfterMs } from "./tripSupervisor";
+import {
+  resolveSharingHealth,
+  type SharingHealth,
+} from "../../domain/trip/sharingHealth";
 import { geolocatorPermissionGateway } from "../../platform/android/permissionGateway";
 import {
   acceptFix,
@@ -29,6 +33,7 @@ let seq = 0;
 let lastRole: ServerTripRole = "W";
 let nextPingAtMs = 0;
 let lastFix: { lat: number; lng: number; accuracyM: number; batteryPct: number; charging: boolean } | null = null;
+let startedAtMs: number | null = null;
 let revivedOnce = false;
 let reviving = false;
 let tripGen = 0;
@@ -117,6 +122,7 @@ export async function startSharing(
   const intervalS = start.value.n;
   seq = 1;
   lastFix = { ...firstFix };
+  startedAtMs = Date.now();
   revivedOnce = false;
   reviving = false;
   tripGen += 1;
@@ -285,6 +291,37 @@ export async function stopSharing() {
     } catch {}
   }
   currentLineId = null;
+  startedAtMs = null;
   seq = 0;
   ts.reset();
+}
+
+// Sharing health for the trip screen: one pure model for the banner and
+// the battery exemption card. Returns null when no trip is active.
+// A visible offline issue means a lack of data (3 failed sends or 120 s
+// without success), which is when the OS battery optimization usually
+// paused our uploads.
+export function getTripHealth(nowMs: number = Date.now()): SharingHealth | null {
+  const phase = useTripStore.getState().phase;
+  if (currentLineId === null || supervisor === null) return null;
+  if (phase !== "sharing" && phase !== "starting") return null;
+  const lastSuccessMs = supervisor.lastSuccess;
+  const failures = ping?.consecutiveFailures ?? 0;
+  const sinceSuccess = nowMs - (lastSuccessMs ?? nowMs);
+  const offline =
+    failures >= offlineAfterFailures || sinceSuccess > offlineAfterMs;
+  return resolveSharingHealth({
+    ended: false,
+    isStarting: phase === "starting",
+    offline,
+    servicesOn: !supervisor.paused,
+    permissionGranted: !supervisor.isPermissionRevoked,
+    imprecise: supervisor.isImprecise,
+    nowMs,
+    accuracyM: lastFix?.accuracyM ?? null,
+    lastSuccessMs,
+    startedAtMs,
+    batteryPct: lastFix?.batteryPct ?? null,
+    charging: lastFix?.charging ?? false,
+  });
 }

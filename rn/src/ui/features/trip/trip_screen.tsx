@@ -10,8 +10,9 @@ import { PrimaryButton, SecondaryButton } from "../../design/components/buttons"
 import { Banner } from "../../design/components/banner";
 import { lineVmOf } from "../../adapters/lines_adapter";
 import { useStaticStore, useTripStore } from "../../../stores";
-import { stopSharing } from "../../../features/trip/tripService";
+import { stopSharing, getTripHealth } from "../../../features/trip/tripService";
 import { uiStrings } from "../../strings/uiStrings";
+import { BatteryExemptionCard } from "./battery_exemption_card";
 import { TripHero } from "./trip_hero";
 import { TripStatus } from "./trip_status";
 import { TripEndCard } from "./trip_end_card";
@@ -44,6 +45,18 @@ export function TripScreen({ initialLineKey }: { initialLineKey?: string }) {
   const [endReason, setEndReason] = useState<string | null>(null);
 
   const sharing = phase === "sharing" || phase === "starting";
+
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!sharing) return;
+    const id = setInterval(() => setNowMs(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [sharing]);
+  const health = useMemo(
+    () => (sharing ? getTripHealth(nowMs) : null),
+    [sharing, nowMs],
+  );
+  const showBatteryCard = sharing && health?.issue === "offline";
 
   const vms = useMemo(() => lines.filter((l) => l.is_active && l.pilot).map((l) => lineVmOf(l, 0)), [lines]);
   const lineLabel = useMemo(() => {
@@ -122,6 +135,16 @@ export function TripScreen({ initialLineKey }: { initialLineKey?: string }) {
             <View style={{ marginTop: 12 }}>
               <TripStatus connected={phase === "sharing"} gpsGood={phase === "sharing"} role={trip.role} />
             </View>
+            {health?.issue === "offline" ? (
+              <View style={{ marginTop: 12 }}>
+                <Banner text={uiStrings.roleOffline} />
+              </View>
+            ) : null}
+            {showBatteryCard ? (
+              <View style={{ marginTop: 12 }}>
+                <BatteryExemptionCard />
+              </View>
+            ) : null}
             <View style={{ marginTop: 16 }}>
               <PrimaryButton label={uiStrings.endTrip} onPress={() => void onEnd()} />
             </View>
