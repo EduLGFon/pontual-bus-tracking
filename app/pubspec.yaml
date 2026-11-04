@@ -1,7 +1,8 @@
+
 name: pontual
 description: "Pontual independent crowd-sourced bus tracker for Sao Mateus, ES, Brazil."
 publish_to: "none"
-version: 0.3.3+0.3.3
+version: 0.3.4+0.3.4
 
 environment:
   sdk: ^3.13.5
