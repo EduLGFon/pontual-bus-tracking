@@ -555,13 +555,16 @@ class UiStrings {
       'Se parar sozinho, defina a bateria do app como "Sem restrições".';
 
   /// Battery exemption card shown on the trip screen while offline.
+  /// Names the cause (the OS battery optimization stopped our uploads)
+  /// and asks for the one-tap exemption that fires the system dialog.
   static const String batteryExemptionTitle =
-      'O sistema pausou o GPS em segundo plano';
+      'A economia de bateria pausou o compartilhamento';
 
   /// Battery exemption card body.
   static const String batteryExemptionBody =
-      'Em alguns celulares o compartilhamento para com a tela apagada. '
-      'Liberar a bateria mantém o envio ligado até você descer.';
+      'O celular parou de enviar sua posição para economizar bateria, e '
+      'quem espera o ônibus deixa de ver ele. Libere uma vez e o envio '
+      'continua ligado até você descer.';
 
   /// Battery exemption card action.
   static const String batteryExemptionAction = 'Manter ativo';

@@ -123,8 +123,8 @@ class _StatusBlockState extends State<StatusBlock> {
         ],
         // Battery exemption card: the right moment is a visible stall.
         // Offline means 3 failed sends or 120 s without success, which is
-        // exactly when OEM skins pause background GPS. User-tapped only,
-        // Android only, never blocks sharing.
+        // exactly when the OS battery optimization pauses our uploads.
+        // User-tapped only, Android only, never blocks sharing.
         if (shown == SharingIssue.offline &&
             PlatformInfo.isAndroid) ...<Widget>[
           const SizedBox(height: Space.x3),

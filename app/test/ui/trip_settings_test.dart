@@ -345,6 +345,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text(UiStrings.batteryExemptionTitle), findsOneWidget);
+      expect(find.text(UiStrings.batteryExemptionBody), findsOneWidget);
       expect(find.text(UiStrings.batteryExemptionAction), findsOneWidget);
       await tester.tap(find.text(UiStrings.batteryExemptionAction));
       await tester.pump();
