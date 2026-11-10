@@ -277,7 +277,9 @@ void main() {
 
   testWidgets('semantics one sentence ready', (tester) async {
     final SemanticsHandle handle = tester.ensureSemantics();
-    await tester.pumpWidget(harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () {})));
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () {})),
+    );
     final String sentence =
         '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)}';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
@@ -296,7 +298,7 @@ void main() {
         ),
       ),
     );
-    final String sentence =
+    const String sentence =
         '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
     handle.dispose();
@@ -352,7 +354,7 @@ void main() {
     await tester.pumpWidget(
       harness(
         PersonalArrivalCard(
-          vm: PersonalArrivalVM(
+          vm: const PersonalArrivalVM(
             status: PersonalArrivalStatus.etaError,
             stopDistanceM: 90,
           ),
@@ -372,7 +374,7 @@ void main() {
   testWidgets('null distance ready', (tester) async {
     await tester.pumpWidget(
       harness(
-        PersonalArrivalCard(
+        const PersonalArrivalCard(
           vm: PersonalArrivalVM(
             status: PersonalArrivalStatus.ready,
             stopDistanceM: null,
@@ -405,7 +407,7 @@ void main() {
             child: MediaQuery(
               data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
               child: PersonalArrivalCard(
-                vm: PersonalArrivalVM(
+                vm: const PersonalArrivalVM(
                   status: PersonalArrivalStatus.etaError,
                   stopDistanceM: 90,
                 ),
@@ -418,5 +420,31 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('inert ready exposes sentence', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(harness(PersonalArrivalCard(vm: readyVm())));
+    final String sentence =
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('inert prompt exposes sentence', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        const PersonalArrivalCard(
+          vm: PersonalArrivalVM(
+            status: PersonalArrivalStatus.needsLocation,
+          ),
+        ),
+      ),
+    );
+    const String sentence =
+        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
   });
 }

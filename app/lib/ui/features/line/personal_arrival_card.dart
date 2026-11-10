@@ -183,72 +183,76 @@ class PersonalArrivalCard extends StatelessWidget {
               ? '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11yArriving(distance)}'
               : '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(minutes, distance)}');
 
+    final Widget readyCard = SurfaceCard(
+      onTap: onTapLead,
+      semanticLabel: onTapLead == null ? null : semantic,
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(
+                  Icons.my_location_rounded,
+                  color: context.colors.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: Space.x2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(title, style: context.text.title),
+                      if (distanceText != null)
+                        Text(distanceText, style: context.text.caption),
+                    ],
+                  ),
+                ),
+                const Flexible(
+                  child: CertaintyBadge(certainty: Certainty.predicted),
+                ),
+              ],
+            ),
+            const SizedBox(height: Space.x2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: EtaText(
+                primary: arriving
+                    ? UiStrings.myStopArriving
+                    : UiStrings.myStopEta(minutes),
+                secondary: UiStrings.myStopEtaCaption,
+                hero: true,
+              ),
+            ),
+            const SizedBox(height: Space.x2),
+            Row(
+              children: <Widget>[
+                ConfidenceMeter(level: lead.confidence),
+                const SizedBox(width: Space.x2),
+                Flexible(
+                  child: Text(
+                    UiStrings.confidenceLabel(lead.confidence),
+                    style: context.text.caption,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    final Widget readyWrapped = onTapLead == null
+        ? Semantics(label: semantic, excludeSemantics: true, child: readyCard)
+        : readyCard;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        SurfaceCard(
-          onTap: onTapLead,
-          semanticLabel: semantic,
-          child: ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.my_location_rounded,
-                      color: context.colors.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: Space.x2),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(title, style: context.text.title),
-                          if (distanceText != null)
-                            Text(distanceText, style: context.text.caption),
-                        ],
-                      ),
-                    ),
-                    const Flexible(
-                      child: CertaintyBadge(certainty: Certainty.predicted),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: Space.x2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: EtaText(
-                    primary: arriving
-                        ? UiStrings.myStopArriving
-                        : UiStrings.myStopEta(minutes),
-                    secondary: UiStrings.myStopEtaCaption,
-                    hero: true,
-                  ),
-                ),
-                const SizedBox(height: Space.x2),
-                Row(
-                  children: <Widget>[
-                    ConfidenceMeter(level: lead.confidence),
-                    const SizedBox(width: Space.x2),
-                    Flexible(
-                      child: Text(
-                        UiStrings.confidenceLabel(lead.confidence),
-                        style: context.text.caption,
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+        readyWrapped,
         const SizedBox(height: Space.x2),
         GhostLink(
           label: UiStrings.myStopHow,
@@ -259,9 +263,11 @@ class PersonalArrivalCard extends StatelessWidget {
   }
 
   Widget _promptCard(BuildContext context) {
-    return SurfaceCard(
+    const String sentence =
+        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
+    final Widget card = SurfaceCard(
       onTap: onEnableLocation,
-      semanticLabel: '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}',
+      semanticLabel: onEnableLocation == null ? null : sentence,
       child: ExcludeSemantics(
         child: Row(
           children: <Widget>[
@@ -286,6 +292,9 @@ class PersonalArrivalCard extends StatelessWidget {
         ),
       ),
     );
+    return onEnableLocation == null
+        ? Semantics(label: sentence, excludeSemantics: true, child: card)
+        : card;
   }
 
   Widget _expiredCard(BuildContext context) {
