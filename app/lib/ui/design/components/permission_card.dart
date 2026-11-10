@@ -42,6 +42,8 @@ class PermissionCard extends StatelessWidget {
     this.onRetry,
     this.onOpenSettings,
     this.onOpenLines,
+    this.titleOverride,
+    this.messageOverride,
     super.key,
   });
 
@@ -57,6 +59,12 @@ class PermissionCard extends StatelessWidget {
   /// Called by the fallback action, web unsupported contexts.
   final VoidCallback? onOpenLines;
 
+  /// Optional title replacing the default card title.
+  final String? titleOverride;
+
+  /// Optional message replacing the state default.
+  final String? messageOverride;
+
   @override
   Widget build(BuildContext context) {
     final bool web = PlatformInfo.isWeb;
@@ -64,9 +72,9 @@ class PermissionCard extends StatelessWidget {
         state == PermissionCardState.browserBlocked ||
         (state == PermissionCardState.blocked && web);
     final VoidCallback? openLines = onOpenLines;
-    final String message = browserSteps
-        ? _browserSteps()
-        : _messageOf(state, web);
+    final String message =
+        messageOverride ??
+        (browserSteps ? _browserSteps() : _messageOf(state, web));
     final String primaryLabel = browserSteps ? '' : _primaryLabelOf(state, web);
     final VoidCallback? primary = browserSteps
         ? null
@@ -86,7 +94,7 @@ class PermissionCard extends StatelessWidget {
               const SizedBox(width: Space.x2),
               Expanded(
                 child: Text(
-                  UiStrings.permissionDenied,
+                  titleOverride ?? UiStrings.permissionDenied,
                   style: context.text.bodyStrong,
                 ),
               ),
