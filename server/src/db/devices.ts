@@ -56,6 +56,29 @@ export async function getLearningOptOut(
   return (rows[0] as { optOut: boolean } | undefined)?.optOut ?? false;
 }
 
+/** Increment the pseudonymous learning counter. Returns 0 for unknown ids. */
+export async function bumpLearningTrips(
+  sql: Sql,
+  deviceId: string,
+): Promise<number> {
+  const rows = await sql`
+    update devices set learning_trips = learning_trips + 1
+    where id = ${deviceId}
+    returning learning_trips`;
+  return (rows[0] as { learning_trips: number } | undefined)?.learning_trips ??
+    0;
+}
+
+export async function getLearningTrips(
+  sql: Sql,
+  deviceId: string,
+): Promise<number> {
+  const rows = await sql`
+    select learning_trips from devices where id = ${deviceId} limit 1`;
+  return (rows[0] as { learning_trips: number } | undefined)?.learning_trips ??
+    0;
+}
+
 export async function purgeExpiredDevices(
   sql: Sql,
   now: Date,

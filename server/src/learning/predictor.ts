@@ -130,7 +130,10 @@ export async function predictEta(
         hb,
         dow,
       );
-      if (seg && seg.count >= config.kMin) {
+      // The consumer read helpers already apply the effective privacy gate
+      // (kMin 1 in mode "all"); re-checking the raw kMin here would discard
+      // valid one-pass rows. Only presence matters.
+      if (seg) {
         const histSpeed = seg.distanceM / Math.max(seg.p50, 1);
         const factor = Math.max(
           0.5,
@@ -148,7 +151,8 @@ export async function predictEta(
     // dwell at curStop (except final? include dwell at intermediate; for target, maybe exclude? include)
     if (i < targetIdx) {
       const dw = await consumer.dwellStats(curStop.id, hb, dow);
-      if (dw && dw.count >= config.kMin) {
+      // Same gate note as segmentStats above.
+      if (dw) {
         totalS += dw.p50;
         sampleCount += dw.count;
       } else {

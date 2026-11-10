@@ -11,14 +11,20 @@ export interface LearningConfig {
   trimEndsS: number;
   flushIntervalS: number;
   cacheTtlS: number;
-  routeBins: number;
   stopClusterRadiusM: number;
   stopSpeedMps: number;
   minDwellS: number;
   headwayHorizonS: number;
   defaultSpeedMps: number;
   defaultDwellS: number;
+  /** Minimum published route length; kept for static-route sanity checks. */
   minRouteLengthM: number;
+  /** Minimum per-trip distance accepted for corridor accumulation. */
+  minTripRouteM: number;
+  /** Absolute corridor grid size in metres. */
+  corridorCellM: number;
+  /** Minimum cells required before a corridor chain can be published. */
+  corridorMinCells: number;
   stopMinDistinctDays: number;
   maxSamplesPerTrip: number;
   minSampleSpacingM: number;
@@ -36,7 +42,6 @@ export const defaultLearningConfig = (): LearningConfig => ({
   trimEndsS: 120,
   flushIntervalS: 300,
   cacheTtlS: 60,
-  routeBins: 200,
   stopClusterRadiusM: 30,
   stopSpeedMps: 1.0,
   minDwellS: 5,
@@ -44,6 +49,9 @@ export const defaultLearningConfig = (): LearningConfig => ({
   defaultSpeedMps: 6,
   defaultDwellS: 20,
   minRouteLengthM: 100,
+  minTripRouteM: 50,
+  corridorCellM: 50,
+  corridorMinCells: 3,
   stopMinDistinctDays: 3,
   maxSamplesPerTrip: 200,
   minSampleSpacingM: 20,
@@ -64,6 +72,8 @@ export interface TripWork {
   lineId: number;
   direction: number | null;
   consentVersion: number;
+  /** Device passed the >=5 started-trips gate when the trip started. */
+  eligible: boolean;
   startedAtMs: number;
   endedAtMs: number | null;
   samples: TripSample[];
@@ -71,25 +81,12 @@ export interface TripWork {
   totalDistanceM: number;
 }
 
-export interface RouteBin {
-  latSum: number;
-  lngSum: number;
-  n: number;
-}
-
-export interface RouteAcc {
-  lineId: number;
-  direction: number;
-  bins: Map<number, { lats: number[]; lngs: number[] }>;
-  tripCount: number;
-  /** Trip count already persisted; skip upsert when unchanged (T1). */
-  lastFlushedTripCount: number;
-}
-
 export interface StopCluster {
   id: string;
   lineId: number;
   direction: number;
+  /** Ordinal along the published corridor chain; 0 until a chain exists. */
+  ordinal: number;
   centroidLat: number;
   centroidLng: number;
   radiusM: number;

@@ -378,7 +378,7 @@ silently relax.
 
 | ID | Requirement |
 | --- | --- |
-| PRV01 | Collect only: pseudonymous device id (and the hash of its token), consent version and time, and, **in process memory only**, the latest fix of an active trip (line, lat, lng, speed, heading, accuracy), battery bucket and charging flag. |
+| PRV01 | Collect only: pseudonymous device id (and the hash of its token), consent version and time, a per-device counter of started trips eligible for learning (no location), and, **in process memory only**, the latest fix of an active trip (line, lat, lng, speed, heading, accuracy), battery bucket and charging flag. |
 | PRV02 | Never collect: name, e-mail, phone, contacts, device identifiers (IMEI/Android ID/advertising ID), installed apps, photos, microphone. Do not store IP addresses ourselves (in-memory rate-limit buckets only). |
 | PRV03 | Location never reaches disk or the database. It is dropped from memory when the trip ends (user, timeout <= 10 min, max duration, abuse); vehicles are hidden after 120 s without a fix and removed when no member is alive; device records are deleted after 30 days of inactivity. |
 | PRV04 | Other users only see **vehicles**, never trips, battery or device ids. |
@@ -533,7 +533,9 @@ authenticate, call the engine or a repository, and format the response.
 `APP_ENV` (`local|staging|prod`), `HOST` (default `127.0.0.1`), `PORT`,
 `DATABASE_URL` (secret), `ALLOWED_ORIGINS` (comma list, exact origins),
 `TRUST_CLOUDFLARE` (`true` only when the origin firewall accepts Cloudflare only),
-`DATA_DIR` (built static data), `LOG_LEVEL`, `METRICS_PORT` (localhost only).
+`DATA_DIR` (built static data), `LOG_LEVEL`, `METRICS_PORT` (localhost only),
+`LEARNING_PRIVACY_MODE` (`all` default, or `route_stops`; env-only privacy gate,
+see D98).
 Secrets live in a root-owned `0600` env file loaded by systemd, never in the repo.
 
 **Runtime tunables** live in table `app_config` (JSON values), reloaded every 30
@@ -586,7 +588,8 @@ create table devices (
   token_hash   bytea not null unique check (octet_length(token_hash) = 32),   -- SHA-256 of the opaque token
   created_at   timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
-  expires_at   timestamptz not null
+  expires_at   timestamptz not null,
+  learning_trips integer not null default 0  -- started trips eligible for learning; pseudonymous counter, no location
 );
 create index devices_expires_idx on devices (expires_at);
 

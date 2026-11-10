@@ -187,6 +187,28 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
   const learningPerIp = new RateLimiter(60, 60 * 1000);
   const learningEtaPerIp = new RateLimiter(120, 60 * 1000);
 
+  // Serve the active learned route's real direction. Without a route, use
+  // the direction that has the most active learned stops.
+  async function servingStops(
+    learning: import("../learning/consumer.ts").LearningConsumer,
+    lineId: number,
+  ) {
+    const route = await learning.learnedRouteForLine(lineId);
+    if (route) {
+      return {
+        route,
+        dir: route.dir,
+        stops: await learning.learnedStopsForLine(lineId, route.dir),
+      };
+    }
+    const [zero, one] = await Promise.all([
+      learning.learnedStopsForLine(lineId, 0),
+      learning.learnedStopsForLine(lineId, 1),
+    ]);
+    const dir = one.length > zero.length ? 1 : 0;
+    return { route, dir, stops: dir === 1 ? one : zero };
+  }
+
   app.get("/v1/lines/:id/learned-route", async (c) => {
     if (!deps.learning || !deps.learning.isEnabled()) {
       return c.json({ e: "not_found" }, 404);
@@ -199,7 +221,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
     const line = deps.lines(id);
     if (!line || !line.isActive) return c.json({ e: "line" }, 404);
-    const r = await deps.learning.learnedRoute(id);
+    const r = await deps.learning.learnedRouteForLine(id);
     if (!r) {
       // fallback to static route from server data bundle
       const staticRoute = line.route ?? null;
@@ -216,7 +238,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     c.header("Cache-Control", "public, max-age=300");
     return c.json({
       v: r.version,
-      dir: 0,
+      dir: r.dir,
       polyline: r.polyline,
       points: null,
       trips: r.trips,
@@ -237,13 +259,13 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     if (!Number.isInteger(id) || id < 1) return c.json({ e: "line" }, 404);
     const line = deps.lines(id);
     if (!line || !line.isActive) return c.json({ e: "line" }, 404);
-    const stops = await deps.learning.learnedStops(id);
+    const { dir, stops } = await servingStops(deps.learning, id);
     if (stops.length === 0) {
-      return c.json({ dir: 0, stops: [], fallback: true }, 200);
+      return c.json({ dir, stops: [], fallback: true }, 200);
     }
     c.header("Cache-Control", "public, max-age=300");
     return c.json({
-      dir: 0,
+      dir,
       stops: stops.map((s) => ({
         id: s.id,
         i: s.ordinal,
@@ -271,11 +293,10 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     const stopId = c.req.query("stop");
     if (!stopId) return c.json({ e: "bad_request" }, 400);
     const cfg = deps.learning.configSnapshot();
-    const route = await deps.learning.learnedRoute(id);
+    const { route, dir, stops } = await servingStops(deps.learning, id);
     const routePts = route?.polyline
       ? decodePolyline(route.polyline, 5)
       : (line.route ? [...line.route.pts] : []);
-    const stops = await deps.learning.learnedStops(id);
     const stopList = stops.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng }));
     const vehicleParam = c.req.query("vehicle");
     const nowMs = Date.now();
@@ -293,7 +314,7 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
         deps.learning,
         cfg,
         id,
-        0,
+        dir,
         v.lat,
         v.lng,
         v.paceMps,

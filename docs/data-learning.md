@@ -100,6 +100,7 @@ interface TripWork {
   lineId: number;
   direction: number;        // 0 or 1, assigned at end
   consentVersion: number;   // only >= minConsentVersion contributes
+  eligible: boolean;        // device passed the >= 5 started-trips gate
   startedAtMs: number;
   samples: Array<{ t: number; lat: number; lng: number; speed: number }>;
   dwell: Array<{ lat: number; lng: number; startMs: number; endMs: number }>;
@@ -108,7 +109,14 @@ interface TripWork {
 ```
 
 Rules:
+- Eligibility gate (D98): a device unlocks learning aggregates after at least 5
+  started trips. `devices.learning_trips` increments once per non-resume trip
+  start after consent and opt-out checks; resumes only read it. The counter is
+  pseudonymous and carries no location. Ineligible trips create no working
+  state.
 - If `consentVersion < minConsentVersion` (default 2), consumer ignores trip entirely. No working state created.
+- `eligible` is stored with the working state so later fixes and the trip end
+  cannot be re-judged.
 - Samples trimmed: drop samples with `t < startedAtMs + trimEndsS*1000` and samples after `endedAtMs - trimEndsS*1000`.
 - `samples` capped at `maxSamplesPerTrip` (default 200); excess uniformly downsampled.
 - Memory budget: 200 trips * 200 samples * ~40 bytes ~ 1.6 MB plus overhead. Acceptable.
@@ -116,7 +124,7 @@ Rules:
 4.2 Accumulator store (in-memory, flushed periodically):
 
 ```ts
-interface RouteAccumulator { lineId: number; direction: number; bins: Map<number, { latSum: number; lngSum: number; n: number }>; tripCount: number; lastFlushMs: number; }
+interface RouteAccumulator { lineId: number; direction: number; originLat: number; originLng: number; cellM: number; cells: Map<string, { lat: number; lng: number; n: number }>; edges: Map<string, number>; tripCount: number; lastPublishedTripCount: number; }
 interface StopCluster { lineId: number; direction: number; centroidLat: number; centroidLng: number; radiusM: number; passCount: number; samples: number; }
 interface DwellAccumulator { stopId: string; hourBucket: number; dayOfWeek: number; count: number; sumS: number; minS: number; maxS: number; reservoir: number[]; }
 interface SegmentAccumulator { lineId: number; direction: number; fromStop: string; toStop: string; hourBucket: number; dayOfWeek: number; count: number; sumS: number; minS: number; maxS: number; distanceM: number; reservoir: number[]; }
@@ -125,50 +133,72 @@ interface SegmentAccumulator { lineId: number; direction: number; fromStop: stri
 Accumulators flushed to PostgreSQL via upserts, then cleared from memory for flushed keys to bound memory. Counters representing lifetime sample counts are persisted and reloaded on startup, so flushing does not lose history.
 
 4.3 Direction assignment:
-- Compute vector from first kept sample to last kept sample.
-- Compare against mean direction vector of existing accumulators for that line.
-- If line has no accumulator yet, direction 0.
-- If trip's vector within 60 degrees of an existing direction, assign that direction.
-- Otherwise, if a second direction slot is free (max 2 directions per line), create direction 1.
-- If neither fits, discard trip for route learning (likely detour/different service). Still contributes to dwell/segment stats only if it snaps to an existing stop sequence.
-Max 2 directions per line is a simplification. Circular lines handled as single direction with progress wrapping at 1.0.
+- Collect the existing absolute-corridor accumulators for the line.
+- No accumulator: direction 0. One accumulator: that accumulator's direction,
+  so a restart keeps seeded direction slots. Two: the higher coverage wins,
+  and bearing breaks a tie.
+- Coverage is `coverageScore(acc, kept fixes)`; if both cover zero, compare
+  the first-to-last trip bearing with the bearing of each accumulator chain
+  and pick the closer one; if a bearing cannot be computed, direction 0.
+- Never create more than 2 directions per line. Seeded active learned routes
+  provide the direction slots on startup.
+Max 2 directions per line is a simplification.
 
 4.4 Consent gating: learning consumer receives `consentVersion` from trip start payload. Engine does not know consent versions; server handler calling `startTrip` looks up device's highest consent version and passes into event. If device has no consent row with version >= `minConsentVersion`, trip contributes nothing to learning. Live sharing unaffected.
 
 ## 5. Algorithms
 
-5.1 Route learning (centerline):
+5.1 Route learning (absolute corridor, D98):
 Input: completed trips for (line, direction), each with ordered kept samples.
 
-Step 1 per trip normalisation:
-- Compute cumulative distance along trip's own samples using haversine.
-- Let total = last cumulative. If total < minRouteLengthM (default 500 m), discard (too short, noise).
-- For each sample, progress = cumulative / total in [0,1].
-- Bin into routeBins (default 200) equal-width progress bins. For each bin, store median lat/lng of samples in that bin (median of lats and lngs independently). Removes within-trip jitter.
+Step 1 per-trip filtering:
+- Compute cumulative distance along the trip's own samples using haversine.
+- If the per-trip total is below minTripRouteM (default 50 m), discard: a
+  partial trip only needs to cover a short real segment, not the whole line.
+- Trim first and last trimEndsS before this check; require at least 3 kept
+  samples.
+- There is no progress normalisation and no routeBins. Partial trips keep their
+  real position.
 
-Step 2 cross-trip aggregation:
-- For each bin index, collect per-trip median points.
-- Bin centroid = median of those latitudes and longitudes.
-- Require at least minRouteTrips (default 5) trips contributing to a bin before trusted. Missing bins interpolated linearly between nearest trusted bins. If more than 20% bins missing, route not published.
+Step 2 absolute accumulation:
+- Each (line, direction) accumulator is a metric grid of corridorCellM
+  (default 50 m) anchored at a per-line origin: the first kept fix of the first
+  trip, or the first decoded point of an active learned route on startup.
+- Insert every kept segment sampled at roughly half a cell. Cell centroid is a
+  running mean; each observed directed cell transition increments its edge
+  weight. Memory is bounded by the number of distinct cells, not raw fixes.
 
-Step 3 smoothing and simplification:
-- 3-point moving average along sequence of bin centroids.
-- Douglas-Peucker at 5 m tolerance (reuse tools/route logic, ported to TypeScript in routeLearner.ts).
-- Encode as polyline precision 5.
-- Size check: <= 8 KB. If larger, increase tolerance to 10 m and retry; if still larger, reject publication.
+Step 3 chain building (flush):
+- Require minRouteTrips (default 5) accumulated trips and at least one new trip
+  since the last publication.
+- Walk the directed cell graph from nodes with in-degree 0 (all nodes when the
+  graph is a cycle), always taking the highest-weight edge of at least 1.
+  Ties prefer the straightest continuation, then a stable key. Require at least
+  corridorMinCells (default 3) cells; otherwise record the trip count and wait
+  for more data.
+- Apply a 3-point moving average, then Douglas-Peucker at 5 m. If the result
+  has more than 400 points, retry at 10 m.
+- Reject publication when the simplified chain's geometric length is below
+  `minRouteLengthM` (default 100 m).
+- Encode as polyline precision 5. Reject the publication when the encoded
+  string exceeds 8192 characters.
+- Record the trip count as published so a stale accumulator does not create a
+  new version every flush.
 
 Step 4 gating and versioning:
 - Compute medianDeviationM between new polyline and currently published one (if any), sampled at 50 points. If deviation < 15 m, keep old version (no flapping).
-- Otherwise insert new `learned_routes` row status `candidate`.
-- Promote to `active` only after promotionTrips (default 10) additional trips agree within 20 m median. Avoids single bad week flipping route.
+- Otherwise insert new `learned_routes` row status `active`, retiring the prior
+  active version for that (line, direction).
 - Keep previous active version 30 days.
+- After publication, recompute stop ordinals for that direction by projecting
+  stop centroids onto the new chain (section 5.2).
 
 Cold start: if no static route and no learned route active, line has no polyline. Client draws nothing, as today.
 
 5.2 Stop detection and clustering:
 Per trip: walk kept samples. Dwell is maximal run where instantaneous speed (or smoothed speed over 3 samples) below stopSpeedMps (default 1.0 m/s) for at least minDwellS (default 10 s). Record centroid (median lat/lng of run) and duration. Drop dwells whose centroid within trimEndsS of trip start/end.
 
-Cross-trip clustering (DBSCAN-like, at flush time): for each (line, direction), collect all dwell centroids from flush batch plus existing stop clusters. Cluster radius stopClusterRadiusM (default 30 m), min points stopMinPasses (default 4). Cluster reaching min becomes/updates `learned_stops` row; centroid = median of member centroids. Stop ordinal assigned by projecting each stop centroid onto active learned polyline (or static route if no learned) and sorting by cumulative distance. Cluster with no new pass for stopDecayDays (default 30) days marked `active = false`, retained 90 days.
+Cross-trip clustering (DBSCAN-like, at flush time): for each (line, direction), collect all dwell centroids from flush batch plus existing stop clusters. Cluster radius stopClusterRadiusM (default 30 m), min points stopMinPasses (default 4, or 1 in privacy mode `all`). Cluster reaching min becomes/updates `learned_stops` row; centroid = median of member centroids. Stop ordinal is assigned when a corridor route is published for that direction: project each stop centroid onto the published chain, sort by cumulative distance, and persist the ordinal. Stops published before a chain exists keep ordinal 0 and are corrected on the next publish. Cluster with no new pass for stopDecayDays (default 30) days marked `active = false`, retained 90 days.
 
 Stop identity stability: cluster ids matched across flushes by nearest centroid within 40 m. If no match, new id minted. Ids are server-side UUIDs, not derived from location.
 
@@ -289,6 +319,19 @@ drop table if exists learned_stops;
 drop table if exists learned_routes;
 ```
 
+`0005_learning_device_trips.sql` adds the per-device eligibility counter:
+
+```sql
+alter table devices
+  add column if not exists learning_trips integer not null default 0
+  check (learning_trips >= 0);
+comment on column devices.learning_trips is
+  'count of started trips eligible for learning; pseudonymous counter, no location';
+```
+
+It holds a count only: no location, no trip ids. It is retained with the device
+row and disappears on `DELETE /v1/me` through the normal 30-day device purge.
+
 Notes:
 - `learned_stops.lat/lng` are aggregate centroids. They are the only location at rest introduced by this subsystem and permitted because they are not individual locations. The `no_location_at_rest` check must be updated to allow these specific columns and keep rejecting everything else.
 - No device id, trip id, or client timestamp column exists in any table.
@@ -355,12 +398,13 @@ Add to `app_config` (validated, defaults in code):
 | `learning_enabled` | `false` | master kill switch for whole subsystem |
 | `learning_min_consent_version` | `2` | min consent version for contribution |
 | `learning_min_route_trips` | `5` | trips before a route is published |
-| `learning_min_stop_passes` | `4` | passes before a stop is published |
-| `learning_k_min` | `5` | min group size for any aggregate |
+| `learning_corridor_cell_m` | `50` | absolute corridor grid cell size (m) |
+| `learning_min_trip_route_m` | `50` | minimum distance for one trip to enter the corridor |
+| `learning_min_stop_passes` | `4` | passes before a stop is published (`route_stops` mode) |
+| `learning_k_min` | `5` | min group size for any aggregate (`route_stops` mode) |
 | `learning_trim_ends_s` | `120` | seconds trimmed from each trip end |
 | `learning_flush_interval_s` | `300` | aggregate flush period |
 | `learning_cache_ttl_s` | `60` | read model refresh |
-| `learning_route_bins` | `200` | progress bins for centerline |
 | `learning_stop_cluster_radius_m` | `30` | DBSCAN radius |
 | `learning_stop_speed_mps` | `1.0` | dwell speed threshold |
 | `learning_min_dwell_s` | `10` | min dwell duration |
@@ -368,15 +412,23 @@ Add to `app_config` (validated, defaults in code):
 | `learning_default_speed_mps` | `6` | fallback speed |
 | `learning_default_dwell_s` | `20` | fallback dwell |
 
+`corridorMinCells` (default 3) is compiled in and not overridden by
+`app_config`; it gates publication of very short corridor chains.
+
+The privacy gate is not an app_config key. It is env-only and validated at boot: `LEARNING_PRIVACY_MODE=all|route_stops` (default `all`). See DECISIONS.md#D98.
+
 Client-side fallback constants mirror these but server value always wins (PLAN.md 7, architecture rules).
 
 ## 10. Privacy controls and k-anonymity
 
-- `kMin` applies to every served aggregate. Below it, withhold and fall back.
+- In `route_stops` mode, `kMin` applies to every served aggregate. Below it, the value is withheld and the client falls back.
+- In `all` mode (default during the learning phase) the effective gates are `minStopPasses` 1, distinct days 1 and `kMin` 1, so a single eligible device's passes can publish a stop, dwell or segment row.
+- `kMin` counts samples, not distinct people. A device with 5 trips can already satisfy it, which is why the 5-trip eligibility gate is the real control in this phase.
+- Eligibility: a device contributes only after 5 started trips. The counter is `devices.learning_trips`, contains no location and is retained with the device row.
 - Additional suppression: if a (stop, hour, dow) bucket has count >= kMin but the stop has fewer than `minDistinctDays` (default 3) distinct dates contributing, withhold, to prevent single-day identification.
 - Distinct-trip counting uses a per-flush salted hash of a trip nonce discarded after flush. No join key persists.
-- Aggregates never include origin/destination trimming beyond `trimEndsS`; if a line has only one stop cluster (terminus), suppress dwell stats there to avoid home inference. Actually suppress the first and last stop's dwell stats entirely, since terminus dwell reveals rider boarding/alighting patterns. Only intermediate stops get dwell stats.
-- Route polyline is an aggregate of many trips; individual trips cannot be recovered. Still, apply minimum of `minRouteTrips` before publishing.
+- Aggregates never include origin/destination trimming beyond `trimEndsS`; if a line has only one stop cluster (terminus), suppress dwell stats there to avoid home inference. Suppress the first and last stop's dwell stats entirely in both modes, since terminus dwell reveals rider boarding/alighting patterns. Only intermediate stops get dwell stats.
+- A route polyline requires at least `minRouteTrips` (default 5) eligible trips in one direction. Geometry is built from the absolute corridor, so partial trips contribute only the cells they actually drove; a published polyline may cover part of the line.
 - Logs: learning module uses existing `Log` wrapper, which has no API accepting coordinates. Add lint rule / test that greps new files for coordinate-like logging.
 - Metrics: counters only (trips contributed, flushes, cache hits). No coordinates, no ids, no per-line counts below kMin (report "lines with data" only as a boolean per line).
 
@@ -424,6 +476,8 @@ Privacy audit:
 ## 14. Status
 
 Implemented in 0.3.x: event plumbing, in-memory aggregator, aggregate persistence, route learner, stop/dwell statistics, ETA prediction, learned-route persistence, client seams and opt-out. `learning_enabled` defaults to true.
+
+D98 (2026-11-10) replaced progress binning with the absolute corridor and added the 5-trip eligibility gate, `devices.learning_trips` (migration 0005) and `LEARNING_PRIVACY_MODE`. Default is `all` for the learning phase; `route_stops` restores the k-anonymity gates. Corridor unit tests and learning consumer integration tests cover both modes. Still required before public release: coordinator review and lawyer/DPO sign-off of the relaxed gate.
 
 Remaining before release: lawyer/DPO sign-off, RIPD finalisation, and any tuning of promotion thresholds after real field data. Each change is one logical change set with tests per PLAN.md 0.3.
 

@@ -1,6 +1,6 @@
 # RIPD do Pontual (relatório de impacto, versão enxuta)
 
-Data: 2026-10-03. Atualização: 2026-11-10 (chegada pessoal). Responsável pela elaboração: equipe do app.
+Data: 2026-10-03. Atualização: 2026-11-10 (chegada pessoal e aprendizado por viagens parciais). Responsável pela elaboração: equipe do app.
 Revisão do responsável e de advogado: pendente. Revisar antes da
 fase 2 e a cada mudança no tratamento de dados.
 
@@ -19,7 +19,7 @@ O subsistema de aprendizagem (0.3.x) deriva agregados anônimos de
 rotas, paradas e tempos a partir de viagens consentidas; não guarda
 coordenadas brutas, ids de aparelho ou de viagem. A chegada pessoal
 na tela da linha faz uma leitura única da posição no aparelho, sem
-envio nem armazenamento; só a linha e o ponto vão ao servidor.
+envio nem armazenamento; só a linha e o ponto vão ao servidor. A elegibilidade para agregados usa um contador pseudônimo de viagens iniciadas por aparelho (`learning_trips`), sem localização, retido com o registro do aparelho.
 
 ## 2. Necessidade e proporcionalidade
 
@@ -45,6 +45,7 @@ apagamento imediato a pedido.
 | Localização exata em log ou relatório | bug de instrumentação | Baixa | Alto | só a célula é enviada; serviço converte no aparelho; revisão de logs; sem persistência |
 | Sinalização falsa ou brigada | tokens gratuitos, retaliação | Média | Médio | tipos fechados, limites, teto por linha, TTL curto, texto "relato", kill switch |
 | Leitura local única da posição | bug de instrumentação ou engano do titular | Baixa | Baixo | toque explícito, uma leitura, sem transmissão, sem persistência, descartada em até 5 minutos |
+| Agregado de aprendizagem de um único passageiro | 5 viagens do mesmo aparelho liberam rota, paradas e tempos | Média | Médio | fase de aprendizado; supressão de término; revisão do responsável e de advogado antes do lançamento público |
 
 ## 4. Risco residual
 

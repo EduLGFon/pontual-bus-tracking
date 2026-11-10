@@ -9,11 +9,16 @@ import {
   recordLearningRouteRetired,
   recordLearningTripsContributed,
 } from "../observability/metrics.ts";
+import { medianDeviationM, simplify, smooth } from "./routeLearner.ts";
 import {
-  buildRoutePoints,
-  medianDeviationM,
-  simplify,
-} from "./routeLearner.ts";
+  addTrip,
+  assignOrdinals,
+  buildChain,
+  type CorridorAcc,
+  coverageScore,
+  newCorridorAcc,
+  type Pt,
+} from "./corridor.ts";
 import type { EngineEvent } from "../domain/types.ts";
 import type { Sql } from "../db/client.ts";
 import type {
@@ -28,6 +33,8 @@ export interface ConsumerDeps {
   sql: Sql;
   config: () => LearningConfig;
   now: () => number;
+  /** Privacy gate selected by env; see DECISIONS.md#D98. */
+  privacyMode: () => "all" | "route_stops";
   // consent version lookup for a device is done by caller; consumer
   // receives it via handleTripStart's consentVersion.
 }
@@ -50,13 +57,7 @@ function hourBucket(ms: number, tzOffsetHours = -3): number {
 
 export class LearningConsumer {
   private works = new Map<string, TripWork>();
-  private routeAccs = new Map<string, {
-    lineId: number;
-    direction: number;
-    bins: Map<number, { lats: number[]; lngs: number[] }>;
-    tripCount: number;
-    lastFlushedTripCount: number;
-  }>();
+  private routeAccs = new Map<string, CorridorAcc>();
   private stopClusters = new Map<string, StopCluster>();
   private dwellAccs = new Map<string, DwellAcc>();
   private segmentAccs = new Map<string, SegmentAcc>();
@@ -76,23 +77,35 @@ export class LearningConsumer {
   async loadLearnedRoutes(): Promise<void> {
     try {
       const rows = await this.deps.sql`
-        select distinct line_id, direction from learned_routes where status = 'active'
+        select line_id, direction, polyline from learned_routes
+        where status = 'active'
+        order by line_id asc, direction asc, version desc
       `;
       for (
         const r of rows as unknown as Array<{
           line_id: number;
           direction: number;
+          polyline: string;
         }>
       ) {
         const k = this.key(r.line_id, r.direction);
         if (this.routeAccs.has(k)) continue;
-        this.routeAccs.set(k, {
-          lineId: r.line_id,
-          direction: r.direction,
-          bins: new Map(),
-          tripCount: 0,
-          lastFlushedTripCount: 0,
-        });
+        let origin: Pt | null = null;
+        try {
+          origin = decodePolyline(r.polyline, 5)[0] ?? null;
+        } catch {
+          origin = null;
+        }
+        if (!origin) continue;
+        this.routeAccs.set(
+          k,
+          newCorridorAcc(
+            r.line_id,
+            r.direction,
+            origin,
+            this.config.corridorCellM,
+          ),
+        );
       }
     } catch {
       // DB down.
@@ -103,7 +116,7 @@ export class LearningConsumer {
   async loadLearnedStops(): Promise<void> {
     try {
       const rows = await this.deps.sql`
-        select id, line_id, direction, lat, lng, radius_m, sample_passes
+        select id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes
         from learned_stops
         where active = true
       `;
@@ -112,6 +125,7 @@ export class LearningConsumer {
           id: string;
           line_id: number;
           direction: number;
+          ordinal: number;
           lat: number;
           lng: number;
           radius_m: number;
@@ -123,6 +137,7 @@ export class LearningConsumer {
           id: r.id,
           lineId: r.line_id,
           direction: r.direction,
+          ordinal: r.ordinal,
           centroidLat: r.lat,
           centroidLng: r.lng,
           radiusM: r.radius_m,
@@ -149,11 +164,14 @@ export class LearningConsumer {
     return `${lineId}:${direction}`;
   }
 
-  handle(event: EngineEvent, consentVersion: number): void {
+  handle(
+    event: EngineEvent,
+    opts: { consentVersion: number; eligible: boolean },
+  ): void {
     if (!this.config.enabled) return;
     switch (event.kind) {
       case "tripStarted":
-        this.onTripStarted(event, consentVersion);
+        this.onTripStarted(event, opts);
         break;
       case "fixAccepted":
         this.onFixAccepted(event);
@@ -168,14 +186,16 @@ export class LearningConsumer {
 
   private onTripStarted(
     e: Extract<EngineEvent, { kind: "tripStarted" }>,
-    consentVersion: number,
+    opts: { consentVersion: number; eligible: boolean },
   ): void {
-    if (consentVersion < this.config.minConsentVersion) return;
+    if (opts.consentVersion < this.config.minConsentVersion) return;
+    if (!opts.eligible) return;
     const work: TripWork = {
       tripKey: e.tripKey,
       lineId: e.lineId,
       direction: null,
-      consentVersion,
+      consentVersion: opts.consentVersion,
+      eligible: true,
       startedAtMs: e.startedAtMs,
       endedAtMs: null,
       samples: [{ t: e.startedAtMs, lat: e.lat, lng: e.lng, speed: 0 }],
@@ -261,90 +281,33 @@ export class LearningConsumer {
         kept[i].lng,
       );
     }
-    if (total < cfg.minRouteLengthM) return;
+    if (total < cfg.minTripRouteM) return;
 
-    // direction assignment deferred: assign 0 for now if no existing; else
-    // compare vector to existing directions for this line.
-    const first = kept[0];
-    const last = kept[kept.length - 1];
-    const vLat = last.lat - first.lat;
-    const vLng = last.lng - first.lng;
-    const dirs = new Set<number>();
-    for (const acc of this.routeAccs.values()) {
-      if (acc.lineId === work.lineId) dirs.add(acc.direction);
-    }
-    let direction = 0;
-    if (dirs.size > 0) {
-      const a0 = this.routeAccs.get(this.key(work.lineId, 0));
-      const mean0 = a0 ? this.accMeanVector(a0) : null;
-      const ang0 = mean0
-        ? this.angleBetween(vLat, vLng, mean0.lat, mean0.lng)
-        : 0;
-      if (dirs.has(1)) {
-        const a1 = this.routeAccs.get(this.key(work.lineId, 1));
-        const mean1 = a1 ? this.accMeanVector(a1) : null;
-        const ang1 = mean1
-          ? this.angleBetween(vLat, vLng, mean1.lat, mean1.lng)
-          : 180;
-        if (ang1 < ang0 && ang1 < 60) direction = 1;
-        else if (ang0 < 60) direction = 0;
-        else if (dirs.size < 2) direction = 1;
-        else return; // discard
-      } else if (ang0 > 60) {
-        // A second direction can be created when the trip vector differs
-        // enough from the only known direction. Previously this branch was
-        // missing, so direction 1 was never created and opposite trips were
-        // merged into one polyline (crazy routes).
-        direction = 1;
-      } else {
-        direction = 0;
-      }
-    }
+    const keptPoints: Pt[] = kept.map((s) => ({ lat: s.lat, lng: s.lng }));
+    const direction = this.assignDirection(work.lineId, keptPoints);
     work.direction = direction;
 
-    // route accumulation: bin by progress
+    // Absolute-space corridor accumulation per (line, direction). Progress
+    // bins cannot place partial trips in a shared frame. See D98.
     const accKey = this.key(work.lineId, direction);
     let acc = this.routeAccs.get(accKey);
     if (!acc) {
-      acc = {
-        lineId: work.lineId,
+      acc = newCorridorAcc(
+        work.lineId,
         direction,
-        bins: new Map(),
-        tripCount: 0,
-        lastFlushedTripCount: 0,
-      };
+        keptPoints[0],
+        cfg.corridorCellM,
+      );
       this.routeAccs.set(accKey, acc);
     }
-    const bins = new Map<number, { lats: number[]; lngs: number[] }>();
-    let cum = 0;
-    let prev = kept[0];
-    for (let i = 1; i < kept.length; i++) {
-      cum += distM(prev.lat, prev.lng, kept[i].lat, kept[i].lng);
-      const progress = total === 0 ? 0 : cum / total;
-      const bi = Math.min(
-        cfg.routeBins - 1,
-        Math.max(0, Math.floor(progress * cfg.routeBins)),
+    const beforeTrips = acc.tripCount;
+    addTrip(acc, keptPoints);
+    if (acc.tripCount > beforeTrips) {
+      this.watermarkTrips.set(
+        accKey,
+        (this.watermarkTrips.get(accKey) ?? 0) + 1,
       );
-      if (!bins.has(bi)) bins.set(bi, { lats: [], lngs: [] });
-      const b = bins.get(bi)!;
-      b.lats.push(kept[i].lat);
-      b.lngs.push(kept[i].lng);
-      prev = kept[i];
     }
-    for (const [bi, b] of bins) {
-      if (!acc.bins.has(bi)) acc.bins.set(bi, { lats: [], lngs: [] });
-      const ab = acc.bins.get(bi)!;
-      // store per-trip median instead of raw points to bound memory
-      const medLat = median(b.lats);
-      const medLng = median(b.lngs);
-      ab.lats.push(medLat);
-      ab.lngs.push(medLng);
-    }
-    acc.tripCount += 1;
-
-    // watermark
-    const wk = accKey;
-    this.watermarkTrips.set(wk, (this.watermarkTrips.get(wk) ?? 0) + 1);
 
     // dwell detection finalization
     const trimStart = start;
@@ -376,6 +339,7 @@ export class LearningConsumer {
           id,
           lineId: work.lineId,
           direction,
+          ordinal: 0,
           centroidLat: d.lat,
           centroidLng: d.lng,
           radiusM: cfg.stopClusterRadiusM,
@@ -523,33 +487,60 @@ export class LearningConsumer {
     }
   }
 
-  private accMeanVector(
-    acc: { bins: Map<number, { lats: number[]; lngs: number[] }> },
-  ): { lat: number; lng: number } {
-    // use first and last bin with data
-    const keys = [...acc.bins.keys()].sort((a, b) => a - b);
-    if (keys.length < 2) return { lat: 0, lng: 0 };
-    const first = acc.bins.get(keys[0])!;
-    const last = acc.bins.get(keys[keys.length - 1])!;
-    const fLat = median(first.lats);
-    const fLng = median(first.lngs);
-    const lLat = median(last.lats);
-    const lLng = median(last.lngs);
-    return { lat: lLat - fLat, lng: lLng - fLng };
+  /**
+   * Assign a direction from existing corridors for this line. No accumulator
+   * means direction 0; exactly one means that accumulator's direction, so a
+   * restart that seeded only one slot keeps new trips on it instead of
+   * splitting the corridor into direction 0. With two, the corridor covered
+   * by the trip wins, falling back to bearing only when both cover nothing.
+   */
+  private assignDirection(lineId: number, pts: Pt[]): number {
+    const accs = [...this.routeAccs.values()]
+      .filter((a) => a.lineId === lineId)
+      .sort((a, b) => a.direction - b.direction);
+    if (accs.length === 0) return 0;
+    if (accs.length === 1) return accs[0].direction;
+    const [a, b] = accs;
+    const sa = coverageScore(a, pts);
+    const sb = coverageScore(b, pts);
+    if (sa !== sb) return sa > sb ? a.direction : b.direction;
+    if (sa !== 0) return 0;
+    const tripBearing = bearingRad(pts[0], pts[pts.length - 1]);
+    const ba = this.accBearing(a);
+    const bb = this.accBearing(b);
+    if (ba === null || bb === null) return 0;
+    return angleDiff(tripBearing, ba) <= angleDiff(tripBearing, bb)
+      ? a.direction
+      : b.direction;
   }
 
-  private angleBetween(
-    aLat: number,
-    aLng: number,
-    bLat: number,
-    bLng: number,
-  ): number {
-    const dot = aLat * bLat + aLng * bLng;
-    const ma = Math.hypot(aLat, aLng);
-    const mb = Math.hypot(bLat, bLng);
-    if (ma === 0 || mb === 0) return 0;
-    const cos = Math.max(-1, Math.min(1, dot / (ma * mb)));
-    return (Math.acos(cos) * 180) / Math.PI;
+  private accBearing(acc: CorridorAcc): number | null {
+    const chain = buildChain(acc, {
+      cellM: this.config.corridorCellM,
+      minEdgeWeight: 1,
+      minCells: 2,
+    });
+    if (!chain || chain.length < 2) return null;
+    return bearingRad(chain[0], chain[chain.length - 1]);
+  }
+
+  /**
+   * Effective privacy thresholds. "all" is the learning phase: one pass is
+   * enough. "route_stops" keeps the configured k-anonymity gates.
+   */
+  private gates(): {
+    minStopPasses: number;
+    stopMinDistinctDays: number;
+    kMin: number;
+  } {
+    if (this.deps.privacyMode() === "all") {
+      return { minStopPasses: 1, stopMinDistinctDays: 1, kMin: 1 };
+    }
+    return {
+      minStopPasses: this.config.minStopPasses,
+      stopMinDistinctDays: this.config.stopMinDistinctDays,
+      kMin: this.config.kMin,
+    };
   }
 
   // ---- Flush ----
@@ -560,40 +551,53 @@ export class LearningConsumer {
     let contributed = 0;
     for (const n of this.watermarkTrips.values()) contributed += n;
     recordLearningTripsContributed(contributed);
-    // Persist learned route polylines from accumulated bins. Skip when no
-    // new trips since the last flush (T1): prevents one stale trip from
+    // Persist learned route polylines from the absolute corridor. Skip when
+    // no new trips since the last publish (T1): prevents one stale trip from
     // generating a new version every flush cycle.
     for (const acc of this.routeAccs.values()) {
-      if (acc.tripCount < this.config.minRouteTrips) continue;
-      if (acc.tripCount <= acc.lastFlushedTripCount) continue;
-      // Build a full progress-binned array (null where no data) so the
-      // missing-bin gate and interpolation in routeLearner apply.
-      const binned: Array<{ lat: number; lng: number } | null> = new Array(
-        this.config.routeBins,
-      ).fill(null);
-      for (const [bi, b] of acc.bins) {
-        if (!b || b.lats.length === 0) continue;
-        if (bi < 0 || bi >= this.config.routeBins) continue;
-        binned[bi] = { lat: median(b.lats), lng: median(b.lngs) };
-      }
-      const pts = buildRoutePoints(binned);
-      if (!pts || pts.length < 2) {
-        acc.lastFlushedTripCount = acc.tripCount;
+      // Snapshot before the first await: a trip that finalizes during the
+      // awaits below belongs to the next flush, so the snapshot (never the
+      // live count) is compared and published on every path.
+      const tripCount = acc.tripCount;
+      if (tripCount < this.config.minRouteTrips) continue;
+      if (tripCount <= acc.lastPublishedTripCount) continue;
+      const chain = buildChain(acc, {
+        cellM: this.config.corridorCellM,
+        minEdgeWeight: 1,
+        minCells: this.config.corridorMinCells,
+      });
+      if (!chain) {
+        acc.lastPublishedTripCount = tripCount;
         continue;
       }
-      let poly = encodePolyline(pts, 5);
-      let pointCount = pts.length;
-      if (poly.length > 8192) {
-        const pts2 = simplify(pts, 10);
-        poly = encodePolyline(pts2, 5);
-        if (poly.length > 8192) {
-          acc.lastFlushedTripCount = acc.tripCount;
-          continue; // reject publication
-        }
-        pointCount = pts2.length;
+      const smoothed = smooth(chain);
+      let pts = simplify(smoothed, 5);
+      if (pts.length > 400) pts = simplify(smoothed, 10);
+      // Geometric length gate (minRouteLengthM): a chain can satisfy the cell
+      // minimum yet be a short stub. Reject publication until the simplified
+      // polyline spans the configured minimum; the trip watermark still
+      // advances so this chain is not re-evaluated every flush.
+      let lengthM = 0;
+      for (let i = 1; i < pts.length; i++) {
+        lengthM += distM(
+          pts[i - 1].lat,
+          pts[i - 1].lng,
+          pts[i].lat,
+          pts[i].lng,
+        );
       }
-      await this.upsertRoute(acc, poly, pointCount, pts);
-      acc.lastFlushedTripCount = acc.tripCount;
+      if (lengthM < this.config.minRouteLengthM) {
+        acc.lastPublishedTripCount = tripCount;
+        continue;
+      }
+      const poly = encodePolyline(pts, 5);
+      if (poly.length > 8192) {
+        acc.lastPublishedTripCount = tripCount;
+        continue; // reject publication
+      }
+      await this.upsertRoute(acc, poly, pts.length, pts);
+      await this.updateStopOrdinals(acc.lineId, acc.direction, pts);
+      acc.lastPublishedTripCount = tripCount;
     }
 
     // Persist watermarks
@@ -607,15 +611,16 @@ export class LearningConsumer {
     // stops get a learned_stops row, so dwell/segment stats (which FK to
     // learned_stops) must be gated on the same set. Upsert stops FIRST so
     // the foreign keys resolve.
+    const gates = this.gates();
     const qualifyingStopIds = new Set<string>();
     for (const c of this.stopClusters.values()) {
-      if (c.passCount < this.config.minStopPasses) continue;
-      if (c.distinctDays.size < this.config.stopMinDistinctDays) continue;
+      if (c.passCount < gates.minStopPasses) continue;
+      if (c.distinctDays.size < gates.stopMinDistinctDays) continue;
       qualifyingStopIds.add(c.id);
     }
     for (const c of this.stopClusters.values()) {
       if (!qualifyingStopIds.has(c.id)) continue;
-      await this.upsertStop(c);
+      await this.upsertStop(c, c.ordinal);
     }
 
     // Persist dwell stats (only for promoted stops)
@@ -623,7 +628,7 @@ export class LearningConsumer {
       const p50 = percentile(acc.reservoir, 0.5) ||
         acc.sumS / Math.max(1, acc.count);
       const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
-      if (acc.count < this.config.kMin) continue;
+      if (acc.count < gates.kMin) continue;
       if (!qualifyingStopIds.has(acc.stopId)) continue;
       if (this.terminusStopIds.has(acc.stopId)) continue;
       await this.upsertDwell(acc, p50, p90);
@@ -632,7 +637,7 @@ export class LearningConsumer {
 
     // Persist segment stats (only when both endpoints are promoted stops)
     for (const acc of this.segmentAccs.values()) {
-      if (acc.count < this.config.kMin) continue;
+      if (acc.count < gates.kMin) continue;
       if (
         !qualifyingStopIds.has(acc.fromStop) ||
         !qualifyingStopIds.has(acc.toStop)
@@ -723,6 +728,33 @@ export class LearningConsumer {
     recordLearningRoutePublished();
   }
 
+  /**
+   * Project this direction's stop centroids onto the published chain and
+   * persist the resulting ordinals. Runs after every publish so stops that
+   * predate a chain are corrected on the next one.
+   */
+  private async updateStopOrdinals(
+    lineId: number,
+    direction: number,
+    chain: Pt[],
+  ): Promise<void> {
+    const clusters = [...this.stopClusters.values()].filter(
+      (c) => c.lineId === lineId && c.direction === direction,
+    );
+    if (clusters.length === 0) return;
+    const ordinals = assignOrdinals(
+      clusters.map((c) => ({ lat: c.centroidLat, lng: c.centroidLng })),
+      chain,
+    );
+    for (let i = 0; i < clusters.length; i++) {
+      clusters[i].ordinal = ordinals[i];
+      await this.deps.sql`
+        update learned_stops set ordinal = ${ordinals[i]}
+        where id = ${clusters[i].id}
+      `;
+    }
+  }
+
   private async upsertWatermark(
     lineId: number,
     direction: number,
@@ -771,14 +803,15 @@ export class LearningConsumer {
     `;
   }
 
-  private async upsertStop(c: StopCluster): Promise<void> {
+  private async upsertStop(c: StopCluster, ordinal: number): Promise<void> {
     // insert if not exists by proximity? For v1 just insert new row.
     await this.deps.sql`
       insert into learned_stops (id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes, first_seen_at, last_seen_at, active)
-      values (${c.id}, ${c.lineId}, ${c.direction}, 0, ${c.centroidLat}, ${c.centroidLng}, ${c.radiusM}, ${c.passCount}, now(), now(), true)
+      values (${c.id}, ${c.lineId}, ${c.direction}, ${ordinal}, ${c.centroidLat}, ${c.centroidLng}, ${c.radiusM}, ${c.passCount}, now(), now(), true)
       on conflict (id) do update set
         lat = ${c.centroidLat},
         lng = ${c.centroidLng},
+        ordinal = ${ordinal},
         sample_passes = learned_stops.sample_passes + ${c.passCount},
         last_seen_at = now(),
         active = true
@@ -787,21 +820,32 @@ export class LearningConsumer {
 
   // ---- Read helpers used by routes ----
 
-  async learnedRoute(
+  /**
+   * Active route for a line; more sample trips wins, then newer version,
+   * then lower direction so equal-trip directions resolve deterministically.
+   */
+  async learnedRouteForLine(
     lineId: number,
   ): Promise<
-    | { polyline: string; version: number; trips: number; computedAt: string }
+    | {
+      dir: number;
+      polyline: string;
+      version: number;
+      trips: number;
+      computedAt: string;
+    }
     | null
   > {
     const rows = await this.deps.sql`
-      select version, polyline, sample_trips, computed_at
+      select direction, version, polyline, sample_trips, computed_at
       from learned_routes
       where line_id = ${lineId} and status = 'active'
-      order by version desc
+      order by sample_trips desc, version desc, direction asc
       limit 1
     `;
     const r = (rows as unknown as Array<
       {
+        direction: number;
         version: number;
         polyline: string;
         sample_trips: number;
@@ -810,6 +854,7 @@ export class LearningConsumer {
     >)[0];
     if (!r) return null;
     return {
+      dir: r.direction,
       polyline: r.polyline,
       version: r.version,
       trips: r.sample_trips,
@@ -817,8 +862,9 @@ export class LearningConsumer {
     };
   }
 
-  async learnedStops(
+  async learnedStopsForLine(
     lineId: number,
+    dir: number,
   ): Promise<
     Array<
       {
@@ -835,7 +881,7 @@ export class LearningConsumer {
     const rows = await this.deps.sql`
       select id, ordinal, lat, lng, radius_m, sample_passes, active
       from learned_stops
-      where line_id = ${lineId} and active = true
+      where line_id = ${lineId} and direction = ${dir} and active = true
       order by ordinal asc
     `;
     return (rows as unknown as Array<
@@ -1023,7 +1069,7 @@ export class LearningConsumer {
         }
       >)[0];
     }
-    if (!r || r.sample_count < this.config.kMin) return null;
+    if (!r || r.sample_count < this.gates().kMin) return null;
     return {
       p50: r.travel_p50_s,
       p90: r.travel_p90_s,
@@ -1058,9 +1104,23 @@ export class LearningConsumer {
         { sample_count: number; dwell_p50_s: number; dwell_p90_s: number }
       >)[0];
     }
-    if (!r || r.sample_count < this.config.kMin) return null;
+    if (!r || r.sample_count < this.gates().kMin) return null;
     return { p50: r.dwell_p50_s, p90: r.dwell_p90_s, count: r.sample_count };
   }
+}
+
+function bearingRad(a: Pt, b: Pt): number {
+  const cosLat = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  const dx = (b.lng - a.lng) * cosLat;
+  const dy = b.lat - a.lat;
+  return Math.atan2(dx, dy);
+}
+
+function angleDiff(a: number, b: number): number {
+  let diff = b - a;
+  if (diff > Math.PI) diff -= 2 * Math.PI;
+  else if (diff < -Math.PI) diff += 2 * Math.PI;
+  return Math.abs(diff);
 }
 
 function median(xs: number[]): number {

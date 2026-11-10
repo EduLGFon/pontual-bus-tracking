@@ -6,6 +6,7 @@ Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
 | Dado | Finalidade | Onde | Retenção | Pessoal? |
 | ---- | ---------- | ---- | -------- | -------- |
 | Código do aparelho + hash do token, criação/último uso/expiração | limites, titularidade, prova de consentimento | PostgreSQL `devices` | até apagar ou 30 dias inativo | Sim (pseudônimo) |
+| Contador de viagens iniciadas por aparelho (`learning_trips`) | liberar agregados de aprendizado após 5 viagens | PostgreSQL `devices` | com o registro do aparelho (30 dias inativo) | Sim (pseudônimo), sem localização |
 | Versão do consentimento + data | prova de consentimento (art. 8, par. 2) | PostgreSQL `consents` | com o registro do aparelho | Sim |
 | Bloqueio (código, motivo) | controle de abuso | PostgreSQL `blocked_devices` | com o registro do aparelho | Sim (pseudônimo) |
 | Última posição: lat, lng, velocidade, direção, precisão | posicionar o ônibus | memória do servidor | até o fim da viagem | Sim (localização) |
@@ -22,4 +23,4 @@ Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
 | Recentes, atalhos casa/trabalho/escola, paradas, alertas, contador | atalhos e avisos | aparelho (`shared_preferences`) | até limpar ou apagar dados | Só no aparelho; nada vai ao servidor |
 | Localização do aparelho para achar o ponto mais próximo (leitura única, no aparelho) | estimar a chegada até o ponto da linha | memória do app | até 5 min na sessão; descartada ao sair | Sim (localização), não sai do aparelho |
 
-Nunca coletado: nome, e-mail, telefone, contatos, IMEI, identificadores de publicidade, apps instalados, fotos, microfone, histórico de viagens. Quem só olha, sem compartilhar viagem e sem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo de aparelho usado contra abuso; a sinalização não é guardada junto desse código.
+Nunca coletado: nome, e-mail, telefone, contatos, IMEI, identificadores de publicidade, apps instalados, fotos, microfone, histórico de viagens (o contador de viagens é um número agregado, não um histórico). Quem só olha, sem compartilhar viagem e sem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo de aparelho usado contra abuso; a sinalização não é guardada junto desse código.

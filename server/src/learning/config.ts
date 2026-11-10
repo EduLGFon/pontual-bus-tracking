@@ -40,8 +40,11 @@ export async function loadLearningConfig(sql: Sql): Promise<LearningConfig> {
         case "learning_cache_ttl_s":
           cfg.cacheTtlS = Math.trunc(num(row.value, cfg.cacheTtlS));
           break;
-        case "learning_route_bins":
-          cfg.routeBins = Math.trunc(num(row.value, cfg.routeBins));
+        case "learning_corridor_cell_m":
+          cfg.corridorCellM = num(row.value, cfg.corridorCellM);
+          break;
+        case "learning_min_trip_route_m":
+          cfg.minTripRouteM = num(row.value, cfg.minTripRouteM);
           break;
         case "learning_stop_cluster_radius_m":
           cfg.stopClusterRadiusM = num(row.value, cfg.stopClusterRadiusM);

@@ -5,7 +5,11 @@ import { Hono } from "@hono/hono";
 import * as v from "@valibot/valibot";
 import type { Sql } from "../db/client.ts";
 import { guardState } from "../db/guard.ts";
-import { getLearningOptOut } from "../db/devices.ts";
+import {
+  bumpLearningTrips,
+  getLearningOptOut,
+  getLearningTrips,
+} from "../db/devices.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import type { LineResolver } from "../data/lines.ts";
 import { applyPing, endTrip, isGone, startTrip } from "../domain/ping.ts";
@@ -26,6 +30,9 @@ type Ctx = {
   json(o: unknown, status?: number): Response;
   header(n: string, v: string): void;
 };
+
+/** Started trips required before a device unlocks learning aggregates. */
+const LEARNING_TRIP_THRESHOLD = 5;
 
 export interface TripDeps {
   sql: Sql;
@@ -131,8 +138,19 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     if (deps.learning) {
       const optedOut = await getLearningOptOut(deps.sql, deviceId);
       if (!optedOut) {
+        // Eligibility is a pseudonymous per-device counter. Resume must not
+        // inflate it; a fresh start increments once, after consent and
+        // opt-out checks. See DECISIONS.md#D98.
+        const trips = resume
+          ? await getLearningTrips(deps.sql, deviceId)
+          : await bumpLearningTrips(deps.sql, deviceId);
         const rt2 = await deps.runtime();
-        for (const ev of events) deps.learning.handle(ev, rt2.consentVersion);
+        for (const ev of events) {
+          deps.learning.handle(ev, {
+            consentVersion: rt2.consentVersion,
+            eligible: trips >= LEARNING_TRIP_THRESHOLD,
+          });
+        }
       }
     }
     return c.json({ r: out.role, n: out.intervalS }, 201);
@@ -188,7 +206,12 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     }
     if (deps.learning) {
       const rt2 = await deps.runtime();
-      for (const ev of events) deps.learning.handle(ev, rt2.consentVersion);
+      for (const ev of events) {
+        deps.learning.handle(ev, {
+          consentVersion: rt2.consentVersion,
+          eligible: true,
+        });
+      }
     }
     if (out.end) return c.json({ r: out.role, n: out.intervalS, e: out.end });
     return c.json({ r: out.role, n: out.intervalS });
@@ -209,7 +232,12 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     endTrip(deps.store, evs, deviceId);
     if (deps.learning) {
       const rt = await deps.runtime();
-      for (const ev of evs) deps.learning.handle(ev, rt.consentVersion);
+      for (const ev of evs) {
+        deps.learning.handle(ev, {
+          consentVersion: rt.consentVersion,
+          eligible: true,
+        });
+      }
     }
     return c.body(null, 204);
   });
