@@ -68,7 +68,7 @@ Stop title: "Seu ponto" when distance <= 120 m, else "Ponto mais próximo".
 - Header summary at peek: when ready, replace the timetable next-departure row with a ghost link "No seu ponto, ~N min" (or "chegando"). Tapping it snaps the sheet to half and selects Agora.
 - Card in the Agora tab.
 - Card replaces the standard hero when ready (one hero per screen).
-- Map marker: distinct "Seu ponto" marker at the chosen stop, primary fill, white ring, stop glyph, never a bus and never pulsing.
+- Map marker: distinct "Seu ponto" marker at the chosen stop, primary fill, surface ring, onPrimary inner dot, never a bus and never pulsing.
 - Per-row ETA in the vehicle list.
 - "Como calculamos" sheet with `myStopInfoBody` plus the sample count sentence.
 

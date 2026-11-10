@@ -45,6 +45,14 @@ viagem e sem sinalizar, não cria registro nenhum. A primeira
 sinalização cria o mesmo código anônimo de aparelho usado para
 limitar abuso; a sinalização não é guardada junto desse código.
 
+Leitura local opcional: na tela da linha, ao tocar em "Ver quando
+chega no meu ponto", o app lê a posição do aparelho uma única vez e
+só no aparelho, para achar o ponto mais próximo daquela linha e
+estimar a chegada. A posição exata não é enviada nem guardada: a
+previsão pede apenas a linha e o ponto. A leitura fica na memória do
+app por até 5 minutos e pode ser recusada; o app continua funcionando
+sem ela.
+
 ## 3. Para que usamos (finalidades)
 
 - Mostrar onde está o ônibus da sua linha.
@@ -68,6 +76,10 @@ limitar abuso; a sinalização não é guardada junto desse código.
   base legal e o texto final serão confirmados pelo responsável e
   pelo advogado. A sinalização é pública e pode ser vista por
   outras pessoas.
+- Leitura local opcional: consentimento dado pelo toque em "Ver
+  quando chega no meu ponto". A leitura é única e fica no aparelho;
+  nada é enviado nem guardado. A base legal e o texto final serão
+  confirmados pelo responsável e pelo advogado.
 
 ## 5. Por quanto tempo guardamos
 
@@ -78,6 +90,8 @@ limitar abuso; a sinalização não é guardada junto desse código.
   máximo uma célula de ~150 m; somem ao reiniciar o serviço ou ao
   usar "Apagar meus dados".
 - Cópias de segurança cifradas: 30 dias.
+- Leitura local opcional: a posição lida fica no aparelho por no
+  máximo 5 minutos e é descartada ao sair ou ao atualizar.
 
 ## 6. Quem recebe os dados
 
