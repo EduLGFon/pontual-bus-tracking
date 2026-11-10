@@ -64,52 +64,64 @@ class PersonalArrivalCard extends StatelessWidget {
     }
 
     if (status == PersonalArrivalStatus.noStops) {
-      return Semantics(
-        label: UiStrings.myStopNoStops,
-        container: true,
-        child: SurfaceCard(
-          sunken: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(UiStrings.myStopNoStops, style: context.text.body),
-              const SizedBox(height: Space.x2),
-              GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
-            ],
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Semantics(
+            label: UiStrings.myStopNoStops,
+            excludeSemantics: true,
+            child: SurfaceCard(
+              sunken: true,
+              child: ExcludeSemantics(
+                child: Text(UiStrings.myStopNoStops, style: context.text.body),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: Space.x2),
+          GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
+        ],
       );
     }
 
     if (status == PersonalArrivalStatus.noStopNear) {
-      return Semantics(
-        label: UiStrings.myStopNoStopNear,
-        container: true,
-        child: SurfaceCard(
-          sunken: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(UiStrings.myStopNoStopNear, style: context.text.body),
-              const SizedBox(height: Space.x2),
-              GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
-            ],
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Semantics(
+            label: UiStrings.myStopNoStopNear,
+            excludeSemantics: true,
+            child: SurfaceCard(
+              sunken: true,
+              child: ExcludeSemantics(
+                child: Text(
+                  UiStrings.myStopNoStopNear,
+                  style: context.text.body,
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: Space.x2),
+          GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
+        ],
       );
     }
 
-    final int distance = vm.stopDistanceM ?? 0;
-    final String title = distance <= 120
+    final int? distance = vm.stopDistanceM;
+    final String title = distance == null || distance <= 120
         ? UiStrings.myStopTitle
         : UiStrings.myStopNearby;
-    final String distanceText = UiStrings.myStopDistance(distance);
+    final String? distanceText = distance == null
+        ? null
+        : UiStrings.myStopDistance(distance);
 
     if (status == PersonalArrivalStatus.etaLoading) {
+      final String label = distanceText == null
+          ? '$title. ${UiStrings.myStopCalculating}'
+          : '$title. $distanceText. ${UiStrings.myStopCalculating}';
       return Semantics(
-        label: '$title. $distanceText. ${UiStrings.myStopCalculating}',
+        label: label,
         excludeSemantics: true,
         child: SurfaceCard(
           child: Column(
@@ -131,22 +143,31 @@ class PersonalArrivalCard extends StatelessWidget {
       final String copy = status == PersonalArrivalStatus.noApproaching
           ? UiStrings.myStopNoApproaching
           : UiStrings.myStopNoEstimate;
-      return Semantics(
-        label: '$title. $distanceText. $copy',
-        container: true,
-        child: SurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _titleRow(context, title, distanceText),
-              const SizedBox(height: Space.x2),
-              Text(copy, style: context.text.body),
-              const SizedBox(height: Space.x2),
-              GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
-            ],
+      final String label = distanceText == null
+          ? '$title. $copy'
+          : '$title. $distanceText. $copy';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Semantics(
+            label: label,
+            excludeSemantics: true,
+            child: SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _titleRow(context, title, distanceText),
+                  const SizedBox(height: Space.x2),
+                  Text(copy, style: context.text.body),
+                ],
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: Space.x2),
+          GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
+        ],
       );
     }
 
@@ -154,76 +175,86 @@ class PersonalArrivalCard extends StatelessWidget {
     final PersonalEtaVM lead = vm.lead!;
     final bool arriving = lead.arriving;
     final int minutes = lead.minutes;
-    final int a11yMeters = vm.stopDistanceM ?? 0;
-    final String semantic = arriving
-        ? UiStrings.myStopA11yArriving(a11yMeters)
-        : UiStrings.myStopA11y(minutes, a11yMeters);
+    final String semantic = distance == null
+        ? (arriving
+              ? '${UiStrings.certaintyPredicted}. ${UiStrings.myStopArriving}.'
+              : '${UiStrings.certaintyPredicted}. ${UiStrings.myStopEta(minutes)}.')
+        : (arriving
+              ? '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11yArriving(distance)}'
+              : '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(minutes, distance)}');
 
-    return SurfaceCard(
-      onTap: onTapLead,
-      semanticLabel: semantic,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Icon(
-                Icons.my_location_rounded,
-                color: context.colors.primary,
-                size: 20,
-              ),
-              const SizedBox(width: Space.x2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        SurfaceCard(
+          onTap: onTapLead,
+          semanticLabel: semantic,
+          child: ExcludeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Row(
                   children: <Widget>[
-                    Text(title, style: context.text.title),
-                    Text(distanceText, style: context.text.caption),
+                    Icon(
+                      Icons.my_location_rounded,
+                      color: context.colors.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: Space.x2),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(title, style: context.text.title),
+                          if (distanceText != null)
+                            Text(distanceText, style: context.text.caption),
+                        ],
+                      ),
+                    ),
+                    const Flexible(
+                      child: CertaintyBadge(certainty: Certainty.predicted),
+                    ),
                   ],
                 ),
-              ),
-              const Flexible(
-                child: CertaintyBadge(certainty: Certainty.predicted),
-              ),
-            ],
-          ),
-          const SizedBox(height: Space.x2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: EtaText(
-              primary: arriving
-                  ? UiStrings.myStopArriving
-                  : UiStrings.myStopEta(minutes),
-              secondary: UiStrings.myStopEtaCaption,
-              hero: true,
-              semanticLabel: semantic,
+                const SizedBox(height: Space.x2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: EtaText(
+                    primary: arriving
+                        ? UiStrings.myStopArriving
+                        : UiStrings.myStopEta(minutes),
+                    secondary: UiStrings.myStopEtaCaption,
+                    hero: true,
+                  ),
+                ),
+                const SizedBox(height: Space.x2),
+                Row(
+                  children: <Widget>[
+                    ConfidenceMeter(level: lead.confidence),
+                    const SizedBox(width: Space.x2),
+                    Flexible(
+                      child: Text(
+                        UiStrings.confidenceLabel(lead.confidence),
+                        style: context.text.caption,
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: Space.x2),
-          Row(
-            children: <Widget>[
-              ConfidenceMeter(level: lead.confidence),
-              const SizedBox(width: Space.x2),
-              Flexible(
-                child: Text(
-                  UiStrings.confidenceLabel(lead.confidence),
-                  style: context.text.caption,
-                ),
-              ),
-              const Spacer(),
-              Flexible(
-                child: GhostLink(
-                  label: UiStrings.myStopHow,
-                  onTap: () => _openInfo(context, lead),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: Space.x2),
+        GhostLink(
+          label: UiStrings.myStopHow,
+          onTap: () => _openInfo(context, lead),
+        ),
+      ],
     );
   }
 
@@ -231,47 +262,53 @@ class PersonalArrivalCard extends StatelessWidget {
     return SurfaceCard(
       onTap: onEnableLocation,
       semanticLabel: '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}',
-      child: Row(
-        children: <Widget>[
-          Icon(
-            Icons.my_location_rounded,
-            color: context.colors.primary,
-            size: 24,
-          ),
-          const SizedBox(width: Space.x3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(UiStrings.myStopEnable, style: context.text.title),
-                Text(UiStrings.myStopPrivacy, style: context.text.caption),
-              ],
+      child: ExcludeSemantics(
+        child: Row(
+          children: <Widget>[
+            Icon(
+              Icons.my_location_rounded,
+              color: context.colors.primary,
+              size: 24,
             ),
-          ),
-          Icon(Icons.chevron_right_rounded, color: context.colors.inkMuted),
-        ],
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(UiStrings.myStopEnable, style: context.text.title),
+                  Text(UiStrings.myStopPrivacy, style: context.text.caption),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: context.colors.inkMuted),
+          ],
+        ),
       ),
     );
   }
 
   Widget _expiredCard(BuildContext context) {
-    return SurfaceCard(
-      onTap: onRefresh,
-      semanticLabel: UiStrings.myStopExpired,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(UiStrings.myStopExpired, style: context.text.body),
-          const SizedBox(height: Space.x2),
-          GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Semantics(
+          label: UiStrings.myStopExpired,
+          excludeSemantics: true,
+          child: SurfaceCard(
+            child: ExcludeSemantics(
+              child: Text(UiStrings.myStopExpired, style: context.text.body),
+            ),
+          ),
+        ),
+        const SizedBox(height: Space.x2),
+        GhostLink(label: UiStrings.myStopRefresh, onTap: onRefresh),
+      ],
     );
   }
 
-  Widget _titleRow(BuildContext context, String title, String distanceText) {
+  Widget _titleRow(BuildContext context, String title, String? distanceText) {
     return Row(
       children: <Widget>[
         Icon(
@@ -286,7 +323,8 @@ class PersonalArrivalCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(title, style: context.text.title),
-              Text(distanceText, style: context.text.caption),
+              if (distanceText != null)
+                Text(distanceText, style: context.text.caption),
             ],
           ),
         ),

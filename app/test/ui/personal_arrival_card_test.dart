@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:pontual/ui/adapters/personal_arrival.dart';
+import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/line/personal_arrival_card.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -64,6 +65,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(UiStrings.myStopInfoBody), findsOneWidget);
     expect(find.text(UiStrings.myStopInfoSample(12)), findsOneWidget);
+  });
+
+  testWidgets('info sheet no sample', (tester) async {
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(sampleCount: 0))),
+    );
+    await tester.tap(find.text(UiStrings.myStopHow));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.myStopInfoNoSample), findsOneWidget);
+  });
+
+  testWidgets('ready how does not fire onTapLead', (tester) async {
+    int taps = 0;
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () => taps++)),
+    );
+    await tester.tap(find.text(UiStrings.myStopHow));
+    await tester.pumpAndSettle();
+    expect(find.text(UiStrings.myStopInfoBody), findsOneWidget);
+    expect(taps, 0);
   });
 
   testWidgets('prompt', (tester) async {
@@ -181,8 +202,7 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(PersonalArrivalCard), findsOneWidget);
-    expect(find.byType(SizedBox), findsWidgets);
+    expect(find.byType(SurfaceCard), findsNothing);
   });
 
   testWidgets('ready far shows nearby title', (tester) async {
@@ -245,6 +265,151 @@ void main() {
                   status: PersonalArrivalStatus.needsLocation,
                 ),
                 onEnableLocation: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('semantics one sentence ready', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () {})));
+    final String sentence =
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics one sentence prompt', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.needsLocation,
+          ),
+          onEnableLocation: () {},
+        ),
+      ),
+    );
+    final String sentence =
+        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics one sentence expired', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.needsLocation,
+            staleFix: true,
+          ),
+          onRefresh: () {},
+        ),
+      ),
+    );
+    expect(find.bySemanticsLabel(UiStrings.myStopExpired), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics one sentence noStops', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(status: PersonalArrivalStatus.noStops),
+          onRefresh: () {},
+        ),
+      ),
+    );
+    expect(find.bySemanticsLabel(UiStrings.myStopNoStops), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics one sentence noStopNear', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(status: PersonalArrivalStatus.noStopNear),
+          onRefresh: () {},
+        ),
+      ),
+    );
+    expect(find.bySemanticsLabel(UiStrings.myStopNoStopNear), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics one sentence etaError', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: PersonalArrivalVM(
+            status: PersonalArrivalStatus.etaError,
+            stopDistanceM: 90,
+          ),
+          onRefresh: () {},
+        ),
+      ),
+    );
+    expect(
+      find.bySemanticsLabel(
+        'Seu ponto. a 90 m de você. ${UiStrings.myStopNoEstimate}',
+      ),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('null distance ready', (tester) async {
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: PersonalArrivalVM(
+            status: PersonalArrivalStatus.ready,
+            stopDistanceM: null,
+            lead: PersonalEtaVM(
+              vehicleKey: 1,
+              etaSeconds: 360,
+              minutes: 6,
+              arriving: false,
+              passed: false,
+              approaching: true,
+              confidence: 1,
+              sampleCount: 0,
+              label: '~6 min até você',
+              semantic: '',
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('a 0 m de você'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('200 percent text scale no exception (degraded)', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: pontualLightTheme(),
+        home: Scaffold(
+          body: Center(
+            child: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
+              child: PersonalArrivalCard(
+                vm: PersonalArrivalVM(
+                  status: PersonalArrivalStatus.etaError,
+                  stopDistanceM: 90,
+                ),
+                onRefresh: () {},
               ),
             ),
           ),
