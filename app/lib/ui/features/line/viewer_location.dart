@@ -135,7 +135,11 @@ class ViewerFixController extends Notifier<ViewerFixState> {
       return;
     }
     state = const ViewerFixState(status: ViewerFixStatus.requesting);
-    await _fix();
+    try {
+      await _fix();
+    } on Object {
+      state = const ViewerFixState(status: ViewerFixStatus.error);
+    }
   }
 
   /// Drops the fix and returns the flow to idle.

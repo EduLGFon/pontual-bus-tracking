@@ -15,6 +15,27 @@ import 'package:pontual/ui/features/line/my_stop_location.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
+/// A gateway whose servicesOn throws, to verify request never gets stuck
+/// in requesting.
+class ThrowingServicesGateway implements PermissionGateway {
+  @override
+  Future<LocationPermissionState> check() async =>
+      LocationPermissionState.granted;
+
+  @override
+  Future<LocationPermissionState> request() async =>
+      LocationPermissionState.granted;
+
+  @override
+  Future<bool> servicesOn() async => throw StateError('services boom');
+
+  @override
+  Future<bool> preciseAccuracy() async => true;
+
+  @override
+  Future<void> openSettings() async {}
+}
+
 /// Controllable gateway recording every call.
 class RecordingGateway implements PermissionGateway {
   /// Check answers.
@@ -162,7 +183,7 @@ class _Launcher extends ConsumerWidget {
 
 void main() {
   ProviderContainer containerWithArgs(
-    RecordingGateway gateway,
+    PermissionGateway gateway,
     Future<Position> Function() reader, {
     bool web = false,
   }) {
@@ -256,6 +277,23 @@ void main() {
     expect(gateway.preciseReads, 0);
     expect(reader.calls, 0);
   });
+
+  test(
+    'a gateway that throws leaves the state in error, not requesting',
+    () async {
+      final ThrowingServicesGateway gateway = ThrowingServicesGateway();
+      final RecordingReader reader = RecordingReader();
+      final ProviderContainer container = containerWithArgs(
+        gateway,
+        reader.instant(),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(viewerFixProvider.notifier).request();
+
+      expect(container.read(viewerFixProvider).status, ViewerFixStatus.error);
+    },
+  );
 
   test('services off short-circuits before the permission checks', () async {
     final RecordingGateway gateway = RecordingGateway()

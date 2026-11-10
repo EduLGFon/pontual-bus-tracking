@@ -21,8 +21,11 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 Future<void> showMyStopLocationSheet(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
+    // The root navigator owns the modal so the app shell, its dock and
+    // bottom navigation stay out from behind the sheet.
     builder: (BuildContext context) => const _MyStopLocationSheet(),
   );
 }
