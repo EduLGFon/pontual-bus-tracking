@@ -72,13 +72,12 @@ class PersonalArrivalRefresher extends ConsumerStatefulWidget {
   /// Stop id.
   final String stopId;
 
-  @override
   /// Creates the state.
+  @override
   ConsumerState<PersonalArrivalRefresher> createState() =>
       _PersonalArrivalRefresherState();
 }
 
-/// State for [PersonalArrivalRefresher].
 /// State for the refresher.
 class _PersonalArrivalRefresherState
     extends ConsumerState<PersonalArrivalRefresher> {

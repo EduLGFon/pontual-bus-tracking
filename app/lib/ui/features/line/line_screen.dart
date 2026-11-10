@@ -253,6 +253,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
                       vehicles,
                       controlsBottomPadding:
                           sheetPixels(_screenHeight, _peek) + Space.x3,
+                      personal: personal,
                     ),
                   )
                 : const SizedBox(),

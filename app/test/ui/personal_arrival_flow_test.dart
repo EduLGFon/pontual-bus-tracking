@@ -8,6 +8,7 @@ import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/domain/learning/learned_stop.dart';
+import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -90,6 +91,9 @@ void main() {
       200,
     );
     expect(find.text(UiStrings.myStopEtaUntilYou(6)), findsOneWidget);
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    expect(map.personalStop, isNotNull);
+    expect(map.personalStopLabel, isNotNull);
   });
 
   testWidgets('no fix shows prompt and opens privacy sheet', (tester) async {
