@@ -12,6 +12,7 @@ import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/alerts_store.dart';
+import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
@@ -23,6 +24,7 @@ import 'package:pontual/ui/design/components/vehicle_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_sheet_header.dart';
+import 'package:pontual/ui/features/line/personal_arrival_card.dart';
 import 'package:pontual/ui/features/reports/report_detail_sheet.dart';
 import 'package:pontual/ui/features/reports/report_sheet.dart';
 import 'package:pontual/ui/features/reports/report_strip.dart';
@@ -65,6 +67,11 @@ class LineSheet extends ConsumerStatefulWidget {
     this.showMapAction = false,
     this.onVehicleTap,
     this.onFollow,
+    this.personal,
+    this.onEnableLocation,
+    this.onRefresh,
+    this.onTapLead,
+    this.onPersonalTap,
     super.key,
   });
 
@@ -104,6 +111,21 @@ class LineSheet extends ConsumerStatefulWidget {
 
   /// Called by the follow action of a vehicle row.
   final ValueChanged<VehicleVM>? onFollow;
+
+  /// Personal arrival view model, null for non-pilot or unavailable.
+  final PersonalArrivalVM? personal;
+
+  /// Opens the location sheet.
+  final VoidCallback? onEnableLocation;
+
+  /// Refreshes personal arrival data.
+  final VoidCallback? onRefresh;
+
+  /// Focuses the lead bus.
+  final ValueChanged<VehicleVM>? onTapLead;
+
+  /// Snaps the sheet to half and selects Agora.
+  final VoidCallback? onPersonalTap;
 
   @override
   ConsumerState<LineSheet> createState() => _LineSheetState();
@@ -172,6 +194,19 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               vehicles: widget.vehicles,
               status: status,
               onOpenTimetable: openTimetable,
+              personalLabel: widget.personal?.lead == null
+                  ? null
+                  : (widget.personal!.lead!.arriving
+                        ? UiStrings.myStopHeaderArriving
+                        : UiStrings.myStopHeaderEta(
+                            widget.personal!.lead!.minutes,
+                          )),
+              onPersonalTap: widget.personal?.lead == null
+                  ? null
+                  : () {
+                      setState(() => _tab = SheetTab.now);
+                      widget.onPersonalTap?.call();
+                    },
             ),
             const SizedBox(height: Space.x3),
             _tabs(),
@@ -209,15 +244,19 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   /// The hero leads with realtime (live, else labeled prediction) when
   /// vehicles are present; the timetable stays below either way.
   List<Widget> _nowBody(DateTime now) {
-    final ArrivalVM? hero = liveHeroOf(
-      widget.staticLine.code,
-      widget.vehicles,
-      now,
-      viewer: widget.viewer,
-    );
+    final PersonalArrivalVM? personal = widget.personal;
+    final bool personalIsHero = personal != null && personal.isReady;
+    final ArrivalVM? hero = personalIsHero
+        ? null
+        : liveHeroOf(
+            widget.staticLine.code,
+            widget.vehicles,
+            now,
+            viewer: widget.viewer,
+          );
     final List<ArrivalVM> departures = _upcoming(
       now,
-      limit: hero == null ? 4 : 3,
+      limit: (hero == null && !personalIsHero) ? 4 : 3,
     );
     final List<Widget> out = <Widget>[];
     final bool reportsEnabled =
@@ -291,19 +330,44 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       );
       out.add(const SizedBox(height: Space.x4));
     }
-    if (hero != null) {
+    if (personal != null && personal.status != PersonalArrivalStatus.noLive) {
       out.add(
-        ArrivalRow(arrival: hero, now: now, line: widget.line, large: true),
-      );
-    } else if (departures.isNotEmpty) {
-      out.add(
-        ArrivalRow(
-          arrival: departures.first,
-          now: now,
-          line: widget.line,
-          large: true,
+        PersonalArrivalCard(
+          vm: personal,
+          onEnableLocation: widget.onEnableLocation,
+          onRefresh: widget.onRefresh,
+          onTapLead: widget.onTapLead == null
+              ? null
+              : () {
+                  if (personal.lead != null) {
+                    final VehicleVM? v = widget.vehicles
+                        .cast<VehicleVM?>()
+                        .firstWhere(
+                          (VehicleVM? x) => x?.key == personal.lead!.vehicleKey,
+                          orElse: () => null,
+                        );
+                    if (v != null) widget.onTapLead!(v);
+                  }
+                },
         ),
       );
+      out.add(const SizedBox(height: Space.x4));
+    }
+    if (!personalIsHero) {
+      if (hero != null) {
+        out.add(
+          ArrivalRow(arrival: hero, now: now, line: widget.line, large: true),
+        );
+      } else if (departures.isNotEmpty) {
+        out.add(
+          ArrivalRow(
+            arrival: departures.first,
+            now: now,
+            line: widget.line,
+            large: true,
+          ),
+        );
+      }
     }
     out.add(const SizedBox(height: Space.x6));
     if (widget.vehicles.isEmpty) {
@@ -366,6 +430,10 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               onFollow: widget.onFollow == null
                   ? null
                   : () => widget.onFollow!(v),
+              personalEta: widget.personal?.byVehicle[v.key]?.label,
+              personalEtaSemantic: widget.personal?.byVehicle[v.key]?.semantic,
+              personalEtaMuted:
+                  widget.personal?.byVehicle[v.key]?.passed ?? false,
             ),
           ),
       ]);
@@ -386,14 +454,14 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       out.add(ReliabilityCard(reliability: reliability));
       out.add(const SizedBox(height: Space.x4));
     }
-    if (departures.length > (hero == null ? 1 : 0)) {
+    if (departures.length > ((hero == null && !personalIsHero) ? 1 : 0)) {
       out.add(
         const SectionHeader(
           title: UiStrings.nextDepartures,
           topSpacing: Space.x6,
         ),
       );
-      final Iterable<ArrivalVM> rest = hero == null
+      final Iterable<ArrivalVM> rest = (hero == null && !personalIsHero)
           ? departures.skip(1).take(3)
           : departures.take(3);
       out.addAll(<Widget>[

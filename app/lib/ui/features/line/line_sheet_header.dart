@@ -61,6 +61,8 @@ class LineSheetHeader extends StatelessWidget {
     required this.vehicles,
     required this.status,
     this.onOpenTimetable,
+    this.personalLabel,
+    this.onPersonalTap,
     super.key,
   });
 
@@ -75,6 +77,12 @@ class LineSheetHeader extends StatelessWidget {
 
   /// Called when the next-departure row is tapped.
   final VoidCallback? onOpenTimetable;
+
+  /// Personal arrival summary label shown instead of the next-departure row.
+  final String? personalLabel;
+
+  /// Called when the personal summary is tapped.
+  final VoidCallback? onPersonalTap;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +115,14 @@ class LineSheetHeader extends StatelessWidget {
               const SizedBox(height: Space.x2),
               _StatusChip(line: line, vehicles: vehicles),
               const SizedBox(height: Space.x1),
-              _NextRow(status: status, onOpenTimetable: onOpenTimetable),
+              if (personalLabel != null)
+                GhostLink(
+                  label: personalLabel!,
+                  icon: Icons.location_on_outlined,
+                  onTap: onPersonalTap,
+                )
+              else
+                _NextRow(status: status, onOpenTimetable: onOpenTimetable),
               if (!line.supportsSharing) ...<Widget>[
                 const SizedBox(height: Space.x1),
                 Text(

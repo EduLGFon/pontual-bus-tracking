@@ -13,6 +13,7 @@ import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/reports_adapter.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
+import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -24,6 +25,8 @@ import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
+import 'package:pontual/ui/features/line/my_stop_location.dart';
+import 'package:pontual/ui/features/line/personal_arrival_providers.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/models/report_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
@@ -171,6 +174,9 @@ class _LineScreenState extends ConsumerState<LineScreen>
     final bool dataSaver = ref.watch(settingsProvider).dataSaver;
     final bool showMap = _mapOpened || !dataSaver;
     final List<VehicleVM> vehicles = _vehiclesOf(staticLine);
+    final PersonalArrivalVM? personal = staticLine.pilot
+        ? ref.watch(personalArrivalProvider(staticLine.id))
+        : null;
     final List<ReportVM> reports = staticLine.pilot
         ? ref.watch(reportsVmProvider(staticLine.id))
         : const <ReportVM>[];
@@ -185,24 +191,36 @@ class _LineScreenState extends ConsumerState<LineScreen>
     }
     return LivePulse(
       reduceMotionMode: ref.watch(settingsProvider).reduceMotionMode,
-      child: Scaffold(
-        backgroundColor: context.colors.bg,
-        body: SafeArea(
-          top: !compact,
-          child: compact
-              ? _compact(
-                  staticLine: staticLine,
-                  vehicles: vehicles,
-                  reports: reports,
-                  map: showMap,
-                )
-              : _wide(
-                  staticLine: staticLine,
-                  vehicles: vehicles,
-                  reports: reports,
-                  map: showMap,
-                ),
-        ),
+      child: Stack(
+        children: <Widget>[
+          Scaffold(
+            backgroundColor: context.colors.bg,
+            body: SafeArea(
+              top: !compact,
+              child: compact
+                  ? _compact(
+                      staticLine: staticLine,
+                      vehicles: vehicles,
+                      reports: reports,
+                      map: showMap,
+                      personal: personal,
+                    )
+                  : _wide(
+                      staticLine: staticLine,
+                      vehicles: vehicles,
+                      reports: reports,
+                      map: showMap,
+                      personal: personal,
+                    ),
+            ),
+          ),
+          if (personal?.stopId != null)
+            PersonalArrivalRefresher(
+              key: ValueKey<String>(personal!.stopId!),
+              lineId: staticLine.id,
+              stopId: personal.stopId!,
+            ),
+        ],
       ),
     );
   }
@@ -213,6 +231,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
     required List<VehicleVM> vehicles,
     required List<ReportVM> reports,
     required bool map,
+    PersonalArrivalVM? personal,
   }) {
     final bool shareable = staticLine.pilot;
     // A modal sheet (chooser, consent, permission, progress) sits above
@@ -260,6 +279,11 @@ class _LineScreenState extends ConsumerState<LineScreen>
               showMapAction: !map,
               onVehicleTap: (VehicleVM v) => _focus(v, map),
               onFollow: (VehicleVM v) => _follow(v, map),
+              personal: personal,
+              onEnableLocation: () => showMyStopLocationSheet(context, ref),
+              onRefresh: () => _refreshPersonal(staticLine.id, personal),
+              onTapLead: (VehicleVM v) => _focus(v, map),
+              onPersonalTap: () => _snapSheetToHalf(),
             );
           },
         ),
@@ -295,10 +319,11 @@ class _LineScreenState extends ConsumerState<LineScreen>
     required List<VehicleVM> vehicles,
     required List<ReportVM> reports,
     required bool map,
+    PersonalArrivalVM? personal,
   }) {
     final bool modalOpen = !(ModalRoute.of(context)?.isCurrent ?? true);
     return LineExpanded(
-      map: map ? _mapLayer(vehicles) : const SizedBox(),
+      map: map ? _mapLayer(vehicles, personal: personal) : const SizedBox(),
       dock: staticLine.pilot && !modalOpen ? LineDock(line: staticLine) : null,
       panel: LineSheet(
         line: lineVmOf(staticLine),
@@ -311,6 +336,11 @@ class _LineScreenState extends ConsumerState<LineScreen>
         showMapAction: false,
         onVehicleTap: (VehicleVM v) => _focus(v, map),
         onFollow: (VehicleVM v) => _follow(v, map),
+        personal: personal,
+        onEnableLocation: () => showMyStopLocationSheet(context, ref),
+        onRefresh: () => _refreshPersonal(staticLine.id, personal),
+        onTapLead: (VehicleVM v) => _focus(v, map),
+        onPersonalTap: () => _snapSheetToHalf(),
       ),
     );
   }
@@ -320,6 +350,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
   Widget _mapLayer(
     List<VehicleVM> vehicles, {
     double controlsBottomPadding = Space.x3,
+    PersonalArrivalVM? personal,
   }) {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
     final List<StopPoint> stops =
@@ -342,6 +373,12 @@ class _LineScreenState extends ConsumerState<LineScreen>
       panned: _panned,
       selectedKey: _selectedKey,
       viewerPosition: ref.watch(viewerLocationProvider).value,
+      personalStop: personal?.stopLat != null && personal?.stopLng != null
+          ? latlong2.LatLng(personal!.stopLat!, personal.stopLng!)
+          : null,
+      personalStopLabel: personal?.stopDistanceM == null
+          ? null
+          : UiStrings.myStopMapLabel(personal!.stopDistanceM!),
       controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
       onLocateViewer: () {
@@ -443,6 +480,38 @@ class _LineScreenState extends ConsumerState<LineScreen>
         _mapKey.currentState?.fitToContent();
       }
     });
+  }
+
+  /// Invalidates the personal arrival data after a refresh request.
+  void _refreshPersonal(int lineId, PersonalArrivalVM? personal) {
+    if (ref.read(viewerFixProvider).status == ViewerFixStatus.ready) {
+      unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
+    } else {
+      unawaited(showMyStopLocationSheet(context, ref));
+    }
+    ref.invalidate(learnedStopsProvider(lineId));
+    if (personal?.stopId != null) {
+      ref.invalidate(etaProvider((lineId: lineId, stopId: personal!.stopId!)));
+    }
+  }
+
+  /// Snaps the sheet to half, honoring reduce motion.
+  void _snapSheetToHalf() {
+    if (!_sheet.isAttached) {
+      return;
+    }
+    final ReduceMotionMode motion = ref.read(settingsProvider).reduceMotionMode;
+    if (AppMotion.reduced(context, motion)) {
+      _sheet.jumpTo(sheetHalf);
+      return;
+    }
+    unawaited(
+      _sheet.animateTo(
+        sheetHalf,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      ),
+    );
   }
 
   /// Selects a vehicle and drags the sheet back to peek.
