@@ -23,7 +23,7 @@ Goals:
 
 Non-goals: turn-by-turn navigation or point-to-point routing (PLAN.md 1.2); exact per-vehicle or per-driver profiling; real-time traffic from third parties; separate ML serving cluster in alpha (in-process; separate process later per PLAN.md 5.5); replacing static timetable (timetables stay static JSON, D07); learning from any source other than accepted fixes from consenting riders (no scraping/operator feeds, PLAN.md 7.5).
 
-Success criteria: line with at least minRouteTrips (default 20) completed trips in a direction produces learned polyline with median distance to hand-recorded route (where exists) under 40 m; stop detection precision/recall >= 0.8 on manually labelled stops on two pilot lines; ETA median absolute error at 5 min horizon under 90 s on held-out week of simulator trips; prediction endpoints add <5 ms p99 to snapshot build time and no new per-fix DB write; privacy audit: no raw coordinate, device id, or trip id in any new table, log line, or metric (extends existing `no_location_at_rest` check).
+Success criteria: line with at least minRouteTrips (default 5) completed trips in a direction produces learned polyline with median distance to hand-recorded route (where exists) under 40 m; stop detection precision/recall >= 0.8 on manually labelled stops on two pilot lines; ETA median absolute error at 5 min horizon under 90 s on held-out week of simulator trips; prediction endpoints add <5 ms p99 to snapshot build time and no new per-fix DB write; privacy audit: no raw coordinate, device id, or trip id in any new table, log line, or metric (extends existing `no_location_at_rest` check).
 
 ## 1. Privacy and legal gate (D20)
 
@@ -149,7 +149,7 @@ Step 1 per trip normalisation:
 Step 2 cross-trip aggregation:
 - For each bin index, collect per-trip median points.
 - Bin centroid = median of those latitudes and longitudes.
-- Require at least minRouteTrips (default 20) trips contributing to a bin before trusted. Missing bins interpolated linearly between nearest trusted bins. If more than 20% bins missing, route not published.
+- Require at least minRouteTrips (default 5) trips contributing to a bin before trusted. Missing bins interpolated linearly between nearest trusted bins. If more than 20% bins missing, route not published.
 
 Step 3 smoothing and simplification:
 - 3-point moving average along sequence of bin centroids.
@@ -354,7 +354,7 @@ Add to `app_config` (validated, defaults in code):
 | --- | --- | --- |
 | `learning_enabled` | `false` | master kill switch for whole subsystem |
 | `learning_min_consent_version` | `2` | min consent version for contribution |
-| `learning_min_route_trips` | `20` | trips before a route is published |
+| `learning_min_route_trips` | `5` | trips before a route is published |
 | `learning_min_stop_passes` | `4` | passes before a stop is published |
 | `learning_k_min` | `5` | min group size for any aggregate |
 | `learning_trim_ends_s` | `120` | seconds trimmed from each trip end |
