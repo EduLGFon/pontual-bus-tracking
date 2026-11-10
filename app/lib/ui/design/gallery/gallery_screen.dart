@@ -18,7 +18,9 @@ import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
+import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/design/components/permission_card.dart';
+import 'package:pontual/ui/features/line/personal_arrival_card.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/components/predicted_path.dart';
 import 'package:pontual/ui/design/components/prediction_info_sheet.dart';
@@ -282,6 +284,35 @@ class _GalleryBody extends StatelessWidget {
         const Text('Previsão (flagged off, demo com dados falsos)'),
         const SizedBox(height: 8),
         const _PredictionDemo(),
+        const SizedBox(height: 8),
+        const Text('Chegada pessoal (demo com dados falsos)'),
+        const SizedBox(height: 8),
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.ready,
+            stopDistanceM: 90,
+            lead: PersonalEtaVM(
+              vehicleKey: 1,
+              etaSeconds: 360,
+              minutes: 6,
+              arriving: false,
+              passed: false,
+              approaching: true,
+              confidence: 1,
+              sampleCount: 12,
+              label: '~6 min até você',
+              semantic: 'Seu ônibus chega em cerca de 6 minutos.',
+            ),
+          ),
+          onTapLead: () {},
+        ),
+        const SizedBox(height: 8),
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.needsLocation,
+          ),
+          onEnableLocation: () {},
+        ),
         const SizedBox(height: 20),
         GhostLink(
           label: UiStrings.seeOnMap,
