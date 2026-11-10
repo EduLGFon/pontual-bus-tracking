@@ -4,6 +4,7 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- Line screen: personal arrival at the rider's stop. The rider opts in with one tap; the app snaps to the nearest learned stop and shows the next bus ETA from the existing server ETA endpoint, with confidence and sample count. Location is one-shot and foreground-only, only line id and stop id are requested, and the viewer location no longer prompts on mount. See DECISIONS.md D96 and docs/ui/personal-arrival.md.
 - Trip sharing cadence: every role (`waiting`, `leaderMoving`, `leaderStill`,
   `follower`) now samples and pings every 5 s; offline saver and paused keep the
   45 s power-saving cadence. Follower jitter is removed so the server
