@@ -10,6 +10,7 @@ Documents for the Pontual UI. The specification lives in `UI_SPEC.md`; deviation
 | `PERF.md` | Performance baseline and budgets (U21). |
 | `a11y-script.md` | Manual accessibility run-through used before every release. |
 | `home-redesign.md`, `line-detail-redesign.md`, `lines-redesign.md`, `settings-redesign.md`, `sharing-screen-redesign.md` | Redesign brief audits and reports. All implemented; see each file for remaining open items. |
+| `personal-arrival.md` | Personal arrival at the rider's stop on the line screen: opt-in one-shot foreground fix, nearest learned stop snap, ETA via the existing server endpoint, privacy and honesty rules. See DECISIONS.md D96. |
 | `DECISIONS.md` (repo root) | ADRs and deviations, append-only. |
 
 ## Where the code lives
