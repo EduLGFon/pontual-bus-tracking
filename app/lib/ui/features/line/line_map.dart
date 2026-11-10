@@ -19,6 +19,7 @@ import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_map_controls.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Maximum number of vehicle markers drawn at once. The sheet summarises
 /// anything beyond this, so no vehicle is dropped silently.
@@ -60,6 +61,8 @@ class LineMap extends StatefulWidget {
     this.selectedKey,
     this.onVehicleTap,
     this.viewerPosition,
+    this.personalStop,
+    this.personalStopLabel,
     this.panned = false,
     this.controlsBottomPadding = Space.x3,
     super.key,
@@ -94,6 +97,14 @@ class LineMap extends StatefulWidget {
   /// Viewer position from the on-device one-shot lookup, null when
   /// unknown. Drawn only, never sent anywhere.
   final LatLng? viewerPosition;
+
+  /// The rider's chosen personal stop, null until they opt in. Drawn only,
+  /// never sent anywhere; the ETA request carries only line and stop ids.
+  final LatLng? personalStop;
+
+  /// Semantics label for the personal stop marker, e.g. the distance
+  /// sentence. Falls back to the default title when null.
+  final String? personalStopLabel;
 
   /// Called when a marker is tapped.
   final ValueChanged<VehicleVM>? onVehicleTap;
@@ -244,6 +255,16 @@ class LineMapState extends State<LineMap> {
     _map.move(LatLng(closest.lat, closest.lng), vehicleFocusZoom);
   }
 
+  /// Centres the camera on the rider's personal stop at street zoom. No-op
+  /// when no stop is chosen yet. Called by the personal card only, never
+  /// automatically.
+  void centerOnMyStop() {
+    final LatLng? stop = widget.personalStop;
+    if (stop != null) {
+      _map.move(stop, vehicleFocusZoom);
+    }
+  }
+
   /// Fits the camera to the live vehicles, else to the service-area bounds
   /// (city centre). Called on enter and when the map is first revealed,
   /// never when the sheet moves: expanding the line details must not move
@@ -345,6 +366,14 @@ class LineMapState extends State<LineMap> {
                   rotate: false,
                   alignment: Alignment.center,
                   markers: <Marker>[
+                    if (widget.personalStop != null)
+                      Marker(
+                        key: const ValueKey<String>('my-stop-marker'),
+                        point: widget.personalStop!,
+                        width: markerHitDp,
+                        height: markerHitDp,
+                        child: _MyStopMarker(label: widget.personalStopLabel),
+                      ),
                     for (final VehicleVM v in widget.vehicles.take(maxMarkers))
                       Marker(
                         // Stable keys: the age sort reorders every tick, so
@@ -511,6 +540,49 @@ class _StopDot extends StatelessWidget {
             color: colors.inkMuted,
             shape: BoxShape.circle,
             border: Border.all(color: colors.surface, width: 2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Personal stop marker: a 26 dp primary circle with a surface ring and a
+/// white inner dot. Deliberately unlike a vehicle marker (no glyph, no
+/// pulse) so it never reads as a bus. Drawn only when the rider picks a
+/// stop; never animated.
+class _MyStopMarker extends StatelessWidget {
+  /// Creates the personal stop marker.
+  const _MyStopMarker({this.label});
+
+  /// Semantics label, e.g. the distance sentence.
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      label: label ?? UiStrings.myStopTitle,
+      excludeSemantics: true,
+      child: Center(
+        child: Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.primary,
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.surface, width: 3),
+          ),
+          child: const SizedBox(
+            width: 8,
+            height: 8,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
         ),
       ),
