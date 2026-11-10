@@ -1170,6 +1170,153 @@ class UiStrings {
   /// Report detail update sentence.
   static String reportUpdatedAgo(String age) => 'Atualizado $age';
 
+  // Personal arrival at the rider's stop (line screen).
+
+  /// Card title when the rider is at or very near the stop.
+  static const String myStopTitle = 'Seu ponto';
+
+  /// Card title when the nearest stop is a short walk away.
+  static const String myStopNearby = 'Ponto mais próximo';
+
+  /// Opt-in prompt title.
+  static const String myStopEnable = 'Ver quando chega no meu ponto';
+
+  /// Short opt-in action.
+  static const String myStopEnableShort = 'Ver meu ponto';
+
+  /// Privacy line under the opt-in.
+  static const String myStopPrivacy =
+      'Sua localização fica no aparelho. Sua posição não é enviada.';
+
+  /// Location note title.
+  static const String myStopPrivacyTitle = 'Usar sua localização?';
+
+  /// Location note body.
+  static const String myStopPrivacyBody =
+      'Usamos sua localização só neste aparelho para achar o ponto mais '
+      'próximo desta linha. A posição exata não é enviada; a previsão pede '
+      'apenas a linha e o ponto.';
+
+  /// Location note primary action.
+  static const String myStopUseLocation = 'Usar minha localização';
+
+  /// Location note dismiss action.
+  static const String myStopNotNow = 'Agora não';
+
+  /// Loading while the learned stops load.
+  static const String myStopLoading = 'Procurando seu ponto…';
+
+  /// Loading while the ETA request runs.
+  static const String myStopCalculating = 'Calculando…';
+
+  /// Distance from the rider to the nearest stop.
+  static String myStopDistance(int meters) => 'a $meters m de você';
+
+  /// ETA to the rider's stop.
+  static String myStopEta(int minutes) => '~$minutes min';
+
+  /// ETA caption.
+  static const String myStopEtaCaption = 'até o seu ponto';
+
+  /// The bus is at or next to the stop.
+  static const String myStopArriving = 'Chegando';
+
+  /// No bus approaching the stop.
+  static const String myStopNoApproaching =
+      'Nenhum ônibus chegando ao seu ponto agora.';
+
+  /// No learned stops for this line.
+  static const String myStopNoStops =
+      'Ainda não há pontos mapeados nesta linha.';
+
+  /// No learned stop within the search radius.
+  static const String myStopNoStopNear = 'Nenhum ponto mapeado perto de você.';
+
+  /// Refresh action.
+  static const String myStopRefresh = 'Atualizar meu ponto';
+
+  /// The fix is old.
+  static const String myStopExpired =
+      'Ponto desatualizado. Atualize para continuar.';
+
+  /// The fix is too coarse.
+  static const String myStopImprecise =
+      'Sua localização está aproximada. Ative a localização precisa para '
+      'achar o ponto certo.';
+
+  /// The fix is outside the served area.
+  static const String myStopOutsideArea =
+      'Você está fora da área de cobertura do app.';
+
+  /// The fix timed out.
+  static const String myStopTimeout =
+      'Não conseguimos sua localização agora. Tente de novo.';
+
+  /// Permission denied in the line screen context.
+  static const String myStopPermissionDenied =
+      'Sem a localização, não dá para achar o ponto mais próximo.';
+
+  /// Permission blocked in the line screen context.
+  static const String myStopBlocked =
+      'A localização está bloqueada para este app. Abra os ajustes para '
+      'permitir.';
+
+  /// Location services off in the line screen context.
+  static const String myStopServicesOff =
+      'Ative a localização do aparelho para achar o ponto mais próximo.';
+
+  /// No estimate for the chosen stop.
+  static const String myStopNoEstimate = 'Sem previsão agora.';
+
+  /// Map marker semantics.
+  static String myStopMapLabel(int meters) =>
+      'Seu ponto, a $meters metros de você';
+
+  /// Header summary when the lead bus has an ETA.
+  static String myStopHeaderEta(int minutes) => 'No seu ponto, ~$minutes min';
+
+  /// Header summary when the lead bus is arriving.
+  static const String myStopHeaderArriving = 'No seu ponto, chegando';
+
+  /// Per-vehicle ETA to the rider's stop.
+  static String myStopEtaUntilYou(int minutes) => '~$minutes min até você';
+
+  /// Per-vehicle arriving state.
+  static const String myStopArrivingUntilYou = 'chegando até você';
+
+  /// Per-vehicle passed state.
+  static const String myStopPassedUntilYou = 'já passou do seu ponto';
+
+  /// Per-vehicle no-estimate state.
+  static const String myStopNoEstimateUntilYou = 'sem previsão até você';
+
+  /// Information sheet title.
+  static const String myStopHow = 'Como calculamos';
+
+  /// Information sheet body.
+  static const String myStopInfoBody =
+      'A previsão usa as posições recentes dos ônibus, o ritmo atual e o '
+      'histórico de viagens neste trecho e horário. É uma estimativa, não '
+      'uma garantia.';
+
+  /// Sample count sentence.
+  static String myStopInfoSample(int trips) => trips == 1
+      ? 'Baseado em 1 viagem neste horário.'
+      : 'Baseado em $trips viagens neste horário.';
+
+  /// Low-sample sentence.
+  static const String myStopInfoNoSample =
+      'Ainda temos poucas viagens neste horário; a confiança é baixa.';
+
+  /// Screen-reader sentence with minutes.
+  static String myStopA11y(int minutes, int meters) =>
+      'Seu ônibus chega em cerca de $minutes minutos no ponto a '
+      '$meters metros de você.';
+
+  /// Screen-reader sentence when arriving.
+  static String myStopA11yArriving(int meters) =>
+      'Seu ônibus está chegando no ponto a $meters metros de você.';
+
   // Future features (flagged off, UI_SPEC 13-14).
 
   /// Alerts sheet title.
