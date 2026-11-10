@@ -20,9 +20,6 @@ const double personalStopRadiusM = 300;
 /// Distance under which the stop counts as "Seu ponto", in meters.
 const int personalStopNearM = 120;
 
-/// Straight-line distance under which a bus counts as arriving, in meters.
-const int personalArrivingDistanceM = 250;
-
 /// ETA under which a bus counts as arriving, in seconds.
 const int personalArrivingEtaS = 60;
 
@@ -282,15 +279,12 @@ PersonalArrivalVM buildPersonalArrival({
     );
     final bool approaching = isApproaching(vehicle, stop);
     final bool passed =
-        !approaching && vehicleDistanceM > personalArrivingDistanceM;
-    if (item.etaS == 0 &&
-        vehicleDistanceM > personalArrivingDistanceM &&
-        !passed) {
-      continue;
-    }
+        !approaching ||
+        (item.etaS == 0 && vehicleDistanceM > personalStopNearM);
     final bool arriving =
-        item.etaS <= personalArrivingEtaS ||
-        vehicleDistanceM <= personalArrivingDistanceM;
+        !passed &&
+        (item.etaS <= personalArrivingEtaS ||
+            (vehicleDistanceM <= personalStopNearM && item.etaS <= 180));
     final int minutes = math.max(1, (item.etaS / 60).round());
     final int roundedVehicleDistanceM = vehicleDistanceM.round();
     final String label;

@@ -128,6 +128,39 @@ const VehicleVM busAway = VehicleVM(
   certainty: Certainty.live,
 );
 
+const VehicleVM busAwayNear = VehicleVM(
+  key: 10,
+  lineKey: '66',
+  lat: 0.00089932,
+  lng: 0,
+  headingDeg: 180,
+  speedKmh: 20,
+  ageSeconds: 0,
+  certainty: Certainty.live,
+);
+
+const VehicleVM bus240 = VehicleVM(
+  key: 11,
+  lineKey: '66',
+  lat: -0.00035976,
+  lng: 0,
+  headingDeg: 0,
+  speedKmh: 20,
+  ageSeconds: 0,
+  certainty: Certainty.live,
+);
+
+const VehicleVM bus80 = VehicleVM(
+  key: 12,
+  lineKey: '66',
+  lat: 0.00107918,
+  lng: 0,
+  headingDeg: 0,
+  speedKmh: 20,
+  ageSeconds: 0,
+  certainty: Certainty.live,
+);
+
 const VehicleVM busStale = VehicleVM(
   key: 6,
   lineKey: '66',
@@ -419,7 +452,7 @@ void main() {
       expect(vm.lead?.minutes, 90);
     });
 
-    test('a zero ETA far from the stop stays hidden', () {
+    test('a zero ETA far from the stop is passed', () {
       final PersonalArrivalVM vm = build(
         vehicles: const <VehicleVM>[busFar],
         eta: const EtaResult(
@@ -431,29 +464,32 @@ void main() {
         ),
       );
       expect(vm.status, PersonalArrivalStatus.noApproaching);
-      expect(vm.byVehicle, isEmpty);
+      expect(vm.byVehicle.length, 1);
+      expect(vm.byVehicle[1]!.passed, isTrue);
+      expect(vm.byVehicle[1]!.label, UiStrings.myStopPassedUntilYou);
+      expect(vm.lead, isNull);
     });
 
     test('a zero ETA near the stop is arriving', () {
       final PersonalArrivalVM vm = build(
-        vehicles: const <VehicleVM>[busAtStop],
+        vehicles: const <VehicleVM>[busNear],
         eta: const EtaResult(
           stopId: '42',
           nowS: 100,
           items: <EtaItem>[
-            EtaItem(vehicleId: 4, etaS: 0, confidence: 'high', sampleCount: 2),
+            EtaItem(vehicleId: 3, etaS: 0, confidence: 'high', sampleCount: 2),
           ],
         ),
       );
-      final PersonalEtaVM row = vm.byVehicle[4]!;
+      final PersonalEtaVM row = vm.byVehicle[3]!;
       expect(vm.status, PersonalArrivalStatus.ready);
       expect(row.arriving, isTrue);
       expect(row.label, UiStrings.myStopArrivingUntilYou);
-      expect(row.semantic, UiStrings.myStopA11yArriving(200));
+      expect(row.semantic, UiStrings.myStopA11yArriving(100));
       expect(vm.lead, row);
     });
 
-    test('close distance means arriving even with a long ETA', () {
+    test('a bus close to the stop with a short ETA is arriving', () {
       final PersonalArrivalVM vm = build(
         vehicles: const <VehicleVM>[busNear],
         eta: const EtaResult(
@@ -462,7 +498,7 @@ void main() {
           items: <EtaItem>[
             EtaItem(
               vehicleId: 3,
-              etaS: 600,
+              etaS: 120,
               confidence: 'high',
               sampleCount: 9,
             ),
@@ -513,6 +549,129 @@ void main() {
       expect(vm.status, PersonalArrivalStatus.noApproaching);
       expect(vm.lead, isNull);
       expect(vm.byVehicle, contains(5));
+    });
+
+    test('a bus heading away close to the stop is passed, not arriving', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[busAwayNear],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(
+              vehicleId: 10,
+              etaS: 60,
+              confidence: 'high',
+              sampleCount: 4,
+            ),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[10]!;
+      expect(row.passed, isTrue);
+      expect(row.arriving, isFalse);
+      expect(row.label, UiStrings.myStopPassedUntilYou);
+      expect(vm.status, PersonalArrivalStatus.noApproaching);
+    });
+
+    test('a bus 240 m away with a 45 s ETA is arriving', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[bus240],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(
+              vehicleId: 11,
+              etaS: 45,
+              confidence: 'high',
+              sampleCount: 4,
+            ),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[11]!;
+      expect(row.arriving, isTrue);
+      expect(row.passed, isFalse);
+      expect(vm.status, PersonalArrivalStatus.ready);
+    });
+
+    test('a bus 240 m away with a 300 s ETA is not arriving', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[bus240],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(
+              vehicleId: 11,
+              etaS: 300,
+              confidence: 'high',
+              sampleCount: 4,
+            ),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[11]!;
+      expect(row.arriving, isFalse);
+      expect(row.passed, isFalse);
+      expect(row.label, UiStrings.myStopEtaUntilYou(5));
+      expect(vm.status, PersonalArrivalStatus.ready);
+    });
+
+    test('a bus 100 m away with a 300 s ETA is not arriving', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[busNear],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(
+              vehicleId: 3,
+              etaS: 300,
+              confidence: 'high',
+              sampleCount: 4,
+            ),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[3]!;
+      expect(row.arriving, isFalse);
+      expect(row.label, UiStrings.myStopEtaUntilYou(5));
+    });
+
+    test('a bus 200 m away with a zero ETA is passed', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[busAtStop],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(vehicleId: 4, etaS: 0, confidence: 'high', sampleCount: 4),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[4]!;
+      expect(row.passed, isTrue);
+      expect(row.arriving, isFalse);
+      expect(vm.status, PersonalArrivalStatus.noApproaching);
+    });
+
+    test('a bus 80 m away with a zero ETA is arriving', () {
+      final PersonalArrivalVM vm = build(
+        vehicles: const <VehicleVM>[bus80],
+        eta: const EtaResult(
+          stopId: '42',
+          nowS: 100,
+          items: <EtaItem>[
+            EtaItem(vehicleId: 12, etaS: 0, confidence: 'high', sampleCount: 4),
+          ],
+        ),
+      );
+      final PersonalEtaVM row = vm.byVehicle[12]!;
+      expect(row.arriving, isTrue);
+      expect(row.passed, isFalse);
+      expect(vm.status, PersonalArrivalStatus.ready);
     });
 
     test('minutes round with a minimum of one', () {
