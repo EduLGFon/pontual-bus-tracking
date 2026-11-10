@@ -137,4 +137,68 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text(UiStrings.myStopNoStops), findsOneWidget);
   });
+
+  testWidgets('compact layout draws the personal stop marker', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      return tester.binding.setSurfaceSize(null);
+    });
+
+    const LearnedStop stop = LearnedStop(
+      id: 'stop-a',
+      ordinal: 0,
+      lat: -18.72,
+      lng: -39.85,
+      radiusM: 30,
+      passes: 5,
+    );
+    final List<Override> overrides = <Override>[
+      ...overridesFor(
+        const <StaticLine>[pilotLine],
+        const <int, List<ClientVehicle>>{
+          7: <ClientVehicle>[liveBus],
+        },
+      ),
+      viewerFixProvider.overrideWith(_FakeFixController.new),
+      learnedStopsProvider(7).overrideWith(
+        (Ref ref) async => const LearnedStopsResult(
+          direction: 0,
+          stops: <LearnedStop>[stop],
+          fallback: false,
+        ),
+      ),
+      etaProvider((lineId: 7, stopId: 'stop-a')).overrideWith(
+        (Ref ref) async => const EtaResult(
+          stopId: 'stop-a',
+          nowS: 0,
+          items: <EtaItem>[
+            EtaItem(
+              vehicleId: 3,
+              etaS: 360,
+              confidence: 'medium',
+              sampleCount: 12,
+            ),
+          ],
+        ),
+      ),
+    ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overrides,
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    for (int i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    expect(map.personalStop, isNotNull);
+    expect(map.personalStopLabel, isNotNull);
+  });
 }
