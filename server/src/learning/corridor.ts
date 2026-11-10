@@ -14,6 +14,8 @@ export interface CorridorConfig {
   cellM: number;
   minEdgeWeight: number;
   minCells: number;
+  /** Longest fix-to-fix gap accepted, in metres. Defaults to 500. */
+  maxGapM?: number;
 }
 
 export interface CorridorCell {
@@ -35,6 +37,7 @@ export interface CorridorAcc {
 }
 
 const M_PER_DEG_LAT = 111320;
+const DEFAULT_MAX_GAP_M = 500;
 
 export function newCorridorAcc(
   lineId: number,
@@ -101,16 +104,22 @@ function updateCell(acc: CorridorAcc, key: string, p: Pt): void {
 
 /**
  * Sample one segment at roughly cellM/2 spacing and record its cells and
- * transitions. Returns the number of cell transitions observed.
+ * transitions. Returns the number of cell transitions observed. Segments
+ * longer than maxGapM are discarded before any sampling.
  */
-function addSegment(acc: CorridorAcc, a: Pt, b: Pt): number {
+function addSegment(
+  acc: CorridorAcc,
+  a: Pt,
+  b: Pt,
+  maxGapM: number,
+): number {
   if (!Number.isFinite(a.lat) || !Number.isFinite(a.lng)) return 0;
   if (!Number.isFinite(b.lat) || !Number.isFinite(b.lng)) return 0;
   const cosLat = Math.cos((acc.originLat * Math.PI) / 180);
   const dxM = (b.lng - a.lng) * M_PER_DEG_LAT * cosLat;
   const dyM = (b.lat - a.lat) * M_PER_DEG_LAT;
   const distanceM = Math.hypot(dxM, dyM);
-  if (!Number.isFinite(distanceM)) return 0;
+  if (!Number.isFinite(distanceM) || distanceM > maxGapM) return 0;
   const steps = Math.max(1, Math.ceil(distanceM / (acc.cellM / 2)));
   let prevKey: string | null = null;
   let transitions = 0;
@@ -136,11 +145,28 @@ function addSegment(acc: CorridorAcc, a: Pt, b: Pt): number {
   return transitions;
 }
 
-export function addTrip(acc: CorridorAcc, pts: Pt[]): void {
+function resolveMaxGapM(cfg?: CorridorConfig): number {
+  const value = cfg?.maxGapM;
+  return value !== undefined && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_MAX_GAP_M;
+}
+
+/**
+ * Accumulate one trip. The optional config only needs maxGapM; existing
+ * two-argument callers use the 500 m default. Each long segment is dropped
+ * entirely, so a single bogus fix cannot fabricate a fan of cells.
+ */
+export function addTrip(
+  acc: CorridorAcc,
+  pts: Pt[],
+  cfg?: CorridorConfig,
+): void {
   if (pts.length < 2) return;
+  const maxGapM = resolveMaxGapM(cfg);
   let transitions = 0;
   for (let i = 1; i < pts.length; i++) {
-    transitions += addSegment(acc, pts[i - 1], pts[i]);
+    transitions += addSegment(acc, pts[i - 1], pts[i], maxGapM);
   }
   if (transitions > 0) acc.tripCount += 1;
 }
@@ -150,14 +176,17 @@ interface DirectedEdge {
   weight: number;
 }
 
-function buildAdjacency(acc: CorridorAcc): {
+function buildAdjacency(
+  acc: CorridorAcc,
+  minEdgeWeight: number,
+): {
   adjacency: Map<string, DirectedEdge[]>;
   inDegree: Map<string, number>;
 } {
   const adjacency = new Map<string, DirectedEdge[]>();
   const inDegree = new Map<string, number>();
   for (const [key, weight] of acc.edges) {
-    if (!Number.isFinite(weight) || weight <= 0) continue;
+    if (!Number.isFinite(weight) || weight < minEdgeWeight) continue;
     const edge = parseEdgeKey(key);
     if (!edge) continue;
     const list = adjacency.get(edge.from);
@@ -211,30 +240,35 @@ function compareEdges(
   return a.to < b.to ? -1 : a.to > b.to ? 1 : 0;
 }
 
+interface Walk {
+  start: string;
+  cells: string[];
+  weight: number;
+}
+
 function walkFrom(
   acc: CorridorAcc,
   adjacency: Map<string, DirectedEdge[]>,
   start: string,
-  minEdgeWeight: number,
-): string[] {
-  const path = [start];
+): Walk {
+  const cells = [start];
   const used = new Set<string>();
   let current = start;
   let incoming: number | null = null;
+  let weight = 0;
   while (true) {
     const edges = adjacency.get(current) ?? [];
-    const candidates = edges.filter((e) =>
-      e.weight >= minEdgeWeight && !used.has(`${current}>${e.to}`)
-    );
+    const candidates = edges.filter((e) => !used.has(`${current}>${e.to}`));
     if (candidates.length === 0) break;
     candidates.sort((a, b) => compareEdges(acc, current, incoming, a, b));
     const next = candidates[0];
     used.add(`${current}>${next.to}`);
+    weight += next.weight;
     incoming = bearing(acc, current, next.to);
     current = next.to;
-    path.push(current);
+    cells.push(current);
   }
-  return path;
+  return { start, cells, weight };
 }
 
 /** True when two cell keys are the same or 8-neighbours on the grid. */
@@ -251,39 +285,50 @@ function cellPoint(acc: CorridorAcc, key: string): Pt | null {
   return cell ? { lat: cell.lat, lng: cell.lng } : null;
 }
 
+/**
+ * Prefer the highest followed-edge weight, then the most cells, then the
+ * lexicographically smallest start key.
+ */
+function betterWalk(candidate: Walk, current: Walk | null): boolean {
+  if (current === null) return true;
+  if (candidate.weight !== current.weight) {
+    return candidate.weight > current.weight;
+  }
+  if (candidate.cells.length !== current.cells.length) {
+    return candidate.cells.length > current.cells.length;
+  }
+  return candidate.start < current.start;
+}
+
 export function buildChain(
   acc: CorridorAcc,
   cfg: CorridorConfig,
 ): Pt[] | null {
-  const { adjacency, inDegree } = buildAdjacency(acc);
-  const nodes = [
-    ...new Set([
-      ...acc.cells.keys(),
-      ...adjacency.keys(),
-      ...inDegree.keys(),
-    ]),
-  ].sort();
-  if (nodes.length === 0) return null;
+  const { adjacency, inDegree } = buildAdjacency(acc, cfg.minEdgeWeight);
+  const allStarts = [...adjacency.keys()].sort();
+  const sourceStarts = allStarts.filter((key) =>
+    (inDegree.get(key) ?? 0) === 0
+  );
+  const fallbackToAll = sourceStarts.length === 0;
+  const starts = fallbackToAll ? allStarts : sourceStarts;
 
-  const hasSource = nodes.some((key) => (inDegree.get(key) ?? 0) === 0);
-  const starts = hasSource
-    ? nodes.filter((key) => (inDegree.get(key) ?? 0) === 0)
-    : nodes;
-
-  let best: string[] = [];
+  let best: Walk | null = null;
   for (const start of starts) {
-    const walk = walkFrom(acc, adjacency, start, cfg.minEdgeWeight);
-    if (walk.length > best.length) best = walk;
+    const walk = walkFrom(acc, adjacency, start);
+    if (betterWalk(walk, best)) best = walk;
   }
-  if (
-    !hasSource && best.length > 1 &&
-    cellsAdjacent(best[best.length - 1], best[0])
-  ) {
-    best = [...best, best[0]];
+  if (best === null) return null;
+
+  if (fallbackToAll && best.cells.length > 1) {
+    const first = best.cells[0];
+    const last = best.cells[best.cells.length - 1];
+    if (last !== first && cellsAdjacent(last, first)) {
+      best.cells.push(first);
+    }
   }
 
   const points: Pt[] = [];
-  for (const key of best) {
+  for (const key of best.cells) {
     const p = cellPoint(acc, key);
     if (p) points.push(p);
   }
@@ -341,6 +386,11 @@ function projectAlongM(p: Pt, chain: Pt[], cumulative: number[]): number {
   return bestAlong;
 }
 
+/**
+ * Project each stop onto the nearest chain segment, with projection distances
+ * clamped at the chain ends. Returns ordinals 0..n-1 aligned to the input
+ * array; equal projected distances keep input order.
+ */
 export function assignOrdinals(stops: Pt[], chain: Pt[]): number[] {
   if (stops.length === 0) return [];
   if (chain.length < 2) return stops.map((_, i) => i);
