@@ -45,6 +45,7 @@ apagamento imediato a pedido.
 | Localização exata em log ou relatório | bug de instrumentação | Baixa | Alto | só a célula é enviada; serviço converte no aparelho; revisão de logs; sem persistência |
 | Sinalização falsa ou brigada | tokens gratuitos, retaliação | Média | Médio | tipos fechados, limites, teto por linha, TTL curto, texto "relato", kill switch |
 | Leitura local única da posição | bug de instrumentação ou engano do titular | Baixa | Baixo | toque explícito, uma leitura, sem transmissão, sem persistência, descartada em até 5 minutos |
+
 ## 4. Risco residual
 
 KL2 é inevitável em rastreador colaborativo e está divulgado no
