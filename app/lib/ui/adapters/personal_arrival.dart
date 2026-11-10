@@ -131,8 +131,9 @@ class PersonalArrivalVM {
   /// Current state of the card.
   final PersonalArrivalStatus status;
 
-  /// Learned stop id, when a nearest stop was chosen.
-  final int? stopId;
+  /// Learned stop id, when a nearest stop was chosen. Opaque: passed back
+  /// unchanged to the ETA endpoint, never parsed.
+  final String? stopId;
 
   /// Learned stop latitude, when a nearest stop was chosen.
   final double? stopLat;
@@ -337,7 +338,7 @@ PersonalArrivalVM buildPersonalArrival({
     status: lead == null
         ? PersonalArrivalStatus.noApproaching
         : PersonalArrivalStatus.ready,
-    stopId: int.tryParse(stop.id),
+    stopId: stop.id,
     stopLat: stop.lat,
     stopLng: stop.lng,
     stopDistanceM: stopDistanceM,
@@ -353,7 +354,7 @@ PersonalArrivalVM _withStop(
 ) {
   return PersonalArrivalVM(
     status: status,
-    stopId: int.tryParse(stop.id),
+    stopId: stop.id,
     stopLat: stop.lat,
     stopLng: stop.lng,
     stopDistanceM: stopDistanceM,

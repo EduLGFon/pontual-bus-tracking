@@ -14,7 +14,7 @@ const LatLng rider = LatLng(0, 0);
 
 // The chosen stop is about 200 m north of the rider.
 const LearnedStop stopMain = LearnedStop(
-  id: '42',
+  id: 'stop-a',
   ordinal: 0,
   lat: 0.00179864,
   lng: 0,
@@ -300,7 +300,7 @@ void main() {
     test('no live vehicle reports noLive with the stop fields filled', () {
       final PersonalArrivalVM vm = build();
       expect(vm.status, PersonalArrivalStatus.noLive);
-      expect(vm.stopId, 42);
+      expect(vm.stopId, 'stop-a');
       expect(vm.stopLat, stopMain.lat);
       expect(vm.stopLng, stopMain.lng);
       expect(vm.stopDistanceM, 200);
@@ -309,13 +309,27 @@ void main() {
       expect(vm.isReady, isFalse);
     });
 
+    test('a UUID-shaped learned stop id is preserved exactly', () {
+      const LearnedStop uuidStop = LearnedStop(
+        id: '3f2a6c1e-9b4d-4a7e-8c55-1d2e3f4a5b6c',
+        ordinal: 0,
+        lat: 0.00179864,
+        lng: 0,
+        radiusM: 30,
+        passes: 4,
+      );
+      final PersonalArrivalVM vm = build(stops: const <LearnedStop>[uuidStop]);
+      expect(vm.status, PersonalArrivalStatus.noLive);
+      expect(vm.stopId, '3f2a6c1e-9b4d-4a7e-8c55-1d2e3f4a5b6c');
+    });
+
     test('a live vehicle with no ETA response reports etaLoading', () {
       final PersonalArrivalVM vm = build(
         vehicles: const <VehicleVM>[busMid],
         etaLoading: true,
       );
       expect(vm.status, PersonalArrivalStatus.etaLoading);
-      expect(vm.stopId, 42);
+      expect(vm.stopId, 'stop-a');
     });
 
     test('a failed ETA request reports etaError', () {
