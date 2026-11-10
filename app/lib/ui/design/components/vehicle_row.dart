@@ -1,12 +1,11 @@
 // VehicleRow: "Ônibus 1" numbered by display order, never by internal id.
-// Shows the age, the speed, the certainty badge and an optional follow
-// action. See docs/ui/UI_SPEC.md 5.
+// Shows the age, the speed, an optional personal ETA to the rider's stop, the
+// certainty badge and an optional follow action. See docs/ui/UI_SPEC.md 5.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
-import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
@@ -20,6 +19,9 @@ class VehicleRow extends StatelessWidget {
     this.onTap,
     this.onFollow,
     this.selected = false,
+    this.personalEta,
+    this.personalEtaSemantic,
+    this.personalEtaMuted = false,
     super.key,
   });
 
@@ -35,6 +37,17 @@ class VehicleRow extends StatelessWidget {
   /// Highlights the row when the marker is selected.
   final bool selected;
 
+  /// ETA to the rider's stop, for example "~6 min até você". Null or empty
+  /// hides the line.
+  final String? personalEta;
+
+  /// Screen-reader sentence for [personalEta]. It is appended to the row
+  /// sentence and never repeats the visible label.
+  final String? personalEtaSemantic;
+
+  /// Draws [personalEta] in the muted colour instead of primary.
+  final bool personalEtaMuted;
+
   @override
   Widget build(BuildContext context) {
     final int ordinal = vehicle.ordinal ?? 1;
@@ -48,10 +61,13 @@ class VehicleRow extends StatelessWidget {
       bits.add(speed);
     }
     bits.add(UiStrings.aboard(vehicle.members));
+    final String? eta = _nonEmpty(personalEta);
+    final String? etaSemantic = _nonEmpty(personalEtaSemantic);
     final String a11y =
         '$label, atualizado há ${_ageWords(vehicle.ageSeconds)}, '
         '${vehicle.speedKmh?.round() ?? 0} quilômetros por hora, '
-        '${UiStrings.aboard(vehicle.members)}.';
+        '${UiStrings.aboard(vehicle.members)}.'
+        '${etaSemantic == null ? '' : ' $etaSemantic'}';
     return SurfaceCard(
       onTap: onTap,
       selected: selected,
@@ -62,7 +78,7 @@ class VehicleRow extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          const LiveDot(certainty: Certainty.live),
+          LiveDot(certainty: vehicle.certainty),
           const SizedBox(width: Space.x2),
           Expanded(
             child: Column(
@@ -72,6 +88,17 @@ class VehicleRow extends StatelessWidget {
                 Text(label, style: context.text.headline),
                 const SizedBox(height: Space.x1),
                 Text(bits.join(' · '), style: context.text.caption),
+                if (eta != null) ...<Widget>[
+                  const SizedBox(height: Space.x1),
+                  Text(
+                    eta,
+                    style: context.text.label.copyWith(
+                      color: personalEtaMuted
+                          ? context.colors.inkMuted
+                          : context.colors.primary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -85,6 +112,14 @@ class VehicleRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Null for a null or empty string, so optional copy never draws a gap.
+String? _nonEmpty(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value;
 }
 
 /// "há 8 s" or "há 3 min".
