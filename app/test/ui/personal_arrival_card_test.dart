@@ -436,9 +436,7 @@ void main() {
     await tester.pumpWidget(
       harness(
         const PersonalArrivalCard(
-          vm: PersonalArrivalVM(
-            status: PersonalArrivalStatus.needsLocation,
-          ),
+          vm: PersonalArrivalVM(status: PersonalArrivalStatus.needsLocation),
         ),
       ),
     );
