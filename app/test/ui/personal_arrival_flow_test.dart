@@ -99,9 +99,10 @@ void main() {
   testWidgets('no fix shows prompt and opens privacy sheet', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overridesFor(const <StaticLine>[
-          pilotLine,
-        ], const <int, List<ClientVehicle>>{}),
+        overrides: overridesFor(
+          const <StaticLine>[pilotLine],
+          const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+        ),
         child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
       ),
     );
@@ -118,9 +119,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
-          ...overridesFor(const <StaticLine>[
-            pilotLine,
-          ], const <int, List<ClientVehicle>>{}),
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
           viewerFixProvider.overrideWith(_FakeFixController.new),
           learnedStopsProvider(7).overrideWith(
             (Ref ref) async => const LearnedStopsResult(
