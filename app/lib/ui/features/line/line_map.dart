@@ -574,12 +574,12 @@ class _MyStopMarker extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: colors.surface, width: 3),
           ),
-          child: const SizedBox(
+          child: SizedBox(
             width: 8,
             height: 8,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: colors.onPrimary,
                 shape: BoxShape.circle,
               ),
             ),
