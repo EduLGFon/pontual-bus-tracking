@@ -90,6 +90,9 @@ const learningConsumer = new LearningConsumer({
   config: () => learningConfig,
   now: () => Date.now(),
 });
+// Seed persisted direction slots and stop clusters (F2/F3). Best-effort.
+learningConsumer.loadLearnedRoutes().catch(() => {});
+learningConsumer.loadLearnedStops().catch(() => {});
 const engine = defaultEngineConfig();
 if (config.testEasyPublish) {
   // Testing only: publish on the first ping and count every fix as

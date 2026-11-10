@@ -16,6 +16,11 @@ export interface MetricsSnapshot {
   /** Passenger reports created and retracted. Aggregate only, no ids. */
   reportsCreatedTotal: number;
   reportsRetractedTotal: number;
+  /** Learning subsystem aggregate counters (F5). No coordinates, no ids. */
+  learningFlushesTotal: number;
+  learningRoutesPublishedTotal: number;
+  learningRoutesRetiredTotal: number;
+  learningTripsContributedTotal: number;
 }
 
 const startedAtMs = Date.now();
@@ -27,6 +32,10 @@ let http429Total = 0;
 let http403Total = 0;
 let reportsCreatedTotal = 0;
 let reportsRetractedTotal = 0;
+let learningFlushesTotal = 0;
+let learningRoutesPublishedTotal = 0;
+let learningRoutesRetiredTotal = 0;
+let learningTripsContributedTotal = 0;
 
 export function recordRequest(): void {
   requestsTotal += 1;
@@ -61,6 +70,22 @@ export function recordReportRetracted(): void {
   reportsRetractedTotal += 1;
 }
 
+export function recordLearningFlush(): void {
+  learningFlushesTotal += 1;
+}
+
+export function recordLearningRoutePublished(): void {
+  learningRoutesPublishedTotal += 1;
+}
+
+export function recordLearningRouteRetired(n = 1): void {
+  learningRoutesRetiredTotal += n;
+}
+
+export function recordLearningTripsContributed(n: number): void {
+  learningTripsContributedTotal += n;
+}
+
 export function snapshot(): MetricsSnapshot {
   return {
     startedAt: new Date(startedAtMs).toISOString(),
@@ -73,5 +98,9 @@ export function snapshot(): MetricsSnapshot {
     http403Total,
     reportsCreatedTotal,
     reportsRetractedTotal,
+    learningFlushesTotal,
+    learningRoutesPublishedTotal,
+    learningRoutesRetiredTotal,
+    learningTripsContributedTotal,
   };
 }

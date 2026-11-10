@@ -65,6 +65,16 @@ export async function runPurgeDiagnostics(
   return await purgeOldDiagnostics(sql, cutoff);
 }
 
+/** Retention cleanup for learning aggregates (F6). */
+export async function runPurgeLearning(sql: Sql, now: Date): Promise<void> {
+  const cutoff90 = new Date(now.getTime() - 90 * 86400 * 1000);
+  const cutoff30 = new Date(now.getTime() - 30 * 86400 * 1000);
+  await sql`delete from stop_dwell_stats where updated_at < ${cutoff90}`;
+  await sql`delete from segment_stats where updated_at < ${cutoff90}`;
+  await sql`delete from learned_stops where active = false and last_seen_at < ${cutoff90}`;
+  await sql`delete from learned_routes where status = 'retired' and retired_at < ${cutoff30}`;
+}
+
 /** Reload runtime config from app_config. */
 export async function runConfigRefresh(sql: Sql): Promise<RuntimeConfig> {
   return await loadRuntimeConfig(sql);
@@ -122,6 +132,7 @@ export function startJobs(deps: JobsDeps): Jobs {
       try {
         await runPurge(deps.sql, new Date());
         await runPurgeDiagnostics(deps.sql, new Date());
+        await runPurgeLearning(deps.sql, new Date());
       } catch {
         console.log(
           JSON.stringify({ level: "error", msg: "purge failed" }),
@@ -131,6 +142,7 @@ export function startJobs(deps: JobsDeps): Jobs {
         try {
           await runPurge(deps.sql, new Date());
           await runPurgeDiagnostics(deps.sql, new Date());
+          await runPurgeLearning(deps.sql, new Date());
         } catch {
           console.log(
             JSON.stringify({ level: "error", msg: "purge failed" }),

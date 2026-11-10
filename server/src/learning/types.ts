@@ -30,11 +30,11 @@ export interface LearningConfig {
 export const defaultLearningConfig = (): LearningConfig => ({
   enabled: true,
   minConsentVersion: 2,
-  minRouteTrips: 1,
-  minStopPasses: 1,
-  kMin: 1,
+  minRouteTrips: 20,
+  minStopPasses: 4,
+  kMin: 5,
   trimEndsS: 120,
-  flushIntervalS: 30,
+  flushIntervalS: 300,
   cacheTtlS: 60,
   routeBins: 200,
   stopClusterRadiusM: 30,
@@ -44,7 +44,7 @@ export const defaultLearningConfig = (): LearningConfig => ({
   defaultSpeedMps: 6,
   defaultDwellS: 20,
   minRouteLengthM: 100,
-  stopMinDistinctDays: 1,
+  stopMinDistinctDays: 3,
   maxSamplesPerTrip: 200,
   minSampleSpacingM: 20,
   minSampleSpacingS: 10,
@@ -82,6 +82,8 @@ export interface RouteAcc {
   direction: number;
   bins: Map<number, { lats: number[]; lngs: number[] }>;
   tripCount: number;
+  /** Trip count already persisted; skip upsert when unchanged (T1). */
+  lastFlushedTripCount: number;
 }
 
 export interface StopCluster {
