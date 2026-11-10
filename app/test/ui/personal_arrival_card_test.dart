@@ -199,7 +199,22 @@ void main() {
     expect(find.text(UiStrings.myStopArriving), findsOneWidget);
   });
 
-  testWidgets('200 percent text scale no exception', (tester) async {
+  testWidgets('noStops refresh is discoverable and fires', (tester) async {
+    int taps = 0;
+    await tester.pumpWidget(
+      harness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(status: PersonalArrivalStatus.noStops),
+          onRefresh: () => taps++,
+        ),
+      ),
+    );
+    expect(find.text(UiStrings.myStopRefresh), findsOneWidget);
+    await tester.tap(find.text(UiStrings.myStopRefresh));
+    expect(taps, 1);
+  });
+
+  testWidgets('200 percent text scale no exception (ready)', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: pontualLightTheme(),
@@ -208,6 +223,29 @@ void main() {
             child: MediaQuery(
               data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
               child: PersonalArrivalCard(vm: readyVm()),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('200 percent text scale no exception (prompt)', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: pontualLightTheme(),
+        home: Scaffold(
+          body: Center(
+            child: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
+              child: PersonalArrivalCard(
+                vm: const PersonalArrivalVM(
+                  status: PersonalArrivalStatus.needsLocation,
+                ),
+                onEnableLocation: () {},
+              ),
             ),
           ),
         ),

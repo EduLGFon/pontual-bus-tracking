@@ -66,7 +66,7 @@ class PersonalArrivalCard extends StatelessWidget {
     if (status == PersonalArrivalStatus.noStops) {
       return Semantics(
         label: UiStrings.myStopNoStops,
-        excludeSemantics: true,
+        container: true,
         child: SurfaceCard(
           sunken: true,
           child: Column(
@@ -85,7 +85,7 @@ class PersonalArrivalCard extends StatelessWidget {
     if (status == PersonalArrivalStatus.noStopNear) {
       return Semantics(
         label: UiStrings.myStopNoStopNear,
-        excludeSemantics: true,
+        container: true,
         child: SurfaceCard(
           sunken: true,
           child: Column(
@@ -133,7 +133,7 @@ class PersonalArrivalCard extends StatelessWidget {
           : UiStrings.myStopNoEstimate;
       return Semantics(
         label: '$title. $distanceText. $copy',
-        excludeSemantics: true,
+        container: true,
         child: SurfaceCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,8 +295,13 @@ class PersonalArrivalCard extends StatelessWidget {
   }
 
   void _openInfo(BuildContext context, PersonalEtaVM lead) {
+    // The root navigator owns the modal so the shell dock cannot paint
+    // over the sheet.
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => PontualSheet(
         title: UiStrings.myStopHow,
         child: Column(
