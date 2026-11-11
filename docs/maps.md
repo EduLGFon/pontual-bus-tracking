@@ -55,7 +55,7 @@ deno task map-extract  # builds sao_mateus.pmtiles (~21 s, ~46 MB transfer)
 deno task map-verify   # pmtiles verify + header + size report
 ```
 
-Pinned inputs in `tools/map/bbox.json`: Protomaps build `20261026`, extract bbox `-40.46,-19.20,-39.50,-18.39` (municipality relation 1834958 plus buffer, extended east for app pan bounds over Guriri waters). Bump build date for refresh; bbox changes only if municipality boundary or app bounds change.
+Pinned inputs in `tools/map/bbox.json`: Protomaps build `20261110`, extract bbox `-40.46,-19.20,-39.50,-18.39` (municipality relation 1834958 plus buffer, extended east for app pan bounds over Guriri waters). Bump build date for refresh; bbox changes only if municipality boundary or app bounds change.
 
 Glyphs (one-time, then committed): generate PBF glyphs from Noto Sans Regular (OFL) for the `fonts/{fontstack}/{range}.pbf` path the styles reference. VERIFY exact `font-maker` invocation at build time; output goes next to tiles on static host (`maps/fonts/`), never to third-party host.
 
