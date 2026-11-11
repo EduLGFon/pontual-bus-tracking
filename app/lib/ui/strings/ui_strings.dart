@@ -1601,4 +1601,158 @@ class UiStrings {
 
   /// Undo action used by toasts.
   static const String undo = 'Desfazer';
+
+  // UX 2.0: answer-first surfaces.
+
+  /// First-run welcome title on Início.
+  static const String homeWelcomeTitle = 'Comece pelas linhas que você usa';
+
+  /// First-run welcome body on Início.
+  static const String homeWelcomeBody =
+      'Escolha uma ou mais linhas para ver a próxima saída aqui. Você pode '
+      'mudar depois.';
+
+  /// First-run welcome primary action.
+  static const String homeWelcomeChoose = 'Escolher minhas linhas';
+
+  /// First-run welcome dismiss action.
+  static const String homeWelcomeLater = 'Só olhar';
+
+  /// Line picker sheet title.
+  static const String homeChooseTitle = 'Escolha suas linhas';
+
+  /// Line picker sheet body.
+  static const String homeChooseBody =
+      'Marque as linhas que passam perto de você. Elas ficam nos favoritos e '
+      'aparecem na sua próxima saída.';
+
+  /// Line picker search field hint.
+  static const String homeChooseSearchHint = 'Buscar linha ou bairro';
+
+  /// Line picker save action.
+  static const String homeChooseSave = 'Salvar linhas';
+
+  /// Toast after saving the chosen lines.
+  static const String homeChooseSaved = 'Linhas salvas.';
+
+  /// Line picker state when the query matches nothing.
+  static const String homeChooseEmpty = 'Nenhuma linha encontrada.';
+
+  /// Eyebrow above the next-departure card.
+  static const String homeNextEyebrow = 'Sua próxima saída';
+
+  /// Next-departure state when the timetable has no more departures.
+  static const String homeNextNoMore = 'Sem mais saídas hoje';
+
+  /// First departure tomorrow, for example "Primeira amanhã: 06:10".
+  static String homeNextTomorrow(String hhmm) => 'Primeira amanhã: $hhmm';
+
+  /// Live vehicle count on the next-departure card.
+  static String homeNextLineLive(int count) => count == 1
+      ? '1 ônibus ao vivo nesta linha'
+      : '$count ônibus ao vivo nesta linha';
+
+  /// Certainty label when the next departure comes from the timetable.
+  static const String homeNextTimetable = 'Horário da tabela';
+
+  /// Primary action opening the line screen.
+  static const String homeNextOpen = 'Acompanhar linha';
+
+  /// Secondary action opening the timetable.
+  static const String homeNextTimetableAction = 'Ver horários';
+
+  /// Sharing card title on Início.
+  static const String homeShareCardTitle = 'Ajude quem está esperando';
+
+  /// Sharing card body on Início.
+  static const String homeShareCardBody =
+      'Se você está no ônibus, compartilhe a posição. Sem cadastro, sem '
+      'anúncios.';
+
+  /// Sharing card primary action.
+  static const String homeShareCardAction = 'Compartilhar minha viagem';
+
+  /// Sharing card secondary action opening the timetable.
+  static const String homeShareCardTimetable = 'Ver horários';
+
+  /// Compact live count value, for example "2 ao vivo".
+  static String homeLiveCountValue(int count) =>
+      count == 1 ? '1 ao vivo' : '$count ao vivo';
+
+  /// Title of the next-bus block on the line screen.
+  static const String lineNextTitle = 'Próximo ônibus';
+
+  /// Label when the next bus value comes from the timetable.
+  static const String lineNextScheduled = 'Próxima saída da tabela';
+
+  /// Label when the next bus value comes from a live position.
+  static const String lineNextLive = 'Ônibus ao vivo';
+
+  /// Compact live count on the line screen, for example "1 ao vivo".
+  static String lineLiveCount(int count) =>
+      count == 1 ? '1 ao vivo' : '$count ao vivo';
+
+  /// Empty live state title on the line screen.
+  static const String lineNoLiveTitle = 'Nenhum ônibus ao vivo agora';
+
+  /// Empty live state body on the line screen.
+  static const String lineNoLiveBody =
+      'Veja os horários ou compartilhe se estiver nesta linha.';
+
+  /// Sharing hint under the empty live state.
+  static const String lineShareHint =
+      'Está nesta linha? Compartilhe para aparecer no mapa.';
+
+  /// Walking time from the rider to the stop, for example "≈8 min a pé".
+  static String lineWalkTime(int minutes) => '≈$minutes min a pé';
+
+  /// Leave-now verdict: the rider can still walk to the stop.
+  static const String lineLeaveNow = 'Saia agora';
+
+  /// Leave-soon verdict with the recommended delay.
+  static String lineLeaveSoon(int minutes) => 'Saia em ≈$minutes min';
+
+  /// Still-time verdict: there is spare time before leaving.
+  static const String lineStillTime = 'Ainda dá tempo';
+
+  /// Verdict hint when the rider must leave immediately.
+  static String lineLeaveNowHint(int etaMin, int walkMin) =>
+      'O ônibus chega em $etaMin min e a caminhada leva ≈$walkMin min.';
+
+  /// Verdict hint when the rider should leave in a few minutes.
+  static String lineLeaveSoonHint(int etaMin, int leaveInMin) =>
+      'O ônibus chega em $etaMin min. Saia em ≈$leaveInMin min para chegar '
+      'a tempo.';
+
+  /// Verdict hint when there is spare time.
+  static String lineStillTimeHint(int etaMin, int spareMin) =>
+      'O ônibus chega em $etaMin min. Você tem ≈$spareMin min de folga.';
+
+  /// The bus is at the rider's stop.
+  static const String lineAtStop = 'O ônibus está no ponto';
+
+  /// The bus is arriving at the rider's stop.
+  static const String lineArrivingNow = 'Chegando ao seu ponto';
+
+  /// Honesty note under the walking estimate.
+  static const String lineWalkEstimateNote =
+      'Tempo a pé estimado pela distância em linha reta.';
+
+  /// Opt-in prompt title for the personal walking estimate.
+  static const String linePersonalPromptTitle = 'Quanto tempo até meu ponto?';
+
+  /// Opt-in prompt body for the personal walking estimate.
+  static const String linePersonalPromptBody =
+      'Ative a localização para ver o tempo a pé e se dá tempo de sair.';
+
+  /// Search action on the lines screen.
+  static const String linesSearchAction = 'Buscar linha';
+
+  /// Live count summary on the lines screen.
+  static String linesSummaryLive(int count) =>
+      count == 1 ? '1 ao vivo' : '$count ao vivo';
+
+  /// Live count caption on a search result row.
+  static String searchResultLive(int count) =>
+      count == 1 ? '1 ao vivo' : '$count ao vivo';
 }
