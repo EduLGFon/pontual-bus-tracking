@@ -345,16 +345,16 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                _header(context, c),
-                const SizedBox(height: Space.x4),
-                // Single scroll region above the pinned stop action: at
-                // large text scales the content scrolls and the button
-                // never scrolls away.
+                // The stop action is pinned in bottomNavigationBar below, so
+                // the header scrolls with the content: at large text scales the
+                // full title stays visible instead of being clipped.
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
+                        _header(context, c),
+                        const SizedBox(height: Space.x4),
                         TripHero(
                           key: const ValueKey<String>('tripHeroSection'),
                           controller: c,
@@ -372,9 +372,16 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                _stopBlock(context, c),
-                const SizedBox(height: Space.x4),
               ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: marginFor(context)),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: Space.x4),
+              child: _stopBlock(context, c),
             ),
           ),
         ),
@@ -386,6 +393,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   /// never disabled. One tap ends the trip, online or offline.
   Widget _stopBlock(BuildContext context, TripController c) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Text(

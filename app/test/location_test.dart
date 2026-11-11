@@ -4,10 +4,74 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';
 import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/platform/android/notification_permission.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
+
+/// Stream whose subscription lets a test control the cancel future. Used to
+/// prove recovery keeps cancel errors out of the zone and that a stopped
+/// service never subscribes again after its bounded cancel wait.
+class _WrappedCancelStream extends Stream<Position> {
+  _WrappedCancelStream(this._inner, this._cancel);
+
+  final Stream<Position> _inner;
+  final Future<void> Function() _cancel;
+
+  @override
+  StreamSubscription<Position> listen(
+    void Function(Position event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _WrappedCancelSubscription(
+      _inner.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      ),
+      _cancel,
+    );
+  }
+}
+
+class _WrappedCancelSubscription implements StreamSubscription<Position> {
+  _WrappedCancelSubscription(this._inner, this._cancel);
+
+  final StreamSubscription<Position> _inner;
+  final Future<void> Function() _cancel;
+
+  @override
+  Future<void> cancel() {
+    unawaited(_inner.cancel());
+    return _cancel();
+  }
+
+  @override
+  void onData(void Function(Position data)? handleData) =>
+      _inner.onData(handleData);
+
+  @override
+  void onError(Function? handleError) => _inner.onError(handleError);
+
+  @override
+  void onDone(void Function()? handleDone) => _inner.onDone(handleDone);
+
+  @override
+  void pause([Future<void>? resumeSignal]) => _inner.pause(resumeSignal);
+
+  @override
+  void resume() => _inner.resume();
+
+  @override
+  bool get isPaused => _inner.isPaused;
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _inner.asFuture<E>(futureValue);
+}
 
 void main() {
   setUp(() {
@@ -362,6 +426,7 @@ void main() {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
+    int now = 100000;
     int opens = 0;
     final LocationService service = LocationService(
       positionStream: (_) {
@@ -370,17 +435,19 @@ void main() {
       },
       batteryLevel: () async => 80,
       charging: () async => false,
-      nowMs: () => 100000,
+      nowMs: () => now,
     );
     service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
     expect(opens, 1);
     // Same mode inside hysteresis restarts nothing while healthy.
-    await service.requestMode(SamplingMode.waiting, 100000);
+    await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 1);
     // The OS kills the position stream when location services go off.
     positions.addError(StateError('location off'));
     await Future<void>.delayed(Duration.zero);
-    await service.requestMode(SamplingMode.waiting, 100000);
+    // The foreground retry budget allows one recreation per stall window.
+    now = 100000 + LocationService.stallRestartMs + 1;
+    await service.requestMode(SamplingMode.waiting, now);
     expect(opens, 2);
     await service.stop();
     await positions.close();
@@ -673,6 +740,97 @@ void main() {
     },
   );
 
+  test('recoverNow respects the foreground restart budget', () async {
+    // Web visible recovery must not cancel and relisten on every tab
+    // toggle: the same one-restart-per-stall-window budget applies. The
+    // one-shot still runs while the stream waits for the next window.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    int oneShots = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      oneShotPosition: (_) async {
+        oneShots += 1;
+        return Position(
+          latitude: -18.72,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+          accuracy: 10,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        );
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.hasActiveSubscription, isFalse);
+    // Two immediate visible recoveries: no recreation inside the window.
+    expect(await service.recoverNow(), isTrue);
+    expect(await service.recoverNow(), isTrue);
+    expect(opens, 1);
+    expect(oneShots, 2);
+    // Past the window the next recovery recreates once.
+    now = 100000 + LocationService.stallRestartMs + 1;
+    expect(await service.recoverNow(), isTrue);
+    expect(opens, 2);
+    expect(oneShots, 3);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('restart budget uses the requested slow-mode window', () async {
+    // Waiting uses a 30 s window; saver and paused use 75 s. Switching to
+    // one of them must wait for the requested mode's window, not the old
+    // waiting window.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    // Past the waiting window but inside the saver window.
+    now = 100000 + LocationService.stallRestartMs + 1;
+    expect(
+      await service.requestMode(SamplingMode.offlineSaver, now),
+      SamplingMode.waiting,
+    );
+    expect(opens, 1);
+    // Past the saver window the switch recreates once.
+    now = 100000 + 75000 + 1;
+    expect(
+      await service.requestMode(SamplingMode.offlineSaver, now),
+      SamplingMode.offlineSaver,
+    );
+    expect(opens, 2);
+    await service.stop();
+    await positions.close();
+  });
+
   test('a silent stream restarts after the stall window', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
@@ -852,6 +1010,363 @@ void main() {
     await service.stop();
     expect(service.hasActiveSubscription, isFalse);
     expect(service.hasOpenFixStream, isFalse);
+    await positions.close();
+  });
+
+  test(
+    'backgrounded recovery defers to a single subscribe on resume',
+    () async {
+      // Android denies foreground-service starts from the background:
+      // recreating the geolocator stream while backgrounded is what killed
+      // field trips. Every recreation must wait for the resume.
+      Log.clearForTest();
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      int now = 100000;
+      int opens = 0;
+      final LocationService service = LocationService(
+        positionStream: (_) {
+          opens += 1;
+          return positions.stream;
+        },
+        batteryLevel: () async => 80,
+        charging: () async => false,
+        nowMs: () => now,
+      );
+      service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+      expect(opens, 1);
+      expect(service.appResumed, isTrue);
+      service.handleLifecycle(false);
+      expect(service.appResumed, isFalse);
+      // A dead stream plus a mode change both want a new native stream.
+      positions.addError(StateError('os denied the service'));
+      await Future<void>.delayed(Duration.zero);
+      now = 100000 + LocationService.stallRestartMs + 1;
+      await service.requestMode(SamplingMode.waiting, now);
+      await service.requestMode(SamplingMode.leaderMoving, now);
+      await service.requestMode(SamplingMode.leaderMoving, now);
+      expect(opens, 1, reason: 'no native stream while backgrounded');
+      final int deferred = Log.recent
+          .where(
+            (LogRecord r) =>
+                r.message == 'position stream stalled' &&
+                r.context == 'deferred',
+          )
+          .length;
+      expect(deferred, 1, reason: 'one deferred warning per background');
+      expect(service.recoveryDeferred, isTrue);
+      // Resume recovers exactly once with the pending mode.
+      service.handleLifecycle(true);
+      await service.resumeRecovery();
+      expect(opens, 2);
+      expect(service.appResumed, isTrue);
+      expect(service.recoveryDeferred, isFalse);
+      // A second call in the same resume does not try again.
+      await service.resumeRecovery();
+      expect(opens, 2);
+      await service.stop();
+      await positions.close();
+    },
+  );
+
+  test('a dead stream restarts at most once per stall window', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    expect(service.hasActiveSubscription, isFalse);
+    // Inside the window the dead stream is not recreated again.
+    await service.requestMode(SamplingMode.waiting, now + 1);
+    expect(opens, 1);
+    now = 100000 + LocationService.stallRestartMs + 1;
+    await service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 2);
+    expect(service.hasActiveSubscription, isTrue);
+    // The same window refuses a second recreation.
+    await service.requestMode(SamplingMode.waiting, now + 1);
+    expect(opens, 2);
+    // The next window allows one more; two recreations with no position
+    // event mark the stream dead so the controller fails visibly.
+    now += LocationService.stallRestartMs + 1;
+    await service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 3);
+    expect(service.hasActiveSubscription, isFalse);
+    expect(service.hasProducedFix, isFalse);
+    await service.stop();
+    await positions.close();
+  });
+
+  test(
+    'rapid mode switches without a fix do not mark the stream dead',
+    () async {
+      // Only dead or silent recoveries count towards the no-event threshold.
+      // Two intentional switches on a healthy stream must not look like two
+      // failed recoveries.
+      // ignore: close_sinks - closed at the end of the test.
+      final StreamController<Position> positions =
+          StreamController<Position>.broadcast();
+      int now = 100000;
+      int opens = 0;
+      final LocationService service = LocationService(
+        positionStream: (_) {
+          opens += 1;
+          return positions.stream;
+        },
+        batteryLevel: () async => 80,
+        charging: () async => false,
+        nowMs: () => now,
+      );
+      service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+      expect(opens, 1);
+      // Upgrade bypasses hysteresis and is not a recovery.
+      now = 100001;
+      await service.requestMode(SamplingMode.leaderMoving, now);
+      expect(opens, 2);
+      // Exactly one guard window later the downgrade is allowed and the
+      // stream is still not stalled (strictly greater than the window).
+      now += LocationService.stallRestartMs;
+      await service.requestMode(SamplingMode.follower, now);
+      expect(opens, 3);
+      expect(service.hasActiveSubscription, isTrue);
+      expect(service.hasProducedFix, isFalse);
+      await service.stop();
+      await positions.close();
+    },
+  );
+
+  test('backgrounded mode switches stay out of the recovery streak', () async {
+    // Deferred triage must keep a plain background mode change apart from
+    // a dead or stalled stream. Two intentional switches across two resumes
+    // must not count as two failed recoveries and kill a healthy stream.
+    Log.clearForTest();
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    service.handleLifecycle(false);
+    await service.requestMode(SamplingMode.leaderMoving, now);
+    expect(opens, 1);
+    final List<LogRecord> firstEpisode = Log.recent;
+    expect(
+      firstEpisode.where(
+        (LogRecord r) =>
+            r.message == 'mode switch deferred' && r.context == 'background',
+      ),
+      hasLength(1),
+    );
+    expect(
+      firstEpisode.where(
+        (LogRecord r) =>
+            r.message == 'position stream stalled' && r.context == 'deferred',
+      ),
+      isEmpty,
+    );
+    service.handleLifecycle(true);
+    await service.resumeRecovery();
+    expect(opens, 2);
+    expect(service.hasActiveSubscription, isTrue);
+    // Second background episode one guard window later, still without any
+    // position event. Exactly at the window the stream is not stalled, so
+    // this is another intentional switch.
+    now += LocationService.stallRestartMs;
+    service.handleLifecycle(false);
+    await service.requestMode(SamplingMode.waiting, now);
+    expect(opens, 2);
+    service.handleLifecycle(true);
+    await service.resumeRecovery();
+    expect(opens, 3);
+    expect(service.hasActiveSubscription, isTrue);
+    expect(service.hasProducedFix, isFalse);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('concurrent recovery and mode request share one recreation', () async {
+    // A resume recovery and a supervision round can race. Both must wait
+    // on one cancel/listen cycle instead of interleaving two.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    service.handleLifecycle(false);
+    now = 100000 + LocationService.stallRestartMs + 1;
+    await service.requestMode(SamplingMode.waiting, now);
+    service.handleLifecycle(true);
+    final Future<void> recovery = service.resumeRecovery();
+    final Future<SamplingMode> round = service.requestMode(
+      SamplingMode.leaderMoving,
+      now,
+    );
+    await recovery;
+    await round;
+    expect(opens, 2);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('a relisten waiting on cancel does not subscribe after stop', () async {
+    // stop() during the bounded cancel wait must win: the recreation is no
+    // longer wanted and must not leak a foreground service after the trip.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    final Completer<void> cancel = Completer<void>();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return _WrappedCancelStream(positions.stream, () => cancel.future);
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    final Future<SamplingMode> pending = service.requestMode(
+      SamplingMode.leaderMoving,
+      100001,
+    );
+    // The relisten is now parked on the delayed old cancel.
+    await Future<void>.delayed(Duration.zero);
+    expect(opens, 1);
+    await service.stop();
+    cancel.complete();
+    await pending;
+    expect(opens, 1, reason: 'no native subscription after stop');
+    expect(service.hasActiveSubscription, isFalse);
+    await positions.close();
+  });
+
+  test('a stream with no fix restarts after one stall window', () async {
+    // Silence before the first fix is a silent trip, not a healthy start:
+    // the watchdog must count it instead of waiting for _seq.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    expect(service.hasProducedFix, isFalse);
+    await service.requestMode(
+      SamplingMode.waiting,
+      100000 + LocationService.stallRestartMs,
+    );
+    expect(opens, 1, reason: 'exactly at the window is still on time');
+    await service.requestMode(
+      SamplingMode.waiting,
+      100000 + LocationService.stallRestartMs + 1,
+    );
+    expect(opens, 2);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('cancel errors from a never-started stream never escape', () async {
+    // Geolocator rejects a cancel on a stream that never started with
+    // "No active stream to cancel". Recovery used to surface that as an
+    // uncaught PlatformException. The unawaited cancel keeps a handler.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return _WrappedCancelStream(
+          positions.stream,
+          () => Future<void>.error(StateError('No active stream to cancel')),
+        );
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 1);
+    // A second start cancels the previous subscription synchronously.
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    expect(opens, 2);
+    await Future<void>.delayed(Duration.zero);
+    await service.stop();
+    await positions.close();
+  });
+
+  test('resumeRecovery after stop is a no-op', () async {
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => 100000,
+    );
+    service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
+    service.handleLifecycle(false);
+    positions.addError(StateError('location off'));
+    await Future<void>.delayed(Duration.zero);
+    await service.requestMode(
+      SamplingMode.waiting,
+      100000 + LocationService.stallRestartMs + 1,
+    );
+    await service.stop();
+    service.handleLifecycle(true);
+    await service.resumeRecovery();
+    expect(opens, 1);
+    expect(service.hasActiveSubscription, isFalse);
     await positions.close();
   });
 

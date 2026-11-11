@@ -100,31 +100,33 @@ class _TripEndCardState extends State<TripEndCard> {
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(Space.x6),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _CheckMark(animate: !reduce),
-              const SizedBox(height: Space.x6),
-              Text(
-                widget.message,
-                style: context.text.title,
-                textAlign: TextAlign.center,
-              ),
-              if (widget.helpedTrips != null &&
-                  widget.helpedTrips! > 0) ...<Widget>[
-                const SizedBox(height: Space.x3),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _CheckMark(animate: !reduce),
+                const SizedBox(height: Space.x6),
                 Text(
-                  UiStrings.kudos(widget.helpedTrips!),
-                  style: context.text.body,
+                  widget.message,
+                  style: context.text.title,
                   textAlign: TextAlign.center,
                 ),
+                if (widget.helpedTrips != null &&
+                    widget.helpedTrips! > 0) ...<Widget>[
+                  const SizedBox(height: Space.x3),
+                  Text(
+                    UiStrings.kudos(widget.helpedTrips!),
+                    style: context.text.body,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: Space.x8),
+                PrimaryButton(label: UiStrings.endDone, onPressed: _dismiss),
               ],
-              const SizedBox(height: Space.x8),
-              PrimaryButton(label: UiStrings.endDone, onPressed: _dismiss),
-            ],
+            ),
           ),
         ),
       ),

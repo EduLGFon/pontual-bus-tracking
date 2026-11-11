@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/diagnostics/diagnostics_uploader.dart';
 import 'package:pontual/core/logging/log.dart';
+import 'package:pontual/ui/adapters/local_stores.dart' show diagnosticsOptInKey;
 import 'package:pontual/data/prefs/theme_store.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/router/app_router.dart';
@@ -18,7 +19,7 @@ import 'package:pontual/ui/router/app_router.dart';
 /// Entry point of the app.
 void main() {
   FlutterError.onError = (FlutterErrorDetails details) {
-    Log.e('flutter error', details.exceptionAsString());
+    unawaited(DiagnosticsUploader.recordFlutterError(details));
     FlutterError.presentError(details);
   };
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
@@ -49,6 +50,7 @@ class _PontualAppState extends ConsumerState<PontualApp>
 
   @override
   void dispose() {
+    _diagTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -65,11 +67,21 @@ class _PontualAppState extends ConsumerState<PontualApp>
   Future<void> _uploadDiagnostics() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final bool optIn = prefs.getBool('diag_opt_in_v1') ?? true;
+      final bool optIn = prefs.getBool(diagnosticsOptInKey) ?? true;
       await const DiagnosticsUploader().uploadIfOptedIn(optIn);
     } on Object {
       // Never fail lifecycle.
     }
+  }
+
+  Timer? _diagTimer;
+
+  void _scheduleDiagnosticsUpload() {
+    _diagTimer?.cancel();
+    _diagTimer = Timer(const Duration(seconds: 8), () {
+      if (!mounted) return;
+      unawaited(_uploadDiagnostics());
+    });
   }
 
   /// Reads the persisted theme after the first frame, so the first paint
@@ -95,6 +107,8 @@ class _PontualAppState extends ConsumerState<PontualApp>
       // Static data stays bundled: lines render from the asset bundle and
       // the remote check is handled by the data layer itself.
       ref.read(linesProvider);
+      // Cold-start diagnostics upload, debounced.
+      _scheduleDiagnosticsUpload();
     });
   }
 

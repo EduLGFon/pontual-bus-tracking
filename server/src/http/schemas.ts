@@ -35,6 +35,7 @@ export const DiagnosticsBody = strictObject({
   platform: v.pipe(v.string(), v.maxLength(20)),
   os: v.pipe(v.string(), v.maxLength(60)),
   model: v.optional(v.pipe(v.string(), v.maxLength(60))),
+  id: v.optional(v.pipe(v.string(), v.maxLength(64))),
   records: v.pipe(
     v.array(
       strictObject({

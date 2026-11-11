@@ -8,6 +8,7 @@ No affiliation with Viacao Sao Gabriel or the municipality.
 - Design contract: `PLAN.md`
 - Agent rules: `AGENTS.md`
 - Decisions: `DECISIONS.md`
+- Principles: `PRINCIPLES.md`
 
 ## Layout
 
