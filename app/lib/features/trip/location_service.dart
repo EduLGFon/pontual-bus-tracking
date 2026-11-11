@@ -9,7 +9,7 @@
 import 'dart:async';
 
 import 'package:battery_plus/battery_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/geo/geo.dart';
@@ -257,6 +257,20 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
   }
 }
 
+/// Forwards app lifecycle changes to one [LocationService]. Production only:
+/// tests call [LocationService.handleLifecycle] directly so they need no
+/// binding or observer setup.
+class _LifecycleObserver extends WidgetsBindingObserver {
+  _LifecycleObserver(this._service);
+
+  final LocationService _service;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _service.handleLifecycle(state == AppLifecycleState.resumed);
+  }
+}
+
 /// Produces filtered fixes for the active trip. Only TripController drives
 /// this service. See PLAN.md 14.3.
 class LocationService {
@@ -277,7 +291,7 @@ class LocationService {
   /// Production service backed by geolocator and battery_plus.
   factory LocationService.production() {
     final Battery battery = Battery();
-    return LocationService(
+    final LocationService service = LocationService(
       positionStream: (LocationSettings s) =>
           Geolocator.getPositionStream(locationSettings: s),
       batteryLevel: () =>
@@ -295,6 +309,16 @@ class LocationService {
       oneShotPosition: (LocationSettings s) =>
           Geolocator.getCurrentPosition(locationSettings: s),
     );
+    final _LifecycleObserver observer = _LifecycleObserver(service);
+    service._observer = observer;
+    WidgetsBinding.instance.addObserver(observer);
+    // An unknown lifecycle state counts as resumed: a start from a visible
+    // activity is always allowed to create the foreground service.
+    final AppLifecycleState? initial = WidgetsBinding.instance.lifecycleState;
+    service.handleLifecycle(
+      initial == null || initial == AppLifecycleState.resumed,
+    );
+    return service;
   }
 
   final Stream<Position> Function(LocationSettings settings) _positionStream;
@@ -304,6 +328,43 @@ class LocationService {
   final Future<Position> Function(LocationSettings settings)? _oneShotPosition;
 
   StreamSubscription<Position>? _sub;
+
+  /// True while the app is visible (resumed). Native stream recreation is
+  /// never attempted while backgrounded: Android 14+ denies a foreground
+  /// service start from the background, which would silently kill the trip.
+  bool _appResumed = true;
+
+  /// True when a stalled or dead stream asked for recreation while the app
+  /// was backgrounded. Consumed by one [resumeRecovery] on the next resume.
+  bool _pendingRestart = false;
+  SamplingMode? _pendingMode;
+
+  /// True when the deferred restart was a dead or stalled recovery rather
+  /// than an intentional background mode switch. Only recoveries count
+  /// towards the no-event dead-stream threshold.
+  bool _pendingRecovery = false;
+
+  /// One deferred warning per background episode: supervision rounds keep
+  /// requesting the same deferral every 30 s and must not spam the log.
+  bool _deferredLogged = false;
+
+  /// True after this resume already ran its single recovery attempt. Reset
+  /// on the next background transition so a resume never retries in a loop.
+  bool _resumeRecoveryDone = false;
+
+  /// Last native subscription creation, in milliseconds. Caps dead or
+  /// silent restarts to one per stall window while the app is visible:
+  /// each recreation stops and restarts the Android foreground service.
+  int _lastRestartAtMs = 0;
+
+  /// Consecutive recreations without any position event in between. Two
+  /// mean the native stream is not recovering, so it is marked dead and the
+  /// controller ends the trip visibly instead of restarting forever.
+  int _restartsWithoutEvent = 0;
+
+  /// Production lifecycle observer. Null in tests, which call
+  /// [handleLifecycle] directly and never touch the widget binding.
+  WidgetsBindingObserver? _observer;
 
   /// True once the OS-side position stream errored or closed (location
   /// services toggled off mid-trip, OEM kill). The fix stream stays open,
@@ -354,8 +415,34 @@ class LocationService {
   /// never drops a fix (the 60 m gate owns that).
   double? _lastAccuracyM;
 
+  /// True while the app is visible. Read-only view for tests and callers.
+  bool get appResumed => _appResumed;
+
+  /// Notified on app lifecycle changes. TripController sets this to run one
+  /// recovery attempt when the app comes back to the foreground.
+  void Function(bool resumed)? onLifecycleChanged;
+
+  /// Records the app lifecycle. Notifies [onLifecycleChanged] only when the
+  /// value changes. Safe after [stop]: it only updates state.
+  void handleLifecycle(bool resumed) {
+    final bool changed = resumed != _appResumed;
+    _appResumed = resumed;
+    if (resumed) {
+      _deferredLogged = false;
+    } else {
+      // A new background episode may defer another restart on resume.
+      _resumeRecoveryDone = false;
+    }
+    if (changed) {
+      onLifecycleChanged?.call(resumed);
+    }
+  }
+
   /// Starts emitting accepted fixes for [mode]. Recreates the stream when
-  /// the policy switches modes, at most once per 30 seconds.
+  /// the policy switches modes, at most once per stall window for dead or
+  /// silent streams. See [requestMode].
+  /// Precondition: called from a resumed activity during trip start; native
+  /// creation while backgrounded is deferred elsewhere.
   Stream<TripFix> fixes({
     required SamplingMode mode,
     required String lineLabel,
@@ -363,11 +450,19 @@ class LocationService {
     // ignore: close_sinks - owned by this service, closed in stop().
     final StreamController<TripFix> controller =
         StreamController<TripFix>.broadcast();
+    final int nowMs = _nowMs();
     _controller = controller;
     _lineLabel = lineLabel;
+    _pendingRestart = false;
+    _pendingMode = null;
+    _pendingRecovery = false;
+    _deferredLogged = false;
+    _resumeRecoveryDone = false;
+    _restartsWithoutEvent = 0;
     _listen(mode, controller);
     _mode = mode;
-    _lastChangeMs = _nowMs();
+    _lastChangeMs = nowMs;
+    _lastRestartAtMs = nowMs;
     // No onCancel handler by design: TripController awaits stream.first
     // for the start fix, and cancelling the position stream when that
     // one-shot subscription ends would starve the run loop. Only stop()
@@ -381,7 +476,10 @@ class LocationService {
     // through [_relisten], which awaits the old cancellation first so the
     // native foreground service is not disabled after the new stream has
     // already started it (see DECISIONS.md note on mode-switch races).
-    unawaited(_sub?.cancel());
+    // A cancel on a stream that never started rejects with "No active
+    // stream to cancel"; the handler keeps that PlatformException out of
+    // FlutterError.onError.
+    unawaited(_sub?.cancel().then((_) {}, onError: (_) {}));
     _sub = null;
     _streamDead = false;
     _lastPositionAtMs = _nowMs();
@@ -399,15 +497,71 @@ class LocationService {
     );
   }
 
-  /// Recreates the position stream after awaiting the previous
-  /// cancellation. Awaiting is required: geolocator's Android side
-  /// disables the foreground service when a subscription cancels, and if
-  /// that disable lands after the new subscription's enable it leaves the
-  /// trip without a notification or a foreground process.
+  /// Marks a restart as pending instead of touching the native stream.
+  /// Logs once per background episode so supervision rounds stay quiet.
+  /// A dead or stalled stream keeps the stall message; an intentional mode
+  /// change logs separately so field triage is not misled.
+  void _deferRestart(SamplingMode mode, {required bool recovery}) {
+    _pendingRestart = true;
+    _pendingMode = mode;
+    _pendingRecovery = recovery;
+    if (_deferredLogged) {
+      return;
+    }
+    _deferredLogged = true;
+    if (recovery) {
+      Log.w('position stream stalled', 'deferred');
+    } else {
+      Log.w('mode switch deferred', 'background');
+    }
+  }
+
+  /// True when a dead or silent restart is allowed at [nowMs]. Each
+  /// recreation stops and restarts the Android foreground service, so the
+  /// foreground budget is one restart per stall window of [mode] (the mode
+  /// being requested, not the old one, so a switch to a slow mode applies
+  /// its longer window).
+  bool _canRestart(SamplingMode mode, int nowMs) =>
+      nowMs - _lastRestartAtMs >= _stallWindowMs(mode);
+
+  /// The running native recreation, if any. A resume recovery and a
+  /// supervision round can request a restart at the same time; both wait on
+  /// this one future so cancel and listen never interleave.
+  Future<void>? _relistenInFlight;
+
+  /// Recreates the position stream, joining an in-flight recreation instead
+  /// of starting a second one. The [recovery] flag separates dead or silent
+  /// recoveries from intentional mode switches: only recoveries count
+  /// towards the no-event dead-stream threshold.
   Future<void> _relisten(
     SamplingMode m,
+    StreamController<TripFix> controller, {
+    required bool recovery,
+  }) {
+    final Future<void>? inFlight = _relistenInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+    final Future<void> work = _relistenNow(m, controller, recovery);
+    _relistenInFlight = work;
+    return work.whenComplete(() {
+      if (identical(_relistenInFlight, work)) {
+        _relistenInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _relistenNow(
+    SamplingMode m,
     StreamController<TripFix> controller,
+    bool recovery,
   ) async {
+    if (!_appResumed) {
+      // Defense in depth: never start the native stream from the
+      // background. Callers normally defer before reaching here.
+      _deferRestart(m, recovery: recovery);
+      return;
+    }
     final StreamSubscription<Position>? old = _sub;
     _sub = null;
     if (old != null) {
@@ -422,8 +576,24 @@ class LocationService {
         // Best effort: proceed with the new subscription regardless.
       }
     }
+    // stop() can run during the bounded cancel wait: it clears the
+    // controller and subscription and ends the trip. Do not create a new
+    // native subscription after that, or the foreground service leaks
+    // past stop (the teardown gate does not cover this recreation).
+    if (!identical(_controller, controller) ||
+        controller.isClosed ||
+        _sub != null) {
+      return;
+    }
+    if (recovery) {
+      // Only recovery restarts count: an intentional mode switch is not
+      // evidence that the native stream stopped recovering.
+      _restartsWithoutEvent += 1;
+    }
     _streamDead = false;
-    _lastPositionAtMs = _nowMs();
+    final int nowMs = _nowMs();
+    _lastPositionAtMs = nowMs;
+    _lastRestartAtMs = nowMs;
     _sub = _positionStream(settingsFor(m, _lineLabel)).listen(
       (Position p) => _emit(p, controller),
       onError: (Object e) {
@@ -434,6 +604,13 @@ class LocationService {
         _streamDead = true;
       },
     );
+    if (_restartsWithoutEvent >= 2) {
+      // Two recoveries with no position event in between: the native
+      // stream is not recovering. Report it dead so the controller ends
+      // the trip visibly instead of recreating the foreground service in
+      // a loop.
+      _streamDead = true;
+    }
   }
 
   /// Filters one position and emits it when accepted. Shared by the
@@ -458,6 +635,9 @@ class LocationService {
     // filter drops it below. The stall watchdog must not recreate a
     // healthy stream just because every fix in a patch is too coarse.
     _lastPositionAtMs = atMs;
+    // A position event also ends the consecutive-restart streak: the
+    // native stream is delivering again.
+    _restartsWithoutEvent = 0;
     final String? reason = dropReason(raw, atMs);
     if (reason != null) {
       Log.d('fix dropped', reason);
@@ -511,7 +691,9 @@ class LocationService {
   }
 
   /// True when the position stream is dead or has gone silent past the
-  /// stall window for its current sampling cadence. Used by both the
+  /// stall window for its current sampling cadence. Silence counts even
+  /// before the first fix: a start that never produces one is exactly the
+  /// silent-trip failure this watchdog must catch. Used by both the
   /// supervision round and web recovery.
   bool _needsRestart(int nowMs) {
     if (_streamDead) {
@@ -519,8 +701,7 @@ class LocationService {
     }
     final int? eventAt = _lastPositionAtMs;
     final int windowMs = _stallWindowMs(_mode);
-    return _seq > 0 &&
-        eventAt != null &&
+    return eventAt != null &&
         nowMs - eventAt > windowMs &&
         nowMs - _lastChangeMs >= windowMs;
   }
@@ -530,15 +711,19 @@ class LocationService {
   /// never queues more than one one-shot at a time. Returns true when the
   /// one-shot fix was accepted; the regular stream remains the fallback.
   Future<bool> recoverNow() async {
+    if (!_appResumed) {
+      // Never ask for a location or recreate the service while backgrounded.
+      return false;
+    }
     final StreamController<TripFix>? controller = _controller;
     if (controller == null || controller.isClosed) {
       return false;
     }
     final int nowMs = _nowMs();
-    if (_needsRestart(nowMs)) {
+    if (_needsRestart(nowMs) && _canRestart(_mode, nowMs)) {
       Log.w('position stream stalled', 'restarting on visible');
       _lastChangeMs = nowMs;
-      await _relisten(_mode, controller);
+      await _relisten(_mode, controller, recovery: true);
     }
     final Future<Position> Function(LocationSettings settings)? oneShot =
         _oneShotPosition;
@@ -563,6 +748,38 @@ class LocationService {
 
   bool _oneShotInFlight = false;
 
+  /// Web and Android resume recovery. Runs at most once per resume: when a
+  /// restart was deferred in the background (or the stream is dead or
+  /// silent), it recreates the native stream exactly once with the pending
+  /// or current mode. Android denies background foreground-service starts,
+  /// so this is the only place a backgrounded stream returns to life. Safe
+  /// after [stop] and before the first fix.
+  Future<void> resumeRecovery() async {
+    if (!_appResumed || _resumeRecoveryDone) {
+      return;
+    }
+    _resumeRecoveryDone = true;
+    final StreamController<TripFix>? controller = _controller;
+    if (controller == null || controller.isClosed) {
+      _pendingRestart = false;
+      _pendingMode = null;
+      return;
+    }
+    final int nowMs = _nowMs();
+    final bool needs = _pendingRestart || _needsRestart(nowMs);
+    final bool recovery = _pendingRestart ? _pendingRecovery : true;
+    final SamplingMode mode = _pendingMode ?? _mode;
+    _pendingRestart = false;
+    _pendingMode = null;
+    _pendingRecovery = false;
+    if (!needs) {
+      return;
+    }
+    _lastChangeMs = nowMs;
+    await _relisten(mode, controller, recovery: recovery);
+    _mode = mode;
+  }
+
   /// Requests a mode switch honoring hysteresis for downgrades only.
   /// Recreates the underlying position stream when the mode actually
   /// changes so offline saver drops to low-power GPS. Upgrades to a faster
@@ -573,12 +790,14 @@ class LocationService {
   /// instead of the normal window, so GPS stays powered through brief
   /// coarse patches; offline saver and paused keep the normal guard
   /// because faster GPS buys nothing with no uploads. A dead position
-  /// stream recreates immediately, even for the same mode and inside
-  /// hysteresis: the trip has no fixes until it does. A silent stream
-  /// (no position event for one full stall window of the current cadence)
-  /// recreates too, at most once per window: some devices freeze delivery
-  /// without ever erroring, while coarse fixes are still delivery and
-  /// never trigger a restart. Returns the active mode.
+  /// stream is recreated at most once per stall window, even for the same
+  /// mode and inside hysteresis: the trip has no fixes until it does, but
+  /// each recreation restarts the Android foreground service. A silent
+  /// stream (no position event for one full stall window of the current
+  /// cadence) recreates too, under the same budget; some devices freeze
+  /// delivery without ever erroring, while coarse fixes are still delivery
+  /// and never trigger a restart. While backgrounded every recreation is
+  /// deferred to [resumeRecovery]. Returns the active mode.
   Future<SamplingMode> requestMode(SamplingMode mode, int nowMs) async {
     final bool restartDead = _streamDead;
     final bool stalled = !restartDead && _needsRestart(nowMs);
@@ -600,6 +819,17 @@ class LocationService {
     if (!restart && !upgrade && nowMs - _lastChangeMs < guardMs) {
       return _mode;
     }
+    if (!_appResumed) {
+      // Android denies background foreground-service starts. Keep the
+      // current native subscription untouched and recover once on resume.
+      _deferRestart(mode, recovery: restart);
+      return _mode;
+    }
+    if (restart && !_canRestart(mode, nowMs)) {
+      // Foreground budget: at most one dead or silent restart per stall
+      // window. The next supervision round retries once the window passes.
+      return _mode;
+    }
     if (stalled && !restartDead) {
       Log.w('position stream stalled', 'restarting');
     }
@@ -607,7 +837,7 @@ class LocationService {
     _lastChangeMs = nowMs;
     final StreamController<TripFix>? controller = _controller;
     if (controller != null && !controller.isClosed) {
-      await _relisten(mode, controller);
+      await _relisten(mode, controller, recovery: restart);
     }
     return _mode;
   }
@@ -639,20 +869,43 @@ class LocationService {
     _teardownGate = Future<void>.value();
   }
 
-  /// True while a native position subscription is attached. After a
-  /// successful start this must stay true; a trip with no subscription
-  /// is a silent trip and must fail visibly instead.
-  bool get hasActiveSubscription => _sub != null;
+  /// True while a native position subscription is attached and the OS-side
+  /// stream has not been declared dead. After a successful start this must
+  /// stay true; a trip with no subscription is a silent trip and must fail
+  /// visibly instead.
+  bool get hasActiveSubscription => _sub != null && !_streamDead;
+
+  /// True once at least one accepted fix was emitted. The startup handshake
+  /// requires it so sharing never opens on a stream that never delivered.
+  bool get hasProducedFix => _seq > 0;
+
+  /// True when the stream is dead while the app is backgrounded. Recovery
+  /// cannot start a foreground service from the background, so the
+  /// controller waits for the resume instead of ending a healthy trip.
+  bool get recoveryDeferred => !_appResumed && _streamDead;
+
+  /// Effective silence window for the current mode, in milliseconds. Used
+  /// by the controller to bound the startup no-fix invariant.
+  int get stallWindowMs => _stallWindowMs(_mode);
 
   /// True while the fix broadcast is open for listeners.
   bool get hasOpenFixStream => _controller != null && !_controller!.isClosed;
 
-  /// Stops the position stream and closes the fix stream. Never blocks
-  /// the caller (awaiting native cancellations stalls widget test zones):
-  /// the native cancel is bounded (2 s) and chained into the
-  /// process-wide gate, so the next trip's [awaitQuiescent] still
-  /// observes it. Returns immediately; the gate owns the async work.
+  /// Stops the position stream, closes the fix stream, and detaches the
+  /// production lifecycle observer. Never blocks the caller (awaiting
+  /// native cancellations stalls widget test zones): the native cancel is
+  /// bounded (2 s) and chained into the process-wide gate, so the next
+  /// trip's [awaitQuiescent] still observes it. Returns immediately; the
+  /// gate owns the async work.
   Future<void> stop() {
+    final WidgetsBindingObserver? observer = _observer;
+    _observer = null;
+    if (observer != null) {
+      WidgetsBinding.instance.removeObserver(observer);
+    }
+    _pendingRestart = false;
+    _pendingMode = null;
+    _pendingRecovery = false;
     final StreamSubscription<Position>? sub = _sub;
     _sub = null;
     final StreamController<TripFix>? c = _controller;

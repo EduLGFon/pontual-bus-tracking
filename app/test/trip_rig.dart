@@ -80,7 +80,13 @@ TripFix fix(double speed) {
 /// Controller under test with its clock, gateway, and positions.
 class Rig {
   /// Creates a rig.
-  Rig(this.controller, this.clock, this.gateway, this.positions);
+  Rig(
+    this.controller,
+    this.clock,
+    this.gateway,
+    this.positions,
+    this.locations,
+  );
 
   /// Controller under test.
   final TripController controller;
@@ -94,6 +100,16 @@ class Rig {
   /// Broadcast positions: mode switches re-subscribe, mirroring the
   /// geolocator factory which returns a fresh stream per mode.
   final StreamController<Position> positions;
+
+  /// Location service owned by the controller under test.
+  final LocationService locations;
+
+  /// Simulates the app leaving the foreground.
+  void background() => locations.handleLifecycle(false);
+
+  /// Simulates the app returning to the foreground. The controller's
+  /// recovery runs asynchronously; tests await observable state.
+  void resume() => locations.handleLifecycle(true);
 }
 
 /// Builds a rig answering HTTP with [client].
@@ -103,6 +119,7 @@ Rig rig(
   FakeClock? clock,
   GnssQualityReader? gnssReader,
   Future<Position> Function(LocationSettings settings)? oneShotPosition,
+  Stream<Position> Function(LocationSettings settings)? positionStream,
 }) {
   String? token;
   final MutableGateway gw = gateway ?? MutableGateway();
@@ -114,6 +131,13 @@ Rig rig(
   // ignore: close_sinks - closed at the end of each test.
   final StreamController<Position> positions =
       StreamController<Position>.broadcast();
+  final LocationService locations = LocationService(
+    positionStream: positionStream ?? (_) => positions.stream,
+    batteryLevel: () async => 80,
+    charging: () async => false,
+    nowMs: () => clk.nowMs(),
+    oneShotPosition: oneShotPosition,
+  );
   final TripController controller = TripController(
     TripDeps(
       api: BusApi(
@@ -125,18 +149,12 @@ Rig rig(
       gateway: gw,
       consentStore: const ConsentStore(),
       consentVersion: 2,
-      locations: () => LocationService(
-        positionStream: (_) => positions.stream,
-        batteryLevel: () async => 80,
-        charging: () async => false,
-        nowMs: () => clk.nowMs(),
-        oneShotPosition: oneShotPosition,
-      ),
+      locations: () => locations,
       clock: clk,
       gnssReader: gnssReader,
     ),
   );
-  return Rig(controller, clk, gw, positions);
+  return Rig(controller, clk, gw, positions, locations);
 }
 
 /// HTTP double where every trip call succeeds.

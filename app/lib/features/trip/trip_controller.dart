@@ -269,6 +269,31 @@ class TripController extends ChangeNotifier {
 
   int? _webHiddenSinceMs;
 
+  /// Handles the app returning to the foreground. Android denies a
+  /// foreground-service start from the background, so the one allowed
+  /// stream recovery runs now; a failed retry then ends the trip in the
+  /// supervision round with detail `service` instead of showing dead
+  /// sharing. Ignored while no trip is active or after dispose.
+  void _onLifecycleChanged(bool resumed) {
+    if (!resumed || _disposed || !tripInProgress(_state)) {
+      return;
+    }
+    unawaited(_resumeAfterBackground());
+  }
+
+  Future<void> _resumeAfterBackground() async {
+    final LocationService? locations = _locations;
+    final String? token = _activeToken;
+    if (locations == null || token == null) {
+      return;
+    }
+    await locations.resumeRecovery();
+    if (_disposed || !tripInProgress(_state)) {
+      return;
+    }
+    await _checkAutoEnd(token);
+  }
+
   /// Set when the page returns after a hide long enough to outlive the
   /// server timeout. Consumed by the next ping outcome: success clears it,
   /// `gone` is shown as a timeout instead of reviving.
@@ -667,6 +692,7 @@ class TripController extends ChangeNotifier {
     // coordinates inside the bbox. Single subscription: the run loop
     // reuses the same broadcast stream below.
     _locations = _deps.locations();
+    _locations!.onLifecycleChanged = _onLifecycleChanged;
     final Stream<TripFix> stream;
     try {
       stream = _locations!.fixes(
@@ -810,13 +836,15 @@ class TripController extends ChangeNotifier {
     final int firstIntervalS = (started as Ok<TripInstruction>).value.intervalS;
     _intervalS = firstIntervalS;
     // Startup handshake: the foreground service must still be attached
-    // after the create POST. If the native subscription died between the
-    // first fix and now (teardown race, OS kill), fail visibly instead
-    // of showing sharing with no notification and no background fixes.
+    // after the create POST, with an open fix stream that already produced
+    // a fix. If the native subscription died between the first fix and now
+    // (teardown race, OS kill), fail visibly instead of showing sharing with
+    // no notification and no background fixes.
     final LocationService? startedLocations = _locations;
     if (startedLocations == null ||
         !startedLocations.hasActiveSubscription ||
-        !startedLocations.hasOpenFixStream) {
+        !startedLocations.hasOpenFixStream ||
+        !startedLocations.hasProducedFix) {
       phase(SharePhase.start, SharePhaseStatus.failed, errorCode: 'service');
       await _stopLocal();
       _failReason = StartFailure.service;
@@ -1149,19 +1177,28 @@ class TripController extends ChangeNotifier {
     // Mid-trip subscription invariant: the fix broadcast must stay open
     // with a native subscription attached. If it is gone (unexpected
     // teardown, OS kill that the stream callbacks missed), end visibly
-    // instead of showing sharing that sends nothing. Never silent.
+    // instead of showing sharing that sends nothing. Never silent. While
+    // the app is backgrounded a dead stream cannot be recovered (Android
+    // denies background foreground-service starts), so wait for the resume
+    // and its single retry instead of ending a recoverable trip.
     final LocationService? liveLocations = _locations;
-    if (liveLocations == null ||
-        !liveLocations.hasOpenFixStream ||
-        !liveLocations.hasActiveSubscription) {
-      if (token != null) {
-        await _finish(token, TripEndKind.automatic, 'service');
-      } else {
-        await _stopLocal();
-        _endKind = TripEndKind.automatic;
-        _endDetail = 'service';
-        _set(const TripIdle());
-      }
+    if (liveLocations == null) {
+      await _endForService(token);
+      return;
+    }
+    if (!liveLocations.recoveryDeferred &&
+        (!liveLocations.hasOpenFixStream ||
+            !liveLocations.hasActiveSubscription)) {
+      await _endForService(token);
+      return;
+    }
+    // A stream that never produced a fix after two full stall windows is a
+    // silent trip even if the native subscription still looks attached.
+    final int? startedAtMs = _startedAtMs;
+    if (!liveLocations.hasProducedFix &&
+        startedAtMs != null &&
+        _deps.clock.nowMs() - startedAtMs > 2 * liveLocations.stallWindowMs) {
+      await _endForService(token);
       return;
     }
     final bool hadPrompt = supervisor.promptVisible;
@@ -1197,6 +1234,20 @@ class TripController extends ChangeNotifier {
         supervisor.imprecise != hadImprecise) {
       notifyListeners();
     }
+  }
+
+  /// Ends the trip because the location service cannot keep sharing.
+  /// With a token the server record is closed; without one the local
+  /// resources are stopped and the same end card is shown.
+  Future<void> _endForService(String? token) async {
+    if (token != null) {
+      await _finish(token, TripEndKind.automatic, 'service');
+      return;
+    }
+    await _stopLocal();
+    _endKind = TripEndKind.automatic;
+    _endDetail = 'service';
+    _set(const TripIdle());
   }
 
   String _detailFor(AutoEndReason reason) {
@@ -1293,11 +1344,14 @@ class TripController extends ChangeNotifier {
     final StreamSubscription<TripFix>? sub = _fixSub;
     _fixSub = null;
     if (sub != null) {
-      unawaited(sub.cancel());
+      unawaited(sub.cancel().then((_) {}, onError: (_) {}));
     }
     final LocationService? locations = _locations;
     _locations = null;
     if (locations != null) {
+      // The service outlives this controller instance only until stop; a
+      // resume callback after that must not run recovery on a dead trip.
+      locations.onLifecycleChanged = null;
       // Awaited: the teardown registers in the process-wide gate so the
       // next trip cannot subscribe until the native foreground-service
       // disable completes. Bounded by the service timeout (2 s).
@@ -1311,7 +1365,7 @@ class TripController extends ChangeNotifier {
     _gnssSub = null;
     _lastGnssQuality = null;
     if (gnss != null) {
-      unawaited(gnss.cancel());
+      unawaited(gnss.cancel().then((_) {}, onError: (_) {}));
     }
     // Invalidate the pump first: a retry parked in backoff must not wake
     // up and apply a stale fix to the next trip's server record.
@@ -1347,8 +1401,8 @@ class TripController extends ChangeNotifier {
     // foreground service, not just the fix subscription. The direct
     // cancel below stays: the linter only recognizes it in dispose.
     _autoEndTimer?.cancel();
-    unawaited(_fixSub?.cancel());
-    unawaited(_gnssSub?.cancel());
+    unawaited(_fixSub?.cancel().then((_) {}, onError: (_) {}));
+    unawaited(_gnssSub?.cancel().then((_) {}, onError: (_) {}));
     unawaited(_stopLocal());
     super.dispose();
   }

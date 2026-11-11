@@ -21,6 +21,8 @@ import 'package:pontual/ui/features/trip/trip_screen.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'trip_rig.dart' as rig;
+
 class FakeGateway implements PermissionGateway {
   /// Precise-accuracy answer. Flip mid-test for the D71 path.
   bool precise = true;
@@ -770,6 +772,116 @@ void main() {
     expect(c.failReason, StartFailure.service);
     expect(c.state, isA<TripIdle>());
     c.dispose();
+  });
+
+  test('mid-trip dead stream ends automatic with service', () async {
+    // A dead native stream must never keep showing sharing with no fixes.
+    // The controller ends the trip visibly instead.
+    final rig.Rig r = rig.rig(rig.happy());
+    await rig.start(r);
+    r.positions.addError(StateError('OS killed the stream'));
+    await Future<void>.delayed(Duration.zero);
+    expect(r.locations.hasActiveSubscription, isFalse);
+    await r.controller.checkAutoEndForTest();
+    expect(r.controller.state, isA<TripIdle>());
+    expect(r.controller.endKind, TripEndKind.automatic);
+    expect(r.controller.endDetail, 'service');
+    r.controller.dispose();
+    await r.positions.close();
+  });
+
+  test('backgrounded dead stream waits for resume and fails there when the '
+      'retry fails', () async {
+    // Android denies a foreground-service start from the background, so
+    // a dead stream while backgrounded must not end the trip; the one
+    // resume retry decides instead.
+    late final rig.Rig r;
+    bool failRetry = false;
+    r = rig.rig(
+      rig.happy(),
+      positionStream: (_) {
+        if (failRetry) {
+          return Stream<Position>.error(StateError('service denied'));
+        }
+        return r.positions.stream;
+      },
+    );
+    await rig.start(r);
+    r.positions.addError(StateError('backgrounded OS kill'));
+    await Future<void>.delayed(Duration.zero);
+    r.background();
+    await r.controller.checkAutoEndForTest();
+    expect(r.controller.state, isA<TripActive>());
+    expect(r.locations.recoveryDeferred, isTrue);
+    // The single resume retry fails: the trip ends with service now
+    // instead of showing dead sharing.
+    failRetry = true;
+    r.resume();
+    for (int i = 0; i < 100 && r.controller.state is! TripIdle; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(r.controller.state, isA<TripIdle>());
+    expect(r.controller.endKind, TripEndKind.automatic);
+    expect(r.controller.endDetail, 'service');
+    r.controller.dispose();
+    await r.positions.close();
+  });
+
+  test('startup handshake fails with service when the stream dies', () async {
+    // The create POST can outlive the native subscription. A trip must not
+    // open sharing on a dead stream that already stopped producing fixes.
+    bool postSeen = false;
+    final Completer<http.Response> hangingStart = Completer<http.Response>();
+    final MockClient client = MockClient((http.Request req) async {
+      final String path = req.url.path;
+      if (path == '/v1/devices') {
+        return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+      }
+      if (path == '/v1/consents') {
+        return http.Response('{"ok":true}', 200);
+      }
+      if (path == '/v1/trip') {
+        if (req.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        postSeen = true;
+        return hangingStart.future;
+      }
+      if (path == '/v1/trip/ping') {
+        return http.Response('{"r":"L","n":15}', 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final rig.Rig r = rig.rig(client);
+    bool? started;
+    unawaited(
+      r.controller
+          .startTrip(
+            lineId: 7,
+            lineLabel: '7',
+            showConsent: () async => true,
+            showPermissions: () async {},
+          )
+          .then((bool v) => started = v),
+    );
+    for (int i = 0; i < 100 && !postSeen; i++) {
+      r.positions.add(rig.pos(8));
+      await Future<void>.microtask(() {});
+    }
+    expect(postSeen, isTrue);
+    // The native stream dies while the create POST is in flight.
+    r.positions.addError(StateError('OS kill during start'));
+    await Future<void>.delayed(Duration.zero);
+    expect(r.locations.hasActiveSubscription, isFalse);
+    hangingStart.complete(http.Response('{"r":"W","n":20}', 201));
+    for (int i = 0; i < 100 && started == null; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(started, isFalse);
+    expect(r.controller.failReason, StartFailure.service);
+    expect(r.controller.state, isA<TripIdle>());
+    r.controller.dispose();
+    await r.positions.close();
   });
 
   test('second concurrent trip reports busy', () async {
