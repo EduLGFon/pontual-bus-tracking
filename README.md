@@ -24,8 +24,6 @@ No affiliation with Viacao Sao Gabriel or the municipality.
 
 Clone and read `PLAN.md` sections 0, 16, 19 plus `DECISIONS.md` section 6.
 
-- Flutter version: 3.47.6 (pinned in `.fvmrc`).
-- Deno version: 2.9.7 (pinned in `server/deno.json` and CI).
 - Database: Docker with `postgres:16-alpine`, or any local PostgreSQL 16.
 - Migrations: dbmate v2.36.0 (release binary, never committed).
 - Client env: copy `env/example.json` to `env/dev.json` and set `API_BASE_URL`
