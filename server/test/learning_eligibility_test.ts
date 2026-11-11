@@ -28,16 +28,16 @@ async function truncate(): Promise<void> {
   }
 }
 
-function app() {
-  const sql = openDb(testDbUrl());
+/** Build the HTTP app on an existing connection. */
+function honoFor(appSql: Sql): ReturnType<typeof buildApp> {
   const learning = new LearningConsumer({
-    sql,
+    sql: appSql,
     config: defaultLearningConfig,
     now: Date.now,
     privacyMode: () => "all",
   });
-  const hono = buildApp({
-    sql,
+  return buildApp({
+    sql: appSql,
     store: createStore(),
     lines: registryResolver([{ id: 7, isActive: true, route: null }]),
     hub: new Hub(),
@@ -49,7 +49,30 @@ function app() {
     engine: defaultEngineConfig(),
     learning,
   });
-  return { sql, hono };
+}
+
+function app() {
+  const sql = openDb(testDbUrl());
+  return { sql, hono: honoFor(sql) };
+}
+
+/**
+ * Sql proxy that rejects queries touching one learning column, like a
+ * database where migration 0005 has not run. Every other tagged-template
+ * query passes through.
+ */
+function withoutSchema(sql: Sql, column: string): Sql {
+  const base = sql as unknown as (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ) => Promise<unknown[]>;
+  return ((strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join("?");
+    if (text.includes(column)) {
+      return Promise.reject(new Error("learning schema unavailable"));
+    }
+    return base(strings, ...values);
+  }) as unknown as Sql;
 }
 
 async function device(hono: ReturnType<typeof buildApp>): Promise<string> {
@@ -157,6 +180,52 @@ Deno.test({
         headers: { authorization: `Bearer ${token}` },
       });
       assertEquals(optOut.status, 204);
+      await start(hono, token);
+      assertEquals(await getLearningTrips(sql, await deviceId(sql)), 0);
+    } finally {
+      await sql.end();
+    }
+  },
+});
+
+Deno.test({
+  name: "trip start succeeds when learning_trips is missing",
+  ignore: !Deno.env.get("TEST_DATABASE_URL"),
+  fn: async () => {
+    await truncate();
+    const sql = openDb(testDbUrl());
+    try {
+      // getLearningOptOut succeeds, then bumpLearningTrips throws before any
+      // counter write or event application.
+      const hono = honoFor(withoutSchema(sql, "learning_trips"));
+      const token = await device(hono);
+      await start(hono, token);
+      assertEquals(await getLearningTrips(sql, await deviceId(sql)), 0);
+
+      // A later start on a healthy app still increments the counter.
+      const healthy = app();
+      try {
+        await start(healthy.hono, token);
+        assertEquals(await getLearningTrips(sql, await deviceId(sql)), 1);
+      } finally {
+        await healthy.sql.end();
+      }
+    } finally {
+      await sql.end();
+    }
+  },
+});
+
+Deno.test({
+  name: "trip start succeeds when learning_opt_out is missing",
+  ignore: !Deno.env.get("TEST_DATABASE_URL"),
+  fn: async () => {
+    await truncate();
+    const sql = openDb(testDbUrl());
+    try {
+      // Opt-out cannot be established, so nothing is contributed.
+      const hono = honoFor(withoutSchema(sql, "learning_opt_out"));
+      const token = await device(hono);
       await start(hono, token);
       assertEquals(await getLearningTrips(sql, await deviceId(sql)), 0);
     } finally {
