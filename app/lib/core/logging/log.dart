@@ -47,12 +47,17 @@ class Log {
   static const String _persistKey = 'diag_logs_v1';
   static const int _persistCap = 500;
 
+  // Serializes persisted writes so concurrent warnings never clobber
+  // each other (read-modify-write chain).
+  static Future<void> _persistChain = Future<void>.value();
+
   /// Recent warnings and errors, newest last. For on-device debugging only.
   static List<LogRecord> get recent => List<LogRecord>.unmodifiable(_ring);
 
   /// Appends a record to the persisted list (best effort, never throws).
+  /// Writes are serialized through [_persistChain] to avoid clobbering.
   static void _persist(LogRecord record) {
-    unawaited(() async {
+    _persistChain = _persistChain.then((_) async {
       try {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         final List<String> raw =
@@ -73,8 +78,12 @@ class Log {
       } on Object {
         // Never fail logging.
       }
-    }());
+    });
   }
+
+  /// Test-only hook to await the serialized persist chain.
+  @visibleForTesting
+  static Future<void> flushPersistForTest() => _persistChain;
 
   /// Reads persisted records.
   static Future<List<Map<String, dynamic>>> readPersisted() async {
@@ -95,6 +104,25 @@ class Log {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.remove(_persistKey);
+    } on Object {
+      // Ignore.
+    }
+  }
+
+  /// Removes only the first [count] persisted records, keeping any appended
+  /// since the snapshot was taken (cap 500 stays).
+  static Future<void> clearPersistedUpTo(int count) async {
+    try {
+      if (count <= 0) return;
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> raw =
+          prefs.getStringList(_persistKey) ?? const <String>[];
+      if (raw.isEmpty) return;
+      if (count >= raw.length) {
+        await prefs.remove(_persistKey);
+        return;
+      }
+      await prefs.setStringList(_persistKey, raw.sublist(count));
     } on Object {
       // Ignore.
     }
