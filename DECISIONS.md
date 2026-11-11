@@ -237,3 +237,5 @@ See section 5. All four spikes done 2026-10-02; device VERIFY items remain open.
 
 - Append-only. Newest entries go at the end of each section. See AGENTS.md 14.
 - Full history removed; see git log and CHANGELOG.md.
+
+D100 (2026-11-11, Accepted): Protomaps source pin updated from 20261026 to 20261110 after 20261026 returned 404 (builds expire ~1 week); verified HEAD 200 and pmtiles show header read.
