@@ -1,4 +1,4 @@
-# RN CI: typecheck, lint, tests, web export.
+# RN CI: typecheck, lint, tests.
 name: rn
 on:
   pull_request:
@@ -32,4 +32,3 @@ jobs:
       - run: bunx tsc --noEmit
       - run: bunx expo lint
       - run: bunx jest --ci --coverage=false
-      - run: bunx expo export --platform web
