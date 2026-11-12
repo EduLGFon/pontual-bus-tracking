@@ -537,6 +537,12 @@ Runtime values live in `app_config`; defaults are compiled in. The keys read by
 | `learning_default_speed_mps` | `6` | fallback speed |
 | `learning_default_dwell_s` | `20` | fallback dwell |
 
+`learning_corridor_cell_m` is a geometry invariant for existing accumulators.
+Changing it in place would reinterpret stored cell keys at the new size. Before
+changing it, truncate `learning_route_cells`, `learning_route_edges` and
+`learning_route_state` for the affected lines and let them re-learn. The same
+applies to the compiled grid origin.
+
 Removed in v2: `learning_min_route_trips`, `learning_min_trip_route_m`,
 `learning_min_stop_passes`, `learning_k_min`, `learning_cache_ttl_s`,
 `learning_headway_horizon_s`, `learning_recompute_every_n_trips`,
@@ -589,8 +595,8 @@ always wins (PLAN.md 7).
 - `DELETE /v1/me` cascades the device row, including `learning_opt_out`. No
   aggregate row references a device.
 - `DELETE /v1/me/learning` sets the opt-out flag; future trips do not
-  contribute. Past aggregates are not recomputed because they cannot be
-  attributed.
+  contribute. A trip already in progress can finish contributing. Past
+  aggregates are not recomputed because they cannot be attributed.
 - The earlier rolling 90-day stat deletion is replaced by the stop lifecycle.
   Cumulative histograms have no per-trip timestamps, so deleting only the
   derived stat row while its bins remained would not delete the underlying
