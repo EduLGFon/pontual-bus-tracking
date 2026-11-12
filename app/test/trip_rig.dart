@@ -118,6 +118,7 @@ Rig rig(
   MutableGateway? gateway,
   FakeClock? clock,
   GnssQualityReader? gnssReader,
+  Timer Function(Duration, void Function())? createTimer,
   Future<Position> Function(LocationSettings settings)? oneShotPosition,
   Stream<Position> Function(LocationSettings settings)? positionStream,
 }) {
@@ -152,6 +153,7 @@ Rig rig(
       locations: () => locations,
       clock: clk,
       gnssReader: gnssReader,
+      createTimer: createTimer ?? Timer.new,
     ),
   );
   return Rig(controller, clk, gw, positions, locations);

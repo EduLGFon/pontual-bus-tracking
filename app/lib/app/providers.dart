@@ -523,7 +523,7 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
       },
     );
     ref.onDispose(() {
-      unawaited(repo.stop());
+      unawaited(repo.stop().then((_) => repo.dispose()));
     });
     return repo;
   },

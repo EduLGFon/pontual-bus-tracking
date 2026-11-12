@@ -312,6 +312,14 @@ class VehicleRepository {
   int? get lastSnapshotAtMs => _lastSnapshotAtMs;
   int? _lastSnapshotAtMs;
 
+  final StreamController<void> _changeController =
+      StreamController<void>.broadcast();
+
+  /// Change signal fired when vehicles or reports are updated from a
+  /// snapshot or a WebSocket frame. Listeners (the UI adapter) throttle
+  /// rebuilds; the repository stays the owner of the socket.
+  Stream<void> get changes => _changeController.stream;
+
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _watchdog;
@@ -399,6 +407,7 @@ class VehicleRepository {
       _reports = _stampedReports(fetched.reports, now);
       _lastSnapshotAtMs = now;
       evaluateAge();
+      if (!_stopped) _changeController.add(null);
     } catch (_) {
       // Keep the last known positions: a failed refresh must not blank
       // the map while the connection is down.
@@ -506,6 +515,7 @@ class VehicleRepository {
       }
       _lastSnapshotAtMs = now;
       evaluateAge();
+      if (!_stopped) _changeController.add(null);
     } catch (_) {
       // Ignore malformed frames; the watchdog resyncs.
     }
@@ -613,4 +623,10 @@ class VehicleRepository {
   /// Exposed for tests: true while the polling fallback is armed.
   @visibleForTesting
   bool get debugPolling => _poller != null;
+
+  /// Releases the change signal. Called when the provider is disposed; not
+  /// in [stop], because [start] calls [stop] on restart.
+  void dispose() {
+    _changeController.close();
+  }
 }

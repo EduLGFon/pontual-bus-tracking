@@ -3,6 +3,8 @@
 // this file only shapes what the UI draws. See docs/ui/UI_SPEC.md 6.2.
 // D30: stale-but-moving vehicles with a known pace become predicted
 // (extrapolated, dashed) instead of plain stale, always labeled.
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/geo/geo.dart';
@@ -116,8 +118,49 @@ final StreamProvider<int> vehicleTickProvider = StreamProvider.autoDispose<int>(
   },
 );
 
-/// Vehicles for one line id, re-sorted on every tick. The provider family
-/// is plain, so a line consumed twice shares one instance.
+/// Throttled change stream for one line: at most one rebuild per second
+/// in normal mode, so WebSocket frames become visible without waiting for
+/// the 5 s age tick and without rebuild storms.
+final vehicleChangeProvider = StreamProvider.autoDispose.family<int, int>((
+  Ref ref,
+  int lineId,
+) {
+  final VehicleRepository repo = ref.watch(vehicleRepoProvider(lineId));
+  final StreamController<int> controller = StreamController<int>.broadcast();
+  Timer? timer;
+  bool pending = false;
+  int count = 0;
+
+  void emit() {
+    count++;
+    controller.add(count);
+    timer = Timer(const Duration(seconds: 1), () {
+      timer = null;
+      if (pending) {
+        pending = false;
+        emit();
+      }
+    });
+  }
+
+  final StreamSubscription<void> sub = repo.changes.listen((_) {
+    if (timer == null) {
+      emit();
+    } else {
+      pending = true;
+    }
+  });
+  ref.onDispose(() {
+    sub.cancel();
+    timer?.cancel();
+    controller.close();
+  });
+  return controller.stream;
+});
+
+/// Vehicles for one line id, re-sorted on ticks and on throttled frame
+/// changes. The provider family is plain, so a line consumed twice shares
+/// one instance.
 ///
 /// Auto-disposed with the screen: leaving the last watching line stops
 /// the tick above and drops the sorted copy.
@@ -125,7 +168,11 @@ final vehiclesVmProvider = Provider.autoDispose.family<List<VehicleVM>, int>((
   Ref ref,
   int lineId,
 ) {
+  final bool dataSaver = ref.watch(settingsProvider).dataSaver;
   ref.watch(vehicleTickProvider);
+  if (!dataSaver) {
+    ref.watch(vehicleChangeProvider(lineId));
+  }
   final VehicleRepository repo = ref.watch(vehicleRepoProvider(lineId));
   return orderVehicles(repo.vehicles, lineId.toString());
 });

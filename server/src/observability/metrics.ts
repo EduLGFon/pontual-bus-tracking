@@ -13,6 +13,8 @@ export interface MetricsSnapshot {
   http429Total: number;
   /** Total 403 answers across read and trip routes. */
   http403Total: number;
+  /** Pings dropped by the 4 s min-interval defense. Aggregate only. */
+  pingsRateLimitedTotal: number;
   /** Passenger reports created and retracted. Aggregate only, no ids. */
   reportsCreatedTotal: number;
   reportsRetractedTotal: number;
@@ -30,6 +32,7 @@ let wsConnectsTotal = 0;
 let wsCapacityRefusedTotal = 0;
 let http429Total = 0;
 let http403Total = 0;
+let pingsRateLimitedTotal = 0;
 let reportsCreatedTotal = 0;
 let reportsRetractedTotal = 0;
 let learningFlushesTotal = 0;
@@ -60,6 +63,10 @@ export function recordHttp429(): void {
 
 export function recordHttp403(): void {
   http403Total += 1;
+}
+
+export function recordPingRateLimited(): void {
+  pingsRateLimitedTotal += 1;
 }
 
 export function recordReportCreated(): void {
@@ -96,6 +103,7 @@ export function snapshot(): MetricsSnapshot {
     wsCapacityRefusedTotal,
     http429Total,
     http403Total,
+    pingsRateLimitedTotal,
     reportsCreatedTotal,
     reportsRetractedTotal,
     learningFlushesTotal,
