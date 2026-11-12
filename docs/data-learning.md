@@ -144,7 +144,7 @@ Key properties:
 type EngineEvent =
   | { kind: "vehicleUpdated"; lineId: number }
   | { kind: "tripEnded"; lineId: number; tripKey: string; reason: EndReason }
-  | { kind: "tripStarted"; lineId: number; tripKey: string; startedAtMs: number; lat: number; lng: number }
+  | { kind: "tripStarted"; lineId: number; tripKey: string; startedAtMs: number; lat: number; lng: number; synthetic?: boolean }
   | { kind: "fixAccepted"; lineId: number; tripKey: string; atMs: number; lat: number; lng: number; speedMps: number; heading: number | null; accuracyM: number }
   | { kind: "vehicleRemoved"; lineId: number; vehicleId: number };
 ```
@@ -156,6 +156,8 @@ Emission points (in `ping.ts` / `tick.ts`):
 - `applyPing` accepted fix: emit `fixAccepted`.
 - `endTrip`: emit `tripEnded` with `tripKey`; the consumer finalizes and
   removes the working state.
+- `startTrip` copies the optional `synthetic` request flag into the event. The
+  consumer ignores the trip when it is true. The flag is never persisted.
 
 Privacy: `tripKey` never leaves the process and is never logged. It exists only
 to correlate fixes within one trip in memory.
