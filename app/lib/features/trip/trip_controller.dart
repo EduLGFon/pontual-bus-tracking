@@ -102,6 +102,7 @@ class TripDeps {
     required this.locations,
     required this.clock,
     this.gnssReader,
+    this.createTimer = Timer.new,
   });
 
   /// Typed API client.
@@ -126,6 +127,9 @@ class TripDeps {
   /// channel on Android and an empty stream elsewhere. Tests inject a
   /// fake so no platform channel is ever touched. See D69.
   final GnssQualityReader? gnssReader;
+
+  /// Factory for one-shot timers used by the send scheduler.
+  final Timer Function(Duration, void Function()) createTimer;
 }
 
 /// Controls one trip from consent to end states.
@@ -969,7 +973,7 @@ class TripController extends ChangeNotifier {
     if (delay < 0) {
       delay = 0;
     }
-    _sendTimer = Timer(Duration(milliseconds: delay), () {
+    _sendTimer = _deps.createTimer(Duration(milliseconds: delay), () {
       unawaited(_onSendTick());
     });
   }
@@ -989,6 +993,8 @@ class TripController extends ChangeNotifier {
       return;
     }
     if (_ping?.inFlight == true) {
+      // The fired timer is consumed; the outcome re-arms. Keep state honest.
+      _sendTimer = null;
       return;
     }
     if (_supervisor?.imprecise ?? false) {
@@ -1146,26 +1152,12 @@ class TripController extends ChangeNotifier {
     _intervalS = outcome.intervalS;
     final int intervalMs = outcome.intervalS * 1000;
     final int now = _deps.clock.nowMs();
-    // If a request was still in flight at the slot, send the pending fix now
-    // only when at least intervalS has passed since its send start.
-    bool sentPending = false;
-    if (now - _lastSendStartMs >= intervalMs &&
-        (_ping?.inFlight != true) &&
-        !(_supervisor?.imprecise ?? false)) {
-      final TripFix? pf = _pendingFix;
-      if (pf != null &&
-          now - pf.acceptedAtMs <= fixMaxAgeMs &&
-          pf.acceptedAtMs > _lastSentAcceptedAtMs) {
-        _lastSentAcceptedAtMs = pf.acceptedAtMs;
-        _sendFix(pf);
-        sentPending = true;
-      }
-    }
-    if (!sentPending) {
-      // Advance the slot to avoid an immediate spin when overdue.
-      while (_lastSendStartMs + intervalMs <= now) {
-        _lastSendStartMs += intervalMs;
-      }
+    // The outcome runs while the ping is still in flight, so a pending fix
+    // cannot be sent here; the timer armed at lastSendStart + interval
+    // handles a slow response. Advance the slot only when overdue so the
+    // next tick does not spin immediately.
+    while (_lastSendStartMs + intervalMs <= now) {
+      _lastSendStartMs += intervalMs;
     }
     _armSendTimer();
     _webTimeoutLikely = false;
