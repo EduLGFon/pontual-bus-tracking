@@ -623,4 +623,10 @@ class VehicleRepository {
   /// Exposed for tests: true while the polling fallback is armed.
   @visibleForTesting
   bool get debugPolling => _poller != null;
+
+  /// Releases the change signal. Called when the provider is disposed; not
+  /// in [stop], because [start] calls [stop] on restart.
+  void dispose() {
+    _changeController.close();
+  }
 }

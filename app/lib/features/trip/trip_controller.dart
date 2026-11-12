@@ -1148,6 +1148,7 @@ class TripController extends ChangeNotifier {
     final int now = _deps.clock.nowMs();
     // If a request was still in flight at the slot, send the pending fix now
     // only when at least intervalS has passed since its send start.
+    bool sentPending = false;
     if (now - _lastSendStartMs >= intervalMs &&
         (_ping?.inFlight != true) &&
         !(_supervisor?.imprecise ?? false)) {
@@ -1157,33 +1158,20 @@ class TripController extends ChangeNotifier {
           pf.acceptedAtMs > _lastSentAcceptedAtMs) {
         _lastSentAcceptedAtMs = pf.acceptedAtMs;
         _sendFix(pf);
-        _armSendTimer();
-        _webTimeoutLikely = false;
-        final TripSupervisor? supervisor = _supervisor;
-        if (supervisor == null) {
-          return;
-        }
-        supervisor.onPingSuccess(_deps.clock.nowMs());
-        if (isOffline) {
-          _set(tripReduce(_state, TripEvent.wentOnline));
-        }
-        if (outcome.role == 'L') {
-          _set(tripReduce(_state, TripEvent.roleLeader));
-        } else if (outcome.role == 'F') {
-          _set(tripReduce(_state, TripEvent.roleFollower));
-        }
-        unawaited(_applyRound(supervisor, token: token));
-        return;
+        sentPending = true;
       }
     }
-    // Advance the slot to avoid an immediate spin when overdue.
-    while (_lastSendStartMs + intervalMs <= now) {
-      _lastSendStartMs += intervalMs;
+    if (!sentPending) {
+      // Advance the slot to avoid an immediate spin when overdue.
+      while (_lastSendStartMs + intervalMs <= now) {
+        _lastSendStartMs += intervalMs;
+      }
     }
     _armSendTimer();
     _webTimeoutLikely = false;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
+      _trySendDue();
       return;
     }
     supervisor.onPingSuccess(_deps.clock.nowMs());
@@ -1196,6 +1184,7 @@ class TripController extends ChangeNotifier {
       _set(tripReduce(_state, TripEvent.roleFollower));
     }
     unawaited(_applyRound(supervisor, token: token));
+    _trySendDue();
   }
 
   /// Re-creates the server trip after a spurious `gone`, at most once per
