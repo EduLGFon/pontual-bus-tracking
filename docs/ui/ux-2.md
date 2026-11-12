@@ -71,4 +71,4 @@ Status: implemented 2026-11-11 on the Flutter client. UI and copy only. See `DEC
 
 - Device and field walkthrough of first run, the line picker and the leave-now verdict.
 
-- Spec and screenshot review against `UI_SPEC.md` sections 7.1, 7.2, 7.5 and 7.10.
+- Desktop screenshot review completed on 2026-11-11 for Início, Linha, Linhas and Busca at 320, 390 and 800 dp; a physical device walkthrough remains.
