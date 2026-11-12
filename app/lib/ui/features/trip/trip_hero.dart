@@ -101,21 +101,6 @@ class TripHero extends ConsumerWidget {
           startedAtMs: startedAtMs,
           nowMs: nowMs,
         ),
-        const SizedBox(height: Space.x3),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(Icons.lock_rounded, size: 16, color: context.colors.inkMuted),
-            const SizedBox(width: Space.x1),
-            Flexible(
-              child: Text(
-                UiStrings.tripTrust,
-                style: context.text.caption,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -185,16 +170,6 @@ class _TripTimes extends StatelessWidget {
   Widget build(BuildContext context) {
     final int now = nowMs();
     final int? startMs = startedAtMs;
-    final int? lastSuccessMs = controller.lastSuccessMs;
-    final bool stale =
-        lastSuccessMs != null && now - lastSuccessMs > staleSendAfterMs;
-    // Clamped at zero: an injected test clock can sit behind the success
-    // timestamp.
-    final int rawSentS = lastSuccessMs == null
-        ? 0
-        : (now - lastSuccessMs) ~/ 1000;
-    final int lastSentS = rawSentS < 0 ? 0 : rawSentS;
-    final colors = context.colors;
     return Column(
       children: <Widget>[
         if (startMs != null)
@@ -207,19 +182,6 @@ class _TripTimes extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
-        if (lastSuccessMs != null) ...<Widget>[
-          const SizedBox(height: Space.x1),
-          Semantics(
-            label: 'Última posição enviada ${UiStrings.agoLong(lastSentS)}',
-            child: Text(
-              UiStrings.lastSentAgo(UiStrings.agoShort(lastSentS)),
-              style: context.text.caption.copyWith(
-                color: stale ? colors.warningText : colors.inkMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
       ],
     );
   }

@@ -514,6 +514,10 @@ class UiStrings {
   /// Trip minimize action.
   static const String tripMinimize = 'Minimizar';
 
+  /// Compact status line hint on the trip screen.
+  static const String tripStatusDetails =
+      'Toque para ver GPS, satélites e envio.';
+
   /// Connection row label.
   static const String connection = 'Conexão';
 

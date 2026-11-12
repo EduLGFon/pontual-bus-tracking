@@ -8,10 +8,13 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Banner;
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/android/battery_optimization.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/components/banner.dart';
+import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -106,12 +109,23 @@ class _StatusBlockState extends State<StatusBlock> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        StatusMetrics(
+        _StatusSummaryLine(
+          key: const ValueKey<String>('tripStatusLine'),
           health: health,
           gnss: c.lastGnssQuality,
           accuracyM: c.lastAccuracyM,
           intervalS: c.intervalS,
           role: c.role,
+          onTap: () => unawaited(
+            _openStatusDetails(
+              context,
+              health,
+              c.lastGnssQuality,
+              c.lastAccuracyM,
+              c.intervalS,
+              c.role,
+            ),
+          ),
         ),
         if (_bannerOf(shown) != null) ...<Widget>[
           const SizedBox(height: Space.x3),
@@ -142,6 +156,33 @@ class _StatusBlockState extends State<StatusBlock> {
         const SizedBox(height: Space.x3),
         const _KeepAwakeTip(key: ValueKey<String>('tripTip')),
       ],
+    );
+  }
+
+  /// Opens the details bottom sheet with the full StatusMetrics.
+  Future<void> _openStatusDetails(
+    BuildContext context,
+    SharingHealth health,
+    GnssQuality? gnss,
+    double? accuracyM,
+    int? intervalS,
+    TripRole? role,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return Padding(
+          padding: const EdgeInsets.all(Space.x4),
+          child: StatusMetrics(
+            health: health,
+            gnss: gnss,
+            accuracyM: accuracyM,
+            intervalS: intervalS,
+            role: role,
+          ),
+        );
+      },
     );
   }
 
@@ -334,6 +375,85 @@ class _IssueBanner extends StatelessWidget {
         icon: Icons.info_rounded,
       ),
     };
+  }
+}
+
+/// Compact status line that summarizes sharing health and opens the
+/// details sheet with the full metrics.
+class _StatusSummaryLine extends StatelessWidget {
+  /// Creates the line.
+  const _StatusSummaryLine({
+    required this.health,
+    required this.gnss,
+    required this.accuracyM,
+    required this.intervalS,
+    required this.role,
+    required this.onTap,
+    super.key,
+  });
+
+  /// Resolved health.
+  final SharingHealth health;
+
+  /// Latest GNSS quality sample.
+  final GnssQuality? gnss;
+
+  /// Last accepted fix accuracy.
+  final double? accuracyM;
+
+  /// Server-instructed send interval.
+  final int? intervalS;
+
+  /// Current sampling role.
+  final TripRole? role;
+
+  /// Opens the details sheet.
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final Color accent = health.overall == SharingOverall.live
+        ? colors.liveText
+        : health.overall == SharingOverall.paused
+        ? colors.warningText
+        : colors.inkMuted;
+    final IconData icon = health.overall == SharingOverall.live
+        ? Icons.sensors_rounded
+        : health.overall == SharingOverall.paused
+        ? Icons.pause_circle_rounded
+        : Icons.hourglass_top_rounded;
+    final String sentence = intervalS == null
+        ? UiStrings.tripStatusDetails
+        : 'Enviando a cada ${intervalS}s. ${UiStrings.tripStatusDetails}';
+    return Semantics(
+      button: true,
+      label: sentence,
+      child: Pressable(
+        onTap: onTap,
+        semanticLabel: sentence,
+        borderRadius: Radii.s,
+        child: SurfaceCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.x4,
+            vertical: Space.x3,
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(icon, size: 20, color: accent),
+              const SizedBox(width: Space.x3),
+              Expanded(
+                child: Text(
+                  sentence,
+                  style: context.text.body.copyWith(color: colors.ink),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
