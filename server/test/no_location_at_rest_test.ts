@@ -32,12 +32,14 @@ Deno.test("migrations contain no location-like columns", async () => {
       const tm = line.match(/create table (?:if not exists )?(\w+)/);
       if (tm) currentTable = tm[1];
       for (const word of FORBIDDEN) {
-        // Aggregate stop centroids are the one permitted location at rest
-        // (see docs/data-learning.md section 7); they live only in
-        // learned_stops and are not individual locations.
+        // Aggregate stop centroids and corridor cell centroids are the only
+        // permitted location at rest (see docs/data-learning.md section 7).
+        // Route cells store weighted aggregate centroids across contributing
+        // trips, never individual fixes, and live only in learning_route_cells.
         if (
           (word === "lat" || word === "lng") &&
-          currentTable === "learned_stops"
+          (currentTable === "learned_stops" ||
+            currentTable === "learning_route_cells")
         ) {
           continue;
         }

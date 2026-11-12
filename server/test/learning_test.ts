@@ -1,21 +1,17 @@
-// Learning consumer integration tests: eligibility, corridor publication,
-// privacy gates, and the per-device counter. Non-DB cases use a fake Sql
-// tagged template that records queries; DB cases use TEST_DATABASE_URL.
+// Learning consumer integration tests: consent gating, first-trip route
+// publication, corridor accumulation and privacy gates. Non-DB cases use a
+// stateful fake Sql tagged template that records queries; DB cases use
+// TEST_DATABASE_URL.
 import { assert, assertEquals } from "@std/assert";
 import { decodePolyline } from "../src/domain/geo.ts";
-import { openDb, type Sql } from "../src/db/client.ts";
-import {
-  bumpLearningTrips,
-  deleteDevice,
-  getLearningTrips,
-  insertDevice,
-} from "../src/db/devices.ts";
+import { openDb } from "../src/db/client.ts";
 import { LearningConsumer } from "../src/learning/consumer.ts";
 import { predictEta } from "../src/learning/predictor.ts";
 import {
   defaultLearningConfig,
   type LearningConfig,
 } from "../src/learning/types.ts";
+import { fakeSql } from "./learning_fake_sql.ts";
 
 const ORIGIN = { lat: -18.7, lng: -39.85 };
 const M_PER_DEG_LAT = 111320;
@@ -33,35 +29,6 @@ function eastOf(lat: number, lng: number): number {
   return (lng - ORIGIN.lng) * M_PER_DEG_LNG;
 }
 
-interface RecordedQuery {
-  text: string;
-  values: unknown[];
-}
-
-interface FakeDb {
-  sql: Sql;
-  queries: RecordedQuery[];
-}
-
-/** Tagged template fake: records every query, returns [] unless overridden. */
-function fakeSql(
-  overrides: Array<{ match: RegExp; rows: unknown[] }> = [],
-): FakeDb {
-  const queries: RecordedQuery[] = [];
-  const fn = ((
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ) => {
-    const text = strings.join("?");
-    queries.push({ text, values });
-    for (const o of overrides) {
-      if (o.match.test(text)) return Promise.resolve(o.rows);
-    }
-    return Promise.resolve([]);
-  }) as unknown as Sql;
-  return { sql: fn, queries };
-}
-
 function testConfig(overrides: Partial<LearningConfig> = {}): LearningConfig {
   return {
     ...defaultLearningConfig(),
@@ -69,8 +36,6 @@ function testConfig(overrides: Partial<LearningConfig> = {}): LearningConfig {
     minSampleSpacingM: 0,
     minSampleSpacingS: 0,
     corridorCellM: 50,
-    corridorMinCells: 3,
-    minTripRouteM: 50,
     ...overrides,
   };
 }
@@ -101,7 +66,7 @@ function runTrip(
   lineId: number,
   tripKey: string,
   points: TripPoint[],
-  opts = { consentVersion: 2, eligible: true },
+  opts = { consentVersion: 2 },
   clock: { now: number } = { now: 0 },
 ): void {
   const first = points[0];
@@ -146,8 +111,8 @@ function path(
   return out;
 }
 
-Deno.test("five eligible partial trips cover both halves of a line", async () => {
-  const cfg = testConfig({ minRouteTrips: 5, minTripRouteM: 50 });
+Deno.test("partial trips cover both halves of a line", async () => {
+  const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
   const consumer = consumerFor(cfg, "all", sql, clock);
@@ -158,16 +123,16 @@ Deno.test("five eligible partial trips cover both halves of a line", async () =>
       800,
       1_000_000 + i * 100_000,
     );
-    runTrip(consumer, 7, `trip-${i}`, half, {
-      consentVersion: 2,
-      eligible: true,
-    }, clock);
+    runTrip(consumer, 7, `trip-${i}`, half, { consentVersion: 2 }, clock);
   }
   await consumer.flush();
 
-  const insert = queries.find((q) =>
+  const inserts = queries.filter((q) =>
     q.text.includes("insert into learned_routes")
   );
+  // A route publishes after every contributing trip; the last one sees the
+  // full corridor.
+  const insert = inserts[inserts.length - 1];
   assert(insert, "expected a learned_routes insert");
   const polyline = insert.values[3] as string;
   const decoded = decodePolyline(polyline, 5);
@@ -176,34 +141,72 @@ Deno.test("five eligible partial trips cover both halves of a line", async () =>
   assert(Math.max(...east) > 740, `polyline ends at ${Math.max(...east)}`);
 });
 
-Deno.test("corridor shorter than minRouteLengthM is not published", async () => {
-  const cfg = testConfig({
-    minRouteTrips: 5,
-    minTripRouteM: 50,
-    minRouteLengthM: 500,
-  });
+Deno.test("first contributing trip persists aggregates and publishes", async () => {
+  const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
   const consumer = consumerFor(cfg, "all", sql, clock);
 
-  for (let i = 0; i < 5; i++) {
+  runTrip(
+    consumer,
+    11,
+    "short-trip",
+    path(0, 150, 1_000_000),
+    { consentVersion: 2 },
+    clock,
+  );
+  await consumer.flush();
+
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learning_route_cells"))
+      .length,
+    1,
+  );
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learning_route_edges"))
+      .length,
+    1,
+  );
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learning_route_state"))
+      .length,
+    1,
+  );
+  // There is no minimum trip count or corridor length gate: a short corridor
+  // publishes on its first contributing trip.
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learned_routes")).length,
+    1,
+  );
+});
+
+Deno.test("trip below minimum consent never contributes", async () => {
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, "all", sql, clock);
+
+  for (let i = 0; i < 2; i++) {
     runTrip(
       consumer,
-      11,
-      `short-trip-${i}`,
-      path(0, 150, 1_000_000 + i * 100_000),
-      {
-        consentVersion: 2,
-        eligible: true,
-      },
+      7,
+      `old-consent-${i}`,
+      path(0, 400, 1_000_000 + i * 100_000),
+      { consentVersion: 1 },
       clock,
     );
   }
   await consumer.flush();
 
+  const writes = queries.filter((q) =>
+    q.text.includes("insert into learning_route_cells") ||
+    q.text.includes("insert into learning_route_edges") ||
+    q.text.includes("insert into learning_route_state") ||
+    q.text.includes("insert into learned_routes")
+  );
   assertEquals(
-    queries.some((q) => q.text.includes("insert into learned_routes")),
-    false,
+    writes.map((q) => q.text),
+    [],
   );
 });
 
@@ -239,31 +242,6 @@ Deno.test("predictEta counts a one-pass segment despite the raw kMin", async () 
   assert(eta.sampleCount >= 1, `sampleCount was ${eta.sampleCount}`);
 });
 
-Deno.test("ineligible trips never publish a learned route", async () => {
-  const cfg = testConfig({ minRouteTrips: 5, minTripRouteM: 50 });
-  const { sql, queries } = fakeSql();
-  const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
-
-  for (let i = 0; i < 5; i++) {
-    const half = i < 3 ? path(0, 400, 1_000_000 + i * 100_000) : path(
-      400,
-      800,
-      1_000_000 + i * 100_000,
-    );
-    runTrip(consumer, 7, `trip-${i}`, half, {
-      consentVersion: 2,
-      eligible: false,
-    }, clock);
-  }
-  await consumer.flush();
-
-  assertEquals(
-    queries.some((q) => q.text.includes("insert into learned_routes")),
-    false,
-  );
-});
-
 function singleDwellTrip(
   consumer: LearningConsumer,
   lineId: number,
@@ -280,15 +258,13 @@ function singleDwellTrip(
       { tMs: t0 + 5000, ...p, speedMps: 0 },
       { tMs: t0 + 10_000, ...p, speedMps: 0 },
     ],
-    { consentVersion: 2, eligible: true },
+    { consentVersion: 2 },
     clock,
   );
 }
 
 Deno.test("privacy mode all publishes a stop from one dwell pass", async () => {
   const cfg = testConfig({
-    minRouteTrips: 1000,
-    minTripRouteM: 0,
     minStopPasses: 4,
     stopMinDistinctDays: 3,
     kMin: 5,
@@ -307,8 +283,6 @@ Deno.test("privacy mode all publishes a stop from one dwell pass", async () => {
 
 Deno.test("privacy mode route_stops withholds a single-pass stop", async () => {
   const cfg = testConfig({
-    minRouteTrips: 1000,
-    minTripRouteM: 0,
     minStopPasses: 4,
     stopMinDistinctDays: 3,
     kMin: 5,
@@ -327,8 +301,6 @@ Deno.test("privacy mode route_stops withholds a single-pass stop", async () => {
 
 Deno.test("terminus dwell suppression applies in mode all", async () => {
   const cfg = testConfig({
-    minRouteTrips: 1000,
-    minTripRouteM: 0,
     minStopPasses: 4,
     stopMinDistinctDays: 3,
     kMin: 5,
@@ -350,7 +322,7 @@ Deno.test("terminus dwell suppression applies in mode all", async () => {
       { tMs: t0 + 55_000, ...at(200), speedMps: 0 },
       { tMs: t0 + 60_000, ...at(200), speedMps: 0 },
     ],
-    { consentVersion: 2, eligible: true },
+    { consentVersion: 2 },
     clock,
   );
   await consumer.flush();
@@ -377,42 +349,6 @@ Deno.test("terminus dwell suppression applies in mode all", async () => {
 });
 
 const TEST_DB = Deno.env.get("TEST_DATABASE_URL");
-
-Deno.test({
-  name: "device learning counter increments and reads back",
-  ignore: !TEST_DB,
-  fn: async () => {
-    const sql = openDb(TEST_DB!);
-    try {
-      await sql`truncate devices, app_config restart identity cascade`;
-      const device = await insertDevice(
-        sql,
-        crypto.getRandomValues(new Uint8Array(32)),
-        new Date(Date.now() + 86400 * 1000),
-      );
-      assertEquals(await bumpLearningTrips(sql, device.id), 1);
-      assertEquals(await bumpLearningTrips(sql, device.id), 2);
-      assertEquals(
-        await bumpLearningTrips(
-          sql,
-          "00000000-0000-0000-0000-000000000000",
-        ),
-        0,
-      );
-      assertEquals(await getLearningTrips(sql, device.id), 2);
-      assertEquals(
-        await getLearningTrips(
-          sql,
-          "00000000-0000-0000-0000-000000000000",
-        ),
-        0,
-      );
-      await deleteDevice(sql, device.id);
-    } finally {
-      await sql.end();
-    }
-  },
-});
 
 Deno.test({
   name: "learnedRouteForLine picks the direction with more sample trips",
