@@ -992,11 +992,11 @@ class UiStrings {
   static const String reportSheetTitle = 'O que está acontecendo?';
 
   /// Waiting report label.
-  static const String reportWaiting = 'Alguém esperando';
+  static const String reportWaiting = 'Esperando no ponto';
 
   /// Waiting report hint.
   static const String reportWaitingHint =
-      'Tem gente neste ponto esperando o ônibus.';
+      'Você está neste ponto esperando o ônibus.';
 
   /// Full bus report label.
   static const String reportFull = 'Ônibus lotado';
@@ -1466,14 +1466,14 @@ class UiStrings {
 
   /// Clear local data description.
   static const String clearLocalDataHint =
-      'Remove favoritos, recentes, atalhos e cache deste celular. O código do aparelho e o consentimento ficam.';
+      'Remove favoritos, recentes, atalhos e cache deste celular. O código do celular e o consentimento ficam.';
 
   /// Clear local data confirmation title.
   static const String clearLocalDataTitle = 'Limpar dados locais?';
 
   /// Clear local data confirmation body.
   static const String clearLocalDataBody =
-      'Remove favoritos, recentes, atalhos, avisos e o cache de horários deste celular. O código do aparelho e o consentimento continuam. Não pode ser desfeito.';
+      'Remove favoritos, recentes, atalhos, avisos e o cache de horários deste celular. O código do celular e o consentimento continuam. Não pode ser desfeito.';
 
   /// Clear local data confirm action.
   static const String clearLocalDataConfirm = 'Limpar';
@@ -1542,7 +1542,7 @@ class UiStrings {
   static const List<String> collectsSummary = <String>[
     'Código anônimo do celular, sem nome ou e-mail.',
     'Versão do consentimento que você aceitou e quando.',
-    'Durante a viagem: posição, velocidade, direção e precisão (só na memória).',
+    'Durante a viagem: posição, velocidade, direção, precisão e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
     'Avisos: tipo, linha, área aproximada (~150 m), horário do servidor e contagem, públicos por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
