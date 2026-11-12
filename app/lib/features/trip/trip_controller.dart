@@ -187,22 +187,28 @@ class TripController extends ChangeNotifier {
   StreamSubscription<TripFix>? _fixSub;
   PingClient? _ping;
   Timer? _autoEndTimer;
+  Timer? _sendTimer;
   String? _activeToken;
   TripSupervisor? _supervisor;
   SamplingMode _samplingMode = SamplingMode.waiting;
   bool _checking = false;
-
-  /// Earliest ms for the next ping send, paced to the last server
-  /// interval. Fixes arriving earlier are skipped; the next slot sends
-  /// the latest fix. Without this the client pings on every position
-  /// update, and fast web streams trip the server rate strikes (D29).
-  int _nextPingAtMs = 0;
 
   /// When the last ping request left the client, in ms. The next slot
   /// is measured from here, not from the response, so a slow round trip
   /// cannot stretch the server interval into a longer effective cadence.
   /// See PLAN.md 8.7.
   int _lastPingSentAtMs = 0;
+
+  /// Latest accepted fix that has not yet been sent. Latest-wins: a new
+  /// fix replaces the pending one. The scheduler sends it on the next slot.
+  TripFix? _pendingFix;
+
+  /// Accepted-at time of the last fix that was actually sent, so a stale
+  /// pending fix is never re-sent.
+  int _lastSentAcceptedAtMs = 0;
+
+  /// Last send start in ms. The next slot is this plus intervalS*1000.
+  int _lastSendStartMs = 0;
 
   /// True after [cancelStart]. Checked between start steps so the
   /// progress sheet Cancelar button stops the flow promptly.
@@ -520,7 +526,11 @@ class TripController extends ChangeNotifier {
     _failReason = null;
     _lastErrorCode = null;
     _cancelled = false;
-    _nextPingAtMs = 0;
+    _sendTimer?.cancel();
+    _sendTimer = null;
+    _pendingFix = null;
+    _lastSentAcceptedAtMs = 0;
+    _lastSendStartMs = 0;
     _lastAccuracyM = null;
     _lastBatteryPct = null;
     _lastCharging = false;
@@ -860,7 +870,10 @@ class TripController extends ChangeNotifier {
   void _runLoop(String token, Stream<TripFix> stream, int firstIntervalS) {
     _activeToken = token;
     _tripGen++;
-    _nextPingAtMs = _deps.clock.nowMs() + firstIntervalS * 1000;
+    _intervalS = firstIntervalS;
+    _lastSendStartMs = _deps.clock.nowMs();
+    _pendingFix = null;
+    _lastSentAcceptedAtMs = 0;
     _ping = PingClient(
       send: (Map<String, dynamic> fix) async {
         _lastPingSentAtMs = _deps.clock.nowMs();
@@ -914,23 +927,10 @@ class TripController extends ChangeNotifier {
       if (_deps.clock.nowMs() - fix.acceptedAtMs > fixMaxAgeMs) {
         return;
       }
-      // Paced to the server interval: faster streams (notably web
-      // watchPosition) would otherwise ping per fix and collect rate
-      // strikes. Skipped fixes are redundant by latest-wins anyway.
       _onFix(fix);
-      // While the grant is approximate-only, fixes that pass the gate
-      // are still too coarse to publish as a bus position, so they are
-      // recorded for health but never sent. See D71.
-      if ((_supervisor?.imprecise ?? false) ||
-          _deps.clock.nowMs() < _nextPingAtMs) {
-        return;
-      }
-      final int gen = _tripGen;
-      _ping?.queue(_fixBody(fix), (PingOutcome o) {
-        if (gen == _tripGen) {
-          _onOutcome(token, o);
-        }
-      });
+      // Latest-wins pending fix; the scheduler decides when to send.
+      _pendingFix = fix;
+      _trySendDue();
     });
     // Supervision cadence: thresholds are minutes-scale (5 min GPS-off,
     // 3-poll permission debounce), so 30 s keeps every guarantee while
@@ -953,6 +953,76 @@ class TripController extends ChangeNotifier {
             notifyListeners();
           }
         }, onError: (_) {});
+    _armSendTimer();
+  }
+
+  void _armSendTimer() {
+    _sendTimer?.cancel();
+    if (_disposed || !tripInProgress(_state)) {
+      _sendTimer = null;
+      return;
+    }
+    final int intervalMs = (_intervalS ?? 5) * 1000;
+    final int target = _lastSendStartMs + intervalMs;
+    final int now = _deps.clock.nowMs();
+    int delay = target - now;
+    if (delay < 0) {
+      delay = 0;
+    }
+    _sendTimer = Timer(Duration(milliseconds: delay), () {
+      unawaited(_onSendTick());
+    });
+  }
+
+  Future<void> _onSendTick() async {
+    _trySendDue();
+  }
+
+  void _trySendDue() {
+    if (_disposed || !tripInProgress(_state)) {
+      return;
+    }
+    final int now = _deps.clock.nowMs();
+    final int intervalMs = (_intervalS ?? 5) * 1000;
+    if (now - _lastSendStartMs < intervalMs) {
+      _armSendTimer();
+      return;
+    }
+    if (_ping?.inFlight == true) {
+      return;
+    }
+    if (_supervisor?.imprecise ?? false) {
+      while (_lastSendStartMs + intervalMs <= now) {
+        _lastSendStartMs += intervalMs;
+      }
+      _armSendTimer();
+      return;
+    }
+    final TripFix? fix = _pendingFix;
+    if (fix == null ||
+        now - fix.acceptedAtMs > fixMaxAgeMs ||
+        fix.acceptedAtMs <= _lastSentAcceptedAtMs) {
+      while (_lastSendStartMs + intervalMs <= now) {
+        _lastSendStartMs += intervalMs;
+      }
+      _armSendTimer();
+      return;
+    }
+    _lastSentAcceptedAtMs = fix.acceptedAtMs;
+    _sendFix(fix);
+    _armSendTimer();
+  }
+
+  void _sendFix(TripFix fix) {
+    final int gen = _tripGen;
+    final String? token = _activeToken;
+    _lastPingSentAtMs = _deps.clock.nowMs();
+    _lastSendStartMs = _lastPingSentAtMs;
+    _ping?.queue(_fixBody(fix), (PingOutcome o) {
+      if (gen == _tripGen && token != null) {
+        _onOutcome(token, o);
+      }
+    });
   }
 
   void _onFix(TripFix fix) {
@@ -1016,13 +1086,20 @@ class TripController extends ChangeNotifier {
     if (!tripInProgress(_state)) {
       return false;
     }
-    _nextPingAtMs = 0;
-    final int gen = _tripGen;
-    ping.queue(_fixBody(fix), (PingOutcome o) {
-      if (gen == _tripGen) {
-        _onOutcome(token, o);
-      }
-    });
+    _pendingFix = fix;
+    _lastSentAcceptedAtMs = 0;
+    _lastSendStartMs = 0;
+    if (ping.inFlight) {
+      final int gen = _tripGen;
+      ping.queue(_fixBody(fix), (PingOutcome o) {
+        if (gen == _tripGen) {
+          _onOutcome(token, o);
+        }
+      });
+    } else {
+      _sendFix(fix);
+    }
+    _armSendTimer();
     return true;
   }
 
@@ -1066,8 +1143,44 @@ class TripController extends ChangeNotifier {
       finish();
       return;
     }
-    _nextPingAtMs = _lastPingSentAtMs + outcome.intervalS * 1000;
     _intervalS = outcome.intervalS;
+    final int intervalMs = outcome.intervalS * 1000;
+    final int now = _deps.clock.nowMs();
+    // If a request was still in flight at the slot, send the pending fix now
+    // only when at least intervalS has passed since its send start.
+    if (now - _lastSendStartMs >= intervalMs &&
+        (_ping?.inFlight != true) &&
+        !(_supervisor?.imprecise ?? false)) {
+      final TripFix? pf = _pendingFix;
+      if (pf != null &&
+          now - pf.acceptedAtMs <= fixMaxAgeMs &&
+          pf.acceptedAtMs > _lastSentAcceptedAtMs) {
+        _lastSentAcceptedAtMs = pf.acceptedAtMs;
+        _sendFix(pf);
+        _armSendTimer();
+        _webTimeoutLikely = false;
+        final TripSupervisor? supervisor = _supervisor;
+        if (supervisor == null) {
+          return;
+        }
+        supervisor.onPingSuccess(_deps.clock.nowMs());
+        if (isOffline) {
+          _set(tripReduce(_state, TripEvent.wentOnline));
+        }
+        if (outcome.role == 'L') {
+          _set(tripReduce(_state, TripEvent.roleLeader));
+        } else if (outcome.role == 'F') {
+          _set(tripReduce(_state, TripEvent.roleFollower));
+        }
+        unawaited(_applyRound(supervisor, token: token));
+        return;
+      }
+    }
+    // Advance the slot to avoid an immediate spin when overdue.
+    while (_lastSendStartMs + intervalMs <= now) {
+      _lastSendStartMs += intervalMs;
+    }
+    _armSendTimer();
     _webTimeoutLikely = false;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
@@ -1333,6 +1446,8 @@ class TripController extends ChangeNotifier {
     }
     _autoEndTimer?.cancel();
     _autoEndTimer = null;
+    _sendTimer?.cancel();
+    _sendTimer = null;
     _activeToken = null;
     _tripGen++;
     _webHidden = false;
@@ -1401,6 +1516,7 @@ class TripController extends ChangeNotifier {
     // foreground service, not just the fix subscription. The direct
     // cancel below stays: the linter only recognizes it in dispose.
     _autoEndTimer?.cancel();
+    _sendTimer?.cancel();
     unawaited(_fixSub?.cancel().then((_) {}, onError: (_) {}));
     unawaited(_gnssSub?.cancel().then((_) {}, onError: (_) {}));
     unawaited(_stopLocal());

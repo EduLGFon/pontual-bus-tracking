@@ -17,7 +17,11 @@ import type { Store } from "../state/store.ts";
 import { authMiddleware } from "../security/auth.ts";
 import { RateLimiter } from "../security/rateLimit.ts";
 import { Log } from "../observability/log.ts";
-import { recordHttp403, recordHttp429 } from "../observability/metrics.ts";
+import {
+  recordHttp403,
+  recordHttp429,
+  recordPingRateLimited,
+} from "../observability/metrics.ts";
 import { TripPingBody, TripStartBody } from "./tripSchemas.ts";
 import type { EngineConfig, EngineEvent } from "../domain/types.ts";
 import { readJsonBody } from "./body.ts";
@@ -223,8 +227,20 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
         });
       }
     }
-    if (out.end) return c.json({ r: out.role, n: out.intervalS, e: out.end });
-    return c.json({ r: out.role, n: out.intervalS });
+    if (out.rateLimited) recordPingRateLimited();
+    if (out.end) {
+      return c.json({
+        r: out.role,
+        n: out.intervalS,
+        e: out.end,
+        ...(out.rateLimited ? { rl: true } : {}),
+      });
+    }
+    return c.json({
+      r: out.role,
+      n: out.intervalS,
+      ...(out.rateLimited ? { rl: true } : {}),
+    });
   });
 
   // End intentionally skips guard(): ending is cleanup and must succeed

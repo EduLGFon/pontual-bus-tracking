@@ -118,11 +118,13 @@ void main() {
     c.queue(fix(3), (_) => outcomes += 1);
     await Future<void>.delayed(Duration.zero);
     gate!.complete(const PingReply(status: 200, role: 'W', intervalS: 20));
-    for (int i = 0; i < 20 && outcomes < 2; i++) {
+    for (int i = 0; i < 20 && outcomes < 1; i++) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(sent, <int>[1, 3]);
-    expect(outcomes, 2);
+    // Queued fixes no longer send immediately after an in-flight request;
+    // they wait for the next scheduled slot (controller scheduler).
+    expect(sent, <int>[1]);
+    expect(outcomes, 1);
   });
 
   test('server end codes map through', () async {

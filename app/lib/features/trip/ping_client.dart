@@ -67,6 +67,10 @@ class PingClient {
   static const List<int> _stepsS = <int>[5, 10, 20, 40, 60];
 
   bool _inFlight = false;
+
+  /// Whether a request is currently in flight. Read by the controller to
+  /// defer a scheduled send that lands during an in-flight request.
+  bool get inFlight => _inFlight;
   Map<String, dynamic>? _latest;
   bool _refreshed = false;
   int _attempt = 0;
@@ -155,6 +159,10 @@ class PingClient {
               end: reply.end,
             ),
           );
+          // A successful send does not pick up a fix queued during the
+          // in-flight request: that fix waits for the next scheduled slot.
+          // See the ping cadence fix.
+          return;
         } else if (reply.status == 401) {
           // Still unauthorized after refresh: surface so the trip ends
           // instead of burning battery on a dead token.
@@ -173,9 +181,6 @@ class PingClient {
       }
     } finally {
       _inFlight = false;
-    }
-    if (_latest != null) {
-      unawaited(_pump(onOutcome));
     }
   }
 
