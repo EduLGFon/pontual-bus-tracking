@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
+import 'package:pontual/ui/design/tokens/colors.dart';
 import 'package:pontual/ui/features/line/personal_arrival_card.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
@@ -14,37 +15,55 @@ Widget harness(Widget child) {
   );
 }
 
+/// Scrollable harness for the text-scale cases: the ready card is taller
+/// than the 600 dp test surface at 2x.
+Widget scrollableHarness(Widget child, {double textScale = 2}) {
+  return MaterialApp(
+    theme: pontualLightTheme(),
+    home: Scaffold(
+      body: MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: SingleChildScrollView(child: child),
+      ),
+    ),
+  );
+}
+
 PersonalArrivalVM readyVm({
   int stopDistanceM = 90,
   bool arriving = false,
   int minutes = 6,
   int sampleCount = 12,
   int confidence = 1,
+  bool atStop = false,
 }) {
   return PersonalArrivalVM(
     status: PersonalArrivalStatus.ready,
     stopDistanceM: stopDistanceM,
     lead: PersonalEtaVM(
       vehicleKey: 1,
-      etaSeconds: arriving ? 30 : minutes * 60,
+      etaSeconds: atStop ? 0 : (arriving ? 30 : minutes * 60),
       minutes: minutes,
-      arriving: arriving,
+      arriving: arriving || atStop,
       passed: false,
       approaching: true,
       confidence: confidence,
       sampleCount: sampleCount,
-      label: arriving
+      label: arriving || atStop
           ? UiStrings.myStopArrivingUntilYou
           : UiStrings.myStopEtaUntilYou(minutes),
-      semantic: arriving
+      semantic: arriving || atStop
           ? UiStrings.myStopA11yArriving(stopDistanceM)
           : UiStrings.myStopA11y(minutes, stopDistanceM),
     ),
   );
 }
 
+/// Walking minutes for the default 90 m stop: 90 / 80 rounds up to 2.
+const int defaultWalkMinutes = 2;
+
 void main() {
-  testWidgets('ready shows copy and taps', (tester) async {
+  testWidgets('ready shows copy, walking estimate and taps', (tester) async {
     int taps = 0;
     await tester.pumpWidget(
       harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () => taps++)),
@@ -54,16 +73,76 @@ void main() {
     expect(find.text(UiStrings.myStopEtaCaption), findsOneWidget);
     expect(find.text(UiStrings.confidenceLabel(1)), findsOneWidget);
     expect(find.text('Confiança média'), findsOneWidget);
-    // predicted badge label
+    // 6 min ETA and 2 min walk leaves 4 min: still time, muted.
+    expect(
+      find.text(UiStrings.lineWalkTime(defaultWalkMinutes)),
+      findsOneWidget,
+    );
+    expect(find.text(UiStrings.lineStillTime), findsOneWidget);
+    expect(find.text(UiStrings.lineStillTimeHint(6, 4)), findsOneWidget);
+    final Text verdict = tester.widget<Text>(
+      find.text(UiStrings.lineStillTime),
+    );
+    expect(verdict.style?.color, PontualColors.light.inkMuted);
     await tester.tap(find.byType(PersonalArrivalCard));
     expect(taps, 1);
   });
 
-  testWidgets('ready info sheet opens', (tester) async {
+  testWidgets('leave now verdict uses the primary token', (tester) async {
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(minutes: 2))),
+    );
+    // 2 min ETA against a 2 min walk: leave immediately.
+    expect(find.text(UiStrings.lineLeaveNow), findsOneWidget);
+    expect(find.text(UiStrings.lineLeaveNowHint(2, 2)), findsOneWidget);
+    final Text verdict = tester.widget<Text>(find.text(UiStrings.lineLeaveNow));
+    expect(verdict.style?.color, PontualColors.light.primary);
+  });
+
+  testWidgets('leave soon verdict shows the recommended delay', (tester) async {
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(minutes: 5))),
+    );
+    // 5 min ETA minus 2 min walk leaves 3 min: leave soon.
+    expect(find.text(UiStrings.lineLeaveSoon(3)), findsOneWidget);
+    expect(find.text(UiStrings.lineLeaveSoonHint(5, 3)), findsOneWidget);
+    expect(
+      find.text(UiStrings.lineWalkTime(defaultWalkMinutes)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('arriving shows the arriving verdict without a hint', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(arriving: true))),
+    );
+    expect(find.text(UiStrings.lineArrivingNow), findsOneWidget);
+    expect(
+      find.text(UiStrings.lineWalkTime(defaultWalkMinutes)),
+      findsOneWidget,
+    );
+    expect(find.textContaining(UiStrings.lineLeaveNowHint(6, 2)), findsNothing);
+  });
+
+  testWidgets('at the stop shows the at-stop verdict', (tester) async {
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(atStop: true))),
+    );
+    expect(find.text(UiStrings.lineAtStop), findsOneWidget);
+    expect(
+      find.text(UiStrings.lineWalkTime(defaultWalkMinutes)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('ready info sheet opens with the walking note', (tester) async {
     await tester.pumpWidget(harness(PersonalArrivalCard(vm: readyVm())));
     await tester.tap(find.text(UiStrings.myStopHow));
     await tester.pumpAndSettle();
     expect(find.text(UiStrings.myStopInfoBody), findsOneWidget);
+    expect(find.text(UiStrings.lineWalkEstimateNote), findsOneWidget);
     expect(find.text(UiStrings.myStopInfoSample(12)), findsOneWidget);
   });
 
@@ -87,7 +166,7 @@ void main() {
     expect(taps, 0);
   });
 
-  testWidgets('prompt', (tester) async {
+  testWidgets('compact prompt title, body and action', (tester) async {
     int taps = 0;
     await tester.pumpWidget(
       harness(
@@ -99,8 +178,9 @@ void main() {
         ),
       ),
     );
+    expect(find.text(UiStrings.linePersonalPromptTitle), findsOneWidget);
+    expect(find.text(UiStrings.linePersonalPromptBody), findsOneWidget);
     expect(find.text(UiStrings.myStopEnable), findsOneWidget);
-    expect(find.text(UiStrings.myStopPrivacy), findsOneWidget);
     await tester.tap(find.text(UiStrings.myStopEnable));
     expect(taps, 1);
   });
@@ -236,38 +316,24 @@ void main() {
 
   testWidgets('200 percent text scale no exception (ready)', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: pontualLightTheme(),
-        home: Scaffold(
-          body: Center(
-            child: MediaQuery(
-              data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
-              child: PersonalArrivalCard(vm: readyVm()),
-            ),
-          ),
-        ),
-      ),
+      scrollableHarness(PersonalArrivalCard(vm: readyVm())),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    expect(
+      find.text(UiStrings.lineWalkTime(defaultWalkMinutes)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('200 percent text scale no exception (prompt)', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: pontualLightTheme(),
-        home: Scaffold(
-          body: Center(
-            child: MediaQuery(
-              data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
-              child: PersonalArrivalCard(
-                vm: const PersonalArrivalVM(
-                  status: PersonalArrivalStatus.needsLocation,
-                ),
-                onEnableLocation: () {},
-              ),
-            ),
+      scrollableHarness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.needsLocation,
           ),
+          onEnableLocation: () {},
         ),
       ),
     );
@@ -281,7 +347,35 @@ void main() {
       harness(PersonalArrivalCard(vm: readyVm(), onTapLead: () {})),
     );
     final String sentence =
-        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)}';
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)} '
+        '${UiStrings.lineStillTime}. ${UiStrings.lineStillTimeHint(6, 4)}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics includes the leave-now verdict', (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(minutes: 2))),
+    );
+    final String sentence =
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(2, 90)} '
+        '${UiStrings.lineLeaveNow}. ${UiStrings.lineLeaveNowHint(2, 2)}';
+    expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('semantics includes the arriving verdict and walk', (
+    tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      harness(PersonalArrivalCard(vm: readyVm(arriving: true))),
+    );
+    final String sentence =
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11yArriving(90)} '
+        '${UiStrings.lineArrivingNow}. '
+        '${UiStrings.lineWalkTime(defaultWalkMinutes)}.';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
     handle.dispose();
   });
@@ -299,8 +393,12 @@ void main() {
       ),
     );
     const String sentence =
-        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
+        '${UiStrings.linePersonalPromptTitle}. ${UiStrings.linePersonalPromptBody}';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(RegExp.escape(UiStrings.myStopEnable))),
+      findsOneWidget,
+    );
     handle.dispose();
   });
 
@@ -400,21 +498,13 @@ void main() {
 
   testWidgets('200 percent text scale no exception (degraded)', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: pontualLightTheme(),
-        home: Scaffold(
-          body: Center(
-            child: MediaQuery(
-              data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
-              child: PersonalArrivalCard(
-                vm: const PersonalArrivalVM(
-                  status: PersonalArrivalStatus.etaError,
-                  stopDistanceM: 90,
-                ),
-                onRefresh: () {},
-              ),
-            ),
+      scrollableHarness(
+        PersonalArrivalCard(
+          vm: const PersonalArrivalVM(
+            status: PersonalArrivalStatus.etaError,
+            stopDistanceM: 90,
           ),
+          onRefresh: () {},
         ),
       ),
     );
@@ -426,12 +516,13 @@ void main() {
     final SemanticsHandle handle = tester.ensureSemantics();
     await tester.pumpWidget(harness(PersonalArrivalCard(vm: readyVm())));
     final String sentence =
-        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)}';
+        '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(6, 90)} '
+        '${UiStrings.lineStillTime}. ${UiStrings.lineStillTimeHint(6, 4)}';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
     handle.dispose();
   });
 
-  testWidgets('inert prompt exposes sentence', (tester) async {
+  testWidgets('inert prompt exposes sentence and action', (tester) async {
     final SemanticsHandle handle = tester.ensureSemantics();
     await tester.pumpWidget(
       harness(
@@ -441,8 +532,12 @@ void main() {
       ),
     );
     const String sentence =
-        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
+        '${UiStrings.linePersonalPromptTitle}. ${UiStrings.linePersonalPromptBody}';
     expect(find.bySemanticsLabel(sentence), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(RegExp.escape(UiStrings.myStopEnable))),
+      findsOneWidget,
+    );
     handle.dispose();
   });
 }

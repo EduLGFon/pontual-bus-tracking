@@ -85,7 +85,10 @@ void main() {
     }
     await tester.scrollUntilVisible(find.text(UiStrings.myStopEta(6)), 200);
     expect(find.text(UiStrings.myStopEta(6)), findsOneWidget);
-    expect(find.text(UiStrings.myStopHeaderEta(6)), findsOneWidget);
+    // 6 min ETA and a 2 min walk leave spare time. The personal card is the
+    // hero above the tabs, so the old header summary is gone.
+    expect(find.text(UiStrings.lineStillTime), findsOneWidget);
+    expect(find.text(UiStrings.myStopHeaderEta(6)), findsNothing);
     await tester.scrollUntilVisible(
       find.text(UiStrings.myStopEtaUntilYou(6)),
       200,
@@ -108,6 +111,10 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
+    // The compact prompt sits below the NextBusCard in the panel body.
+    await tester.ensureVisible(find.text(UiStrings.myStopEnable));
+    await tester.pump();
+    expect(find.text(UiStrings.linePersonalPromptTitle), findsOneWidget);
     expect(find.text(UiStrings.myStopEnable), findsOneWidget);
     await tester.tap(find.text(UiStrings.myStopEnable));
     await tester.pump();
@@ -137,6 +144,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
+    await tester.scrollUntilVisible(find.text(UiStrings.myStopNoStops), 200);
     expect(find.text(UiStrings.myStopNoStops), findsOneWidget);
   });
 

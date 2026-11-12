@@ -12,14 +12,18 @@ const double sheetHalf = 0.55;
 const double sheetFull = 0.92;
 
 /// Minimum sheet height in logical pixels.
-const double sheetMinHeightDp = 220;
+///
+/// Raised from 220 to 270 in the UX 2.0 hierarchy so the header plus the
+/// hero card's primary ETA fit at the peek snap on a 320x568 screen. The
+/// map keeps the remaining 298 dp and the sheet still snaps to half.
+const double sheetMinHeightDp = 270;
 
 /// Fallback height used before the first layout pass, so the sheet is
 /// never built with an infinite fraction.
 const double sheetFallbackHeightDp = 640;
 
 /// Peek fraction: [sheetPeek], never below [sheetMinHeightDp]. On a short
-/// screen the fraction grows so the peek always shows 220 dp. The fraction
+/// screen the fraction grows so the peek always shows 270 dp. The fraction
 /// never exceeds [sheetHalf], otherwise the sheet has no drag range.
 double sheetPeekFraction(double screenHeight) {
   final double height = screenHeight > 0 ? screenHeight : sheetFallbackHeightDp;

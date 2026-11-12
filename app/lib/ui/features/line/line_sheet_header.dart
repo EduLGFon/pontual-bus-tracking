@@ -1,6 +1,7 @@
 // Header of the line sheet: the line badge with its Hero tag, the name, the
-// terminals, the certainty status chip and the favourite star. Kept apart
-// from the sheet body so both stay small and focused.
+// terminals, the certainty status line and the favourite star. The next
+// departure is owned by the hero below, so this header no longer repeats
+// it. Kept apart from the sheet body so both stay small and focused.
 // See docs/ui/UI_SPEC.md 7.5.
 import 'dart:async';
 
@@ -8,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
-import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -20,7 +20,6 @@ import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/vehicle_vm.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
-import 'package:pontual/ui/util/format_eta.dart';
 
 /// Certainty shown by the header chip: live when a fresh position exists,
 /// predicted when the newest value is a labeled estimate, stale when
@@ -53,97 +52,81 @@ String certaintyWordOf(Certainty value) {
   };
 }
 
-/// Line header: badge, name, terminals, status chip and the favourite star.
+/// Line header: badge, name, terminals, status line and the favourite star.
 class LineSheetHeader extends StatelessWidget {
   /// Creates the header.
   const LineSheetHeader({
     required this.line,
     required this.vehicles,
-    required this.status,
-    this.onOpenTimetable,
-    this.personalLabel,
-    this.onPersonalTap,
     super.key,
   });
 
   /// Line view-model shown by the header.
   final LineVM line;
 
-  /// Vehicles of the line, for the status chip.
+  /// Vehicles of the line, for the status line.
   final List<VehicleVM> vehicles;
-
-  /// Shared timetable status driving the next-departure row.
-  final LineStatus status;
-
-  /// Called when the next-departure row is tapped.
-  final VoidCallback? onOpenTimetable;
-
-  /// Personal arrival summary label shown instead of the next-departure row.
-  final String? personalLabel;
-
-  /// Called when the personal summary is tapped.
-  final VoidCallback? onPersonalTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final String terminals = line.terminalsText;
     final bool showTerminals = shouldShowTerminals(line.name, line.terminals);
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        LineBadge.ofLine(
-          line,
-          size: BadgeSize.l,
-          heroTag: 'line-badge-${line.key}',
-        ),
-        const SizedBox(width: Space.x3),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                line.name,
-                style: context.text.headline,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            LineBadge.ofLine(
+              line,
+              size: BadgeSize.l,
+              heroTag: 'line-badge-${line.key}',
+            ),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    line.name,
+                    style: context.text.headline,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (terminals.isNotEmpty && showTerminals) ...<Widget>[
+                    const SizedBox(height: Space.x1),
+                    Text(terminals, style: context.text.caption),
+                  ],
+                ],
               ),
-              if (terminals.isNotEmpty && showTerminals) ...<Widget>[
-                const SizedBox(height: Space.x1),
-                Text(terminals, style: context.text.caption),
-              ],
-              const SizedBox(height: Space.x2),
-              _StatusChip(line: line, vehicles: vehicles),
-              const SizedBox(height: Space.x1),
-              if (personalLabel != null)
-                GhostLink(
-                  label: personalLabel!,
-                  icon: Icons.location_on_outlined,
-                  onTap: onPersonalTap,
-                )
-              else
-                _NextRow(status: status, onOpenTimetable: onOpenTimetable),
-              if (!line.supportsSharing) ...<Widget>[
-                const SizedBox(height: Space.x1),
-                Text(
-                  UiStrings.lineNoTracking,
-                  style: context.text.caption.copyWith(color: colors.inkMuted),
-                ),
-              ],
-            ],
-          ),
+            ),
+            LineStarButton(lineKey: line.key, short: line.short),
+          ],
         ),
-        LineStarButton(lineKey: line.key, short: line.short),
+        const SizedBox(height: Space.x2),
+        // Full width so the certainty badge and the live count do not
+        // wrap into each other in the narrow side panel.
+        _StatusLine(line: line, vehicles: vehicles),
+        if (!line.supportsSharing) ...<Widget>[
+          const SizedBox(height: Space.x1),
+          Text(
+            UiStrings.lineNoTracking,
+            style: context.text.caption.copyWith(color: colors.inkMuted),
+          ),
+        ],
       ],
     );
   }
 }
 
-/// Status chip: the certainty word plus the offline-vehicle explanation.
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.line, required this.vehicles});
+/// Status line: the certainty word plus the live count or, without live
+/// buses, the source of the hero departure. Never repeats the empty-live
+/// sentence that the body card owns.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.line, required this.vehicles});
 
-  /// Line described by the chip.
+  /// Line described by the line.
   final LineVM line;
 
   /// Vehicles of the line.
@@ -152,96 +135,32 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Certainty certainty = statusCertaintyOf(vehicles);
-    final String subtitle = line.supportsSharing
-        ? UiStrings.homeNoLive
+    final int liveCount = vehicles
+        .where((VehicleVM v) => v.certainty == Certainty.live)
+        .length;
+    final String subtitle = liveCount > 0
+        ? UiStrings.lineLiveCount(liveCount)
+        : line.supportsSharing
+        ? UiStrings.lineNextScheduled
         : UiStrings.onlyTimetable;
     return Semantics(
       label: '${certaintyWordOf(certainty)}. $subtitle',
       excludeSemantics: true,
-      child: Row(
+      child: Wrap(
+        spacing: Space.x2,
+        runSpacing: Space.x1,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
           CertaintyBadge(certainty: certainty),
-          const SizedBox(width: Space.x2),
-          Flexible(
-            child: Text(
-              subtitle,
-              style: context.text.caption,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+          Text(
+            subtitle,
+            style: context.text.caption,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
-  }
-}
-
-/// Next-departure row: the shared status as a tappable chip when a time
-/// is known, muted text otherwise. Tapping opens Horários (the timetable
-/// tab auto-scrolls to the next departure itself).
-class _NextRow extends StatelessWidget {
-  /// Creates the row.
-  const _NextRow({required this.status, this.onOpenTimetable});
-
-  /// Shared timetable status.
-  final LineStatus status;
-
-  /// Called when a known departure is tapped.
-  final VoidCallback? onOpenTimetable;
-
-  @override
-  Widget build(BuildContext context) {
-    final String? label = _labelOf(status);
-    if (label == null) {
-      return const SizedBox.shrink();
-    }
-    if (_tappable(status) && onOpenTimetable != null) {
-      return GhostLink(label: label, onTap: onOpenTimetable);
-    }
-    return Text(
-      label,
-      style: context.text.caption.copyWith(color: context.colors.inkMuted),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  /// True when the status carries a time worth opening the timetable for.
-  bool _tappable(LineStatus value) {
-    return switch (value.kind) {
-      LineStatusKind.now ||
-      LineStatusKind.imminent ||
-      LineStatusKind.upcoming ||
-      LineStatusKind.tomorrow => true,
-      LineStatusKind.live ||
-      LineStatusKind.noneToday ||
-      LineStatusKind.noTimetable => false,
-    };
-  }
-
-  /// Visible label of the status, null when nothing should render.
-  String? _labelOf(LineStatus value) {
-    switch (value.kind) {
-      case LineStatusKind.live:
-        return null;
-      case LineStatusKind.now:
-        return '${UiStrings.nextDeparture} ${value.time} · agora';
-      case LineStatusKind.imminent:
-        return '${UiStrings.nextDeparture} ${value.time} · '
-            'em ${value.minutes} min';
-      case LineStatusKind.upcoming:
-        final int minutes = value.minutes ?? 0;
-        final String countdown = minutes < 60
-            ? 'em $minutes min'
-            : 'em ${formatHours(minutes)}';
-        return '${UiStrings.nextDeparture} ${value.time} · $countdown';
-      case LineStatusKind.tomorrow:
-        return UiStrings.homeTomorrowAt(value.time ?? '');
-      case LineStatusKind.noneToday:
-        return UiStrings.homeNoMoreToday;
-      case LineStatusKind.noTimetable:
-        return UiStrings.linesNoTimetable;
-    }
   }
 }
 

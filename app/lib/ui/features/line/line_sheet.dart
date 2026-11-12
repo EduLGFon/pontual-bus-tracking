@@ -12,7 +12,6 @@ import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/alerts_store.dart';
-import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/design/components/reliability_card.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
@@ -24,6 +23,7 @@ import 'package:pontual/ui/design/components/vehicle_row.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_sheet_header.dart';
+import 'package:pontual/ui/features/line/next_bus_card.dart';
 import 'package:pontual/ui/features/line/personal_arrival_card.dart';
 import 'package:pontual/ui/features/reports/report_detail_sheet.dart';
 import 'package:pontual/ui/features/reports/report_sheet.dart';
@@ -71,7 +71,6 @@ class LineSheet extends ConsumerStatefulWidget {
     this.onEnableLocation,
     this.onRefresh,
     this.onTapLead,
-    this.onPersonalTap,
     super.key,
   });
 
@@ -124,9 +123,6 @@ class LineSheet extends ConsumerStatefulWidget {
   /// Focuses the lead bus.
   final ValueChanged<VehicleVM>? onTapLead;
 
-  /// Snaps the sheet to half and selects Agora.
-  final VoidCallback? onPersonalTap;
-
   @override
   ConsumerState<LineSheet> createState() => _LineSheetState();
 }
@@ -146,12 +142,23 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   Widget build(BuildContext context) {
     final DateTime now = ref.watch(currentNowProvider);
     final colors = context.colors;
-    final status = ref.watch(lineStatusProvider(widget.line.key));
     final String timetableDate = ref.watch(timetableDateProvider).value ?? '';
     void openTimetable() {
       setState(() => _tab = SheetTab.timetable);
       widget.onTabChanged?.call(SheetTab.timetable);
     }
+
+    final PersonalArrivalVM? personal = widget.personal;
+    final bool personalReady = personal != null && personal.isReady;
+    final List<ArrivalVM> upcoming = _upcoming(now, limit: 4);
+    final ArrivalVM? liveHero = liveHeroOf(
+      widget.staticLine.code,
+      widget.vehicles,
+      now,
+      viewer: widget.viewer,
+    );
+    final ArrivalVM? hero =
+        liveHero ?? (upcoming.isEmpty ? null : upcoming.first);
 
     return RepaintBoundary(
       child: Container(
@@ -189,25 +196,27 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               ),
             ),
             const SizedBox(height: Space.x3),
-            LineSheetHeader(
-              line: widget.line,
-              vehicles: widget.vehicles,
-              status: status,
-              onOpenTimetable: openTimetable,
-              personalLabel: widget.personal?.lead == null
-                  ? null
-                  : (widget.personal!.lead!.arriving
-                        ? UiStrings.myStopHeaderArriving
-                        : UiStrings.myStopHeaderEta(
-                            widget.personal!.lead!.minutes,
-                          )),
-              onPersonalTap: widget.personal?.lead == null
-                  ? null
-                  : () {
-                      setState(() => _tab = SheetTab.now);
-                      widget.onPersonalTap?.call();
-                    },
-            ),
+            LineSheetHeader(line: widget.line, vehicles: widget.vehicles),
+            const SizedBox(height: Space.x3),
+            // The next bus is the hero: the personal ETA when ready,
+            // otherwise the live or scheduled departure. The compact
+            // location prompt sits below it, never above it.
+            if (personalReady)
+              _personalCard(personal)
+            else ...<Widget>[
+              if (hero != null)
+                NextBusCard(
+                  line: widget.line,
+                  arrival: hero,
+                  now: now,
+                  onOpenTimetable: openTimetable,
+                ),
+              if (personal != null &&
+                  personal.status != PersonalArrivalStatus.noLive) ...<Widget>[
+                if (hero != null) const SizedBox(height: Space.x3),
+                _personalCard(personal),
+              ],
+            ],
             const SizedBox(height: Space.x3),
             _tabs(),
             const SizedBox(height: Space.x4),
@@ -218,10 +227,35 @@ class _LineSheetState extends ConsumerState<LineSheet> {
                 scrollable: false,
                 timetableDate: timetableDate,
               )
-            else ...<Widget>[..._nowBody(now), _actionRow()],
+            else ...<Widget>[
+              ..._nowBody(now, liveHero: liveHero, upcoming: upcoming),
+              _actionRow(),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// The personal card, wired to the sheet actions.
+  Widget _personalCard(PersonalArrivalVM personal) {
+    return PersonalArrivalCard(
+      vm: personal,
+      onEnableLocation: widget.onEnableLocation,
+      onRefresh: widget.onRefresh,
+      onTapLead: widget.onTapLead == null
+          ? null
+          : () {
+              if (personal.lead != null) {
+                final VehicleVM? v = widget.vehicles
+                    .cast<VehicleVM?>()
+                    .firstWhere(
+                      (VehicleVM? x) => x?.key == personal.lead!.vehicleKey,
+                      orElse: () => null,
+                    );
+                if (v != null) widget.onTapLead!(v);
+              }
+            },
     );
   }
 
@@ -240,24 +274,17 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     );
   }
 
-  /// Body of the Agora tab: hero, live vehicles, next departures.
-  /// The hero leads with realtime (live, else labeled prediction) when
-  /// vehicles are present; the timetable stays below either way.
-  List<Widget> _nowBody(DateTime now) {
-    final PersonalArrivalVM? personal = widget.personal;
-    final bool personalIsHero = personal != null && personal.isReady;
-    final ArrivalVM? hero = personalIsHero
-        ? null
-        : liveHeroOf(
-            widget.staticLine.code,
-            widget.vehicles,
-            now,
-            viewer: widget.viewer,
-          );
-    final List<ArrivalVM> departures = _upcoming(
-      now,
-      limit: (hero == null && !personalIsHero) ? 4 : 3,
-    );
+  /// Body of the Agora tab: reports, live vehicles, reliability and the
+  /// next scheduled departures. The hero and the personal card sit above
+  /// the tabs, so this body never repeats them.
+  List<Widget> _nowBody(
+    DateTime now, {
+    required ArrivalVM? liveHero,
+    required List<ArrivalVM> upcoming,
+  }) {
+    final List<ArrivalVM> next = liveHero != null
+        ? upcoming.take(3).toList()
+        : upcoming.skip(1).take(3).toList();
     final List<Widget> out = <Widget>[];
     final bool reportsEnabled =
         ref.watch(appFeaturesProvider).reports && widget.staticLine.pilot;
@@ -330,85 +357,33 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       );
       out.add(const SizedBox(height: Space.x4));
     }
-    if (personal != null && personal.status != PersonalArrivalStatus.noLive) {
+    if (widget.vehicles.isEmpty) {
+      final String? tomorrow = _tomorrowFirst(now);
       out.add(
-        PersonalArrivalCard(
-          vm: personal,
-          onEnableLocation: widget.onEnableLocation,
-          onRefresh: widget.onRefresh,
-          onTapLead: widget.onTapLead == null
-              ? null
-              : () {
-                  if (personal.lead != null) {
-                    final VehicleVM? v = widget.vehicles
-                        .cast<VehicleVM?>()
-                        .firstWhere(
-                          (VehicleVM? x) => x?.key == personal.lead!.vehicleKey,
-                          orElse: () => null,
-                        );
-                    if (v != null) widget.onTapLead!(v);
-                  }
-                },
+        SurfaceCard(
+          semanticLabel:
+              '${UiStrings.lineNoLiveTitle}. ${UiStrings.lineNoLiveBody}',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(UiStrings.lineNoLiveTitle, style: context.text.headline),
+              const SizedBox(height: Space.x1),
+              Text(UiStrings.lineNoLiveBody, style: context.text.body),
+              if (next.isEmpty) ...<Widget>[
+                const SizedBox(height: Space.x2),
+                Text(UiStrings.homeNoMoreToday, style: context.text.caption),
+                if (tomorrow != null)
+                  Text(
+                    UiStrings.homeTomorrowAt(tomorrow),
+                    style: context.text.caption,
+                  ),
+              ],
+            ],
+          ),
         ),
       );
       out.add(const SizedBox(height: Space.x4));
-    }
-    if (!personalIsHero) {
-      if (hero != null) {
-        out.add(
-          ArrivalRow(arrival: hero, now: now, line: widget.line, large: true),
-        );
-      } else if (departures.isNotEmpty) {
-        out.add(
-          ArrivalRow(
-            arrival: departures.first,
-            now: now,
-            line: widget.line,
-            large: true,
-          ),
-        );
-      }
-    }
-    out.add(const SizedBox(height: Space.x6));
-    if (widget.vehicles.isEmpty) {
-      final String? tomorrow = _tomorrowFirst(now);
-      if (departures.isEmpty && tomorrow != null) {
-        out.add(
-          SurfaceCard(
-            semanticLabel:
-                '${UiStrings.homeNoMoreToday}. '
-                '${UiStrings.homeTomorrowAt(tomorrow)}.',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(UiStrings.homeNoMoreToday, style: context.text.headline),
-                const SizedBox(height: Space.x1),
-                Text(
-                  UiStrings.homeTomorrowAt(tomorrow),
-                  style: context.text.body,
-                ),
-              ],
-            ),
-          ),
-        );
-      } else {
-        out.add(
-          SurfaceCard(
-            semanticLabel:
-                '${UiStrings.homeNoLive} ${UiStrings.homeNoLiveHint}',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(UiStrings.homeNoLive, style: context.text.headline),
-                const SizedBox(height: Space.x1),
-                Text(UiStrings.homeNoLiveHint, style: context.text.body),
-              ],
-            ),
-          ),
-        );
-      }
     } else {
       out.add(
         SectionHeader(
@@ -454,18 +429,15 @@ class _LineSheetState extends ConsumerState<LineSheet> {
       out.add(ReliabilityCard(reliability: reliability));
       out.add(const SizedBox(height: Space.x4));
     }
-    if (departures.length > ((hero == null && !personalIsHero) ? 1 : 0)) {
+    if (next.isNotEmpty) {
       out.add(
         const SectionHeader(
           title: UiStrings.nextDepartures,
           topSpacing: Space.x6,
         ),
       );
-      final Iterable<ArrivalVM> rest = (hero == null && !personalIsHero)
-          ? departures.skip(1).take(3)
-          : departures.take(3);
       out.addAll(<Widget>[
-        for (final ArrivalVM a in rest)
+        for (final ArrivalVM a in next)
           Padding(
             padding: const EdgeInsets.only(bottom: Space.x2),
             child: ArrivalRow(arrival: a, now: now, line: widget.line),

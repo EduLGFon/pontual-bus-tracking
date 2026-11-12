@@ -17,6 +17,7 @@ import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
+import 'package:pontual/ui/features/line/next_bus_card.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
 import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -29,9 +30,14 @@ import '../vehicle_test.dart' show FakeChannel;
 /// MediaQuery, which follows the view physical size, not the render
 /// constraints, so setSurfaceSize alone is not enough.
 Future<void> _useCompactView(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(400, 800);
+  await _useView(tester, const Size(400, 800));
+}
+
+/// Sizes the test view to [size] in logical pixels.
+Future<void> _useView(WidgetTester tester, Size size) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
-  await tester.binding.setSurfaceSize(const Size(400, 800));
+  await tester.binding.setSurfaceSize(size);
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
@@ -257,6 +263,11 @@ void main() {
       MediaQuery.sizeOf(tester.element(find.byType(LineScreen))).width,
       400,
     );
+    // The next bus is the hero above the tabs at peek: a live hero and
+    // the compact live count in the header.
+    expect(find.byType(NextBusCard), findsOneWidget);
+    expect(find.text(UiStrings.lineNextLive), findsOneWidget);
+    expect(find.text(UiStrings.lineLiveCount(2)), findsOneWidget);
     await _openSheet(tester);
     // The sheet builds lazily: rows below the fold need a scroll to
     // exist, and rows scrolled far out of view are evicted again. So
@@ -289,12 +300,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text(UiStrings.lineNoTracking), findsOneWidget);
+    expect(find.text(UiStrings.onlyTimetable), findsOneWidget);
     expect(find.text(UiStrings.dockIdleOnLine), findsNothing);
-    // At the fixed 09:00 clock both departures (05:30, 06:10) are past, so
-    // the Agora body shows the night banner instead of the empty hint.
+    // At the fixed noon clock both departures (05:30, 06:10) are past, so
+    // the calm empty-live card carries the tomorrow hint.
+    expect(find.text(UiStrings.lineNoLiveTitle), findsOneWidget);
+    expect(find.text(UiStrings.lineNoLiveBody), findsOneWidget);
     expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
-    // Twice: the header next-departure chip and the Agora night banner.
-    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsNWidgets(2));
+    // The header no longer repeats the departure, so the banner is the
+    // only place the next service day appears.
+    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
   });
 
   testWidgets('200 percent text scale raises no exception', (
@@ -322,6 +337,113 @@ void main() {
     // sheet, so scroll it into view before asserting it exists.
     await tester.scrollUntilVisible(find.text(UiStrings.vehiclesNow), 200);
     expect(find.text(UiStrings.vehiclesNow), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('320x568 at 2x text renders the hero without overflow', (
+    WidgetTester tester,
+  ) async {
+    await _useView(tester, const Size(320, 568));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[pilotLine],
+          const <int, List<ClientVehicle>>{
+            7: <ClientVehicle>[liveBus, liveBus2],
+          },
+        ),
+        child: const MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: MaterialApp(home: LineScreen(lineKey: 'seven')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.takeException(), isNull);
+    // At 2x the taller header puts the hero below the peek fold, so scroll
+    // the sheet (as a rider would) before checking its content.
+    await tester.scrollUntilVisible(
+      find.byType(NextBusCard),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byType(NextBusCard), findsOneWidget);
+    expect(find.text('Agora'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('320x568 peek shows the scheduled ETA without dragging', (
+    WidgetTester tester,
+  ) async {
+    await _useView(tester, const Size(320, 568));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[pilotLine],
+          const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+        ),
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.takeException(), isNull);
+    // The fixed noon clock makes 14:35 the next scheduled departure and
+    // the only place that value appears on the Agora tab.
+    final Finder eta = find.text('14:35');
+    expect(eta, findsOneWidget);
+    final Rect rect = tester.getRect(eta);
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(568));
+  });
+
+  testWidgets('wide 800x600 panel shows the hero without clipping', (
+    WidgetTester tester,
+  ) async {
+    await _useView(tester, const Size(800, 600));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[pilotLine],
+          const <int, List<ClientVehicle>>{
+            7: <ClientVehicle>[liveBus, liveBus2],
+          },
+        ),
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(NextBusCard), findsOneWidget);
+    expect(find.text('Agora'), findsOneWidget);
+    expect(find.text(UiStrings.lineLiveCount(2)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wide 800x600 at 2x text renders without overflow', (
+    WidgetTester tester,
+  ) async {
+    await _useView(tester, const Size(800, 600));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[pilotLine],
+          const <int, List<ClientVehicle>>{
+            7: <ClientVehicle>[liveBus, liveBus2],
+          },
+        ),
+        child: const MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: MaterialApp(home: LineScreen(lineKey: 'seven')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(NextBusCard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

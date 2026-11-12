@@ -284,7 +284,6 @@ class _LineScreenState extends ConsumerState<LineScreen>
               onEnableLocation: () => showMyStopLocationSheet(context, ref),
               onRefresh: () => _refreshPersonal(staticLine.id, personal),
               onTapLead: (VehicleVM v) => _focus(v, map),
-              onPersonalTap: () => _snapSheetToHalf(),
             );
           },
         ),
@@ -341,7 +340,6 @@ class _LineScreenState extends ConsumerState<LineScreen>
         onEnableLocation: () => showMyStopLocationSheet(context, ref),
         onRefresh: () => _refreshPersonal(staticLine.id, personal),
         onTapLead: (VehicleVM v) => _focus(v, map),
-        onPersonalTap: () => _snapSheetToHalf(),
       ),
     );
   }
@@ -494,25 +492,6 @@ class _LineScreenState extends ConsumerState<LineScreen>
     if (personal?.stopId != null) {
       ref.invalidate(etaProvider((lineId: lineId, stopId: personal!.stopId!)));
     }
-  }
-
-  /// Snaps the sheet to half, honoring reduce motion.
-  void _snapSheetToHalf() {
-    if (!_sheet.isAttached) {
-      return;
-    }
-    final ReduceMotionMode motion = ref.read(settingsProvider).reduceMotionMode;
-    if (AppMotion.reduced(context, motion)) {
-      _sheet.jumpTo(sheetHalf);
-      return;
-    }
-    unawaited(
-      _sheet.animateTo(
-        sheetHalf,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      ),
-    );
   }
 
   /// Selects a vehicle and drags the sheet back to peek.
