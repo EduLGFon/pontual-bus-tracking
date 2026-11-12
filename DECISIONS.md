@@ -35,7 +35,7 @@ Statuses: Accepted, Proposed, Pending owner, Superseded.
 | D16 | anonymous opaque device tokens (256-bit, SHA-256 hash, 30-day sliding) |
 | D17 | in-process tick loop every ~5 s |
 | D18 | hot state in memory, single instance; restart drops live state |
-| D19 | Cloudflare proxy in front; Caddy at origin; Deno binds localhost |
+| D19 | Cloudflare proxy in front; container-only tunnel; no host Caddy; Deno binds inside container |
 | D20 | future analytics only on de-identified aggregates |
 | D21 | server libs: Hono, postgres.js, one schema lib, dbmate |
 
@@ -46,9 +46,9 @@ INFRA-02 (pending, Pending owner): staging instance optional.
 INFRA-03 (pending, Pending owner): swap/disk encryption.
 INFRA-04 (pending, Pending owner): SSH/admin access.
 INFRA-05 (2026-10-20, Accepted): app pontual.spotnik.space, API api-pontual.spotnik.space CF Tunnel.
-INFRA-06 (pending, Pending owner): CF plan/features (WS timeout, edge cache, IP ranges, AOP).
-INFRA-07 (pending, Pending owner): origin TLS mode.
-INFRA-08 (pending, Pending owner): Caddy log policy.
+INFRA-06 (pending, Pending owner): CF plan/features (WS timeout, edge cache, AOP).
+INFRA-07 (2026-11-12, Resolved by D102): origin TLS mode - no origin TLS listener; the public edge is the container-only Cloudflare Tunnel.
+INFRA-08 (2026-11-12, Resolved by D102): Caddy log policy - no host Caddy; cloudflared logs at info with no request bodies.
 INFRA-09 (pending, Pending owner): backup target/key holder (30-day).
 INFRA-10 (pending, Pending owner): uptime monitor.
 INFRA-11 (pending, Pending owner): deploy method (manual by owner default).
@@ -58,7 +58,7 @@ INFRA-14 (2026-10-02, Accepted): postgres.js 3.4.9 Unlicense, TLS/pooling.
 INFRA-15 (2026-10-02, Accepted): schema lib Valibot 1.5.0 (T08).
 INFRA-16 (2026-10-02, Accepted): dbmate v2.36.0 verified.
 INFRA-17 (2026-10-02, Accepted): Deno pin 2.9.7.
-INFRA-18 (pending, Pending owner): systemd sandbox flags.
+INFRA-18 (2026-11-12, Resolved by D102): systemd sandbox flags - no host systemd unit; container sandbox in D101/D102.
 INFRA-19 (2026-10-02, Accepted): code licence GPLv2 (D23); data licence open.
 INFRA-20 (2026-10-02, Accepted): applicationId com.spotnik.pontual (D22).
 INFRA-21 (pending, Pending owner): Play account path/closed-test timing.
@@ -85,7 +85,7 @@ S4 (2026-10-02, Done): --wasm dual; skwasm beats CanvasKit; no service worker; w
 
 ## 6. Current status (2026-10-26)
 
-- Alpha runs on owner VPS behind Cloudflare Tunnel; API on localhost; static on GitHub Pages.
+- Alpha runs on owner VPS behind a container-only Cloudflare Tunnel; the API is in a container with no host port; static on GitHub Pages.
 - Server/client/web tests green; security suite passes no_location_at_rest.
 - Shared location stays in API process memory only; nothing persisted.
 - Owner-blocked: first tagged release, Play closed test, phone field tests, legal review.
@@ -221,13 +221,14 @@ ADR (2026-11-01, Accepted): migrate RN client package manager/runtime from npm t
 - Uptime monitor (INFRA-10); controller identity/contact e-mail (INFRA-23).
 - Play account path/closed-test timing (INFRA-21); staging instance (INFRA-02).
 - Swap/disk encryption (INFRA-03); SSH/admin access (INFRA-04).
-- CF plan/features (INFRA-06); origin TLS mode (INFRA-07); Caddy log policy (INFRA-08).
+- CF plan/features (INFRA-06).
 - Secret rotation (INFRA-12); deploy method (INFRA-11, manual by owner).
 - VPS execution of T04/T05 hardening and first deploy; upload keystore secrets.
 - First tagged release + install launch; merged manifest result; Android SDK on capable machine.
 - Phone field tests (T47); browser run of banner/wake lock (T37).
 - Pages custom domain cert issuance; API_ORIGIN/STATIC_ORIGIN repo vars and deploy-static run.
 - Pending proposals: D52; D54 server half; D40 renderer; INFRA-19 data licence; INFRA-21.
+- Resolved by D102: INFRA-07 (origin TLS), INFRA-08 (Caddy logs), INFRA-18 (systemd sandbox).
 
 ## 12. Spikes results
 
@@ -239,3 +240,37 @@ See section 5. All four spikes done 2026-10-02; device VERIFY items remain open.
 - Full history removed; see git log and CHANGELOG.md.
 
 D100 (2026-11-11, Accepted): Protomaps source pin updated from 20261026 to 20261110 after 20261026 returned 404 (builds expire ~1 week); verified HEAD 200 and pmtiles show header read.
+
+D101 (2026-11-12, Accepted, owner directive): container deployment. `server/deploy/Dockerfile` is a multi-stage build on the pinned `denoland/deno:2.9.8` image. The build stage caches `server/deno.lock` with `--frozen-lockfile` and builds the static data bundle from `data/` and `tools/`; the runtime stage copies only the server, the data bundle and the read-only module cache. No secret, `.env`, app, RN or docs tree enters the image. The runtime user is `deno`, the root filesystem is read-only with a 16 MiB noexec `/tmp`, all capabilities are dropped, `no-new-privileges` is set, and PIDs, memory, CPU and log size are bounded. `start:container` runs with `--cached-only` and denies write, run, ffi and sys; network access is limited to `0.0.0.0:8080`, the loopback metrics listener, `db:5432` and `host.docker.internal:5432`. Compose publishes only `127.0.0.1:8080` for Caddy or the Cloudflare tunnel; metrics and PostgreSQL are not published. `HOST` is `0.0.0.0` only inside the container. Env files remain the only secret source (`server/.env` or `PONTUAL_ENV_FILE`, plus `server/.env.db` or `PONTUAL_DB_ENV_FILE` for database-only secrets). The systemd unit stays as the non-container option. The bundled compose file also runs PostgreSQL `16.15` (Debian, for openssl) with a named volume and no published port. A first-start init script generates a self-signed certificate in the volume, enables `ssl=on` with `TLSv1.2` as the minimum, switches TCP rules to `hostssl` so cleartext connections are rejected, and creates the least-privilege `pontual_app` role with a password from the environment. `pontual_migrator` owns the schema and is used only by a one-shot `amacneil/dbmate:2.36.0` service that runs with `--no-dump-schema` before the API starts; `pontual_app` remains the only credential in the API `DATABASE_URL` (`sslmode=require`). Database credentials live in a separate env file so the API container does not receive the migrator password. No schema, endpoint or app behavior changes. Verified locally: image builds, Compose starts the database, runs migrations to completion, starts the API read-only against the container database, `/v1/health` answers, the Docker healthcheck reports healthy, a device create/delete round trip reaches the database as `pontual_app`, TLS is used on TCP, cleartext TCP is rejected, `pontual_app` cannot create tables, Compose config validates, `deno fmt --check`, `deno lint` and `deno check` pass, and the full server suite passes (130 tests). Not verified: production Docker, Caddy and Cloudflare routing, certificate rotation.
+
+D102 (2026-11-12, Accepted, owner directive): container-only public edge. The
+public edge is a Cloudflare Tunnel running inside the `pontual-api` Compose stack as
+the `cloudflared` service. The stack has four services (`db`, `migrate`, `api`,
+`cloudflared`) and three networks: `edge` (internal, `api` + `cloudflared`),
+`data` (internal, `api` + `db` + `migrate`) and `egress` (non-internal,
+`cloudflared` only). The API has no internet egress and no published port; the
+database is not on the tunnel network. `cloudflared` uses image
+`cloudflare/cloudflared:2026.11.0`, is distroless, runs as uid 65532, has a
+read-only root filesystem, drops all capabilities, sets `no-new-privileges`, and
+exposes no host ports. It reads the token from the Compose secret
+`/run/secrets/tunnel_token` (`PONTUAL_TUNNEL_TOKEN_FILE`, default
+`server/secrets/tunnel_token`). The tunnel is outbound-only; the public hostname
+is configured in the Cloudflare dashboard and its service target is
+`http://api:8080`. `TRUST_CLOUDFLARE=true` is safe because the API is
+unpublished and only the tunnel shares the internal `edge` network with it.
+There is no host Caddy and no `pontual.service` systemd unit; Docker
+`restart: unless-stopped` and Docker enabled at boot handle restarts. Secrets
+are `server/.env`, `server/.env.db` and `server/secrets/tunnel_token` locally,
+and `/etc/pontual/api.env`, `/etc/pontual/db.env`, `/etc/pontual/tunnel_token`
+on the VPS; the token is never placed in compose, env examples, git, logs or
+documentation. `deploy.sh deploy <tag>` builds `pontual-api:<tag>`, runs
+`docker compose up -d`, checks API health with
+`docker compose exec -T api deno eval ...`, checks the tunnel with
+`docker compose exec -T cloudflared cloudflared tunnel --metrics 127.0.0.1:2000 ready`,
+records current and previous tags under `/opt/pontual` by default, and rolls
+back on failure; `deploy.sh rollback` reactivates the previous tag;
+`deploy.sh status` runs `docker compose ps`. Rollback is by image tag. Supersedes D101 on: the API no longer has a host-published port or the host.docker.internal allow-list, the systemd unit and host Caddy are removed, and the tunnel token is a Compose secret.
+
+No
+production verification is claimed; the checks above are the documented
+procedure.

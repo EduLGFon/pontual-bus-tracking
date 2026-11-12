@@ -51,9 +51,10 @@ Values below come from `PLAN.md`. Check that a tool or command exists before
 claiming a check was run; do not invent commands.
 
 - Runtime: Flutter (Android and Web/PWA) for the app; a Deno (TypeScript) API in
-  `server/` running on the owner's VPS behind Caddy and Cloudflare; PostgreSQL
-  on the VPS; Deno for tooling in `tools/`. Flutter and Deno versions are pinned
-  (see `README.md`).
+  `server/` running in a Docker Compose stack on the owner's VPS, reached
+  through a container-only Cloudflare Tunnel with no host-published ports;
+  PostgreSQL on the VPS inside the same stack; Deno for tooling in `tools/`.
+  Flutter and Deno versions are pinned (see `README.md`).
 - Language: Dart 3 (app), TypeScript on Deno (server and tooling), SQL
   (migrations only), pt-BR for user-visible strings, English for code, comments,
   commits, and docs.
@@ -381,8 +382,8 @@ Server and Infrastructure Isolation
 - Users must not execute arbitrary server-side commands unless explicitly
   designed, authenticated, authorized, and isolated. The server exposes only the
   endpoints in `PLAN.md` section 6.5. Deno runs with minimal permissions (no
-  write, run, or ffi) in a sandboxed systemd unit as a non-root user. Host
-  hardening per `PLAN.md` section 12.8 is mandatory.
+  write, run, or ffi) in a hardened container as a non-root user, with no
+  host-published port. Host hardening per `PLAN.md` section 12.8 is mandatory.
 - Never expose shells, interpreters, debuggers, database consoles, cloud
   metadata services, internal APIs, or infrastructure controls to untrusted
   users.

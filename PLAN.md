@@ -219,7 +219,7 @@ table below lists the binding ones that affect architecture.
 | D16 | Sessions are anonymous users of a third-party auth service | **Anonymous device tokens issued by our API**: 256-bit random opaque token, only SHA-256 hash stored, 30-day sliding expiry, revocable, created only when the user first shares a trip | Smaller requests, instant revocation, nothing created for viewers |
 | D17 | Edge Function runs the 15-s loop | **In-process tick loop (every ~5 s)** inside the API | No cold starts, no invocation quota |
 | D18 | (new) | **Hot state (trips, vehicles) is in memory**, single API instance. Restart drops live state; clients resume automatically (`resume`) | Privacy (location never on disk), speed, simplicity |
-| D19 | (new) | **Cloudflare proxy in front of the API; Caddy at the origin; Deno binds to localhost; firewall accepts web traffic only from Cloudflare ranges** | Hides origin IP, absorbs floods, free TLS |
+| D19 | (new) | **Cloudflare proxy and container-only Cloudflare Tunnel in front of the API; no host-published port; Deno binds inside the container; firewall denies inbound except SSH** | Hides origin IP, absorbs floods, free TLS |
 | D20 | (new) | **Future analytics path (history, ETA, ML) only on de-identified, aggregated data**, fed from an internal event bus. Raw per-trip tracks are never stored. Needs consent-text version bump, RIPD update and legal review first. **[L]** | Keeps the owner's roadmap open without breaking privacy (§5.5) |
 | D21 | (new) | Server libraries: **Hono** (HTTP + WebSocket), **postgres.js** (`postgres`), one **schema-validation library** (Valibot or Zod), **dbmate** for SQL migrations | Small, well-known, Deno-friendly stack; no ORM |
 
@@ -270,8 +270,8 @@ table below lists the binding ones that affect architecture.
   `Deno.upgradeWebSocket`; `postgres` (postgres.js) with TLS and pooling; dbmate
   on the target OS.
 - Cloudflare: WebSocket support and idle timeout on the owner's plan; whether the
-  free plan caches snapshot endpoints via a cache rule; current IP ranges list
-  for the origin firewall; whether Authenticated Origin Pulls is practical.
+  free plan caches snapshot endpoints via a cache rule; the container-only
+  tunnel ingress and token rotation procedure.
 - Bytes per ping request/response and keep-alive reuse at 15 s vs 90 s cadence
   through Cloudflare.
 - Flutter Web: `--wasm` build support and size; service-worker behaviour in
@@ -344,7 +344,7 @@ silently relax.
 | RNF05 | Usable on unstable 3G/4G: no blocking spinners on cached data, bounded timeouts, backoff, latest-wins semantics (§11). | A |
 | RNF06 | Data minimisation and short retention (§13.4). | A |
 | RNF07 | Works with few users per line (single rider = valid vehicle once moving). | A |
-| RNF08 | Server availability: systemd auto-restart, external uptime check, fast rollback; the app shows a friendly "server unavailable" state and resumes trips by itself after a restart (KL6). | A |
+| RNF08 | Server availability: container auto-restart, external uptime check, fast rollback; the app shows a friendly "server unavailable" state and resumes trips by itself after a restart (KL6). | A |
 | RNF09 | Android keeps tracking with screen off / app in background **while the foreground service runs**. | A |
 | RNF10 | iOS/Web states clearly that tracking needs the screen on and page open. | A |
 | RNF11 | Runs well on entry-level phones (2 GB RAM, Android 8-10 era CPUs) and low-end iPhones via PWA. | A |
@@ -372,7 +372,7 @@ silently relax.
 | SEC08 | Per-device and per-IP rate limits, per-device quotas, global capacity cap, blocklist, kill switch. |
 | SEC09 | Supply chain: pinned dependencies, lockfiles committed, minimal allow-list of packages, 2FA on GitHub, Cloudflare, Google and the VPS provider accounts. |
 | SEC10 | Automated security tests (HTTP-level authorisation and abuse tests plus the simulator) run in CI before every release. |
-| SEC11 | Host hardening: key-only SSH, default-deny firewall, automatic security updates, non-root service user, sandboxed systemd unit, database not exposed, encrypted off-site backups (§12.8). |
+| SEC11 | Host hardening: key-only SSH, default-deny firewall, automatic security updates, non-root service user, hardened container with no published ports, database not exposed, encrypted off-site backups (§12.8). |
 
 ### 4.4 Privacy requirements (PRV) - details in §13
 
@@ -404,11 +404,11 @@ flowchart LR
   PC -->|"HTTPS JSON, Bearer token"| CF["Cloudflare proxy"]
   VR -->|"WSS stream, read-only"| CF
   VR -->|"HTTPS snapshot, ETag"| CF
-  CF --> CADDY["Caddy reverse proxy on the VPS"]
-  CADDY --> API["Deno API on localhost"]
+  CF --> TUN["Cloudflare Tunnel (container, outbound-only)"]
+  TUN --> API["Deno API in container (no host port)"]
   API --> ENG["Domain engine, in-memory state"]
   ENG -->|"events"| HUB["WebSocket hub"]
-  API --> DB[("PostgreSQL, localhost or private net")]
+  API --> DB[("PostgreSQL, internal data network")]
   SD -->|"HTTPS GET static JSON"| CDN["GitHub Pages"]
   MON["External uptime check"] -->|"GET /v1/health"| CF
 ```
@@ -420,7 +420,7 @@ flowchart LR
 | **Flutter app** | UI, consent, location sampling, ping client, map, static data cache | hold server secrets, trust its own validation, log coordinates |
 | **GitHub Pages** | hosts the Web build, static JSON (`manifest.json`, `config.json`, `lines.<hash>.json`, `routes/*.json`), legal pages | store user data |
 | **Cloudflare proxy** | TLS, DDoS absorption, caching of public snapshot endpoints, hides origin IP | be the only defence (origin still validates everything) |
-| **Caddy (VPS)** | terminates origin TLS, forwards to `127.0.0.1`, sets size/time limits, minimal or no access logs | log IPs or bodies |
+| **Cloudflare Tunnel (container)** | outbound-only tunnel to the internal `api:8080` service; no host port, no inbound listener | log IPs or bodies |
 | **Deno API** | validation, authentication, authorisation, rate limits, domain engine, WebSocket hub, jobs | run as root, accept DB access from clients, write coordinates anywhere |
 | **PostgreSQL** | pseudonymous durable data only: devices (token hash), consents, blocklist, runtime config | store coordinates, be reachable from the internet |
 | **GitHub Actions** | CI, static deploy, release builds | hold production server credentials beyond a restricted deploy key (or deploy manually in alpha) |
@@ -461,8 +461,8 @@ Fix erased from memory immediately.
 ### 5.4 Trust boundaries
 
 - **Untrusted:** every client, every parameter, headers (except those set by
-  Cloudflare, trusted only because the origin firewall accepts Cloudflare ranges
-  only), the network.
+  Cloudflare, trusted only because the API is unpublished and only the tunnel
+  shares the internal edge network), the network.
 - **Trusted:** the API process, the database (authorisation lives in the API, not
   in the DB), repo-controlled static data.
 - A compromised client can at best (a) report fake positions for its own trip
@@ -471,7 +471,7 @@ Fix erased from memory immediately.
   stream.
 - A compromised API process is the serious case: it holds the app DB credentials.
   Mitigations: least-privilege DB role, no coordinates at rest, minimal Deno
-  permissions, systemd sandbox, host hardening (§12.8).
+  permissions, container sandbox, host hardening (§12.8).
 
 ### 5.5 Extensibility seams (for caching, history, predictions, ML)
 
@@ -504,14 +504,14 @@ privacy:
 
 | Concern | Choice | Notes |
 | --- | --- | --- |
-| Runtime | **Deno** (latest stable at T06, pinned in `deno.json` and the systemd unit) | TypeScript with `strict`. Minimal permission flags (§6.9). |
+| Runtime | **Deno** (latest stable at T06, pinned in `deno.json` and the container image) | TypeScript with `strict`. Minimal permission flags (§6.9). |
 | HTTP + WebSocket | **Hono** (JSR) on `Deno.serve`; WebSocket via `Deno.upgradeWebSocket` (VERIFY) | If Hono proves a poor fit, a bare `Deno.serve` plus a ~100-line router is the fallback. ADR either way. |
-| Database driver | **postgres.js** (`postgres`) with parameterised tagged templates | No ORM. TLS to DB if it is not on localhost. |
+| Database driver | **postgres.js** (`postgres`) with parameterised tagged templates | No ORM. TLS required for all TCP database connections (hostssl). |
 | Validation | **One** schema library (Valibot or Zod) | Every request body, query and WebSocket message is parsed into typed values at the boundary. |
 | Migrations | **dbmate** plain SQL files (VERIFY), forward-only | Fallback: a tiny Deno runner with checksums. |
 | Tests | `deno test` | Engine is pure and unit-tested; HTTP tests run the server in-process against a test PostgreSQL. |
-| Process manager | **systemd** (hardened unit) | Auto-restart, journald logs (no PII). |
-| Reverse proxy | **Caddy** | Automatic TLS or Cloudflare origin certificate. |
+| Process manager | **Docker Compose** (hardened container) | Auto-restart via `restart: unless-stopped`, Docker logs (no PII). The container is non-root, read-only, capability-free, with no host-published port. Compose also runs the pinned PostgreSQL container, TLS, and a one-shot migration (D101, D102). |
+| Reverse proxy | **none on the host** (Cloudflare Tunnel terminates TLS at the edge and forwards to `api:8080` on the internal `edge` network) | Origin is unpublished; no host listener. |
 
 ### 6.2 Repository layout (`server/`)
 
@@ -532,11 +532,12 @@ authenticate, call the engine or a repository, and format the response.
 **Environment (validated at boot; process refuses to start on invalid/missing):**
 `APP_ENV` (`local|staging|prod`), `HOST` (default `127.0.0.1`), `PORT`,
 `DATABASE_URL` (secret), `ALLOWED_ORIGINS` (comma list, exact origins),
-`TRUST_CLOUDFLARE` (`true` only when the origin firewall accepts Cloudflare only),
+`TRUST_CLOUDFLARE` (`true` only when the API is unpublished and only the tunnel reaches it),
 `DATA_DIR` (built static data), `LOG_LEVEL`, `METRICS_PORT` (localhost only),
 `LEARNING_PRIVACY_MODE` (`all` default, or `route_stops`; env-only privacy gate,
 see D98).
-Secrets live in a root-owned `0600` env file loaded by systemd, never in the repo.
+Secrets live in root-owned `0600` env files plus a tunnel token file
+owned by uid 65532 mode `0400`, never in the repo.
 
 **Runtime tunables** live in table `app_config` (JSON values), reloaded every 30
 s. Defaults are compiled in; the DB only overrides.
@@ -884,8 +885,9 @@ battery, exact counts or exact report positions ever leave the server.
   body limit and content-type -> rate limit -> auth (if required) -> schema
   validation -> handler -> error handler.
 - **Client IP:** from the socket; `CF-Connecting-IP` is trusted **only** when
-  `TRUST_CLOUDFLARE=true`, which requires the origin firewall to accept
-  Cloudflare ranges only. IPs are used for in-memory rate-limit buckets and
+  `TRUST_CLOUDFLARE=true`, which requires the API to be unpublished with only
+  the tunnel on its internal edge network. IPs are used for in-memory
+  rate-limit buckets and
   **never stored or logged**.
 - **Tokens:** generated with the platform CSPRNG (`crypto.getRandomValues`, 32
   bytes), prefix `bm1_`, only the SHA-256 hash is stored, lookups by hash,
@@ -1693,7 +1695,7 @@ models in `docs/field-tests/devices.md`.
    traces, paths, SQL or config in responses.
 8. **Rate limits and caps** (§6.3) on every public endpoint and the WebSocket;
    prune in-memory buckets on the tick.
-9. **Deno permissions** minimal (§6.9); the systemd unit pins the exact flags;
+9. **Deno permissions** minimal (§6.9); the container pins the exact flags;
    no `--allow-all`, ever.
 10. **Headers:** `X-Content-Type-Options: nosniff`, `Cache-Control` set
     explicitly per endpoint, no `Server`/framework version headers, CORS only
@@ -1797,8 +1799,8 @@ tests cover the engine.
 | AC17 | Log audit: full trip with debug logging, grep app/API/journald/proxy/CI logs for coords, tokens, device ids | none |
 | AC18 | Web headers present; no mixed content; CSP violations = 0; CORS rejects other origins | pass |
 | AC19 | Dependency audit: pinned versions, lockfiles committed, no unlisted packages; `deno.lock` verified | pass |
-| AC20 | Origin lock: direct requests to the VPS IP on 80/443 from non-Cloudflare addresses | refused |
-| AC21 | Process sandbox: no writes outside state dirs, no process spawn, non-root (`systemd-analyze security`, manual probes) | pass |
+| AC20 | No host 80/443 listener; the API is reachable only through the Cloudflare Tunnel | refused / no listener |
+| AC21 | Process sandbox: no writes outside state dirs, no process spawn, non-root (container inspect and manual probes) | pass |
 | AC22 | `no_location_at_rest`: migrations have no location-like columns; DB dump after a simulator run has no coordinates | pass |
 | AC23 | Token handling: DB holds only hashes; deleting a device invalidates its token within cache TTL (immediately in-process) | pass |
 
@@ -1827,29 +1829,47 @@ Because the owner operates the server, these are part of the product's security
 
 - **Access:** SSH keys only; password/root login disabled; dedicated admin user
   with sudo; 2FA on provider; `fail2ban`; SSH restricted source range if possible.
-- **Firewall:** default-deny inbound (`nftables`/`ufw`); allow SSH and 80/443
-  **only from Cloudflare IP ranges** (refresh on schedule; VERIFY official list).
-  PostgreSQL and metrics port never opened.
+- **Firewall:** default-deny inbound (`nftables`/`ufw`); allow SSH only. No
+  inbound 80/443/8080/5432. Allow outbound TCP 443 and UDP 7844 for
+  `cloudflared`, plus image pulls. PostgreSQL and the metrics port are never
+  opened.
 - **Updates:** automatic security updates (`unattended-upgrades`), documented
   reboot policy, time sync (chrony).
-- **Service user:** dedicated non-login `pontual` user; no sudo; app dir read-only;
-  small writable state dir only if needed.
-- **systemd sandbox** (`server/deploy/pontual.service`): `NoNewPrivileges=yes`,
-  `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`,
-  `ProtectKernelTunables/Modules/ControlGroups=yes`,
-  `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`, `RestrictNamespaces=yes`,
-  `LockPersonality=yes`, `MemoryDenyWriteExecute=` only if Deno tolerates it
-  (VERIFY), `CapabilityBoundingSet=` empty, `LimitCORE=0`, `LimitNOFILE` raised,
-  `Restart=on-failure`. Check with `systemd-analyze security`.
+- **Service user:** containers run as non-root (`deno` in the API,
+  `65532` in `cloudflared`, and non-root numeric users for `db` and
+  `migrate`); the host admin user owns deployment. There is no dedicated host
+  `pontual` user.
+- **Container sandbox** (`server/deploy/Dockerfile` and `compose.yaml`): pinned
+  Deno base image, non-root `deno` user, read-only root filesystem with a small
+  noexec `/tmp`, all Linux capabilities dropped, `no-new-privileges`, bounded
+  PIDs, memory and CPU, locked dependencies cached at build time, no secret in
+  any image layer.
+  The API is not published to the host; it is reachable only by `cloudflared`
+  on the internal `edge` network. Metrics and PostgreSQL stay off the host
+  network. The container's Deno flags deny write, run, ffi and sys.
+  Compose also runs a pinned PostgreSQL container with a named volume, a
+  first-start script that generates a self-signed certificate, requires TLS on
+  TCP, and creates the least-privilege app role, plus a one-shot dbmate
+  migration with the schema-owner role. A `cloudflared` container joins the
+  `edge` and `egress` networks, reads its token from a Compose secret, and
+  targets `http://api:8080`. Database secrets use a separate env file so the
+  API never receives the migrator password.
+  See DECISIONS.md#D101 and #D102.
+- **No host reverse proxy:** TLS terminates at Cloudflare; there is no host
+  Caddy and no host Cloudflare tunnel unit. Docker `restart: unless-stopped`
+  plus Docker enabled at boot handle restarts.
 - **Memory hygiene:** live positions only in process memory. Swap off or
   encrypted; prefer full-disk encryption (VERIFY provider) so hibernation/swap
   cannot persist them.
-- **Reverse proxy (Caddy):** TLS 1.2+ only, request size/time limits, **no
-  access logs** (or IP-free format, short retention); error logs only.
-- **PostgreSQL:** localhost or private interface, `scram-sha-256`, separate
-  migrator and app roles, `log_statement=none`, minimal extensions, regular
-  minor-version updates.
-- **Secrets:** env file `0600` owned by root, loaded by systemd; never in repo or
+- **Cloudflare edge:** TLS 1.2+ at the edge; the origin is unpublished, so
+  there is no host reverse proxy to configure. Keep request size/time limits in
+  the API and at Cloudflare where applicable.
+- **PostgreSQL:** internal `data` network only, no host port; TLS,
+  `scram-sha-256`, separate migrator and app roles, `log_statement=none`,
+  minimal extensions, regular minor-version updates.
+- **Secrets:** env files `0600` root-owned (`/etc/pontual/api.env`,
+  `/etc/pontual/db.env`); tunnel token file owned by uid 65532 mode `0400`
+  (`/etc/pontual/tunnel_token`); never in repo, image layers, compose.yaml, or
   CI logs; rotate every 6 months and after suspicion.
 - **Backups:** nightly `pg_dump` of the four small tables, encrypted (e.g.
   `age`), copied off-host, 30-day retention, **restore drill** before alpha exit.
@@ -1857,10 +1877,12 @@ Because the owner operates the server, these are part of the product's security
   honoured in live DB at once; backup copies expire within retention (disclosed
   in policy).
 - **Monitoring:** external uptime check on `/v1/health`, weekly review of
-  CPU/RAM/disk/connections, disk-full alert, cert expiry check, `journalctl`
-  review (no PII).
-- **Deploy integrity:** deploy from a tagged release by a script that verifies
-  checksums; keep the previous release for instant rollback.
+  CPU/RAM/disk/connections, disk-full alert, cert expiry check, Docker
+  `logs` review (no PII).
+- **Deploy integrity:** deploy from a tagged checkout with
+  `deploy.sh deploy <tag>`, which builds `pontual-api:<tag>`, runs Compose
+  and migrations, checks the API and tunnel, and keeps the previous image
+  tag for rollback.
 
 ---
 
@@ -2284,7 +2306,7 @@ touches money-like risk (data leaks).
 | ID | Question | Pass criteria | Fallback | M/E |
 | --- | --- | --- | --- | --- |
 | S1 | Does `geolocator`'s Android foreground service keep fixes + HTTPS calls running with screen off for 30 min? What happens on swipe-away? `isMocked` available? Notification action? | continuous fixes at configured cadence; trip ends on swipe-away as designed; no `ACCESS_BACKGROUND_LOCATION` needed | `flutter_foreground_task` (separate isolate) or a minimal custom native service | S5.5/M |
-| S2 | Deno server on the VPS behind Caddy and Cloudflare: Hono + `Deno.upgradeWebSocket` + postgres.js work; WebSocket survives the Cloudflare idle timeout with 25 s pings; keep-alive reuse at 15 s vs 90 s cadence; bytes per `ping` request/response; permission flags run; dbmate works; snapshot endpoint cacheable at the edge | all true; measured bytes recorded (target <= ~0.6 KB per ping on the wire) | bare `Deno.serve` router; poll-based viewers (cached snapshot every 15 s) if WebSockets misbehave; different cadence | S5.5/H |
+| S2 | Deno server on the VPS behind the container-only Cloudflare tunnel: Hono + `Deno.upgradeWebSocket` + postgres.js work; WebSocket survives the Cloudflare idle timeout with 25 s pings; keep-alive reuse at 15 s vs 90 s cadence; bytes per `ping` request/response; permission flags run; dbmate works; snapshot endpoint cacheable at the edge | all true; measured bytes recorded (target <= ~0.6 KB per ping on the wire) | bare `Deno.serve` router; poll-based viewers (cached snapshot every 15 s) if WebSockets misbehave; different cadence | S5.5/H |
 | S3 | `flutter_map` + built-in cache cap (~50 MB) + OSM `User-Agent`/attribution on a low-end device; frame times | >= 55 fps pan; cache cap honoured | custom tile provider with `dart:io` LRU | S5.5/M |
 | S4 | Flutter Web: `--wasm` vs default size/startup on a mid phone; service worker; CDN-free assets; wake lock + geolocation on iOS Safari PWA | first load <= 3 MB; viewer usable | default renderer; minimal custom service worker; web = viewer only | S5.5/M |
 
@@ -2345,7 +2367,7 @@ auto-end.
 | --- | --- | --- | --- |
 | local | `deno task dev` + Docker PostgreSQL | `flutter run` | development, server tests |
 | staging (optional) | second instance on the VPS (own port/DB/subdomain) | same Pages site (no per-PR previews in alpha) | simulator, integration, field tests |
-| prod | main instance on the VPS | GitHub Pages | pilot users |
+| prod | main instance on the VPS (Docker Compose, container-only edge) | GitHub Pages | pilot users |
 
 Client env via `--dart-define-from-file=env/<env>.json` containing
 `API_BASE_URL` and `STATIC_BASE_URL`, plus test-only overrides (never in
@@ -2399,16 +2421,18 @@ exist for clients). Server env lives in a root-owned env file on the host
 
 ### 17.5 Server release and rollback
 
-1. Tag `server-vX.Y.Z`; CI green; build artifact = source + `deno.lock` + built
-   `data/` bundle + checksums.
-2. On the VPS: the deploy script unpacks to `/opt/pontual/releases/<tag>`,
-   verifies checksums, runs pending migrations (backward compatible: add, never
-   remove, for one release), points the `current` symlink to the new release,
-   restarts the service, checks `/v1/health`, and keeps the previous release.
-3. Deploy off-peak: a restart drops live state (KL6); clients resume within one
+1. Tag `server-vX.Y.Z` after CI is green.
+2. Check out the tag on the VPS.
+3. Run `deploy.sh deploy server-vX.Y.Z`. It builds the image, runs
+   `docker compose up -d`, applies pending migrations, checks the API and the
+   tunnel, records the current and previous tags, and rolls back on failure.
+4. Deploy off-peak: a restart drops live state (KL6); clients resume within one
    ping interval.
-4. **Rollback:** move the symlink back and restart (migrations are backward
-   compatible by rule). Kill switch if the problem is data-related.
+5. **Rollback:** run `deploy.sh rollback`, or point `PONTUAL_TAG` at the
+   previous image tag and run `up -d`. Migrations are backward compatible by
+   rule (add, never remove, for one release). Use the kill switch if the
+   problem is data-related.
+   See `docs/runbooks/docker.md` and DECISIONS.md#D101 and #D102.
 
 ---
 
@@ -2417,10 +2441,10 @@ exist for clients). Server env lives in a root-owned env file on the host
 | Runbook | Trigger | Steps |
 | --- | --- | --- |
 | Kill switch | abuse, bug, incident | `update app_config set value='false' where key='service_enabled'` (~30 s); set `config.json.maintenance=true` and redeploy static; verify clients show S13; investigate |
-| API down or restarting | uptime alert, `502/503` | `systemctl status pontual`, `journalctl -u pontual` (no PII); restart; roll back if bad release (§17.5); clients resume |
+| API down or restarting | uptime alert, `502/503` | `docker compose -f server/deploy/compose.yaml ps`; `docker compose -f server/deploy/compose.yaml logs --tail=100 api cloudflared`; restart with `docker compose up -d` or roll back (§17.5); health via `docker compose exec -T api deno eval ...`; clients resume |
 | Database down | `/v1/health` degraded | check PG service, disk, connections; API serves reads/active trips from memory but refuses registration/consent; restore from backup only if data lost |
 | Disk full / high load | monitor alert | find cause (logs, backups), rotate/prune, raise limits; lower `max_active_trips` or raise intervals temporarily |
-| Certificate / Cloudflare issue | TLS errors | check Cloudflare SSL mode and origin cert, Caddy status, DNS; fall back to known-good config |
+| Certificate / Cloudflare issue | TLS errors | check Cloudflare SSL mode, tunnel status, DNS; fall back to known-good config |
 | Ghost bus / spoofing | reports of fake vehicles | identify via admin SQL on `devices` and live metrics (no coords in tickets); add to `blocked_devices`; tighten route/bbox; trip ends at next ping |
 | Rotate secrets | suspicion or schedule (6 months) | DB password, env file, SSH keys, CF/GitHub tokens; restart API; re-issue tokens only if hashes may have leaked (delete `devices`, clients re-register) |
 | Bad client release | crash spike | halt Play rollout, revert static data if needed, kill switch if server-related |
@@ -2443,7 +2467,7 @@ backup success.
 | --- | --- | --- | --- | --- |
 | R-01 | Cold start (no riders) | High | High | pilot on busiest campus lines; timetables always available; honest empty states |
 | R-02 | Android distribution blocked by developer verification | Medium | High | register early; Play Console; limited-distribution for pilot |
-| R-03 | Single VPS: downtime, overload or provider outage | Medium | Medium | systemd auto-restart; uptime monitor; quick rollback; caps and graceful degradation; later a second instance or a Redis `StateStore` if needed |
+| R-03 | Single VPS: downtime, overload or provider outage | Medium | Medium | container auto-restart; uptime monitor; quick rollback; caps and graceful degradation; later a second instance or a Redis `StateStore` if needed |
 | R-04 | Spoofed/ghost vehicles | Medium | Medium | §12.6, route check, strikes, blocklist, residual-risk disclosure |
 | R-05 | OSM tile policy / scale limits | Medium | Medium | `TileSource` abstraction; before Phase 2 pick: self-hosted static tiles/PMTiles (e.g., Cloudflare R2), a keyed free tier (MapTiler/Stadia, check terms), or OpenFreeMap - decide by ADR |
 | R-06 | OEM battery killers stop the foreground service | High | Medium | help card; trip ends cleanly; honest messaging |
@@ -2477,8 +2501,7 @@ backup success.
     on Cloudflare.
 11. **Backup target** (off-host storage) and who holds the encryption key.
 12. **Uptime monitor** service to use (it receives only the health URL).
-13. Whether to enable **Cloudflare Authenticated Origin Pulls** and edge-caching
-    rules for the snapshot endpoints (depends on plan).
+13. Edge-caching rules for the snapshot endpoints (depends on plan).
 14. Confirm the **history/analytics roadmap** constraints in D20 (de-identified
     aggregates only) before any such work starts.
 
@@ -2486,11 +2509,11 @@ backup success.
 
 Spike outcomes S1-S4 · Deno permission flags and Hono/WebSocket/postgres.js
 compatibility · dbmate on the target OS · Cloudflare WebSocket idle timeout,
-edge caching rule and IP list · `BuiltInMapCachingProvider` size config ·
-`--no-web-resources-cdn` flag and `--wasm` · systemd option support
-(`MemoryDenyWriteExecute`) · Play closed-test and foreground-service forms ·
-ANPD Res. 2/2022 and 15/2024 specifics · ECA Digital applicability · minimum
-age wording.
+edge caching rule · `BuiltInMapCachingProvider` size config ·
+`--no-web-resources-cdn` flag and `--wasm` · container deployment support
+(Docker Compose, read-only filesystem, no published ports, cloudflared tunnel)
+· Play closed-test and foreground-service forms · ANPD Res. 2/2022 and
+15/2024 specifics · ECA Digital applicability · minimum age wording.
 
 ---
 

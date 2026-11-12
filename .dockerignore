@@ -1,0 +1,40 @@
+# Keep secrets and unrelated source out of the Docker build context.
+.env
+**/.env
+**/.env.*
+env/
+*.keystore
+*.jks
+*.pem
+*.key
+*.p12
+*.p8
+*.gpx
+*.tcx
+*.fit
+
+# The API image builds its own static data bundle.
+build/
+dist/
+
+# Unless the Dockerfile copies a path explicitly, do not send it.
+.git/
+.github/
+app/
+rn/
+design/
+docs/
+server/db/
+server/secrets/
+server/test/
+tools/map/
+tools/perf/
+tools/sim/
+*.md
+*.aab
+*.apk
+*.ipa
+*.pmtiles
+*.dump
+*.sql.gz
+*.age

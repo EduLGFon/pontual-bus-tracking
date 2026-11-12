@@ -1,72 +1,119 @@
 #!/usr/bin/env bash
-# Pontual server deploy (T05). Tagged release unpack, checksum verify,
-# backward-compatible migrations, symlink swap, restart, health check,
-# instant rollback. Runs on the VPS as the admin user, never as root
-# for the app itself. See PLAN.md 17.5 and docs/runbooks/ops.md.
-#
+# Compose deployment helper for the Pontual stack.
+# Run on the VPS from a checkout of this repository.
 # Usage:
-#   deploy.sh deploy <tag> <artifact-dir>   # install and activate <tag>
-#   deploy.sh rollback                        # reactivate the previous release
-#
-# Layout: /opt/pontual/releases/<tag>/, /opt/pontual/current symlink,
-# /opt/pontual/previous symlink. Artifact dir holds the release files
-# plus SHA256SUMS (source + deno.lock + built data bundle + checksums
-# per PLAN 17.5). Deploy off-peak: a restart drops live state (KL6)
-# and clients resume within one ping interval.
+#   deploy.sh deploy <tag>
+#   deploy.sh rollback
+#   deploy.sh status
+# Image tags provide rollback. Compose runs migrations before the API and
+# cloudflared starts. The API is not published; health checks run inside the
+# container. See docs/runbooks/docker.md.
 set -euo pipefail
 
-ROOT="/opt/pontual"
-SERVICE="pontual.service"
-HEALTH="http://127.0.0.1:8080/v1/health"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COMPOSE_FILE="$ROOT/server/deploy/compose.yaml"
+STATE_DIR="${PONTUAL_STATE_DIR:-/opt/pontual}"
+CURRENT_TAG="$STATE_DIR/current-tag"
+PREVIOUS_TAG="$STATE_DIR/previous-tag"
+TOKEN_FILE="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
 
-cmd="${1:-}"
-case "$cmd" in
-  deploy)
-    TAG="${2:-}"
-    ARTIFACT="${3:-}"
-    test -n "$TAG" || { echo "usage: deploy.sh deploy <tag> <artifact-dir>"; exit 2; }
-    test -n "$ARTIFACT" || { echo "usage: deploy.sh deploy <tag> <artifact-dir>"; exit 2; }
-    DEST="$ROOT/releases/$TAG"
-    test ! -e "$DEST" || { echo "release $TAG already installed"; exit 1; }
-    mkdir -p "$DEST"
-    cp -r "$ARTIFACT"/. "$DEST"/
-    (cd "$DEST" && sha256sum -c SHA256SUMS)
-    if test -L "$ROOT/current"; then
-      cp -P "$ROOT/current" "$ROOT/previous"
+export PONTUAL_ENV_FILE="${PONTUAL_ENV_FILE:-/etc/pontual/api.env}"
+export PONTUAL_DB_ENV_FILE="${PONTUAL_DB_ENV_FILE:-/etc/pontual/db.env}"
+export PONTUAL_TUNNEL_TOKEN_FILE="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
+
+compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
+
+check_tunnel_token() {
+  local f="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
+  local uid mode
+  [ -f "$f" ] || { echo "tunnel token not found: $f"; return 1; }
+  uid=$(stat -c '%u' "$f" 2>/dev/null || true)
+  mode=$(stat -c '%a' "$f" 2>/dev/null || true)
+  if [ "$uid" != "65532" ] || [ $((8#$mode & 8#400)) -eq 0 ]; then
+    echo "tunnel token must be owned by uid 65532 and readable by it:"
+    echo "  sudo chown 65532:65532 $f && sudo chmod 400 $f"
+    return 1
+  fi
+}
+
+api_health() {
+  compose exec -T api deno eval --quiet --no-config \
+    --allow-net=127.0.0.1:8080 \
+    'const r = await fetch("http://127.0.0.1:8080/v1/health"); if (!r.ok) Deno.exit(1);'
+}
+
+tunnel_health() {
+  compose exec -T cloudflared \
+    cloudflared tunnel --metrics 127.0.0.1:2000 ready
+}
+
+wait_health() {
+  local i
+  for i in $(seq 1 90); do
+    if api_health >/dev/null 2>&1 && tunnel_health >/dev/null 2>&1; then
+      return 0
     fi
-    ln -sfn "$DEST" "$ROOT/current"
-    # Migrations are backward compatible by rule (add, never remove).
-    DATABASE_URL="$(grep -E '^DATABASE_URL=' /etc/pontual/env | cut -d= -f2-)"
-    export DATABASE_URL
-    /usr/local/bin/dbmate -d "$DEST/server/db/migrations" up
-    systemctl restart "$SERVICE"
-    for i in $(seq 1 30); do
-      if curl -fsS "$HEALTH" >/dev/null 2>&1; then
-        echo "deploy $TAG live"
-        exit 0
+    sleep 2
+  done
+  return 1
+}
+
+activate() {
+  local tag="$1"
+  local build="${2:-true}"
+  check_tunnel_token || return 1
+  if [ "$build" = "true" ]; then
+    PONTUAL_TAG="$tag" compose build api || { echo "build failed"; return 1; }
+  else
+    docker image inspect "pontual-api:$tag" >/dev/null 2>&1 || {
+      echo "image not found: pontual-api:$tag"
+      return 1
+    }
+  fi
+  PONTUAL_TAG="$tag" compose up -d || { echo "compose up failed"; return 1; }
+  if wait_health; then
+    mkdir -p "$STATE_DIR" || { echo "cannot create $STATE_DIR"; return 1; }
+    if [ -f "$CURRENT_TAG" ]; then
+      cp "$CURRENT_TAG" "$PREVIOUS_TAG" || { echo "cannot record previous tag"; return 1; }
+    fi
+    printf '%s\n' "$tag" > "$CURRENT_TAG" || { echo "cannot record current tag"; return 1; }
+    echo "deploy $tag live"
+    return 0
+  fi
+  echo "health check failed for $tag"
+  return 1
+}
+
+case "${1:-}" in
+  deploy)
+    tag="${2:-}"
+    [ -n "$tag" ] || { echo "usage: deploy.sh deploy <tag>"; exit 2; }
+    if ! activate "$tag"; then
+      if [ -f "$PREVIOUS_TAG" ]; then
+        echo "rolling back to $(cat "$PREVIOUS_TAG")"
+        activate "$(cat "$PREVIOUS_TAG")" false
+      else
+        echo "first deploy failed; inspect: docker compose -f $COMPOSE_FILE logs --tail=100 api cloudflared"
       fi
-      sleep 2
-    done
-    echo "health check failed, rolling back"
-    "$0" rollback
-    exit 1
+      exit 1
+    fi
     ;;
   rollback)
-    test -L "$ROOT/previous" || { echo "no previous release"; exit 1; }
-    ln -sfn "$(readlink "$ROOT/previous")" "$ROOT/current"
-    systemctl restart "$SERVICE"
-    for i in $(seq 1 30); do
-      if curl -fsS "$HEALTH" >/dev/null 2>&1; then
-        echo "rollback live"
-        exit 0
-      fi
-      sleep 2
-    done
-    echo "rollback health check failed"
-    exit 1
+    [ -f "$PREVIOUS_TAG" ] || { echo "no previous tag"; exit 1; }
+    tag="$(cat "$PREVIOUS_TAG")"
+    activate "$tag" false || { echo "rollback health check failed"; exit 1; }
+    ;;
+  status)
+    compose ps
+    if [ -f "$CURRENT_TAG" ]; then
+      echo "current tag: $(cat "$CURRENT_TAG")"
+    fi
+    if [ -f "$TOKEN_FILE" ]; then
+      stat -c 'tunnel token: %u:%g %a' "$TOKEN_FILE"
+    fi
     ;;
   *)
-    echo "usage: deploy.sh deploy <tag> <artifact-dir> | rollback"
+    echo "usage: deploy.sh deploy <tag> | rollback | status"
     exit 2
     ;;
 esac

@@ -37,8 +37,8 @@ tree. Verdicts: pass, partial (usable with a noted gap), or blocked
 | AC17 | pass | Full trip at debug level on 2026-10-03 (register, consent, start, ping, end, delete): zero hits for coordinates, bearer token, or device id in API logs. Request logs carry method, route, status, duration, request id only. |
 | AC18 | pass | `build/_headers` verified (CSP without Google CDN, HSTS, nosniff, no-referrer, geolocation self-only, COOP same-origin); live CORS test in `security_test.ts`. Browser console check stays on the T37 machine. |
 | AC19 | pass | Pins committed (`pubspec.lock`, `deno.lock`); Hono 4.13.12, postgres.js 3.4.9, Valibot 1.5.0, dbmate 2.36.0 per ADRs; `wakelock_plus` 1.8.0 is allow-listed (PLAN 8.2); `stream_channel` is a test-only companion of `web_socket_channel` (T27). |
-| AC20 | blocked | Needs the VPS and Cloudflare (origin lock, firewall ranges). |
-| AC21 | blocked | Needs the VPS. `server/deploy/` is still empty (T05 deploy script and systemd unit, owner-blocked). Sandbox flags are specified in PLAN 12.8, not yet provisioned. |
+| AC20 | blocked | Needs the VPS. Verify there is no host 80/443 listener and that the API is reachable only through the Cloudflare Tunnel. |
+| AC21 | blocked | Needs the VPS. Deploy script and container sandbox (Dockerfile, compose.yaml, cloudflared) are specified in PLAN 12.8, not yet provisioned. |
 | AC22 | pass | Migration 0001 has no location columns; `no_location_at_rest` test green. |
 | AC23 | pass | DB holds only SHA-256 hashes; delete evicts the lookup cache immediately in-process. |
 
@@ -46,7 +46,7 @@ tree. Verdicts: pass, partial (usable with a noted gap), or blocked
 
 None in code. Release blockers that remain are environmental, not
 findings: VPS provisioning and hardening (T04), deploy script and
-systemd unit (T05), merged-manifest and release-flag audit (T45),
+container sandbox (T05), merged-manifest and release-flag audit (T45),
 browser console check (T37 machine), field tests (T47), gitleaks
 binary run (covered by CI per release).
 

@@ -14,7 +14,7 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
    Vale em ~30 s: starts e pings passam a `503 maint`.
 2. Opcional: `config.json` com `maintenance=true` e redeploy do
    estático; clientes mostram S13.
-3. Confira: `curl /v1/health` e um start de teste (espera 503).
+3. Confira com `docker compose -f server/deploy/compose.yaml exec -T api deno eval --quiet --no-config --allow-net=127.0.0.1:8080 'const r = await fetch("http://127.0.0.1:8080/v1/health"); if (!r.ok) Deno.exit(1);'` e um start de teste (espera 503).
 4. Investigue; para voltar, apague a chave ou volte a `true`.
 
 ## Sinalizações de passageiros (D82)
@@ -32,14 +32,17 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
 
 ## API fora do ar ou reiniciando (alerta, `502/503`)
 
-1. `systemctl status pontual`, `journalctl -u pontual` (sem PII).
-2. Reinicie o serviço; se for release ruim, faça rollback (simetria
-   em `server/deploy`, tag anterior) e confira `/v1/health`.
+1. `docker compose -f server/deploy/compose.yaml ps`;
+   `docker compose -f server/deploy/compose.yaml logs --tail=100 api cloudflared`.
+2. Reinicie com `docker compose restart api` ou `docker compose up -d`; se for
+   release ruim, faça rollback com `deploy.sh rollback` ou a tag anterior da
+   imagem. Confira o health com
+   `docker compose -f server/deploy/compose.yaml exec -T api deno eval --quiet --no-config --allow-net=127.0.0.1:8080 'const r = await fetch("http://127.0.0.1:8080/v1/health"); if (!r.ok) Deno.exit(1);'` (não há porta publicada no host).
 3. Clientes retomam sozinhos em um intervalo de ping (KL6).
 
 ## Banco fora do ar (`/v1/health` degradado)
 
-1. Serviço PostgreSQL, espaço em disco, conexões.
+1. Serviço PostgreSQL (ou container `db`), espaço em disco, conexões.
 2. A API segue servindo leituras e viagens ativas da memória, mas
    recusa registro e consentimento.
 3. Restaure do backup só se houver perda de dados.
@@ -53,7 +56,7 @@ colados: nunca coordenadas, tokens, sessões ou ids de aparelho.
 
 ## Certificado / Cloudflare (erros TLS)
 
-1. Modo SSL, certificado de origem, Caddy, DNS.
+1. Modo SSL na Cloudflare, status do túnel `cloudflared`, DNS.
 2. Volte à última configuração boa conhecida.
 3. Diagnóstico de hostname: `openssl s_client -connect <host>:443
    -servername <host>`. Falha de handshake em subdomínio de segundo
@@ -102,6 +105,17 @@ kill switch se for servidor.
 
 Restaure o último dump cifrado num banco de rascunho, confira
 contagens, anote o tempo.
+
+Com o banco em container:
+
+```sh
+docker compose -f server/deploy/compose.yaml exec -T db \
+  pg_dump -U pontual_migrator -d pontual \
+  | age -r <recipient> > pontual-$(date +%F).dump.age
+```
+
+Nunca grave um dump sem cifra. `docker compose down` preserva o
+volume; `down -v` apaga o banco.
 
 ## Pedido de titular (e-mail recebido)
 
