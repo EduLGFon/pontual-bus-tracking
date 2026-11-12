@@ -65,7 +65,6 @@ function consumerFor(sql: Sql): LearningConsumer {
     sql,
     config: () => testConfig(),
     now: () => 1_060_000,
-    privacyMode: () => "all",
   });
 }
 

@@ -44,6 +44,45 @@ interface FakeRoute {
   computed_at: string;
 }
 
+interface FakeStop {
+  id: string;
+  line_id: number;
+  direction: number;
+  ordinal: number;
+  lat: number;
+  lng: number;
+  radius_m: number;
+  sample_passes: number;
+  active: boolean;
+}
+
+interface FakeBin {
+  bin_s: number;
+  sample_count: number;
+}
+
+interface FakeDwellStat {
+  stop_id: string;
+  hour_bucket: number;
+  day_of_week: number;
+  sample_count: number;
+  dwell_p50_s: number;
+  dwell_p90_s: number;
+}
+
+interface FakeSegmentStat {
+  line_id: number;
+  direction: number;
+  from_stop: string;
+  to_stop: string;
+  hour_bucket: number;
+  day_of_week: number;
+  sample_count: number;
+  travel_p50_s: number;
+  travel_p90_s: number;
+  distance_m: number;
+}
+
 interface FakeDb {
   sql: Sql;
   queries: RecordedQuery[];
@@ -60,6 +99,11 @@ export function fakeSql(): FakeDb {
   const edges = new Map<string, FakeEdge>();
   const states = new Map<string, FakeState>();
   const routes: FakeRoute[] = [];
+  const stops: FakeStop[] = [];
+  const dwellBins = new Map<string, FakeBin>();
+  const travelBins = new Map<string, FakeBin>();
+  const dwellStats = new Map<string, FakeDwellStat>();
+  const segmentStats = new Map<string, FakeSegmentStat>();
   let routeSeq = 0;
 
   const keyOf = (...parts: Array<string | number>) => parts.join(":");
@@ -81,6 +125,191 @@ export function fakeSql(): FakeDb {
     const text = strings.join("?");
     queries.push({ text, values });
     const t = text.toLowerCase();
+
+    if (t.includes("insert into learned_stops")) {
+      stops.push({
+        id: values[0] as string,
+        line_id: values[1] as number,
+        direction: values[2] as number,
+        ordinal: values[3] as number,
+        lat: values[4] as number,
+        lng: values[5] as number,
+        radius_m: values[6] as number,
+        sample_passes: values[7] as number,
+        active: true,
+      });
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("update learned_stops set lat")) {
+      // values: sumLat, added, sumLng, added, added, id
+      const sumLat = values[0] as number;
+      const sumLng = values[2] as number;
+      const added = values[1] as number;
+      const stop = stops.find((s) => s.id === values[5]);
+      if (stop) {
+        const n = stop.sample_passes;
+        stop.lat = (stop.lat * n + sumLat) / (n + added);
+        stop.lng = (stop.lng * n + sumLng) / (n + added);
+        stop.sample_passes = n + added;
+        stop.active = true;
+      }
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("update learned_stops set ordinal")) {
+      const stop = stops.find((s) => s.id === values[1]);
+      if (stop) stop.ordinal = values[0] as number;
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("insert into learning_dwell_bins")) {
+      const key = keyOf(
+        values[0] as string,
+        values[1] as number,
+        values[2] as number,
+        values[3] as number,
+      );
+      const bin = dwellBins.get(key);
+      if (bin) bin.sample_count += 1;
+      else {
+        dwellBins.set(key, {
+          bin_s: values[3] as number,
+          sample_count: 1,
+        });
+      }
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("insert into learning_travel_bins")) {
+      const key = keyOf(
+        values[0] as number,
+        values[1] as number,
+        values[2] as string,
+        values[3] as string,
+        values[4] as number,
+        values[5] as number,
+        values[6] as number,
+      );
+      const bin = travelBins.get(key);
+      if (bin) bin.sample_count += 1;
+      else {
+        travelBins.set(key, {
+          bin_s: values[6] as number,
+          sample_count: 1,
+        });
+      }
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("select bin_s, sample_count from learning_dwell_bins")) {
+      const prefix = keyOf(
+        values[0] as string,
+        values[1] as number,
+        values[2] as number,
+      );
+      return Promise.resolve(
+        [...dwellBins.entries()]
+          .filter(([k]) => k.startsWith(`${prefix}:`))
+          .map(([, bin]) => ({ ...bin }))
+          .sort((a, b) => a.bin_s - b.bin_s),
+      );
+    }
+
+    if (t.includes("select bin_s, sample_count from learning_travel_bins")) {
+      const prefix = keyOf(
+        values[0] as number,
+        values[1] as number,
+        values[2] as string,
+        values[3] as string,
+        values[4] as number,
+        values[5] as number,
+      );
+      return Promise.resolve(
+        [...travelBins.entries()]
+          .filter(([k]) => k.startsWith(`${prefix}:`))
+          .map(([, bin]) => ({ ...bin }))
+          .sort((a, b) => a.bin_s - b.bin_s),
+      );
+    }
+
+    if (t.includes("insert into stop_dwell_stats")) {
+      const key = keyOf(
+        values[0] as string,
+        values[1] as number,
+        values[2] as number,
+      );
+      dwellStats.set(key, {
+        stop_id: values[0] as string,
+        hour_bucket: values[1] as number,
+        day_of_week: values[2] as number,
+        sample_count: values[3] as number,
+        dwell_p50_s: values[4] as number,
+        dwell_p90_s: values[5] as number,
+      });
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("insert into segment_stats")) {
+      const key = keyOf(
+        values[0] as number,
+        values[1] as number,
+        values[2] as string,
+        values[3] as string,
+        values[4] as number,
+        values[5] as number,
+      );
+      segmentStats.set(key, {
+        line_id: values[0] as number,
+        direction: values[1] as number,
+        from_stop: values[2] as string,
+        to_stop: values[3] as string,
+        hour_bucket: values[4] as number,
+        day_of_week: values[5] as number,
+        sample_count: values[6] as number,
+        travel_p50_s: values[7] as number,
+        travel_p90_s: values[8] as number,
+        distance_m: values[9] as number,
+      });
+      return Promise.resolve([]);
+    }
+
+    if (t.includes("select sample_count, travel_p50_s")) {
+      const lineId = values[0] as number;
+      const direction = values[1] as number;
+      const fromStop = values[2] as string;
+      const toStop = values[3] as string;
+      const hourBucket = values[4] as number;
+      const exact = values.length > 5;
+      const dayOfWeek = exact ? values[5] as number : null;
+      const rows = [...segmentStats.values()].filter((r) =>
+        r.line_id === lineId && r.direction === direction &&
+        r.from_stop === fromStop && r.to_stop === toStop &&
+        r.hour_bucket === hourBucket &&
+        (dayOfWeek === null || r.day_of_week === dayOfWeek)
+      ).sort((a, b) => b.sample_count - a.sample_count);
+      return Promise.resolve(rows.slice(0, 1));
+    }
+
+    if (t.includes("select sample_count, dwell_p50_s")) {
+      const stopId = values[0] as string;
+      const hourBucket = values[1] as number;
+      const exact = values.length > 2;
+      const dayOfWeek = exact ? values[2] as number : null;
+      const rows = [...dwellStats.values()].filter((r) =>
+        r.stop_id === stopId && r.hour_bucket === hourBucket &&
+        (dayOfWeek === null || r.day_of_week === dayOfWeek)
+      ).sort((a, b) => b.sample_count - a.sample_count);
+      return Promise.resolve(rows.slice(0, 1));
+    }
+
+    if (
+      t.includes("select id, line_id, direction, ordinal, lat, lng, radius_m")
+    ) {
+      return Promise.resolve(
+        stops.filter((s) => s.active).map((s) => ({ ...s })),
+      );
+    }
 
     if (t.includes("insert into learning_route_cells")) {
       const lineId = values[0] as number;
@@ -332,5 +561,10 @@ export function fakeSql(): FakeDb {
 
     return Promise.resolve([]);
   }) as unknown as Sql;
+  // Transactions run against the same fake state; the consumer only needs the
+  // callback to execute so a trip's writes are applied together.
+  (fn as unknown as {
+    begin: (cb: (tx: Sql) => Promise<unknown>) => Promise<unknown>;
+  }).begin = (cb) => cb(fn);
   return { sql: fn, queries };
 }

@@ -1,7 +1,7 @@
 // Learning consumer integration tests: consent gating, first-trip route
-// publication, corridor accumulation and privacy gates. Non-DB cases use a
-// stateful fake Sql tagged template that records queries; DB cases use
-// TEST_DATABASE_URL.
+// publication, corridor accumulation, DB-backed stop bins and cumulative
+// dwell/travel stats. Non-DB cases use a stateful fake Sql tagged template
+// that records queries; DB cases use TEST_DATABASE_URL.
 import { assert, assertEquals } from "@std/assert";
 import { decodePolyline } from "../src/domain/geo.ts";
 import { openDb } from "../src/db/client.ts";
@@ -42,7 +42,6 @@ function testConfig(overrides: Partial<LearningConfig> = {}): LearningConfig {
 
 function consumerFor(
   cfg: LearningConfig,
-  privacyMode: "all" | "route_stops" = "all",
   sql = fakeSql().sql,
   clock: { now: number } = { now: 0 },
 ): LearningConsumer {
@@ -50,7 +49,6 @@ function consumerFor(
     sql,
     config: () => cfg,
     now: () => clock.now,
-    privacyMode: () => privacyMode,
   });
 }
 
@@ -115,7 +113,7 @@ Deno.test("partial trips cover both halves of a line", async () => {
   const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
+  const consumer = consumerFor(cfg, sql, clock);
 
   for (let i = 0; i < 5; i++) {
     const half = i < 3 ? path(0, 400, 1_000_000 + i * 100_000) : path(
@@ -145,7 +143,7 @@ Deno.test("first contributing trip persists aggregates and publishes", async () 
   const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
+  const consumer = consumerFor(cfg, sql, clock);
 
   runTrip(
     consumer,
@@ -184,7 +182,7 @@ Deno.test("trip below minimum consent never contributes", async () => {
   const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
+  const consumer = consumerFor(cfg, sql, clock);
 
   for (let i = 0; i < 2; i++) {
     runTrip(
@@ -210,10 +208,9 @@ Deno.test("trip below minimum consent never contributes", async () => {
   );
 });
 
-Deno.test("predictEta counts a one-pass segment despite the raw kMin", async () => {
-  // The consumer read helpers already apply the effective privacy gate
-  // (kMin 1 in mode "all"). Re-checking the raw kMin in the predictor
-  // would discard valid one-pass rows and fall back to default speed.
+Deno.test("predictEta counts a one-pass segment", async () => {
+  // The consumer read helpers return any row with at least one sample, so a
+  // one-pass segment is valid evidence rather than a fallback.
   const consumer = {
     segmentStats: () =>
       Promise.resolve({ p50: 60, p90: 90, count: 1, distanceM: 300 }),
@@ -263,15 +260,11 @@ function singleDwellTrip(
   );
 }
 
-Deno.test("privacy mode all publishes a stop from one dwell pass", async () => {
-  const cfg = testConfig({
-    minStopPasses: 4,
-    stopMinDistinctDays: 3,
-    kMin: 5,
-  });
+Deno.test("a single dwell creates a stop and a dwell stat with count 1", async () => {
+  const cfg = testConfig();
   const { sql, queries } = fakeSql();
   const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
+  const consumer = consumerFor(cfg, sql, clock);
   singleDwellTrip(consumer, 8, clock);
   await consumer.flush();
 
@@ -279,73 +272,194 @@ Deno.test("privacy mode all publishes a stop from one dwell pass", async () => {
     queries.filter((q) => q.text.includes("insert into learned_stops")).length,
     1,
   );
-});
-
-Deno.test("privacy mode route_stops withholds a single-pass stop", async () => {
-  const cfg = testConfig({
-    minStopPasses: 4,
-    stopMinDistinctDays: 3,
-    kMin: 5,
-  });
-  const { sql, queries } = fakeSql();
-  const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "route_stops", sql, clock);
-  singleDwellTrip(consumer, 9, clock);
-  await consumer.flush();
-
   assertEquals(
-    queries.filter((q) => q.text.includes("insert into learned_stops")).length,
-    0,
+    queries.filter((q) => q.text.includes("insert into learning_dwell_bins"))
+      .length,
+    1,
   );
+  const stats = queries.filter((q) =>
+    q.text.includes("insert into stop_dwell_stats")
+  );
+  assertEquals(stats.length, 1);
+  assertEquals(stats[0].values[3], 1);
 });
 
-Deno.test("terminus dwell suppression applies in mode all", async () => {
-  const cfg = testConfig({
-    minStopPasses: 4,
-    stopMinDistinctDays: 3,
-    kMin: 5,
-  });
-  const { sql, queries } = fakeSql();
-  const clock = { now: 0 };
-  const consumer = consumerFor(cfg, "all", sql, clock);
-  const t0 = 2_000_000;
+/** Two dwells at 0 m and 100 m, 10 s apart. */
+function segmentTrip(
+  consumer: LearningConsumer,
+  lineId: number,
+  t0: number,
+  tripKey: string,
+  clock: { now: number },
+): void {
   runTrip(
     consumer,
-    10,
-    "terminus-trip",
+    lineId,
+    tripKey,
     [
       { tMs: t0, ...at(0), speedMps: 0 },
       { tMs: t0 + 5000, ...at(0), speedMps: 0 },
       { tMs: t0 + 10_000, ...at(0), speedMps: 0 },
-      { tMs: t0 + 30_000, ...at(100), speedMps: 0 },
-      { tMs: t0 + 35_000, ...at(100), speedMps: 0 },
-      { tMs: t0 + 55_000, ...at(200), speedMps: 0 },
-      { tMs: t0 + 60_000, ...at(200), speedMps: 0 },
+      { tMs: t0 + 20_000, ...at(100), speedMps: 0 },
+      { tMs: t0 + 25_000, ...at(100), speedMps: 0 },
+    ],
+    { consentVersion: 2 },
+    clock,
+  );
+}
+
+Deno.test("a single segment creates a travel stat with count 1", async () => {
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  segmentTrip(consumer, 10, 2_000_000, "segment-trip", clock);
+  await consumer.flush();
+
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learned_stops")).length,
+    2,
+  );
+  const travel = queries.filter((q) =>
+    q.text.includes("insert into learning_travel_bins")
+  );
+  assertEquals(travel.length, 1);
+  const stats = queries.filter((q) =>
+    q.text.includes("insert into segment_stats")
+  );
+  assertEquals(stats.length, 1);
+  assertEquals(stats[0].values[6], 1);
+  assert(
+    (stats[0].values[9] as number) > 90 &&
+      (stats[0].values[9] as number) < 110,
+    `distance was ${stats[0].values[9]}`,
+  );
+  // The read helper serves that one-sample row instead of hiding it.
+  const b = travel[0].values;
+  const seg = await consumer.segmentStats(
+    b[0] as number,
+    b[1] as number,
+    b[2] as string,
+    b[3] as string,
+    b[4] as number,
+    b[5] as number,
+  );
+  assertEquals(seg?.count, 1);
+});
+
+Deno.test("two dwells in one bucket accumulate count and a cumulative p50", async () => {
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  const t0 = 2_000_000;
+
+  // 5 s dwell, then a 15 s dwell in the same 15-minute bucket and day. The
+  // second recompute must read both bins, not replace the first batch.
+  singleDwellTrip(consumer, 11, clock);
+  runTrip(
+    consumer,
+    11,
+    "long-dwell",
+    [
+      { tMs: t0 + 60_000, ...at(0), speedMps: 0 },
+      { tMs: t0 + 65_000, ...at(0), speedMps: 0 },
+      { tMs: t0 + 70_000, ...at(0), speedMps: 0 },
+      { tMs: t0 + 75_000, ...at(0), speedMps: 0 },
+      { tMs: t0 + 80_000, ...at(0), speedMps: 0 },
     ],
     { consentVersion: 2 },
     clock,
   );
   await consumer.flush();
 
-  const stops = queries.filter((q) =>
-    q.text.includes("insert into learned_stops")
-  );
-  assertEquals(stops.length, 3);
-  const dwells = queries.filter((q) =>
+  const stats = queries.filter((q) =>
     q.text.includes("insert into stop_dwell_stats")
   );
-  assertEquals(dwells.length, 1);
+  assertEquals(stats.length, 2);
+  const last = stats[1];
+  assertEquals(last.values[3], 2);
+  assertEquals(last.values[4], 5);
+  assertEquals(last.values[5], 15);
+});
 
-  // The only published dwell is the middle stop, never a terminus.
-  const dwellStop = dwells[0].values[0] as string;
-  const terminus = stops.filter((q) => {
-    const east = eastOf(q.values[4] as number, q.values[5] as number);
-    return east < 50 || east > 150;
-  });
-  assertEquals(terminus.length, 2);
-  for (const q of terminus) {
-    assert(q.values[0] !== dwellStop, "terminus dwell must be suppressed");
+Deno.test("a trip crossing midnight buckets each segment by its own timestamp", async () => {
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  // 2026-01-01T02:59:50Z is 2025-12-31 23:59:50 in America/Sao_Paulo.
+  const base = Date.UTC(2026, 0, 1, 2, 59, 50);
+
+  runTrip(
+    consumer,
+    12,
+    "midnight-trip",
+    [
+      { tMs: base, ...at(0), speedMps: 0 },
+      { tMs: base + 5000, ...at(0), speedMps: 0 },
+      { tMs: base + 10_000, ...at(0), speedMps: 0 },
+      { tMs: base + 30_000, ...at(100), speedMps: 0 },
+      { tMs: base + 35_000, ...at(100), speedMps: 0 },
+    ],
+    { consentVersion: 2 },
+    clock,
+  );
+  await consumer.flush();
+
+  const dwells = queries.filter((q) =>
+    q.text.includes("insert into learning_dwell_bins")
+  );
+  assertEquals(
+    dwells.map((q) => [q.values[1], q.values[2]]),
+    [[95, 3], [0, 4]],
+  );
+  const travel = queries.filter((q) =>
+    q.text.includes("insert into learning_travel_bins")
+  );
+  assertEquals(travel.length, 1);
+  // The segment is bucketed at the destination arrival (after local midnight).
+  assertEquals(travel[0].values[4], 0);
+  assertEquals(travel[0].values[5], 4);
+});
+
+Deno.test("a short trip keeps its middle dwell despite the trim", async () => {
+  // 120 s trim would discard a 90 s trip entirely; the proportional trim
+  // (10% per end) keeps the middle dwell and contributes it.
+  const cfg = testConfig({ trimEndsS: 120 });
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  const t0 = 3_000_000;
+  const points: TripPoint[] = [];
+  for (let i = 0; i <= 4; i++) {
+    points.push({ tMs: t0 + i * 5000, ...at(i * 20), speedMps: 10 });
   }
+  for (let i = 5; i <= 12; i++) {
+    points.push({ tMs: t0 + i * 5000, ...at(100), speedMps: 0 });
+  }
+  for (let i = 13; i <= 18; i++) {
+    points.push({
+      tMs: t0 + i * 5000,
+      ...at(100 + (i - 12) * 50),
+      speedMps: 10,
+    });
+  }
+  runTrip(consumer, 13, "short-trip", points, { consentVersion: 2 }, clock);
+  await consumer.flush();
+
+  assert(
+    queries.some((q) => q.text.includes("insert into learned_stops")),
+    "expected a stop from the short trip",
+  );
+  assert(
+    queries.some((q) => q.text.includes("insert into learning_dwell_bins")),
+    "expected a dwell bin from the short trip",
+  );
+  assert(
+    queries.some((q) => q.text.includes("insert into stop_dwell_stats")),
+    "expected a dwell stat from the short trip",
+  );
 });
 
 const TEST_DB = Deno.env.get("TEST_DATABASE_URL");
@@ -367,11 +481,7 @@ Deno.test({
           (${lineId}, 0, 1, 'active', ${polyline}, 2, 3, now()),
           (${lineId}, 1, 1, 'active', ${polyline}, 2, 7, now())
       `;
-      const consumer = consumerFor(
-        defaultLearningConfig(),
-        "all",
-        sql,
-      );
+      const consumer = consumerFor(defaultLearningConfig(), sql);
       const route = await consumer.learnedRouteForLine(lineId);
       assertEquals(route?.dir, 1);
       assertEquals(route?.trips, 7);
