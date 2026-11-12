@@ -210,11 +210,11 @@ schema change is a new migration.
 ## Empty-database preflight
 
 `deploy.sh deploy` runs a read-only preflight before
-starting or updating the stack. They check whether the persistent
-`pontual-db` volume already exists and, when it does, whether the
+starting or updating the stack. It checks whether the persistent
+`pontual-api_pontual-db` volume already exists and, when it does, whether the
 `devices` and `learned_routes` tables contain any rows. If the volume is
 new, or the database has zero devices and zero learned routes, the script
-prints a loud warning and refuses to proceed.
+prints a loud warning and refuses to proceed. Rollback is excluded.
 
 This guards against starting the API on a fresh empty PostgreSQL volume after
 a container migration that did not restore the old data. Set
