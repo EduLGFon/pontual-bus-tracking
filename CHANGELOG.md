@@ -4,6 +4,10 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- App copy: humanized the pt-BR deck and bundled privacy/terms summaries, moved inline widget copy into the deck, unified passenger reports to "Avisar/Aviso", and fixed privacy, permission and notification wording. Owner-approved legal rewrite with all disclosed facts preserved; lawyer review still pending. See DECISIONS.md D108.
+- Sharing screen: minimalist `/trip` with the hero trimmed to live state, line and elapsed time, one compact status line that opens the full metrics sheet, and a pinned full-width "Avisar problema" action. No new report kinds or API change. See DECISIONS.md D105.
+- Ping cadence: sends are scheduled from the last send start at the server interval, in-flight fixes wait for the next slot, and the live map rebuilds on throttled repository changes instead of only the 5 s age tick. Fixes 7-11 s gaps and 3-4 s bursts; the server keeps its 4 s defense and now exposes an `rl` flag plus an aggregate counter. See DECISIONS.md D106.
+- Learning: corrected the data-learning docs, added a read-only deploy preflight that refuses a new or empty PostgreSQL volume unless explicitly allowed, and added aggregate-only drop-reason counters. No schema, threshold or publication change. See DECISIONS.md D107.
 - UX 2.0 answer-first pass: first-run line picker, "Sua próxima saída" hero
   on Início, actionable share card, line hero with the leave-now walk verdict,
   lines/search status line and search entry, and the shell active trip bar
