@@ -2,7 +2,7 @@
 # Run from this directory:
 #   docker compose up -d --build
 # No service publishes a host port. The tunnel reaches api:8080 on the
-# internal edge network. See docs/runbooks/docker.md and DECISIONS.md D101.
+# internal edge network. See docs/runbooks/docker.md and DECISIONS.md D101 and D102.
 name: pontual-api # kept for volume continuity; do not rename
 
 services:
@@ -139,14 +139,19 @@ services:
     command: [
       "tunnel",
       "--no-autoupdate",
+      "--config",
+      "/etc/cloudflared/config.yml",
       "--metrics",
       "127.0.0.1:2000",
       "run",
-      "--token-file",
-      "/run/secrets/tunnel_token",
     ]
+    configs:
+      - source: cloudflared_config
+        target: /etc/cloudflared/config.yml
     secrets:
-      - tunnel_token
+      - cloudflared_credentials
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       api:
         condition: service_healthy
@@ -194,7 +199,13 @@ networks:
     internal: true
   egress:
 
-# The host file must be owned by uid 65532 and readable by it.
+# Config is non-secret and world-readable 0644/0444, or owner uid 65532 with owner-read;
+# credentials JSON must be
+# owned by uid 65532 and readable by it (0400).
+configs:
+  cloudflared_config:
+    file: ${PONTUAL_TUNNEL_CONFIG_FILE:-../secrets/cloudflared.yml}
+
 secrets:
-  tunnel_token:
-    file: ${PONTUAL_TUNNEL_TOKEN_FILE:-../secrets/tunnel_token}
+  cloudflared_credentials:
+    file: ${PONTUAL_TUNNEL_CREDENTIALS_FILE:-../secrets/cloudflared_credentials.json}

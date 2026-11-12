@@ -15,23 +15,37 @@ COMPOSE_FILE="$ROOT/server/deploy/compose.yaml"
 STATE_DIR="${PONTUAL_STATE_DIR:-/opt/pontual}"
 CURRENT_TAG="$STATE_DIR/current-tag"
 PREVIOUS_TAG="$STATE_DIR/previous-tag"
-TOKEN_FILE="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
+CONFIG_FILE="${PONTUAL_TUNNEL_CONFIG_FILE:-/etc/pontual/cloudflared.yml}"
+CREDENTIALS_FILE="${PONTUAL_TUNNEL_CREDENTIALS_FILE:-/etc/pontual/cloudflared_credentials.json}"
 
 export PONTUAL_ENV_FILE="${PONTUAL_ENV_FILE:-/etc/pontual/api.env}"
 export PONTUAL_DB_ENV_FILE="${PONTUAL_DB_ENV_FILE:-/etc/pontual/db.env}"
-export PONTUAL_TUNNEL_TOKEN_FILE="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
+export PONTUAL_TUNNEL_CONFIG_FILE="${PONTUAL_TUNNEL_CONFIG_FILE:-/etc/pontual/cloudflared.yml}"
+export PONTUAL_TUNNEL_CREDENTIALS_FILE="${PONTUAL_TUNNEL_CREDENTIALS_FILE:-/etc/pontual/cloudflared_credentials.json}"
 
 compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
 
-check_tunnel_token() {
-  local f="${PONTUAL_TUNNEL_TOKEN_FILE:-/etc/pontual/tunnel_token}"
-  local uid mode
-  [ -f "$f" ] || { echo "tunnel token not found: $f"; return 1; }
-  uid=$(stat -c '%u' "$f" 2>/dev/null || true)
-  mode=$(stat -c '%a' "$f" 2>/dev/null || true)
+check_tunnel_files() {
+  local cfg="${PONTUAL_TUNNEL_CONFIG_FILE:-/etc/pontual/cloudflared.yml}"
+  local cred="${PONTUAL_TUNNEL_CREDENTIALS_FILE:-/etc/pontual/cloudflared_credentials.json}"
+  local uid gid mode
+  [ -f "$cfg" ] || { echo "tunnel config not found: $cfg"; return 1; }
+  read -r uid gid mode <<<"$(stat -c '%u %g %a' "$cfg" 2>/dev/null || true)"
+  [ -n "$mode" ] || { echo "cannot read mode for tunnel config: $cfg"; return 1; }
+  if [ "$uid" = "65532" ]; then
+    [ $((8#$mode & 8#400)) -ne 0 ] || { echo "tunnel config must be readable by uid 65532: $cfg"; echo "  chmod 0400 $cfg  (or 0444/0644)"; return 1; }
+  elif [ "$gid" = "65532" ]; then
+    [ $((8#$mode & 8#040)) -ne 0 ] || { echo "tunnel config must be readable by uid 65532: $cfg"; echo "  chmod 0440 $cfg  (group 65532)"; return 1; }
+  else
+    [ $((8#$mode & 8#004)) -ne 0 ] || { echo "tunnel config must be readable by uid 65532: $cfg"; echo "  chmod 0644 $cfg  (or 0444)"; return 1; }
+  fi
+  [ -f "$cred" ] || { echo "tunnel credentials not found: $cred"; return 1; }
+  uid=$(stat -c '%u' "$cred" 2>/dev/null || true)
+  mode=$(stat -c '%a' "$cred" 2>/dev/null || true)
+  [ -n "$mode" ] || { echo "cannot read mode for tunnel credentials: $cred"; return 1; }
   if [ "$uid" != "65532" ] || [ $((8#$mode & 8#400)) -eq 0 ]; then
-    echo "tunnel token must be owned by uid 65532 and readable by it:"
-    echo "  sudo chown 65532:65532 $f && sudo chmod 400 $f"
+    echo "tunnel credentials must be owned by uid 65532 and owner-readable:"
+    echo "  sudo chown 65532:65532 $cred && sudo chmod 400 $cred"
     return 1
   fi
 }
@@ -61,7 +75,7 @@ wait_health() {
 activate() {
   local tag="$1"
   local build="${2:-true}"
-  check_tunnel_token || return 1
+  check_tunnel_files || return 1
   if [ "$build" = "true" ]; then
     PONTUAL_TAG="$tag" compose build api || { echo "build failed"; return 1; }
   else
@@ -108,8 +122,11 @@ case "${1:-}" in
     if [ -f "$CURRENT_TAG" ]; then
       echo "current tag: $(cat "$CURRENT_TAG")"
     fi
-    if [ -f "$TOKEN_FILE" ]; then
-      stat -c 'tunnel token: %u:%g %a' "$TOKEN_FILE"
+    if [ -f "$CONFIG_FILE" ]; then
+      stat -c 'tunnel config: %u:%g %a' "$CONFIG_FILE"
+    fi
+    if [ -f "$CREDENTIALS_FILE" ]; then
+      stat -c 'tunnel credentials: %u:%g %a' "$CREDENTIALS_FILE"
     fi
     ;;
   *)

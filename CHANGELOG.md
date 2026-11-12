@@ -11,8 +11,8 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
   PostgreSQL stay internal, and the tunnel is outbound-only with no host Caddy
   or systemd unit. The API image is multi-stage on a pinned Deno base, builds
   the static data bundle, runs as non-root on a read-only filesystem with all
-  capabilities dropped and `no-new-privileges`, and takes secrets from env
-  files plus a tunnel token file. Rollback is by image tag via deploy.sh. See
+  capabilities dropped and `no-new-privileges`, and takes secrets from env files plus a locally managed tunnel config and
+  credentials. Rollback is by image tag via deploy.sh. See
   DECISIONS.md D101 and D102 and docs/runbooks/docker.md.
 - Line screen: personal arrival at the rider's stop. The rider opts in with one tap; the app snaps to the nearest learned stop and shows the next bus ETA from the existing server ETA endpoint, with confidence and sample count. Location is one-shot and foreground-only, only line id and stop id are requested, and the viewer location no longer prompts on mount. See DECISIONS.md D96 and docs/ui/personal-arrival.md.
 - Trip sharing cadence: every role (`waiting`, `leaderMoving`, `leaderStill`,

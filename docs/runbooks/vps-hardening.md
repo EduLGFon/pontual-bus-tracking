@@ -35,10 +35,10 @@ PostgreSQL versions get pinned here during provisioning
 - [ ] Docker socket and docker group access limited to the admin
   user.
 - [ ] Env files `0600` and root-owned, or `PONTUAL_ENV_FILE` and
-  `PONTUAL_DB_ENV_FILE` pointing at root-owned files. The token file
-  is separate: owned by uid 65532, mode `0400` (or
-  `PONTUAL_TUNNEL_TOKEN_FILE` pointing at it). No secret in
-  `compose.yaml` or image layers.
+  `PONTUAL_DB_ENV_FILE` pointing at root-owned files. The tunnel config is
+  world-readable `0644`/`0444` or owner uid 65532 with owner-read (`PONTUAL_TUNNEL_CONFIG_FILE`); the credentials JSON
+  is owned by uid 65532 mode `0400` (`PONTUAL_TUNNEL_CREDENTIALS_FILE`). No
+  secret in `compose.yaml` or image layers.
 - [ ] `docker compose config` reviewed, healthcheck green. API,
   migrate and cloudflared run non-root with read-only root filesystems;
   db uses a writable named volume. See `docs/runbooks/docker.md`.
@@ -47,9 +47,10 @@ PostgreSQL versions get pinned here during provisioning
 
 - [ ] `/etc/pontual/api.env` and `/etc/pontual/db.env` present,
   root-owned mode `0600`.
-- [ ] `/etc/pontual/tunnel_token` present, owned by uid 65532,
+- [ ] `/etc/pontual/cloudflared.yml` present, world-readable `0644`/`0444` or owner uid 65532 with owner-read;
+  `/etc/pontual/cloudflared_credentials.json` present, owned by uid 65532,
   mode `0400`.
-- [ ] Tunnel token never placed in compose, env examples, git, logs
+- [ ] Tunnel credentials never placed in compose, env examples, git, logs
   or documentation.
 - [ ] No `pontual.service` systemd unit and no host Caddy.
 
@@ -60,8 +61,9 @@ PostgreSQL versions get pinned here during provisioning
 
 ## Cloudflare edge
 
-- [ ] Tunnel `pontual` configured in the Cloudflare dashboard with
-  service target `http://api:8080`.
+- [ ] Tunnel config at `/etc/pontual/cloudflared.yml` declares
+  `api-pontual.spotnik.space -> http://api:8080`; no dashboard-managed ingress
+  is used.
 - [ ] DNS for the public hostname points at the tunnel.
 - [ ] Origin accepts no direct web traffic; only the tunnel reaches
   the API.

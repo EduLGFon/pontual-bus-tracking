@@ -24,10 +24,11 @@ enters any image.
 ## Prerequisites
 
 - Docker Engine with Compose v2.
-- A Cloudflare Tunnel configured in the Cloudflare dashboard for the public
-  hostname (`api-pontual.spotnik.space`, INFRA-05), with service target
-  `http://api:8080`. The web app origin remains
-  `https://pontual.spotnik.space`.
+- A locally managed Cloudflare Tunnel named `pontual`. No dashboard-managed
+  ingress is required: ingress rules live in the mounted config file. The
+  public hostname `api-pontual.spotnik.space` (and optionally
+  `api.pontual.spotnik.space`) points at `http://api:8080`. The web app
+  origin remains `https://pontual.spotnik.space`.
 
 ## Environment
 
@@ -37,7 +38,8 @@ Three secret sources keep credentials out of the API container and out of git:
 | --- | --- | --- |
 | `server/.env` | `api` | `APP_ENV`, `DATABASE_URL` for the app role, origins, log level |
 | `server/.env.db` | `db`, `migrate` | `POSTGRES_PASSWORD`, `PONTUAL_APP_PASSWORD` |
-| `server/secrets/tunnel_token` | `cloudflared` | tunnel token, readable by uid 65532 |
+| `server/secrets/cloudflared.yml` | `cloudflared` | tunnel config (non-secret), readable |
+| `server/secrets/cloudflared_credentials.json` | `cloudflared` | tunnel credentials, owned by uid 65532 mode 0400 |
 
 Copy both env examples, generate hex passwords, and keep
 `PONTUAL_APP_PASSWORD` identical to the password inside the app
@@ -51,23 +53,30 @@ openssl rand -hex 32   # migrator password -> server/.env.db POSTGRES_PASSWORD
 openssl rand -hex 32   # app password -> PONTUAL_APP_PASSWORD and DATABASE_URL
 ```
 
-Store the tunnel token in `server/secrets/tunnel_token` and make it readable by
-uid 65532. Never put it in compose, env examples, git, logs or documentation;
-use a `<tunnel-token>` placeholder when documenting.
+Store the tunnel config (non-secret, world-readable 0644/0444 or owner uid 65532 with owner-read) and the credentials
+JSON (secret, owned by uid 65532 mode 0400). The config's `credentials-file`
+must be `/run/secrets/cloudflared_credentials`. Never put secrets in compose,
+env examples, git, logs or documentation.
 
 ```sh
 install -d -m 700 server/secrets
-printf '%s' '<tunnel-token>' > server/secrets/tunnel_token
-sudo chown 65532:65532 server/secrets/tunnel_token
-sudo chmod 400 server/secrets/tunnel_token
+cp server/deploy/cloudflared/config.example.yml server/secrets/cloudflared.yml
+chmod 644 server/secrets/cloudflared.yml
+# Replace the placeholder tunnel UUID with the real one from `cloudflared tunnel list`
+# (or the TunnelID field of the credentials JSON).
+# place the credentials JSON from `cloudflared tunnel create pontual`, then:
+sudo chown 65532:65532 server/secrets/cloudflared_credentials.json
+sudo chmod 400 server/secrets/cloudflared_credentials.json
 ```
 
-Compose preserves the ownership and mode inside the container.
+Compose preserves the ownership and mode inside the container. The shared tunnel
+can keep `api-ephemeron.spotnik.space -> http://host.docker.internal:8091`;
+`extra_hosts` provides that path.
 
 Hex avoids URL-encoding problems: Compose builds the migrator URL from
 `POSTGRES_PASSWORD`, and `DATABASE_URL` embeds the app password.
 
-`PONTUAL_ENV_FILE`, `PONTUAL_DB_ENV_FILE` and `PONTUAL_TUNNEL_TOKEN_FILE`
+`PONTUAL_ENV_FILE`, `PONTUAL_DB_ENV_FILE`, `PONTUAL_TUNNEL_CONFIG_FILE` and `PONTUAL_TUNNEL_CREDENTIALS_FILE`
 are read by Compose interpolation from the shell (or from a `.env` file next
 to the compose file), not from `server/.env`. Both env files default to paths
 next to the compose file. For root-owned files, point the variables at them:
@@ -75,7 +84,8 @@ next to the compose file. For root-owned files, point the variables at them:
 ```sh
 PONTUAL_ENV_FILE=/etc/pontual/api.env \
 PONTUAL_DB_ENV_FILE=/etc/pontual/db.env \
-PONTUAL_TUNNEL_TOKEN_FILE=/etc/pontual/tunnel_token \
+PONTUAL_TUNNEL_CONFIG_FILE=/etc/pontual/cloudflared.yml \
+PONTUAL_TUNNEL_CREDENTIALS_FILE=/etc/pontual/cloudflared_credentials.json \
   docker compose -f server/deploy/compose.yaml up -d
 ```
 
@@ -175,8 +185,8 @@ Migrations remain forward-only and backward compatible for one release
 - `deploy.sh rollback` reactivates the previous tag.
 - `deploy.sh status` runs `docker compose ps`.
 
-It reads `/etc/pontual/api.env`, `/etc/pontual/db.env` and
-`/etc/pontual/tunnel_token` by default. Check out the release tag first, then
+It reads `/etc/pontual/api.env`, `/etc/pontual/db.env`,
+`/etc/pontual/cloudflared.yml` and `/etc/pontual/cloudflared_credentials.json` by default. Check out the release tag first, then
 run `deploy.sh deploy <tag>` with sudo or with read access to `/etc/pontual`
 and the Docker socket.
 
@@ -203,10 +213,15 @@ schema change is a new migration.
   a 16 MiB noexec `/tmp`. All capabilities are dropped,
   `no-new-privileges` is set, and PIDs, memory, CPU and log size are bounded.
 - `cloudflared` runs as uid 65532 on a read-only root filesystem, drops all
-  capabilities, sets `no-new-privileges`, and exposes no host port.
-- The tunnel token is mounted at `/run/secrets/tunnel_token` from
-  `PONTUAL_TUNNEL_TOKEN_FILE` (default `server/secrets/tunnel_token`); it is
-  never in the environment or image.
+  capabilities, sets `no-new-privileges`, and exposes no host port. It uses a
+  locally managed config plus credentials, not a dashboard-managed token.
+- The tunnel config is mounted at `/etc/cloudflared/config.yml` from
+  `PONTUAL_TUNNEL_CONFIG_FILE` (default `server/secrets/cloudflared.yml`); it
+  is non-secret. The credentials JSON is mounted at
+  `/run/secrets/cloudflared_credentials` from
+  `PONTUAL_TUNNEL_CREDENTIALS_FILE` (default
+  `server/secrets/cloudflared_credentials.json`); it is never in the
+  environment or image.
 - `migrate` runs as an unprivileged numeric user on a read-only filesystem and
   drops all capabilities.
 - `db` has no published port, bounded resources, no core dumps, and a
@@ -216,9 +231,10 @@ schema change is a new migration.
   database volume, not committed.
 - The API Deno permissions deny write, run, ffi and sys. Network access is
   limited to the API bind, the metrics listener and the database hosts.
-- Secrets come only from the env files and the tunnel token file. Docker
+- Secrets come only from the env files and the credentials file. Docker
   environment values are visible to root and the docker group. Keep docker
   socket access limited to the admin user. Env files are root-owned mode
-  `0600`; the tunnel token is owned by uid 65532 mode `0400`.
+  `0600`; the tunnel config is world-readable `0644`/`0444` or owner uid 65532 with owner-read; the credentials JSON is
+  owned by uid 65532 mode `0400`.
 - Logs are structured and must never contain coordinates, tokens, session ids or
   device ids.

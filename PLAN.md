@@ -271,7 +271,7 @@ table below lists the binding ones that affect architecture.
   on the target OS.
 - Cloudflare: WebSocket support and idle timeout on the owner's plan; whether the
   free plan caches snapshot endpoints via a cache rule; the container-only
-  tunnel ingress and token rotation procedure.
+  locally managed tunnel ingress and credentials rotation procedure.
 - Bytes per ping request/response and keep-alive reuse at 15 s vs 90 s cadence
   through Cloudflare.
 - Flutter Web: `--wasm` build support and size; service-worker behaviour in
@@ -536,8 +536,9 @@ authenticate, call the engine or a repository, and format the response.
 `DATA_DIR` (built static data), `LOG_LEVEL`, `METRICS_PORT` (localhost only),
 `LEARNING_PRIVACY_MODE` (`all` default, or `route_stops`; env-only privacy gate,
 see D98).
-Secrets live in root-owned `0600` env files plus a tunnel token file
-owned by uid 65532 mode `0400`, never in the repo.
+Secrets live in root-owned `0600` env files plus a locally managed
+Cloudflare Tunnel config (world-readable `0644`/`0444` or owner uid 65532 with owner-read) and credentials JSON (owned by
+uid 65532 mode `0400`), never in the repo.
 
 **Runtime tunables** live in table `app_config` (JSON values), reloaded every 30
 s. Defaults are compiled in; the DB only overrides.
@@ -1851,8 +1852,8 @@ Because the owner operates the server, these are part of the product's security
   first-start script that generates a self-signed certificate, requires TLS on
   TCP, and creates the least-privilege app role, plus a one-shot dbmate
   migration with the schema-owner role. A `cloudflared` container joins the
-  `edge` and `egress` networks, reads its token from a Compose secret, and
-  targets `http://api:8080`. Database secrets use a separate env file so the
+  `edge` and `egress` networks, mounts a locally managed config and the
+  tunnel credentials JSON, and targets `http://api:8080`. Database secrets use a separate env file so the
   API never receives the migrator password.
   See DECISIONS.md#D101 and #D102.
 - **No host reverse proxy:** TLS terminates at Cloudflare; there is no host
@@ -1868,8 +1869,10 @@ Because the owner operates the server, these are part of the product's security
   `scram-sha-256`, separate migrator and app roles, `log_statement=none`,
   minimal extensions, regular minor-version updates.
 - **Secrets:** env files `0600` root-owned (`/etc/pontual/api.env`,
-  `/etc/pontual/db.env`); tunnel token file owned by uid 65532 mode `0400`
-  (`/etc/pontual/tunnel_token`); never in repo, image layers, compose.yaml, or
+  `/etc/pontual/db.env`); tunnel config world-readable `0644`/`0444` or owner uid 65532 with owner-read
+  (`/etc/pontual/cloudflared.yml`) and credentials JSON owned by uid 65532 mode
+  `0400` (`/etc/pontual/cloudflared_credentials.json`); never in repo, image
+  layers, compose.yaml, or
   CI logs; rotate every 6 months and after suspicion.
 - **Backups:** nightly `pg_dump` of the four small tables, encrypted (e.g.
   `age`), copied off-host, 30-day retention, **restore drill** before alpha exit.

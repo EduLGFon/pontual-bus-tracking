@@ -92,7 +92,7 @@ network. PostgreSQL and metrics stay internal too. The stack uses two internal n
 non-internal `egress` network for the tunnel, a container-only Cloudflare
 Tunnel, and no host Caddy or systemd unit. The API runs as a non-root user on
 a read-only filesystem, drops all capabilities, and reads secrets from env
-files and a tunnel token file. The database uses TLS and keeps separate migrator and app roles. Static
+files and a locally managed tunnel config plus credentials. The database uses TLS and keeps separate migrator and app roles. Static
 data is built inside the image. See `docs/runbooks/docker.md` for the
 database, migration, tunnel, deploy and rollback steps.
 
@@ -103,11 +103,14 @@ test -f server/.env.db || cp server/.env.db.example server/.env.db
 chmod 600 server/.env server/.env.db
 # Edit both files: generate hex passwords and keep the app password identical
 # in PONTUAL_APP_PASSWORD and DATABASE_URL.
-# Store the tunnel token so uid 65532 can read it:
+# Store the tunnel config (non-secret, readable) and credentials (secret):
 install -d -m 700 server/secrets
-printf '%s' '<tunnel-token>' > server/secrets/tunnel_token
-sudo chown 65532:65532 server/secrets/tunnel_token
-sudo chmod 400 server/secrets/tunnel_token
+cp server/deploy/cloudflared/config.example.yml server/secrets/cloudflared.yml
+chmod 644 server/secrets/cloudflared.yml
+# Replace the placeholder tunnel UUID with the real one from `cloudflared tunnel list`.
+# place the credentials JSON (from cloudflared tunnel create) then:
+sudo chown 65532:65532 server/secrets/cloudflared_credentials.json
+sudo chmod 400 server/secrets/cloudflared_credentials.json
 docker compose -f server/deploy/compose.yaml up -d --build
 docker compose -f server/deploy/compose.yaml exec -T api deno eval --quiet --no-config --allow-net=127.0.0.1:8080 'const r = await fetch("http://127.0.0.1:8080/v1/health"); if (!r.ok) Deno.exit(1);'
 docker compose -f server/deploy/compose.yaml exec -T cloudflared cloudflared tunnel --metrics 127.0.0.1:2000 ready

@@ -252,24 +252,33 @@ the `cloudflared` service. The stack has four services (`db`, `migrate`, `api`,
 database is not on the tunnel network. `cloudflared` uses image
 `cloudflare/cloudflared:2026.11.0`, is distroless, runs as uid 65532, has a
 read-only root filesystem, drops all capabilities, sets `no-new-privileges`, and
-exposes no host ports. It reads the token from the Compose secret
-`/run/secrets/tunnel_token` (`PONTUAL_TUNNEL_TOKEN_FILE`, default
-`server/secrets/tunnel_token`). The tunnel is outbound-only; the public hostname
-is configured in the Cloudflare dashboard and its service target is
-`http://api:8080`. `TRUST_CLOUDFLARE=true` is safe because the API is
+exposes no host ports. It reads a locally managed config file mounted at
+`/etc/cloudflared/config.yml` (`PONTUAL_TUNNEL_CONFIG_FILE`, default
+`server/secrets/cloudflared.yml`) plus the credentials JSON mounted at
+`/run/secrets/cloudflared_credentials` (`PONTUAL_TUNNEL_CREDENTIALS_FILE`,
+default `server/secrets/cloudflared_credentials.json`). The config
+identifies the tunnel by UUID because no cert.pem is mounted. The live tunnel is
+locally managed, so a token connector would ignore its local ingress; the
+config carries the ingress rules. The tunnel is outbound-only; the public
+hostname is declared in the config and its service target is `http://api:8080`.
+`extra_hosts` keeps `host.docker.internal` available so the shared tunnel can
+route `api-ephemeron.spotnik.space` to the host on 8091. No dashboard-managed
+ingress is required. `TRUST_CLOUDFLARE=true` is safe because the API is
 unpublished and only the tunnel shares the internal `edge` network with it.
 There is no host Caddy and no `pontual.service` systemd unit; Docker
 `restart: unless-stopped` and Docker enabled at boot handle restarts. Secrets
-are `server/.env`, `server/.env.db` and `server/secrets/tunnel_token` locally,
-and `/etc/pontual/api.env`, `/etc/pontual/db.env`, `/etc/pontual/tunnel_token`
-on the VPS; the token is never placed in compose, env examples, git, logs or
-documentation. `deploy.sh deploy <tag>` builds `pontual-api:<tag>`, runs
+are `server/.env`, `server/.env.db` and `server/secrets/cloudflared_credentials.json`
+locally, and `/etc/pontual/api.env`, `/etc/pontual/db.env`,
+`/etc/pontual/cloudflared_credentials.json` on the VPS; the config is
+non-secret and world-readable `0644`/`0444` or owner uid 65532 with owner-read, and credentials are never placed in compose, env
+examples, git, logs or documentation. `deploy.sh deploy <tag>` builds
+`pontual-api:<tag>`, runs
 `docker compose up -d`, checks API health with
 `docker compose exec -T api deno eval ...`, checks the tunnel with
 `docker compose exec -T cloudflared cloudflared tunnel --metrics 127.0.0.1:2000 ready`,
 records current and previous tags under `/opt/pontual` by default, and rolls
 back on failure; `deploy.sh rollback` reactivates the previous tag;
-`deploy.sh status` runs `docker compose ps`. Rollback is by image tag. Supersedes D101 on: the API no longer has a host-published port or the host.docker.internal allow-list, the systemd unit and host Caddy are removed, and the tunnel token is a Compose secret.
+`deploy.sh status` runs `docker compose ps`. Rollback is by image tag. Supersedes D101 on: the API no longer has a host-published port or the host.docker.internal allow-list, the systemd unit and host Caddy are removed, and the tunnel uses a locally managed config plus credentials.
 
 No
 production verification is claimed; the checks above are the documented
