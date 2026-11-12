@@ -25,31 +25,14 @@ import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/models/shortcut_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
-// Copy genuinely absent from ui_strings.dart. Kept private here and reported
-// as a foundation gap instead of editing the shared strings file.
-const String _editorTitleAdd = 'Adicionar atalho';
-const String _editorTitleEdit = 'Editar atalho';
-const String _editorSave = 'Salvar';
-const String _editorEdit = 'Editar';
-const String _editorRemove = 'Remover';
-const String _editorCustomHint = 'Nome do atalho';
-const String _editorSearchHint = 'Buscar linha';
-const String _editorNoLines = 'Nenhuma linha encontrada';
-const String _kindHome = 'Casa';
-const String _kindWork = 'Trabalho';
-const String _kindSchool = 'Escola';
-const String _kindUniversity = 'Faculdade';
-const String _kindCustom = 'Outro';
-
-/// pt-BR label of a shortcut kind. Kept here so the home first-run cards and
-/// the add sheet stay consistent.
+/// pt-BR label of a shortcut kind.
 String shortcutKindLabel(ShortcutKind kind) {
   return switch (kind) {
-    ShortcutKind.home => _kindHome,
-    ShortcutKind.work => _kindWork,
-    ShortcutKind.school => _kindSchool,
-    ShortcutKind.university => _kindUniversity,
-    ShortcutKind.custom => _kindCustom,
+    ShortcutKind.home => UiStrings.shortcutKindHome,
+    ShortcutKind.work => UiStrings.shortcutKindWork,
+    ShortcutKind.school => UiStrings.shortcutKindSchool,
+    ShortcutKind.university => UiStrings.shortcutKindUniversity,
+    ShortcutKind.custom => UiStrings.shortcutKindCustom,
   };
 }
 
@@ -197,7 +180,7 @@ Future<void> showShortcutActions(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             SecondaryButton(
-              label: _editorEdit,
+              label: UiStrings.shortcutEditorEdit,
               icon: Icons.edit_outlined,
               onPressed: () {
                 Navigator.of(sheetContext).pop();
@@ -210,7 +193,7 @@ Future<void> showShortcutActions(
             ),
             const SizedBox(height: Space.x3),
             DangerButton(
-              label: _editorRemove,
+              label: UiStrings.shortcutEditorRemove,
               icon: Icons.delete_outline_rounded,
               onPressed: () {
                 ref.read(shortcutsProvider.notifier).remove(shortcut);
@@ -345,7 +328,9 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
         ref.watch(linesProvider).asData?.value ?? const <StaticLine>[];
     final List<LineVM> lines = _filtered(ref.watch(linesVmProvider));
     return PontualSheet(
-      title: widget.existing == null ? _editorTitleAdd : _editorTitleEdit,
+      title: widget.existing == null
+            ? UiStrings.shortcutEditorTitleAdd
+            : UiStrings.shortcutEditorTitleEdit,
       scrollable: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -358,7 +343,7 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
           ],
           const SizedBox(height: Space.x4),
           SearchField(
-            hint: _editorSearchHint,
+            hint: UiStrings.shortcutEditorSearchHint,
             controller: _searchController,
             onChanged: (_) => setState(() {}),
           ),
@@ -370,7 +355,7 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
           _originSection(statics, lines, now),
           const SizedBox(height: Space.x4),
           PrimaryButton(
-            label: _editorSave,
+            label: UiStrings.shortcutEditorSave,
             onPressed: _canSave ? () => _save(statics, lines) : null,
           ),
         ],
@@ -397,7 +382,7 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
     return TextField(
       controller: _labelController,
       decoration: InputDecoration(
-        hintText: _editorCustomHint,
+        hintText: UiStrings.shortcutEditorCustomHint,
         filled: true,
         fillColor: context.colors.surfaceSunken,
         border: OutlineInputBorder(
@@ -410,7 +395,7 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
 
   Widget _lineList(List<LineVM> lines) {
     if (lines.isEmpty) {
-      return Center(child: Text(_editorNoLines, style: context.text.body));
+      return Center(child: Text(UiStrings.shortcutEditorNoLines, style: context.text.body));
     }
     return ListView.builder(
       shrinkWrap: true,

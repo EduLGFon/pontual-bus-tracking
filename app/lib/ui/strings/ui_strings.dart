@@ -60,18 +60,17 @@ class UiStrings {
 
   /// Explanation for a scheduled value.
   static const String certaintyHowScheduled =
-      'Este horário vem da tabela da linha. Não é uma posição medida: o '
-      'ônibus pode estar atrasado ou adiantado.';
+      'Horário da tabela da linha, não uma posição medida. O ônibus pode '
+      'estar atrasado.';
 
   /// Explanation for a stale value.
   static const String certaintyHowStale =
-      'Este ônibus parou de enviar posição. O tempo mostrado é a idade da '
-      'última posição recebida.';
+      'O ônibus parou de enviar posição. O tempo é a idade da última posição.';
 
   /// Explanation for a predicted value.
   static const String certaintyHowPredicted =
-      'Esta é uma estimativa feita com as posições mais recentes e o ritmo '
-      'normal desta linha neste horário. Não é uma garantia.';
+      'Estimativa com posições recentes e o ritmo normal desta linha. Não '
+      'é garantia.';
 
   // Home.
 
@@ -217,8 +216,7 @@ class UiStrings {
   static const String linesNoTimetable = 'Sem horários ainda';
 
   /// Empty live state body when nothing is sharing.
-  static const String linesNoLiveBody =
-      'Está no ônibus? Toque em "Estou no ônibus" para mostrar a posição.';
+  static const String linesNoLiveBody = homeNoLiveHint;
 
   /// Empty live state when offline: status unknown, timetables still work.
   static const String linesLiveOffline =
@@ -445,8 +443,8 @@ class UiStrings {
 
   /// Permission pre-prompt body.
   static const String permissionPrompt =
-      'Para compartilhar, o Pontual precisa da sua localização enquanto o '
-      'app estiver em uso. Não pedimos localização o tempo todo.';
+      'Para compartilhar, o app precisa da sua localização em uso. Não '
+      'pedimos localização o tempo todo.';
 
   /// Permission pre-prompt action.
   static const String permissionContinue = 'Continuar';
@@ -477,8 +475,7 @@ class UiStrings {
 
   /// Notification permission note on Android.
   static const String notificationNote =
-      'Sem as notificações, o Android pode encerrar o compartilhamento. '
-      'Permita para manter o envio ativo.';
+      'Sem notificações, o Android pode encerrar o compartilhamento.';
 
   /// Unsupported context message.
   static const String unsupported =
@@ -506,7 +503,7 @@ class UiStrings {
   static const String tripTitle = 'Compartilhando viagem';
 
   /// Trip hero headline.
-  static const String tripHero = 'Você está ajudando quem espera o ônibus';
+  static const String tripHero = 'Compartilhando sua posição no ônibus';
 
   /// Trip minimize action.
   static const String tripMinimize = 'Minimizar';
@@ -582,9 +579,8 @@ class UiStrings {
 
   /// Battery exemption card body.
   static const String batteryExemptionBody =
-      'O celular parou de enviar sua posição para economizar bateria. '
-      'Quem espera o ônibus deixa de vê-lo. Libere uma vez e o envio '
-      'continua até você descer.';
+      'O envio parou para economizar bateria. Quem espera o ônibus deixa de '
+      'vê-lo. Libere uma vez para continuar até você descer.';
 
   /// Battery exemption card action.
   static const String batteryExemptionAction = 'Manter ativo';
@@ -648,6 +644,18 @@ class UiStrings {
 
   /// Progress sheet cancel action.
   static const String shareProgressCancel = 'Cancelar';
+
+  /// Screen-reader status for a pending phase.
+  static const String sharePhaseStatusPending = 'pendente';
+
+  /// Screen-reader status for an active phase.
+  static const String sharePhaseStatusActive = 'em andamento';
+
+  /// Screen-reader status for a done phase.
+  static const String sharePhaseStatusDone = 'concluído';
+
+  /// Screen-reader status for a failed phase.
+  static const String sharePhaseStatusFailed = 'falhou';
 
   /// Progress sheet retry action after a failure.
   static const String shareProgressRetry = 'Tentar de novo';
@@ -967,7 +975,7 @@ class UiStrings {
 
   /// Automatic end reason: inconsistent data.
   static const String endAbuse =
-      'Encerramos por envios de localização inconsistentes.';
+      'Encerramos por envios inconsistentes.';
 
   /// Automatic end reason: server maintenance.
   static const String endServer = 'Serviço em manutenção. Tente mais tarde.';
@@ -1205,8 +1213,7 @@ class UiStrings {
   /// Location note body.
   static const String myStopPrivacyBody =
       'Usamos sua localização só neste aparelho para achar o ponto mais '
-      'próximo desta linha. A posição exata não é enviada; a previsão pede '
-      'apenas a linha e o ponto.';
+      'próximo. A posição exata não é enviada.';
 
   /// Location note primary action.
   static const String myStopUseLocation = 'Usar minha localização';
@@ -1612,26 +1619,24 @@ class UiStrings {
   // UX 2.0: answer-first surfaces.
 
   /// First-run welcome title on Início.
-  static const String homeWelcomeTitle = 'Comece pelas linhas que você usa';
+  static const String homeWelcomeTitle = 'Comece por aqui';
 
   /// First-run welcome body on Início.
   static const String homeWelcomeBody =
-      'Escolha uma ou mais linhas para ver a próxima saída aqui. Você pode '
-      'mudar depois.';
+      'Escolha as linhas que você usa. Elas ficam nos favoritos.';
 
   /// First-run welcome primary action.
-  static const String homeWelcomeChoose = 'Escolher minhas linhas';
+  static const String homeWelcomeChoose = 'Escolher linhas';
 
   /// First-run welcome dismiss action.
-  static const String homeWelcomeLater = 'Só olhar';
+  static const String homeWelcomeLater = 'Agora não';
 
   /// Line picker sheet title.
   static const String homeChooseTitle = 'Escolha suas linhas';
 
   /// Line picker sheet body.
   static const String homeChooseBody =
-      'Marque as linhas que passam perto de você. Elas ficam nos favoritos e '
-      'aparecem na sua próxima saída.';
+      'Marque as linhas que você usa. Elas ficam nos favoritos e aparecem na sua próxima saída.';
 
   /// Line picker search field hint.
   static const String homeChooseSearchHint = 'Buscar linha ou bairro';
@@ -1669,11 +1674,11 @@ class UiStrings {
   static const String homeNextTimetableAction = 'Ver horários';
 
   /// Sharing card title on Início.
-  static const String homeShareCardTitle = 'Ajude quem está esperando';
+  static const String homeShareCardTitle = 'Compartilhar a posição do ônibus';
 
   /// Sharing card body on Início.
   static const String homeShareCardBody =
-      'Se você está no ônibus, compartilhe a posição.';
+      'Se você está no ônibus, compartilhe a posição para quem espera.';
 
   /// Sharing card primary action.
   static const String homeShareCardAction = 'Compartilhar minha viagem';
@@ -1745,7 +1750,7 @@ class UiStrings {
       'Tempo a pé estimado pela distância em linha reta.';
 
   /// Opt-in prompt title for the personal walking estimate.
-  static const String linePersonalPromptTitle = 'Quanto tempo até meu ponto?';
+  static const String linePersonalPromptTitle = 'Tempo a pé até meu ponto';
 
   /// Opt-in prompt body for the personal walking estimate.
   static const String linePersonalPromptBody =
@@ -1761,4 +1766,45 @@ class UiStrings {
   /// Live count caption on a search result row.
   static String searchResultLive(int count) =>
       count == 1 ? '1 ao vivo' : '$count ao vivo';
+
+  // Shortcuts.
+
+  /// Shortcut editor title when adding.
+  static const String shortcutEditorTitleAdd = 'Adicionar atalho';
+
+  /// Shortcut editor title when editing.
+  static const String shortcutEditorTitleEdit = 'Editar atalho';
+
+  /// Shortcut editor save action.
+  static const String shortcutEditorSave = 'Salvar';
+
+  /// Shortcut editor edit action.
+  static const String shortcutEditorEdit = 'Editar';
+
+  /// Shortcut editor remove action.
+  static const String shortcutEditorRemove = 'Remover';
+
+  /// Shortcut custom name hint.
+  static const String shortcutEditorCustomHint = 'Nome do atalho';
+
+  /// Shortcut line search hint.
+  static const String shortcutEditorSearchHint = 'Buscar linha';
+
+  /// Shortcut empty search result.
+  static const String shortcutEditorNoLines = 'Nenhuma linha encontrada';
+
+  /// Shortcut kind home.
+  static const String shortcutKindHome = 'Casa';
+
+  /// Shortcut kind work.
+  static const String shortcutKindWork = 'Trabalho';
+
+  /// Shortcut kind school.
+  static const String shortcutKindSchool = 'Escola';
+
+  /// Shortcut kind university.
+  static const String shortcutKindUniversity = 'Faculdade';
+
+  /// Shortcut kind custom.
+  static const String shortcutKindCustom = 'Outro';
 }

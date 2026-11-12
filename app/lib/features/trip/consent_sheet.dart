@@ -51,7 +51,7 @@ class ConsentSheet extends StatelessWidget {
               '• É apagada quando a viagem termina.\n'
               '• Dados anonimizados da viagem (rotas, paradas, tempos) podem '
               'ser mantidos para melhorar previsões; sem identificação.\n'
-              '• Outros usuários veem a posição do ônibus, não quem está nele. '
+              '• Outras pessoas veem a posição do ônibus, não quem está nele. '
               'Se só você compartilhar, a posição do ônibus é a sua.\n'
               '• Você pode encerrar quando quiser.',
               style: context.text.body,

@@ -163,7 +163,7 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
           : '${left}s - ${UiStrings.shareGpsTip}';
     }
     return Semantics(
-      label: '$label: ${status.name}',
+      label: '$label: ${_statusLabel(status)}',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -183,6 +183,19 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(SharePhaseStatus status) {
+    switch (status) {
+      case SharePhaseStatus.pending:
+        return UiStrings.sharePhaseStatusPending;
+      case SharePhaseStatus.active:
+        return UiStrings.sharePhaseStatusActive;
+      case SharePhaseStatus.done:
+        return UiStrings.sharePhaseStatusDone;
+      case SharePhaseStatus.failed:
+        return UiStrings.sharePhaseStatusFailed;
+    }
   }
 
   String _labelFor(SharePhase phase) {
