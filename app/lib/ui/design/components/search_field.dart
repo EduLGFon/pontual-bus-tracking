@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/design/tokens/text.dart';
 
 /// Search input.
@@ -82,7 +83,7 @@ class SearchField extends StatelessWidget {
                   controller?.clear();
                   onChanged?.call('');
                 },
-                semanticLabel: 'Limpar',
+                semanticLabel: UiStrings.searchClear,
                 borderRadius: Radii.pill,
                 child: Padding(
                   padding: const EdgeInsets.all(Space.x1),

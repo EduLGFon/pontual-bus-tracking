@@ -4,7 +4,7 @@ Status: implemented (see UI_SPEC 7.7, DECISIONS.md). Full audit, implementation 
 
 ## Recent change (share screen)
 
-The `/trip` screen is now minimalist: the hero keeps only the live indicator, headline, line badge/name, terminals and a compact elapsed line; the trust line and the separate last-send proof row moved out of the hero; the three-cell metrics card became a compact status line that opens a details sheet with the full metrics; a full-width "Sinalizar problema" button sits pinned with the stop block above the stop caption. No new report kinds, no API change.
+The `/trip` screen is now minimalist: the hero keeps only the live indicator, headline, line badge/name, terminals and a compact elapsed line; the trust line and the separate last-send proof row moved out of the hero; the three-cell metrics card became a compact status line that opens a details sheet with the full metrics; a full-width "Avisar problema" button sits pinned with the stop block above the stop caption. No new report kinds, no API change.
 
 ## Remaining open items (gaps)
 
