@@ -81,10 +81,12 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
                 Semantics(
                   liveRegion: true,
                   label: failed
-                      ? 'Falha ao iniciar viagem'
-                      : 'Iniciando viagem',
+                      ? UiStrings.shareProgressFailedTitle
+                      : UiStrings.shareProgressTitle,
                   child: Text(
-                    UiStrings.shareProgressTitle,
+                    failed
+                        ? UiStrings.shareProgressFailedTitle
+                        : UiStrings.shareProgressTitle,
                     style: context.text.title,
                   ),
                 ),
@@ -287,14 +289,33 @@ class _ShareProgressSheetState extends State<ShareProgressSheet> {
   }
 
   String _currentPhaseId(ShareProgressTracker tracker) {
+    String labelFor(SharePhase phase) {
+      switch (phase) {
+        case SharePhase.services:
+          return 'serviços';
+        case SharePhase.config:
+          return 'configuração';
+        case SharePhase.consent:
+          return 'consentimento';
+        case SharePhase.permission:
+          return 'permissão';
+        case SharePhase.register:
+          return 'registro';
+        case SharePhase.gps:
+          return 'GPS';
+        case SharePhase.start:
+          return 'início';
+      }
+    }
+
     for (final SharePhase phase in sharePhaseOrder) {
       if (tracker.statuses[phase] == SharePhaseStatus.active) {
-        return phase.name;
+        return labelFor(phase);
       }
     }
     for (final SharePhase phase in sharePhaseOrder) {
       if (tracker.statuses[phase] == SharePhaseStatus.failed) {
-        return phase.name;
+        return labelFor(phase);
       }
     }
     if (tracker.allDone) {

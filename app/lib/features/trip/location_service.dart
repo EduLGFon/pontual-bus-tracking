@@ -15,6 +15,7 @@ import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Accepted area for fixes. Mirrors the server bbox.
 const BBox fixArea = BBox(
@@ -193,8 +194,8 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
   // not request background location, wake locks, or exemptions.
   final ForegroundNotificationConfig notification =
       ForegroundNotificationConfig(
-        notificationTitle: 'Compartilhando viagem - $lineLabel',
-        notificationText: 'Toque para abrir ou encerrar',
+        notificationTitle: UiStrings.tripNotificationTitle(lineLabel),
+        notificationText: UiStrings.tripNotificationText,
         setOngoing: true,
       );
   switch (mode) {

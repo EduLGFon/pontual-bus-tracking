@@ -1527,7 +1527,7 @@ class UiStrings {
 
   /// Revoke confirmation.
   static const String privacyRevoked =
-      'Consentimento revogado. Vamos pedir de novo na próxima viagem.';
+      'Consentimento revogado neste celular. Vamos pedir de novo na próxima viagem.';
 
   /// Terms row.
   static const String privacyTerms = 'Termos de Uso';
@@ -1815,6 +1815,12 @@ class UiStrings {
 
   /// Title when location services are off.
   static const String permissionServicesOffTitle = 'Localização desligada';
+
+  /// Title when notification permission is denied.
+  static const String permissionNotificationsTitle = 'Notificações desligadas';
+
+  /// Title when the browser does not support geolocation.
+  static const String permissionUnsupportedTitle = 'Navegador sem suporte';
 
   /// Title when a trip could not be started.
   static const String shareProgressFailedTitle =

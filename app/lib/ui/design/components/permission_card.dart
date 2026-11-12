@@ -94,7 +94,7 @@ class PermissionCard extends StatelessWidget {
               const SizedBox(width: Space.x2),
               Expanded(
                 child: Text(
-                  titleOverride ?? UiStrings.permissionDenied,
+                  titleOverride ?? _titleOf(state),
                   style: context.text.bodyStrong,
                 ),
               ),
@@ -138,6 +138,23 @@ class PermissionCard extends StatelessWidget {
       return UiStrings.unsupported;
     }
     return UiStrings.permissionDenied;
+  }
+
+  String _titleOf(PermissionCardState state) {
+    switch (state) {
+      case PermissionCardState.servicesOff:
+        return UiStrings.permissionServicesOffTitle;
+      case PermissionCardState.imprecise:
+        return UiStrings.permissionImpreciseTitle;
+      case PermissionCardState.notificationsDenied:
+        return UiStrings.permissionNotificationsTitle;
+      case PermissionCardState.unsupported:
+        return UiStrings.permissionUnsupportedTitle;
+      case PermissionCardState.denied:
+      case PermissionCardState.blocked:
+      case PermissionCardState.browserBlocked:
+        return UiStrings.permissionDenied;
+    }
   }
 
   String _browserSteps() {
