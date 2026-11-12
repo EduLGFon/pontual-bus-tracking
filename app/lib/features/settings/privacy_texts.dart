@@ -13,7 +13,7 @@ O que coletamos:
 - Código anônimo do celular, sem nome, e-mail ou telefone.
 - Versão do consentimento aceita e quando.
 - Durante a viagem: posição, velocidade, direção, precisão e bateria do celular. Fica só na memória do servidor e some quando a viagem termina.
-- Dados anonimizados da viagem (rotas, paradas e tempos) podem ser mantidos para melhorar previsões. Você pode desativar em Ajustes.
+- Dados anonimizados da viagem (rotas, paradas e tempos) podem ser mantidos para melhorar previsões. Se você não compartilha, nenhum dado de viagem é gerado.
 - Avisos: tipo, linha, área aproximada de ~150 m, horário do servidor e contagem de celulares. A posição exata não é enviada nem guardada. São públicos, ficam na memória e somem em até 2 horas.
 - Leitura local opcional em "Ver quando chega no meu ponto": a posição é lida uma vez, só no celular, e descartada em até 5 minutos. Nada é enviado.
 - Para evitar abuso: limites por celular e por rede, só na memória, sem registro permanente.
@@ -38,7 +38,8 @@ Pontual: termos de uso (resumo)
 - Horários não oficiais e posições aproximadas: sem garantia de exatidão ou disponibilidade.
 - Seja honesto: compartilhe só quando estiver no ônibus, sem localizações falsas e sem automação.
 - Avisos são relatos públicos de passageiros, não são informação oficial. Para espera ou acesso bloqueado, usamos uma área de ~150 m, não a posição exata.
-- Podemos encerrar viagens, remover avisos e bloquear celulares em caso de abuso.
+- Podemos encerrar viagens, remover avisos e bloquear celulares em caso de abuso, sem aviso prévio.
+- Avisos falsos ou assédio podem levar ao bloqueio.
 - Lei aplicável: Brasil.
 
 Versão do resumo: 1.0. Revisão jurídica pendente.
