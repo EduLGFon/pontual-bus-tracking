@@ -181,6 +181,19 @@ class BusApi {
         : Err<bool>((res as Err<void>).failure);
   }
 
+  /// Stops future learning contributions from this device. One-way and
+  /// idempotent; past aggregates cannot be attributed and are not rewritten.
+  Future<Result<bool>> stopLearning(String token) async {
+    final Result<void> res = await _authedVoid(
+      token,
+      'DELETE',
+      '/v1/me/learning',
+    );
+    return res is Ok<void>
+        ? const Ok<bool>(true)
+        : Err<bool>((res as Err<void>).failure);
+  }
+
   /// Revokes consent server-side. Best-effort; local revocation still
   /// happens even if this fails.
   Future<Result<bool>> revokeConsent(String token) async {

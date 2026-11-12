@@ -51,6 +51,16 @@ class PrivacyActions {
     return DeleteOutcome.deleted;
   }
 
+  /// Stops future aggregate contributions. One-way: there is no re-enable
+  /// endpoint. Returns true when the server accepted the request or when
+  /// there is no device token (nothing to stop), false when offline.
+  Future<bool> stopLearning() async {
+    final String? token = await tokenStore.read();
+    if (token == null) return true;
+    final Result<bool> res = await api.stopLearning(token);
+    return res is Ok<bool>;
+  }
+
   /// Best-effort ends any active trip and clears the local consent
   /// flag so the next trip asks again. Also forgets the server
   /// confirmation: the next acceptance re-posts instead of riding on

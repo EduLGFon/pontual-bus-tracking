@@ -1522,6 +1522,31 @@ class UiStrings {
   static const String privacyOffline =
       'Sem conexão. Tente novamente quando estiver online.';
 
+  /// Stop contributing to learning aggregates.
+  static const String privacyStopLearning =
+      'Parar de contribuir com dados agregados';
+
+  /// Stop contributing confirmation title.
+  static const String privacyStopLearningTitle =
+      'Parar de contribuir com dados agregados?';
+
+  /// Stop contributing confirmation body.
+  static const String privacyStopLearningBody =
+      'As próximas viagens não vão gerar rotas, paradas ou tempos agregados. '
+      'Os agregados já gerados não podem ser ligados ao seu aparelho e não '
+      'serão recalculados. Esta ação não pode ser desfeita no app.';
+
+  /// Stop contributing confirm action.
+  static const String privacyConfirmStopLearning = 'Parar';
+
+  /// Stop contributing success message.
+  static const String privacyStopLearningDone =
+      'Contribuição com dados agregados encerrada.';
+
+  /// Stop contributing offline message.
+  static const String privacyStopLearningOffline =
+      'Sem conexão. Nada foi alterado; tente novamente.';
+
   /// Revoke consent action.
   static const String privacyRevoke = 'Revogar consentimento';
 
@@ -1545,6 +1570,7 @@ class UiStrings {
     'Durante a viagem: posição, velocidade, direção, precisão e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
     'Avisos: tipo, linha, área aproximada (~150 m), horário do servidor e contagem, públicos por até 2 h.',
+    'Agregados de rotas, paradas e tempos, sem ligação com o aparelho ou a viagem.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];
