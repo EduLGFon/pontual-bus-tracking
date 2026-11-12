@@ -16,13 +16,17 @@ import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
+import 'package:pontual/ui/design/components/line_status_line.dart';
 import 'package:pontual/ui/design/components/search_field.dart';
 import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/lines/favorite_action.dart';
+import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/domain/learning/learned_route_index.dart';
 import 'package:pontual/domain/learning/place.dart';
+import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/util/platform.dart';
 import 'package:pontual/ui/util/search_index.dart';
@@ -519,8 +523,10 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// A line hit: badge, name with the matched part in bold, terminals.
-class _ResultRow extends StatelessWidget {
+/// A line hit: badge, name with the matched part in bold, terminals, the
+/// shared status line and the favourite star. Same action and toast as
+/// Linhas, so starring a result behaves the same everywhere.
+class _ResultRow extends ConsumerWidget {
   const _ResultRow({
     required this.line,
     required this.normQuery,
@@ -532,39 +538,70 @@ class _ResultRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final LineStatus status = ref.watch(lineStatusProvider(line.key));
+    final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
+    final String short = line.short ?? '';
+    final String starLabel = short.isEmpty
+        ? (isFavorite ? UiStrings.unfavorite : UiStrings.favorite)
+        : (isFavorite
+              ? UiStrings.unfavoriteLine(short)
+              : UiStrings.favoriteLine(short));
     return SurfaceCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.x4,
-        vertical: Space.x3,
-      ),
-      child: Row(
-        children: <Widget>[
-          LineBadge.ofLine(line, size: BadgeSize.m),
-          const SizedBox(width: Space.x3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text.rich(
-                  TextSpan(children: _spans(context)),
-                  style: context.text.headline,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (line.terminalsText.isNotEmpty)
-                  Text(
-                    line.terminalsText,
-                    style: context.text.caption,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
+      padding: EdgeInsets.zero,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 72),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.x4,
+            vertical: Space.x3,
           ),
-        ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              LineBadge.ofLine(line, size: BadgeSize.m),
+              const SizedBox(width: Space.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text.rich(
+                      TextSpan(children: _spans(context)),
+                      style: context.text.headline,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (line.terminalsText.isNotEmpty)
+                      Text(
+                        line.terminalsText,
+                        style: context.text.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 2),
+                    LineStatusLine(
+                      status: status,
+                      liveCount: line.liveVehicleCount,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Space.x2),
+              IconBtn(
+                icon: isFavorite
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                semanticLabel: starLabel,
+                selected: isFavorite,
+                onTap: () => toggleFavoriteLine(ref, line.key),
+                size: hitTarget,
+                iconSize: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -586,8 +623,9 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-/// Browse-state line row with its shared status. Only the status text
-/// rebuilds on tick, using the same adapter provider as Linhas.
+/// Browse-state line row with its shared status and the favourite star.
+/// Only the status text and star rebuild on tick, using the same adapter
+/// provider and action as Linhas.
 class _BrowseLineRow extends ConsumerWidget {
   /// Creates the row for [line].
   const _BrowseLineRow({required this.line, required this.onTap});
@@ -600,9 +638,12 @@ class _BrowseLineRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final bool isFavorite = ref.watch(favoritesProvider).contains(line.key);
     return LineRow(
       line: line,
       status: ref.watch(lineStatusProvider(line.key)),
+      isFavorite: isFavorite,
+      onToggleFavorite: () => toggleFavoriteLine(ref, line.key),
       onTap: onTap,
     );
   }
