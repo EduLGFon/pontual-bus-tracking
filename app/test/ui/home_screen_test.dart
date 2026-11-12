@@ -82,6 +82,21 @@ Widget homeApp() {
   return MaterialApp(theme: pontualLightTheme(), home: const HomeScreen());
 }
 
+/// The live summary pill that contains [label].
+///
+/// The label sits inside the pill [Container], so the nearest Container
+/// ancestor is the pill itself.
+Finder pillFinder(String label) {
+  return find
+      .ancestor(of: find.text(label), matching: find.byType(Container))
+      .first;
+}
+
+/// Width of the live summary pill that contains [label].
+double pillWidth(WidgetTester tester, String label) {
+  return tester.getSize(pillFinder(label)).width;
+}
+
 void main() {
   const Map<String, Object> onboardingDone = <String, Object>{
     welcomeSeenKey: true,
@@ -314,6 +329,40 @@ void main() {
 
     expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
     expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('live chip hugs its content instead of filling the header', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
+    // 390 dp minus the 20 dp compact margins leaves 350 dp of content; a
+    // pill spanning the header row would be that wide.
+    expect(pillWidth(tester, UiStrings.homeLiveNone), lessThan(300));
+    // It still sits at the right edge of the header, after the wordmark.
+    expect(
+      tester.getTopLeft(pillFinder(UiStrings.homeLiveNone)).dx,
+      greaterThan(tester.getTopRight(find.text(UiStrings.wordmark)).dx),
+    );
+
+    // At 320 dp with 2x text the pill may grow and move to its own run, but
+    // it must stay inside the header instead of overflowing.
+    await tester.pumpWidget(
+      wrapHome(
+        tester,
+        homeApp(),
+        liveBody: '[]',
+        surface: const Size(320, 568),
+        textScale: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

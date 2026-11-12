@@ -292,14 +292,17 @@ class _LiveSummaryChip extends StatelessWidget {
     // count is unknown, then grows with 2x text instead of clipping it.
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: Sizes.badgeL),
-      child: Center(
-        child: shown
-            ? Semantics(
+      child: shown
+          // widthFactor keeps the chip hugging its content: inside a Wrap the
+          // constraints are bounded, so a plain Center would stretch it across
+          // the whole header row.
+          ? Center(
+              widthFactor: 1,
+              child: Semantics(
                 label: text,
                 excludeSemantics: true,
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 30),
-                  alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(
                     horizontal: Space.x3,
                     vertical: Space.x1,
@@ -309,22 +312,32 @@ class _LiveSummaryChip extends StatelessWidget {
                     borderRadius: BorderRadius.circular(Radii.pill),
                     border: Border.all(color: colors.line),
                   ),
-                  child: Wrap(
-                    spacing: Space.x2,
-                    runSpacing: Space.x1,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: <Widget>[
-                      LiveDot(certainty: certainty),
-                      Text(
-                        text,
-                        style: PontualText.label.copyWith(color: colors.ink),
-                      ),
-                    ],
+                  child: Center(
+                    widthFactor: 1,
+                    child: Wrap(
+                      spacing: Space.x2,
+                      runSpacing: Space.x1,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        // LiveDot centers its painted ring and that Center
+                        // expands when the Wrap hands it a bounded width,
+                        // which would stretch the pill, so pin the dot to
+                        // the ring footprint it already paints inside.
+                        SizedBox.square(
+                          dimension: 24,
+                          child: LiveDot(certainty: certainty),
+                        ),
+                        Text(
+                          text,
+                          style: PontualText.label.copyWith(color: colors.ink),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              )
-            : const SizedBox.shrink(),
-      ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
