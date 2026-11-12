@@ -77,6 +77,23 @@ const StaticLine pilotLine = StaticLine(
   ],
 );
 
+/// Line whose last weekday departure is 20:20, used by the late-night case.
+const StaticLine lateLine = StaticLine(
+  id: 11,
+  code: 'eleven',
+  short: '11',
+  name: 'Onze / Centro',
+  pilot: false,
+  terminals: <String>['Centro'],
+  schedules: <Map<String, dynamic>>[
+    <String, dynamic>{
+      'day_type': 'weekday',
+      'origin': 'Centro',
+      'times': <String>['05:30', '06:10', '20:20'],
+    },
+  ],
+);
+
 /// Non shareable line used by the note case.
 const StaticLine timetableLine = StaticLine(
   id: 10,
@@ -117,7 +134,13 @@ const ClientVehicle liveBus2 = ClientVehicle(
 );
 
 /// Fixed São Mateus wall clock, so the timetable assertions are stable.
+/// Held the same way [currentNowProvider] holds it: a UTC-flagged instant
+/// already shifted to the wall clock, never converted again by the UI.
 final DateTime fixedNow = DateTime.utc(2026, 10, 14, 12, 0);
+
+/// Wednesday 23:00 wall clock, after the last weekday departure of
+/// [lateLine].
+final DateTime lateNightNow = DateTime.utc(2026, 10, 14, 23, 0);
 
 /// Repository that counts stream starts and stops. It never touches the
 /// network: the route-lifecycle test only cares about the calls.
@@ -199,8 +222,9 @@ VehicleRepository repoOf(List<ClientVehicle> vehicles) {
 /// network, the clock or the asset bundle.
 List<Override> overridesFor(
   List<StaticLine> lines,
-  Map<int, List<ClientVehicle>> vehicles,
-) {
+  Map<int, List<ClientVehicle>> vehicles, {
+  DateTime? now,
+}) {
   return <Override>[
     linesProvider.overrideWith((Ref ref) async => lines),
     liveProvider.overrideWith(
@@ -209,7 +233,7 @@ List<Override> overridesFor(
     tileUrlProvider.overrideWith(
       (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
     ),
-    currentNowProvider.overrideWithValue(fixedNow),
+    currentNowProvider.overrideWithValue(now ?? fixedNow),
     for (final MapEntry<int, List<ClientVehicle>> e in vehicles.entries)
       vehicleRepoProvider(e.key).overrideWithValue(repoOf(e.value)),
     // Seeded synchronously from the same fake rows. The repository only
@@ -310,6 +334,33 @@ void main() {
     // The header no longer repeats the departure, so the banner is the
     // only place the next service day appears.
     expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
+  });
+
+  testWidgets('late night does not show an already past departure as next', (
+    WidgetTester tester,
+  ) async {
+    await _useCompactView(tester);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[lateLine],
+          const <int, List<ClientVehicle>>{11: <ClientVehicle>[]},
+          now: lateNightNow,
+        ),
+        child: const MaterialApp(home: LineScreen(lineKey: 'eleven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    // At 23:00 the 20:20 departure is gone, so it is never the large hero.
+    expect(find.byType(NextBusCard), findsNothing);
+    expect(find.text('20:20'), findsNothing);
+    // The Agora body below the tabs shows the honest end-of-day state.
+    await _openSheet(tester);
+    await tester.scrollUntilVisible(find.text(UiStrings.homeNoMoreToday), 200);
+    expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
+    expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
+    expect(find.text('20:20'), findsNothing);
   });
 
   testWidgets('200 percent text scale raises no exception', (
@@ -564,6 +615,27 @@ void main() {
       expect(find.text('14:35'), findsWidgets);
       expect(find.text(UiStrings.certaintyScheduled), findsOneWidget);
       expect(find.text(UiStrings.originLabel), findsNothing);
+    });
+
+    testWidgets('late night hero skips the already past 20:20 departure', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TimetableTab(line: lateLine, now: lateNightNow),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('20:20'), findsNothing);
+      expect(
+        find.text(
+          '${UiStrings.homeNoMoreToday}. '
+          '${UiStrings.homeTomorrowAt('05:30')}.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('origin chips appear and switch the rail content', (

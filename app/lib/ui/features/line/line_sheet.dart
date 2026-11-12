@@ -415,9 +415,8 @@ class _LineSheetState extends ConsumerState<LineSheet> {
     }
     // D30 history: de-identified recent headways vs the timetable.
     // The card hides itself when fewer than 2 sightings exist.
-    final DateTime local = saoMateusTime(now);
     final double? scheduledHeadway = scheduledHeadwayOf(
-      timetableTimesOf(widget.staticLine, dayTypeFor(local), null),
+      timetableTimesOf(widget.staticLine, dayTypeFor(now), null),
     );
     final arrivals = ref.watch(arrivalsProvider(widget.staticLine.id)).value;
     final ReliabilityVM? reliability = reliabilityOf(
@@ -477,8 +476,7 @@ class _LineSheetState extends ConsumerState<LineSheet> {
   /// First departure of the next service day, null when unknown. Used by
   /// the night banner when nothing is left today.
   String? _tomorrowFirst(DateTime now) {
-    final DateTime local = saoMateusTime(now);
-    final DayType tomorrowType = dayTypeFor(local.add(const Duration(days: 1)));
+    final DayType tomorrowType = dayTypeFor(now.add(const Duration(days: 1)));
     final List<String> tomorrow = timetableTimesOf(
       widget.staticLine,
       tomorrowType,
@@ -489,20 +487,19 @@ class _LineSheetState extends ConsumerState<LineSheet> {
 
   /// Departures of today that are still ahead, in order.
   List<ArrivalVM> _upcoming(DateTime now, {int limit = 0}) {
-    final DateTime local = saoMateusTime(now);
     final List<String> times = timetableTimesOf(
       widget.staticLine,
-      dayTypeFor(local),
+      dayTypeFor(now),
       null,
     );
     final List<ArrivalVM> all = arrivalsOf(
       widget.staticLine.code,
       times,
-      local,
+      now,
       originLabel: null,
     );
     final List<ArrivalVM> upcoming = all
-        .where((ArrivalVM a) => !a.isPast(local))
+        .where((ArrivalVM a) => !a.isPast(now))
         .toList();
     if (limit <= 0) {
       return upcoming;
