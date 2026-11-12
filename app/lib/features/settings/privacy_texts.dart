@@ -16,10 +16,10 @@ O que coletamos:
 - A versão do consentimento que você aceitou e quando.
 - Durante a viagem: posição, velocidade e bateria do celular. Isso
   fica só na memória do servidor e some quando a viagem termina.
-- Sinalizações: tipo, linha e uma área aproximada de ~150 m, públicas
+- Avisos: tipo, linha e uma área aproximada de ~150 m, públicos
   por até 2 horas. A posição exata não é enviada nem guardada.
 - Quem só olha o mapa ou os horários, sem compartilhar e sem
-  sinalizar, não cria registro nenhum.
+  avisar, não cria registro nenhum.
 
 O que nunca coletamos: nome, e-mail, telefone, contatos, fotos,
 microfone, histórico de viagens ou identificadores do aparelho.
@@ -27,7 +27,7 @@ microfone, histórico de viagens ou identificadores do aparelho.
 Seus direitos: você pode revogar o consentimento e apagar seus
 dados a qualquer momento nesta tela ("Apagar meus dados").
 
-Texto completo: docs/privacy/policy.md.
+Versão do resumo: 1.0.
 ''';
 
 /// Short terms of use shown in-app.
@@ -40,12 +40,12 @@ Pontual: termos de uso (resumo)
   exatidão ou disponibilidade.
 - Use honesto: compartilhe só quando estiver no ônibus, sem
   localizações falsas e sem automação.
-- Sinalizações são relatos públicos de passageiros, não informação
+- Avisos são relatos públicos de passageiros, não informação
   oficial. Para espera ou acesso bloqueado, usamos uma área de
   ~150 m, não a posição exata.
-- Podemos encerrar viagens, remover sinalizações e bloquear
-  aparelhos em caso de abuso.
+- Podemos encerrar viagens, remover avisos e bloquear aparelhos
+  em caso de abuso.
 - Lei aplicável: Brasil.
 
-Texto completo: docs/privacy/terms.md.
+Versão do resumo: 1.0.
 ''';

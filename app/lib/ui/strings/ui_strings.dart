@@ -1013,7 +1013,7 @@ class UiStrings {
   static const String reportSubmit = 'Enviar aviso';
 
   /// Static loading label while the report is in flight.
-  static const String reportSending = 'Enviando aviso...';
+  static const String reportSending = 'Enviando aviso…';
 
   /// Success toast.
   static const String reportSent = 'Aviso enviado. Obrigado.';
@@ -1024,20 +1024,20 @@ class UiStrings {
 
   /// Rate-limit failure.
   static const String reportRate =
-      'Muitas avisos em pouco tempo. Tente de novo em alguns minutos.';
+      'Muitos avisos em pouco tempo. Tente de novo em alguns minutos.';
 
   /// Per-line cap failure.
   static const String reportQuota =
-      'Muitas avisos nesta linha agora. Tente de novo em alguns minutos.';
+      'Muitos avisos nesta linha agora. Tente de novo em alguns minutos.';
 
   /// Server kill switch.
   static const String reportDisabled = 'Avisos indisponíveis no momento.';
 
   /// Disclosure under the report sheet.
   static const String reportPrivacy =
-      'Sua aviso é pública e anônima. Usamos só uma área aproximada '
-      'de 150 m, nunca a posição exata. Para evitar abuso, o aparelho recebe '
-      'um código anônimo. Ela some em até 2 horas.';
+      'O aviso é público e anônimo. Usamos só uma área aproximada de 150 m, '
+      'nunca a posição exata. Para evitar abuso, o aparelho recebe um código '
+      'anônimo. Some em até 2 horas.';
 
   /// Honesty footnote on report surfaces.
   static const String reportDisclaimer =
@@ -1050,7 +1050,7 @@ class UiStrings {
   static const String reportLocationBody =
       'Para mostrar onde você está esperando, o app lê sua localização uma '
       'vez e envia apenas uma área de cerca de 150 m. A posição exata não é '
-      'enviada nem guardada. A aviso é pública e some em até 2 horas.';
+      'enviada nem guardada. O aviso é público e some em até 2 horas.';
 
   /// Location notice bullet: one read.
   static const String reportLocationBulletOnce =
@@ -1076,7 +1076,7 @@ class UiStrings {
       'onde você está. A posição exata não é enviada.';
 
   /// Static loading label while the one-shot fix is running.
-  static const String reportLocating = 'Obtendo localização...';
+  static const String reportLocating = 'Obtendo localização…';
 
   /// Card title when the one-shot fix failed.
   static const String reportLocationUnavailable = 'Localização indisponível';
@@ -1119,13 +1119,13 @@ class UiStrings {
   static const String reportAreaApprox = 'Área aproximada de 150 m';
 
   /// Own report marker.
-  static const String reportMine = 'Sua aviso';
+  static const String reportMine = 'Seu aviso';
 
   /// Retract action.
-  static const String reportRetract = 'Remover minha aviso';
+  static const String reportRetract = 'Remover meu aviso';
 
   /// Retract success toast.
-  static const String reportRetracted = 'Aviso removida.';
+  static const String reportRetracted = 'Aviso removido.';
 
   /// Waiting count with at least two people.
   static String reportPeopleWaiting(int count) =>
@@ -1176,7 +1176,7 @@ class UiStrings {
   static String reportMore(int count) => '+$count';
 
   /// Report detail age sentence.
-  static String reportReportedAgo(String age) => 'Avisado $age';
+  static String reportReportedAgo(String age) => 'Enviado $age';
 
   /// Report detail update sentence.
   static String reportUpdatedAgo(String age) => 'Atualizado $age';
@@ -1418,8 +1418,7 @@ class UiStrings {
   /// About section.
   static const String sectionAbout = 'Sobre';
 
-  /// One-line privacy summary under the help header. True in code today:
-  /// no sign-up exists and the viewer position never leaves the device.
+  /// One-line privacy summary under the help header.
   static const String privacySummary =
       'Sem cadastro. Sua localização só é usada enquanto você compartilha.';
 
@@ -1440,16 +1439,15 @@ class UiStrings {
 
   /// Data saver description.
   static const String dataSaverHint =
-      'Abre a linha em lista primeiro e só carrega o mapa quando você '
-      'pedir. Usa menos internet.';
+      'Abre a linha em lista primeiro e carrega o mapa só quando você pedir.';
 
   /// Diagnostics opt-in row.
   static const String diagnosticsOptIn = 'Enviar diagnósticos';
 
   /// Diagnostics opt-in description.
   static const String diagnosticsOptInHint =
-      'Envia avisos e falhas anonimamente para ajudar a melhorar o app. '
-      'Sem localização ou dados pessoais.';
+      'Envia falhas anônimas para ajudar a melhorar o app. Sem localização '
+      'ou dados pessoais.';
 
   /// Reduce animations row.
   static const String reduceMotion = 'Reduzir animações';
@@ -1463,17 +1461,16 @@ class UiStrings {
 
   /// Clear local data description.
   static const String clearLocalDataHint =
-      'Remove favoritos, recentes e dados salvos no aparelho. Seus ajustes '
+      'Remove favoritos, recentes e dados salvos no aparelho. Ajustes '
       'continuam.';
 
   /// Clear local data confirmation title.
   static const String clearLocalDataTitle = 'Limpar dados locais?';
 
-  /// Clear local data confirmation body. Lists exactly what the action
-  /// removes so the dialog never promises more or less than the code.
+  /// Clear local data confirmation body.
   static const String clearLocalDataBody =
       'Remove favoritos, recentes, atalhos, alertas e o cache de horários '
-      'deste aparelho. Seus ajustes continuam. Isso não pode ser desfeito.';
+      'deste aparelho. Ajustes continuam. Não pode ser desfeito.';
 
   /// Clear local data confirm action.
   static const String clearLocalDataConfirm = 'Limpar';
@@ -1513,7 +1510,7 @@ class UiStrings {
 
   /// Delete confirmation body.
   static const String privacyDeleteBody =
-      'Isso encerra sua viagem, apaga os dados ligados a este aparelho no '
+      'Encerra sua viagem, apaga os dados ligados a este aparelho no '
       'servidor e reinicia o app.';
 
   /// Delete confirm action.
@@ -1539,14 +1536,13 @@ class UiStrings {
   /// Contact row.
   static const String contactUs = 'Falar conosco';
 
-  /// Collection summary mirroring the data inventory. The legacy screen
-  /// owned this copy; the new privacy center is its only reader now.
+  /// Collection summary mirroring the data inventory.
   static const List<String> collectsSummary = <String>[
     'Aparelho anônimo: um código aleatório, sem nome ou e-mail.',
     'Versão do consentimento que você aceitou e quando.',
     'Durante a viagem: posição, velocidade e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
-    'Avisos: tipo, linha e área aproximada (~150 m), públicas por até 2 h.',
+    'Avisos: tipo, linha e área aproximada (~150 m), públicos por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];
@@ -1677,8 +1673,7 @@ class UiStrings {
 
   /// Sharing card body on Início.
   static const String homeShareCardBody =
-      'Se você está no ônibus, compartilhe a posição. Sem cadastro, sem '
-      'anúncios.';
+      'Se você está no ônibus, compartilhe a posição.';
 
   /// Sharing card primary action.
   static const String homeShareCardAction = 'Compartilhar minha viagem';
