@@ -70,8 +70,8 @@ lawyer/DPO review and final RIPD sign-off remain pending.
    (`docs/privacy/inventory.md`).
 4. Lawyer review of consent wording and aggregate schema: pending.
 5. Opt-out: the server flag and `DELETE /v1/me/learning` endpoint exist. The
-   client settings toggle is not part of this change and remains a release
-   gap.
+   privacy center exposes a one-way "stop contributing" action. There is no
+   re-enable path in the app; the copy says so.
 
 Hard rules (PLAN.md 8 and 15):
 - No raw per-trip tracks, ever. Only grid cells, stop centroids and aggregate
@@ -86,10 +86,10 @@ Hard rules (PLAN.md 8 and 15):
   after consent and opt-out checks, regardless of how many trips the device
   shared before. Confidence is the sample count attached to a row, not a
   permission.
-- The API has no synthetic-trip marker. The simulator registers real devices,
-  so it is excluded operationally: run it only against a disposable local or
-  test database, never against production. A dedicated marker needs its own
-  ADR before simulator traffic can run against a shared environment.
+- Synthetic test traffic is marked by the optional `synthetic` field on
+  `POST /v1/trip`. It defaults to false, is client-supplied and untrusted, and
+  can only suppress that trip's learning contribution. It never grants access,
+  changes live sharing, or is persisted. The simulator sets it. See D110.
 - Day and hour buckets come from the event being aggregated, in
   America/Sao_Paulo (UTC-3): a dwell uses its own start, a segment uses the
   destination arrival. The trip start is never reused for every sample.
@@ -232,9 +232,9 @@ keys survive restarts and processes. No accumulator exists only in memory.
 ### 4.4 Consent, opt-out and test data
 
 The trip handler looks up the device's opt-out flag and passes the current
-consent version. A failed lookup contributes nothing (fail closed). Test and
-simulator traffic has no distinct marker in the API and is excluded only by
-operational rules (section 1).
+consent version. A failed lookup contributes nothing (fail closed). A synthetic
+trip is ignored by the consumer before any working state is created, so it
+contributes no cells, stops, bins or statistics.
 
 ## 5. Algorithms
 
@@ -513,9 +513,8 @@ lines whose polyline or stops intersect the optional bounding box.
 - Domain models: `LearnedRoute`, `LearnedStop`, `LearnedRoutesIndex`,
   `EtaEstimate` in `app/lib/domain/learning/`.
 - Map, place search and personal arrival consume those models.
-- The opt-out endpoint exists on the server, but the settings toggle is not
-  wired in this build. This is an open release gap, not a claim that the toggle
-  ships.
+- The privacy center calls `DELETE /v1/me/learning` from a confirmed
+  "stop contributing" action. It is one-way and reports offline honestly.
 - No change to trip sharing, battery, or foreground service logic.
   `TripController` remains the only place that starts or stops the service.
 
@@ -576,9 +575,9 @@ always wins (PLAN.md 7).
   suppressions. No coordinates, ids, or per-line counts.
 - The `no_location_at_rest` test scans every migration and rejects location-like
   columns outside `learned_stops` and `learning_route_cells`.
-- Synthetic/test traffic is not marked in the API. Running the simulator
-  against production would add organic-looking aggregates; only run it against
-  a disposable database.
+- Synthetic/test traffic is excluded with the optional `synthetic` flag. The
+  flag is not persisted and has no security effect; a real rider could use it to
+  skip one trip's contribution, which is equivalent to a per-trip opt-out.
 
 ## 11. Retention and deletion
 
@@ -595,8 +594,9 @@ always wins (PLAN.md 7).
 - `DELETE /v1/me` cascades the device row, including `learning_opt_out`. No
   aggregate row references a device.
 - `DELETE /v1/me/learning` sets the opt-out flag; future trips do not
-  contribute. A trip already in progress can finish contributing. Past
-  aggregates are not recomputed because they cannot be attributed.
+  contribute. The privacy center exposes this as a confirmed, one-way action.
+  A trip already in progress can finish contributing. Past aggregates are not
+  recomputed because they cannot be attributed.
 - The earlier rolling 90-day stat deletion is replaced by the stop lifecycle.
   Cumulative histograms have no per-trip timestamps, so deleting only the
   derived stat row while its bins remained would not delete the underlying
@@ -624,7 +624,10 @@ Unit (Deno, pure functions, no database):
   directions stay separate, gap handling, simplification and size budget.
 - `learning_test.ts`: fake SQL exercising first-trip publication, cumulative
   bins, a single dwell and segment, two samples in one bucket, per-event
-  midnight bucketing, short trips surviving the trim, and stop ordinals.
+  midnight bucketing, short trips surviving the trim, stop ordinals, and the
+  synthetic-trip exclusion.
+- `trip_schema_test.ts`: the optional `synthetic` field is accepted as a boolean
+  and rejected otherwise.
 - `learning_eligibility_test.ts`: every consenting, non-opted-out trip is
   accepted; old consent and opt-out contribute nothing.
 - `learning_retention_test.ts`: the purge deactivates and deletes dormant
@@ -633,12 +636,12 @@ Unit (Deno, pure functions, no database):
 - `config_test.ts` and `metrics_test.ts`: removed env/config and counter
   behavior.
 
-Integration (against a test PostgreSQL, existing security suite):
-- Migration applies cleanly and rolls back. This has not been run locally
-  because `TEST_DATABASE_URL` is unset; the SQL is type-checked and exercised
-  only through the fake SQL layer.
+Integration (against PostgreSQL 16.15, existing security suite):
+- Migrations 0001 to 0006 apply cleanly, and the 0006 down migration rolls back
+  and reapplies cleanly.
+- The full server suite passes with `TEST_DATABASE_URL`: 136 passed, 0 failed.
 - Flush writes only aggregate rows; no raw fix columns exist.
-- Consent and opt-out paths do not write aggregates.
+- Consent, opt-out and synthetic paths do not write aggregates.
 - A row with one sample is served; there is no withholding gate.
 
 Privacy audit:
@@ -658,16 +661,16 @@ D109 (2026-11-12) replaced the 5-trip eligibility gate, `devices.learning_trips`
 with DB-backed accumulators and single-sample serving. See the ADR for the
 accepted risk and the evidence.
 
-Remaining before release: lawyer/DPO sign-off, RIPD finalisation, a real
-PostgreSQL migration run, the client opt-out toggle, and a synthetic-trip
-marker if the simulator must ever run against a shared environment.
+Remaining before release: lawyer/DPO sign-off and RIPD finalisation. The
+privacy center now exposes the one-way stop-contributing action; a re-enable
+path is not offered.
 
 ## 15. Risks and mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | One trip shapes a route, stop or histogram | Re-identification of a rider's trip | Consent, opt-out, trimming, no ids, legal review; label sample counts in the UI |
-| Simulator traffic reaches production | Fake aggregates | Run the simulator only against a disposable database; add a synthetic marker before shared-environment use |
+| Simulator traffic reaches production | Fake aggregates | The simulator sends `synthetic: true`; the server ignores those trips for learning without changing live sharing |
 | Long-lived cumulative bins | Growing storage and retained history | Stop lifecycle retention (90 days inactive, 180 days total); monitor table growth |
 | Route changes (construction, detours) | Stale polyline | A changed route is replaced once median deviation exceeds 15 m; keep the static route as fallback |
 | Direction misclassification on circular lines | Mixed samples corrupt the chain | Two directions per line, coverage then bearing; single direction for circulars is not automatic |
@@ -684,6 +687,6 @@ accumulators; single-sample serving; 15 m median-deviation version churn
 control; stop-lifecycle retention (D109).
 
 Still open: public ETA exposure, max directions per line (2 recommended), a
-synthetic-trip marker, the client opt-out toggle, a separate model-serving
-process (defer until the CPU budget requires it), and a true rolling window if
-legal review requires one.
+re-enable path if the owner decides opt-out must be reversible, a separate
+model-serving process (defer until the CPU budget requires it), and a true
+rolling window if legal review requires one.

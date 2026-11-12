@@ -5,7 +5,7 @@ Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
 
 | Dado | Finalidade | Onde | Retenção | Pessoal? |
 | ---- | ---------- | ---- | -------- | -------- |
-| Código do aparelho + hash do token, criação/último uso/expiração | limites, titularidade, prova de consentimento | PostgreSQL `devices` | até apagar ou 30 dias inativo | Sim (pseudônimo) |
+| Código do aparelho + hash do token, criação/último uso/expiração, flag de opt-out de aprendizado | limites, titularidade, prova de consentimento, controle de contribuição | PostgreSQL `devices` | até apagar ou 30 dias inativo | Sim (pseudônimo) |
 | Versão do consentimento + data | prova de consentimento (art. 8, par. 2) | PostgreSQL `consents` | com o registro do aparelho | Sim |
 | Bloqueio (código, motivo) | controle de abuso | PostgreSQL `blocked_devices` | com o registro do aparelho | Sim (pseudônimo) |
 | Última posição: lat, lng, velocidade, direção, precisão | posicionar o ônibus | memória do servidor | até o fim da viagem | Sim (localização) |

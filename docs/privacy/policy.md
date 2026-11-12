@@ -39,6 +39,11 @@ Coletamos somente:
   posição exata não é enviada nem guardada. São públicas, ficam só
   na memória do servidor e somem em até 2 horas.
 
+Você pode parar de contribuir com os dados agregados em
+Privacidade e dados. A ação vale para as próximas viagens e não
+pode ser desfeita no app; os agregados já gerados não podem ser
+ligados ao seu aparelho e não são recalculados.
+
 Nunca coletamos: nome, e-mail, telefone, contatos, fotos,
 microfone, histórico de viagens, IMEI ou identificadores de
 publicidade. Quem só olha o mapa ou os horários, sem compartilhar
