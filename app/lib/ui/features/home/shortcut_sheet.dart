@@ -329,8 +329,8 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
     final List<LineVM> lines = _filtered(ref.watch(linesVmProvider));
     return PontualSheet(
       title: widget.existing == null
-            ? UiStrings.shortcutEditorTitleAdd
-            : UiStrings.shortcutEditorTitleEdit,
+          ? UiStrings.shortcutEditorTitleAdd
+          : UiStrings.shortcutEditorTitleEdit,
       scrollable: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -395,7 +395,9 @@ class _ShortcutEditorSheetState extends ConsumerState<ShortcutEditorSheet> {
 
   Widget _lineList(List<LineVM> lines) {
     if (lines.isEmpty) {
-      return Center(child: Text(UiStrings.shortcutEditorNoLines, style: context.text.body));
+      return Center(
+        child: Text(UiStrings.shortcutEditorNoLines, style: context.text.body),
+      );
     }
     return ListView.builder(
       shrinkWrap: true,

@@ -974,8 +974,7 @@ class UiStrings {
       'Encerramos porque a permissão de localização foi removida.';
 
   /// Automatic end reason: inconsistent data.
-  static const String endAbuse =
-      'Encerramos por envios inconsistentes.';
+  static const String endAbuse = 'Encerramos por envios inconsistentes.';
 
   /// Automatic end reason: server maintenance.
   static const String endServer = 'Serviço em manutenção. Tente mais tarde.';
