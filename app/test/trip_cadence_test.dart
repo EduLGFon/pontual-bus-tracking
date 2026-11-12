@@ -49,7 +49,7 @@ class _TimerHarness {
     final _ManualTimer t = _ManualTimer(
       clock.nowMs() + duration.inMilliseconds,
       callback,
-      );
+    );
     _timers.add(t);
     return t;
   }
