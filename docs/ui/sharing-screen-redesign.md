@@ -2,6 +2,10 @@
 
 Status: implemented (see UI_SPEC 7.7, DECISIONS.md). Full audit, implementation notes and final report removed; only remaining open items are kept.
 
+## Recent change (share screen)
+
+The `/trip` screen is now minimalist: the hero keeps only the live indicator, headline, line badge/name, terminals and a compact elapsed line; the trust line and the separate last-send proof row moved out of the hero; the three-cell metrics card became a compact status line that opens a details sheet with the full metrics; a full-width "Sinalizar problema" button sits pinned with the stop block above the stop caption. No new report kinds, no API change.
+
 ## Remaining open items (gaps)
 
 1. Web minimized trips lose protection: disposing `TripScreen` disables `ProdWebWakeLock` and cancels the visibility timer while the controller keeps running in the host. Reopening re-acquires. No leak on start, stop, error, dispose.

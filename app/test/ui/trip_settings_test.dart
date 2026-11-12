@@ -75,6 +75,8 @@ void main() {
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
       expect(find.text(UiStrings.tripHero), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('tripStatusLine')));
+      await tester.pump();
       expect(find.text(UiStrings.metricLabelSend), findsOneWidget);
       expect(find.text(UiStrings.metricLabelGps), findsOneWidget);
       expect(find.text(UiStrings.metricLabelSats), findsOneWidget);
@@ -83,6 +85,27 @@ void main() {
       expect(tester.takeException(), isNull);
       // Inline teardown: the invariant check runs before addTearDown, so
       // the controller and its timers must stop inside the test body.
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('report button opens the report sheet with the four kinds', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
+      await tester.pump();
+      expect(find.byKey(const ValueKey<String>('tripReport')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('tripReport')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(UiStrings.reportSheetTitle), findsOneWidget);
+      expect(find.text(UiStrings.reportWaiting), findsOneWidget);
+      expect(find.text(UiStrings.reportFull), findsOneWidget);
+      expect(find.text(UiStrings.reportBroken), findsOneWidget);
+      expect(find.text(UiStrings.reportBlocked), findsOneWidget);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
     });

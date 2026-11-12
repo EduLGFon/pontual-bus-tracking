@@ -22,7 +22,7 @@ import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
-/// Hero of the trip screen: indicator, headline, line, times, trust.
+/// Hero of the trip screen: indicator, headline, line, times.
 class TripHero extends ConsumerWidget {
   /// Creates the hero for [controller].
   const TripHero({
@@ -96,26 +96,7 @@ class TripHero extends ConsumerWidget {
           Center(child: pontual.Chip(label: line.terminalsText, compact: true)),
         ],
         const SizedBox(height: Space.x3),
-        _TripTimes(
-          controller: controller,
-          startedAtMs: startedAtMs,
-          nowMs: nowMs,
-        ),
-        const SizedBox(height: Space.x3),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(Icons.lock_rounded, size: 16, color: context.colors.inkMuted),
-            const SizedBox(width: Space.x1),
-            Flexible(
-              child: Text(
-                UiStrings.tripTrust,
-                style: context.text.caption,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
+        _TripTimes(startedAtMs: startedAtMs, nowMs: nowMs),
       ],
     );
   }
@@ -161,19 +142,12 @@ class _LiveIndicator extends ConsumerWidget {
   }
 }
 
-/// Elapsed time and last-send proof. Stateless: the screen's single
+/// Elapsed trip time. Stateless: the screen's single
 /// coarse clock rebuilds this row every 5 s, and controller notifications
 /// refresh it immediately.
 class _TripTimes extends StatelessWidget {
   /// Creates the times for [controller].
-  const _TripTimes({
-    required this.controller,
-    required this.startedAtMs,
-    required this.nowMs,
-  });
-
-  /// Trip controller being read.
-  final TripController controller;
+  const _TripTimes({required this.startedAtMs, required this.nowMs});
 
   /// Trip start in milliseconds, null before confirmation.
   final int? startedAtMs;
@@ -185,16 +159,6 @@ class _TripTimes extends StatelessWidget {
   Widget build(BuildContext context) {
     final int now = nowMs();
     final int? startMs = startedAtMs;
-    final int? lastSuccessMs = controller.lastSuccessMs;
-    final bool stale =
-        lastSuccessMs != null && now - lastSuccessMs > staleSendAfterMs;
-    // Clamped at zero: an injected test clock can sit behind the success
-    // timestamp.
-    final int rawSentS = lastSuccessMs == null
-        ? 0
-        : (now - lastSuccessMs) ~/ 1000;
-    final int lastSentS = rawSentS < 0 ? 0 : rawSentS;
-    final colors = context.colors;
     return Column(
       children: <Widget>[
         if (startMs != null)
@@ -207,19 +171,6 @@ class _TripTimes extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
-        if (lastSuccessMs != null) ...<Widget>[
-          const SizedBox(height: Space.x1),
-          Semantics(
-            label: 'Última posição enviada ${UiStrings.agoLong(lastSentS)}',
-            child: Text(
-              UiStrings.lastSentAgo(UiStrings.agoShort(lastSentS)),
-              style: context.text.caption.copyWith(
-                color: stale ? colors.warningText : colors.inkMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
       ],
     );
   }

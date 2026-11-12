@@ -1,15 +1,26 @@
 import { assertEquals } from "@std/assert";
-import { snapshot } from "../src/observability/metrics.ts";
-import * as m from "../src/observability/metrics.ts";
+import {
+  recordLearningFlushFailed,
+  recordLearningTripIneligible,
+  recordPingRateLimited,
+  snapshot,
+} from "../src/observability/metrics.ts";
 
 Deno.test("metrics: new learning drop counters exist and increment", () => {
   const before = snapshot().learningTripsIneligibleTotal;
-  m.recordLearningTripIneligible();
+  recordLearningTripIneligible();
   assertEquals(snapshot().learningTripsIneligibleTotal, before + 1);
 });
 
 Deno.test("metrics: flush failed counter increments", () => {
   const before = snapshot().learningFlushesFailedTotal;
-  m.recordLearningFlushFailed();
+  recordLearningFlushFailed();
   assertEquals(snapshot().learningFlushesFailedTotal, before + 1);
+});
+
+Deno.test("ping rate-limited counter increments", () => {
+  const before = snapshot().pingsRateLimitedTotal;
+  recordPingRateLimited();
+  const after = snapshot().pingsRateLimitedTotal;
+  assertEquals(after, before + 1);
 });

@@ -30,6 +30,8 @@ export interface PingResult {
   intervalS: number;
   end?: EndReason;
   ackLeader?: boolean;
+  /** True when the ping was dropped by the 4 s min-interval defense. */
+  rateLimited?: boolean;
 }
 
 export type PingOutcome = PingResult | { gone: true };
@@ -157,7 +159,7 @@ export function applyPing(
     trip.lastSeenAtMs !== null &&
     nowMs - trip.lastSeenAtMs < cfg.minPingIntervalS * 1000
   ) {
-    return currentInstruction(store, trip, cfg);
+    return { ...currentInstruction(store, trip, cfg), rateLimited: true };
   }
   // 4. Validate.
   if (validateFix(fix, cfg)) {
