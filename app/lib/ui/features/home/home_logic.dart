@@ -4,8 +4,10 @@
 // stay free of the render tree.
 // See docs/ui/home-redesign.md.
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';
+import 'package:pontual/ui/models/shortcut_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/ui/util/format_eta.dart';
 
@@ -151,14 +153,31 @@ String? directionLabel({
   return known.join(' · ');
 }
 
-/// First departure time (`HH:mm`) for the day after [now], or null when
-/// the timetable has none. Powers the `Amanhã 06:10` hint; derived
-/// client-side from the bundled timetables, no model change.
-String? firstDepartureTomorrow(
-  StaticLine line,
-  String? originLabel,
-  DateTime now,
-) {
+/// Next upcoming arrival for a line and optional origin. Falls back to the
+/// merged timetable when the origin yields nothing, which keeps the card
+/// honest. A departure at the current minute counts as now.
+ArrivalVM? nextArrivalFor(StaticLine line, String? origin, DateTime now) {
+  final TimetableArrivalsSource source = TimetableArrivalsSource(
+    line: line,
+    now: now,
+  );
+  List<ArrivalVM> departures = source.departures(
+    ArrivalQuery(lineKey: line.code, originLabel: origin, limit: 0),
+  );
+  if (departures.isEmpty && origin != null) {
+    departures = source.departures(ArrivalQuery(lineKey: line.code, limit: 0));
+  }
+  for (final ArrivalVM arrival in departures) {
+    if (!isPastMinute(arrival.at, now)) {
+      return arrival;
+    }
+  }
+  return null;
+}
+
+/// First arrival of the next calendar day, same origin rules as
+/// [nextArrivalFor]. Null when the timetable has no row for that day.
+ArrivalVM? firstArrivalTomorrow(StaticLine line, String? origin, DateTime now) {
   final DateTime tomorrow = DateTime.utc(
     now.year,
     now.month,
@@ -169,13 +188,112 @@ String? firstDepartureTomorrow(
     now: tomorrow,
   );
   List<ArrivalVM> departures = source.departures(
-    ArrivalQuery(lineKey: line.code, originLabel: originLabel, limit: 1),
+    ArrivalQuery(lineKey: line.code, originLabel: origin, limit: 1),
   );
-  if (departures.isEmpty && originLabel != null) {
+  if (departures.isEmpty && origin != null) {
     departures = source.departures(ArrivalQuery(lineKey: line.code, limit: 1));
   }
-  if (departures.isEmpty) {
-    return null;
+  return departures.isEmpty ? null : departures.first;
+}
+
+/// First departure time (`HH:mm`) for the day after [now], or null when
+/// the timetable has none. Powers the `Amanhã 06:10` hint; derived
+/// client-side from the bundled timetables, no model change.
+String? firstDepartureTomorrow(
+  StaticLine line,
+  String? originLabel,
+  DateTime now,
+) {
+  final ArrivalVM? arrival = firstArrivalTomorrow(line, originLabel, now);
+  return arrival == null ? null : formatClock(arrival.at);
+}
+
+/// Which line the Início hero should present.
+class NextDepartureChoice {
+  /// Creates a choice.
+  const NextDepartureChoice({
+    required this.lineKey,
+    required this.originLabel,
+    this.today,
+    this.tomorrowAt,
+  });
+
+  /// Chosen line key.
+  final String lineKey;
+
+  /// Origin used for its timetable, null for the merged timetable.
+  final String? originLabel;
+
+  /// Earliest departure later today, when there is one.
+  final ArrivalVM? today;
+
+  /// Earliest departure tomorrow, when there is no departure today.
+  final DateTime? tomorrowAt;
+
+  /// True when this choice only has a departure tomorrow.
+  bool get isTomorrow => today == null && tomorrowAt != null;
+}
+
+/// Picks the line for the "Sua próxima saída" hero from favourites and
+/// shortcuts. One entry per line key; a shortcut wins over a favourite for
+/// the same line so its origin drives the timetable. Returns the earliest
+/// departure today across candidates, or the earliest one tomorrow when
+/// nobody leaves again today. Null hides the hero.
+NextDepartureChoice? nextDepartureChoice({
+  required Set<String> favoriteKeys,
+  required List<ShortcutVM> shortcuts,
+  required List<StaticLine> statics,
+  required DateTime now,
+}) {
+  final Map<String, String?> candidates = <String, String?>{};
+  for (final String key in favoriteKeys) {
+    if (key.isNotEmpty) {
+      candidates.putIfAbsent(key, () => null);
+    }
   }
-  return formatClock(departures.first.at);
+  for (final ShortcutVM shortcut in shortcuts) {
+    if (shortcut.lineKey.isEmpty) {
+      continue;
+    }
+    candidates[shortcut.lineKey] = shortcut.originLabel;
+  }
+
+  NextDepartureChoice? bestToday;
+  NextDepartureChoice? bestTomorrow;
+  for (final MapEntry<String, String?> candidate in candidates.entries) {
+    final StaticLine? line = _staticLineFor(statics, candidate.key);
+    if (line == null) {
+      continue;
+    }
+    final String? origin = candidate.value;
+    final ArrivalVM? today = nextArrivalFor(line, origin, now);
+    if (today != null &&
+        (bestToday == null || today.at.isBefore(bestToday.today!.at))) {
+      bestToday = NextDepartureChoice(
+        lineKey: line.code,
+        originLabel: origin,
+        today: today,
+      );
+    }
+    final ArrivalVM? tomorrow = firstArrivalTomorrow(line, origin, now);
+    if (tomorrow != null &&
+        (bestTomorrow == null ||
+            tomorrow.at.isBefore(bestTomorrow.tomorrowAt!))) {
+      bestTomorrow = NextDepartureChoice(
+        lineKey: line.code,
+        originLabel: origin,
+        tomorrowAt: tomorrow.at,
+      );
+    }
+  }
+  return bestToday ?? bestTomorrow;
+}
+
+StaticLine? _staticLineFor(List<StaticLine> lines, String key) {
+  for (final StaticLine line in lines) {
+    if (line.code == key) {
+      return line;
+    }
+  }
+  return null;
 }

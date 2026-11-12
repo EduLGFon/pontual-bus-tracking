@@ -39,6 +39,13 @@ class FavoritesNotifier extends Notifier<Set<String>> {
     const FavoritesStore store = FavoritesStore();
     await store.toggle(key);
   }
+
+  /// Replaces the whole set optimistically, then persists.
+  Future<void> setAll(Set<String> keys) async {
+    final Set<String> next = Set<String>.of(keys);
+    state = next;
+    await const FavoritesStore().write(next);
+  }
 }
 
 /// Provides the favourite line keys.

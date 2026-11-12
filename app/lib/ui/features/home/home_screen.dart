@@ -16,11 +16,14 @@ import 'package:pontual/ui/design/tokens/text.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:pontual/ui/features/home/choose_lines_sheet.dart';
 import 'package:pontual/ui/features/home/first_run.dart';
+import 'package:pontual/ui/features/home/home_next_card.dart';
 import 'package:pontual/ui/features/home/home_providers.dart';
 import 'package:pontual/ui/features/home/home_sections.dart';
 import 'package:pontual/ui/features/home/home_lists.dart';
 import 'package:pontual/ui/features/home/welcome_state.dart';
+import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/shell/offline_bridge.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 
@@ -52,6 +55,7 @@ class HomeScreen extends ConsumerWidget {
     final List<LineVM> lines = ref.watch(linesVmProvider);
     final features = ref.watch(homeFeaturesProvider);
     final onboarding = ref.watch(onboardingProvider);
+    final Set<String> favorites = ref.watch(favoritesProvider);
     final bool liveKnown = ref.watch(liveProvider).hasValue;
     final bool offline = ref.watch(offlineFlagProvider);
     // Select the greeting instead of watching the minute clock: this
@@ -70,12 +74,16 @@ class HomeScreen extends ConsumerWidget {
     );
     final bool expanded = breakpoint == Breakpoint.expanded;
 
-    final Widget welcome = onboarding.welcomeSeen
-        ? const SizedBox.shrink()
-        : WelcomeCard(
+    // A rider who already has favourites does not need the setup card,
+    // even when the welcome flag never got written (reinstall, restore).
+    final bool showWelcome = !onboarding.welcomeSeen && favorites.isEmpty;
+    final Widget welcome = showWelcome
+        ? WelcomeCard(
+            onChoose: () => showChooseLines(context),
             onDismiss: () =>
                 ref.read(onboardingProvider.notifier).dismissWelcome(),
-          );
+          )
+        : const SizedBox.shrink();
     final Widget header = _HomeHeader(
       greeting: greeting,
       liveTotal: liveTotal,
@@ -95,7 +103,7 @@ class HomeScreen extends ConsumerWidget {
         // strip on first run, when only the placeholder cards exist. D-U26.
         : const Padding(
             padding: EdgeInsets.only(top: Space.x4),
-            child: NoLiveCard(),
+            child: ShareCard(),
           );
     final Widget recentsSection = features.recents
         ? RecentsSection(lines: lines)
@@ -107,10 +115,11 @@ class HomeScreen extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         welcome,
-        if (!onboarding.welcomeSeen) const SizedBox(height: Space.x4),
+        if (showWelcome) const SizedBox(height: Space.x4),
         const AndroidAppDownloadSlot(),
         header,
         const SizedBox(height: Space.x2),
+        const NextDepartureHero(),
         if (expanded)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,48 +165,25 @@ class HomeScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         bottom: false,
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: RefreshIndicator(
-                // PLAN.md 9.5 S03: pull-to-refresh is one of the three
-                // triggers for /v1/live; the refresher keeps a 10 s floor.
-                onRefresh: () => ref.read(liveRefresherProvider).refresh(),
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(
-                    margin,
-                    Space.x3,
-                    margin,
-                    dockClearance,
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: _contentMaxWidth,
-                      ),
-                      child: content,
-                    ),
-                  ),
-                ),
+        child: RefreshIndicator(
+          // PLAN.md 9.5 S03: pull-to-refresh is one of the three triggers for
+          // /v1/live; the refresher keeps a 10 s floor.
+          onRefresh: () => ref.read(liveRefresherProvider).refresh(),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              margin,
+              Space.x3,
+              margin,
+              dockClearance,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+                child: content,
               ),
             ),
-            if (!onboarding.coachmarkSeen)
-              Positioned(
-                left: margin,
-                right: margin,
-                // Sit above the global dock instead of overlapping it: the dock
-                // is painted in the shell layer on top of this screen, so an
-                // offset inside the dock's footprint hid the bubble behind the
-                // button. Add the system bottom inset for safe areas.
-                bottom:
-                    MediaQuery.of(context).viewPadding.bottom + dockClearance,
-                child: CoachmarkBubble(
-                  onDismiss: () =>
-                      ref.read(onboardingProvider.notifier).dismissCoachmark(),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -232,14 +218,17 @@ class _HomeHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        // Wrap instead of Row: at 320 dp with 2x text the chip moves to its
+        // own line instead of squeezing the wordmark. D-U26.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: Space.x2,
+          runSpacing: Space.x1,
           children: <Widget>[
-            Expanded(
-              child: Text(
-                UiStrings.wordmark,
-                style: context.text.title.copyWith(color: colors.primary),
-              ),
+            Text(
+              UiStrings.wordmark,
+              style: context.text.title.copyWith(color: colors.primary),
             ),
             _LiveSummaryChip(
               shown: liveKnown,
@@ -299,27 +288,33 @@ class _LiveSummaryChip extends StatelessWidget {
         : (total <= 0
               ? UiStrings.homeLiveNone
               : '$total ${UiStrings.liveCount}');
-    return SizedBox(
-      height: Sizes.badgeL,
+    // Minimum height only: the chip reserves a stable slot while the live
+    // count is unknown, then grows with 2x text instead of clipping it.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: Sizes.badgeL),
       child: Center(
         child: shown
             ? Semantics(
                 label: text,
                 excludeSemantics: true,
                 child: Container(
-                  height: 30,
+                  constraints: const BoxConstraints(minHeight: 30),
                   alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Space.x3,
+                    vertical: Space.x1,
+                  ),
                   decoration: BoxDecoration(
                     color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(Radii.pill),
                     border: Border.all(color: colors.line),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Wrap(
+                    spacing: Space.x2,
+                    runSpacing: Space.x1,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: <Widget>[
                       LiveDot(certainty: certainty),
-                      const SizedBox(width: Space.x2),
                       Text(
                         text,
                         style: PontualText.label.copyWith(color: colors.ink),
