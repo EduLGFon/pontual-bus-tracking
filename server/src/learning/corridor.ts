@@ -37,7 +37,7 @@ export interface CorridorAcc {
 }
 
 const M_PER_DEG_LAT = 111320;
-const DEFAULT_MAX_GAP_M = 500;
+export const DEFAULT_MAX_GAP_M = 500;
 
 export function newCorridorAcc(
   lineId: number,

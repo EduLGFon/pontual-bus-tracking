@@ -28,6 +28,7 @@ import {
   buildChain,
   type CorridorAcc,
   coverageScore,
+  DEFAULT_MAX_GAP_M,
   newCorridorAcc,
   type Pt,
 } from "./corridor.ts";
@@ -312,15 +313,18 @@ export class LearningConsumer {
 
     const keptPoints: Pt[] = kept.map((s) => ({ lat: s.lat, lng: s.lng }));
     // Count dropped long gaps (segments longer than the corridor max gap).
-    const maxGapM = 500;
     let gapDropped = false;
     for (let i = 1; i < keptPoints.length; i++) {
-      const a = keptPoints[i - 1];
-      const b = keptPoints[i];
-      const cosLat = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
-      const dxM = (b.lng - a.lng) * 111320 * cosLat;
-      const dyM = (b.lat - a.lat) * 111320;
-      if (Math.hypot(dxM, dyM) > maxGapM) gapDropped = true;
+      if (
+        distM(
+          keptPoints[i - 1].lat,
+          keptPoints[i - 1].lng,
+          keptPoints[i].lat,
+          keptPoints[i].lng,
+        ) > DEFAULT_MAX_GAP_M
+      ) {
+        gapDropped = true;
+      }
     }
     if (gapDropped) recordLearningTripGapDropped();
     const direction = this.assignDirection(work.lineId, keptPoints);

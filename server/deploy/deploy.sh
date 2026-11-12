@@ -105,22 +105,19 @@ preflight_db() {
     sleep 2
   done
 
-  if [ -f "${PONTUAL_DB_ENV_FILE:-}" ]; then
-    set -a
-    # shellcheck disable=SC1090
-    . "${PONTUAL_DB_ENV_FILE}" >/dev/null 2>&1 || true
-    set +a
-  fi
-  local pw="${POSTGRES_PASSWORD:-}"
   local counts
-  counts="$(compose exec -T db env "PGPASSWORD=$pw" psql -h 127.0.0.1 -U pontual_migrator -d pontual -tAc "select coalesce((select count(*) from devices),0), coalesce((select count(*) from learned_routes),0);" 2>/dev/null | tr -d '[:space:]')" || counts=""
-  local devices routes
-  devices="${counts%%,*}"
-  routes="${counts##*,}"
+  counts="$(compose exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select (select count(*) from devices)::text || '"'"'|'"'"' || (select count(*) from learned_routes)::text;"' 2>/dev/null | tr -d '[:space:]')" || counts=""
 
-  if [ -z "$devices" ] || [ -z "$routes" ] || [ "$counts" = "$devices" ]; then
+  local devices routes
+  devices="${counts%%|*}"
+  routes="${counts##*|}"
+
+  case "$devices" in ''|*[!0-9]*) devices="";; esac
+  case "$routes" in ''|*[!0-9]*) routes="";; esac
+
+  if [ -z "$devices" ] || [ -z "$routes" ]; then
     if [ "${PONTUAL_ALLOW_EMPTY_DB:-0}" = "1" ]; then
-      echo "preflight: empty/unqueryable database allowed by PONTUAL_ALLOW_EMPTY_DB=1"
+      echo "preflight: empty or unqueryable database allowed by PONTUAL_ALLOW_EMPTY_DB=1"
       return 0
     fi
     echo "!!! WARNING: database volume exists but could not confirm devices/learned_routes rows."
@@ -134,7 +131,7 @@ preflight_db() {
       return 0
     fi
     echo "!!! WARNING: database volume exists but has 0 devices and 0 learned_routes."
-    echo "!!! This may indicate a restored or wiped database."
+    echo "!!! This may indicate an empty or wiped database."
     echo "!!! Refusing to start unless PONTUAL_ALLOW_EMPTY_DB=1."
     return 1
   fi
@@ -146,7 +143,9 @@ preflight_db() {
 activate() {
   local tag="$1"
   local build="${2:-true}"
-  preflight_db || return 1
+  if [ "$build" = "true" ]; then
+    preflight_db || return 1
+  fi
   check_tunnel_files || return 1
   if [ "$build" = "true" ]; then
     PONTUAL_TAG="$tag" compose build api || { echo "build failed"; return 1; }
