@@ -423,9 +423,19 @@ class _StatusSummaryLine extends StatelessWidget {
         : health.overall == SharingOverall.paused
         ? Icons.pause_circle_rounded
         : Icons.hourglass_top_rounded;
-    final String sentence = intervalS == null
-        ? UiStrings.tripStatusDetails
-        : 'Enviando a cada ${intervalS}s. ${UiStrings.tripStatusDetails}';
+    final String lead = switch (health.overall) {
+      SharingOverall.live =>
+        intervalS == null
+            ? 'Compartilhando ao vivo.'
+            : 'Enviando a cada $intervalS s.',
+      SharingOverall.starting => UiStrings.tripStatusStarting,
+      SharingOverall.paused =>
+        health.connectionValue == ConnectionValue.offline
+            ? UiStrings.tripStatusOffline
+            : UiStrings.tripStatusPaused,
+      SharingOverall.ended => UiStrings.tripStatusOffline,
+    };
+    final String sentence = '$lead ${UiStrings.tripStatusDetails}';
     return Semantics(
       button: true,
       label: sentence,

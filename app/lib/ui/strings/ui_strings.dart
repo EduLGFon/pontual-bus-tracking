@@ -518,6 +518,15 @@ class UiStrings {
   static const String tripStatusDetails =
       'Toque para ver GPS, satélites e envio.';
 
+  /// Compact status line while the trip is still starting.
+  static const String tripStatusStarting = 'Iniciando compartilhamento.';
+
+  /// Compact status line while sharing is paused.
+  static const String tripStatusPaused = 'Compartilhamento pausado.';
+
+  /// Compact status line while there is no connection.
+  static const String tripStatusOffline = 'Sem conexão no momento.';
+
   /// Connection row label.
   static const String connection = 'Conexão';
 
