@@ -176,6 +176,13 @@ Deno.test("first contributing trip persists aggregates and publishes", async () 
     queries.filter((q) => q.text.includes("insert into learned_routes")).length,
     1,
   );
+  // The ordinal projection always reads the persisted stops, even when this
+  // trip created none.
+  assert(
+    queries.some((q) =>
+      q.text.includes("select id, lat, lng from learned_stops")
+    ),
+  );
 });
 
 Deno.test("trip below minimum consent never contributes", async () => {
@@ -319,6 +326,16 @@ Deno.test("a single segment creates a travel stat with count 1", async () => {
   assertEquals(
     queries.filter((q) => q.text.includes("insert into learned_stops")).length,
     2,
+  );
+  // Ordinals are projected from the stops persisted in PostgreSQL, not from
+  // a process-local cluster map.
+  assert(
+    queries.some((q) =>
+      q.text.includes("select id, lat, lng from learned_stops")
+    ),
+  );
+  assert(
+    queries.some((q) => q.text.includes("update learned_stops set ordinal")),
   );
   const travel = queries.filter((q) =>
     q.text.includes("insert into learning_travel_bins")

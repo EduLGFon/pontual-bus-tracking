@@ -141,6 +141,18 @@ export function fakeSql(): FakeDb {
       return Promise.resolve([]);
     }
 
+    if (t.includes("select id, lat, lng from learned_stops")) {
+      const lineId = values[0] as number;
+      const direction = values[1] as number;
+      return Promise.resolve(
+        stops
+          .filter((s) =>
+            s.line_id === lineId && s.direction === direction && s.active
+          )
+          .map((s) => ({ id: s.id, lat: s.lat, lng: s.lng })),
+      );
+    }
+
     if (t.includes("update learned_stops set lat")) {
       // values: sumLat, added, sumLng, added, added, id
       const sumLat = values[0] as number;

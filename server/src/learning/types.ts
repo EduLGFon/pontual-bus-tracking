@@ -17,7 +17,6 @@ export interface LearningConfig {
   maxSamplesPerTrip: number;
   minSampleSpacingM: number;
   minSampleSpacingS: number;
-  maxMemoryBytes: number;
 }
 
 export const defaultLearningConfig = (): LearningConfig => ({
@@ -34,7 +33,6 @@ export const defaultLearningConfig = (): LearningConfig => ({
   maxSamplesPerTrip: 200,
   minSampleSpacingM: 20,
   minSampleSpacingS: 10,
-  maxMemoryBytes: 50 * 1024 * 1024,
 });
 
 export interface TripSample {

@@ -1018,20 +1018,29 @@ export class LearningConsumer {
     direction: number,
     chain: Pt[],
   ): Promise<void> {
-    const clusters = [...this.stopClusters.values()].filter(
-      (c) => c.lineId === lineId && c.direction === direction,
-    );
-    if (clusters.length === 0) return;
+    // Read from PostgreSQL, not the in-memory mirror: another process or a
+    // direct admin fix can add a stop that this process has not cached yet.
+    const rows = await this.deps.sql`
+      select id, lat, lng from learned_stops
+      where line_id = ${lineId} and direction = ${direction} and active = true
+    `;
+    const stops = rows as unknown as Array<{
+      id: string;
+      lat: number;
+      lng: number;
+    }>;
+    if (stops.length === 0) return;
     const ordinals = assignOrdinals(
-      clusters.map((c) => ({ lat: c.centroidLat, lng: c.centroidLng })),
+      stops.map((s) => ({ lat: s.lat, lng: s.lng })),
       chain,
     );
-    for (let i = 0; i < clusters.length; i++) {
-      clusters[i].ordinal = ordinals[i];
+    for (let i = 0; i < stops.length; i++) {
       await this.deps.sql`
         update learned_stops set ordinal = ${ordinals[i]}
-        where id = ${clusters[i].id}
+        where id = ${stops[i].id}
       `;
+      const cached = this.stopClusters.get(stops[i].id);
+      if (cached) cached.ordinal = ordinals[i];
     }
   }
 
