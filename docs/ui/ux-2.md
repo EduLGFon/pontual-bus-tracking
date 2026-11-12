@@ -32,7 +32,7 @@ Status: implemented 2026-11-11 on the Flutter client. UI and copy only. See `DEC
 - The hero sits above the tabs: personal arrival when ready, otherwise the vertical `NextBusCard` with the ETA first.
 - Personal arrival is the hero when ready. The compact location prompt appears while location is off.
 - The personal card adds a walking estimate ("≈N min a pé", straight-line distance at 80 m per minute, minimum 1 minute) and a leave-now verdict.
-- The header states the live count or the timetable source, never the live-empty sentence; the body owns the no-live card.
+- The header states the live count, the timetable source, or the end-of-day state ("Sem mais saídas hoje"), never the live-empty sentence; the body owns the no-live card.
 - Peek minimum is 270 dp, so the header plus the hero ETA fit at 320x568.
 
 ## Shell and navigation
