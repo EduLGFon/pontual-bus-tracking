@@ -243,7 +243,7 @@ Build every component in `lib/ui/design/components/`, each with: a `const` const
 | `Sheet` (bottom sheet container) | 24 top radius, drag handle 36x4, `surface`, hairline top border, the one allowed shadow, `RepaintBoundary` |
 | `TimeRail` | timetable layout (section 7.6): hour label column + wrapping minute chips, sticky hour headers optional, past dimmed, "next" highlighted |
 | `Banner` | inline strip for offline/maintenance/permission info: icon + text + optional action; colours from `warning`/`danger`/`ink` roles |
-| `Toast` | transient message (3 s) above the dock, `surfaceRaised`, one line, optional action; replaces `SnackBar` styling; queue max 1 |
+| `Toast` | transient message (3 s) above the active trip bar or the navigation (7.1), `surfaceRaised`, one line, optional action; replaces `SnackBar` styling; queue max 1 |
 | `EmptyState` | small vector illustration (2-4 shapes via `CustomPainter`), title, one sentence, one action; never an image file |
 | `Skeleton` | static rounded rects in `surfaceSunken`; one shared opacity pulse (`FadeTransition`, 1.2 s) driven by a single controller; shown only after 300 ms of loading |
 | `TripDock` | section 7.1 |
@@ -344,7 +344,7 @@ Same pattern for `SearchProvider` (lines now; stops and places later), `Shortcut
 enum Breakpoint { compact /*<600*/, medium /*600-839*/, expanded /*>=840*/ }
 ```
 
-`AdaptiveScaffold` chooses: **compact** = bottom navigation + `TripDock` above it + bottom sheet over map; **medium** = navigation rail (80 dp) + content, sheet becomes a 360 dp side panel on the line screen; **expanded** = rail + 400 dp side panel + map filling the rest, content max width 720 on non-map screens (centered, two-column card grids). Use `LayoutBuilder`/`MediaQuery.sizeOf` (not `MediaQuery.of`) to avoid rebuilds from unrelated changes. Landscape phones use the medium layout rules.
+`AdaptiveScaffold` chooses: **compact** = bottom navigation + the active trip bar above it (no idle floating dock) + bottom sheet over map; **medium** = navigation rail (80 dp) + content, sheet becomes a 360 dp side panel on the line screen; **expanded** = rail + 400 dp side panel + map filling the rest, content max width 720 on non-map screens (centered, two-column card grids). Use `LayoutBuilder`/`MediaQuery.sizeOf` (not `MediaQuery.of`) to avoid rebuilds from unrelated changes. Landscape phones use the medium layout rules.
 
 ### 6.6 Navigation (go_router, keep the project's routing package)
 
@@ -366,64 +366,76 @@ Conventions: wireframes are compact-width (about 360-412 dp). `[ ]` = button, `(
 
 ### 7.1 App shell (all screens)
 
-Bottom navigation: 3 destinations (data-driven, section 6.6). Selected = filled icon + bold label + soft `primary` 12 % pill behind the icon; unselected = outline icon + `inkMuted` label. Labels always visible. Surface = `surface` with a 1 px top `line`. No ripple. Haptic `selectionClick`. Re-tapping the active tab scrolls to top. Android system navigation bar colour = `surface` with correct icon brightness (edge-to-edge).
+Bottom navigation: 3 destinations (data-driven, section 6.6). Selected = filled icon + bold label + soft `primary` 12 % pill behind the icon; unselected = outline icon + `inkMuted` label. Labels always visible. Surface = `surface` with a 1 px top `line`. No ripple. Selecting a branch fires a `selectionClick` haptic. Re-tapping the active tab scrolls to top. Android system navigation bar colour = `surface` with correct icon brightness (edge-to-edge).
 
-TripDock (global, above the bottom navigation; hidden on `/trip`, `/search`, when the keyboard is open, and on the line screen only if the line is not shareable and no trip is active):
+There is **no idle floating dock in the shell**. An idle screen shows only its own content and the navigation, so no control can cover a list row, a field or the sheet. Sharing has explicit inline entry points:
 
-- **Idle:** pill 56 dp, `primary` fill, `●))` icon + "Estou no ônibus" (on a shareable line screen: "Estou neste ônibus", bound to that line) + chevron. Tap -> trip flow (7.7). One-time coachmark (7.10).
-- **Starting:** label "Iniciando…" (static, no spinner), disabled.
+- **Início:** the share card in the live section (7.2), with "Compartilhar minha viagem" and "Ver horários".
+- **Linha:** the contextual dock, pill 56 dp, `primary` fill, `●))` icon + "Estou neste ônibus" bound to that line + chevron, 12 dp above the peek sheet, 16 dp side margins, max width 420. It fades out once the sheet is dragged past peek, is hidden for non-shareable lines, and is not rendered while a root-level modal covers the screen. Tap -> trip flow (7.7).
+- **Ajustes:** the existing sharing banner.
+
+Active trip bar (in normal layout, a sibling above the navigation, so it pushes content instead of covering it):
+
+- **Starting:** same bar, label "Iniciando…" (static, no spinner), taps ignored.
 - **Active:** bar `surfaceRaised` + 1 px `live` border: `LiveDot` + "Compartilhando · {linha}" + elapsed time (`mm:ss`, from `NowTicker` minute resolution; seconds only on `/trip`) + chevron. Tap/swipe-up -> `/trip`. **No destructive action on the bar** (avoid accidental end).
 - **Reconnecting / paused:** same bar, amber border, text "Sem conexão. Tentando de novo" or "GPS desligado" with the relevant action when tappable.
-- Position: 12 dp above the nav, 16 dp side margins, max width 420 centered on larger screens. In the **expanded** layout the dock sits at the bottom of the side panel.
+- Visibility: hidden while no trip is running, on Ajustes (which owns its own sharing banner), and while a root-level modal or full page covers the shell. In the rail layout the bar sits above the bottom of the content column, safe-area aware.
 
 Banner slot (top, under the status bar): offline ("Sem conexão. Mostrando dados salvos."), maintenance, update available. Appears/disappears with a 140 ms height+fade, never covers content, never blocks input.
 
-Toast slot: above the dock; one at a time; 3 s; actionable ("Desfazer") only when the action exists.
+Toast slot: above the active trip bar, or above the navigation when no trip is running; one at a time; 3 s; actionable ("Desfazer") only when the action exists.
 
 ### 7.2 Início (Home) `/`
 
 Behaviour:
 
-- Paints from cache in the first frame (lines are static data). Live info (`live summary`) fills in without layout jump: reserve the chip height; "Ao vivo agora" section appears with a 140 ms fade only when data arrives.
+- Paints from cache in the first frame (lines are static data). Live info (`live summary`) fills in without layout jump: reserve the chip height; the live section appears with a 140 ms fade only when data arrives. The header live chip reserves its height and states the honest zero ("Nenhum ao vivo") or "Offline".
 - **Greeting** from local time: 05:00-11:59 "Bom dia", 12:00-17:59 "Boa tarde", otherwise "Boa noite". Subtitle fixed.
+- **First run:** one-time Welcome card at the top while there are no favourites (7.10). Its primary action "Escolher minhas linhas" opens the line picker; "Só olhar" dismisses it.
+- **Line picker:** "Escolha suas linhas" sheet: body, search field ("Buscar linha ou bairro"), the active lines as a multi-select list with checkbox and terminals, "Salvar linhas" (disabled with nothing selected), empty state "Nenhuma linha encontrada." Saving writes the favourites store (shared with the Linhas star), shows "Linhas salvas." and dismisses the welcome card. No network call, no location permission, no hard-coded count.
+- **Sua próxima saída:** hero card under the header with the earliest scheduled departure today across the favourites and shortcuts. One entry per line; a shortcut origin wins over a favourite for the same line so its origin drives the timetable. When nobody leaves again today, the card shows "Sem mais saídas hoje" and "Primeira amanhã: HH:MM". A live chip ("N ônibus ao vivo nesta linha") appears only when the line has live vehicles and never replaces the scheduled value with a fabricated live arrival. When there is a departure today, actions: "Acompanhar linha" -> line screen, "Ver horários" -> the timetable tab. Hidden while there are no favourites and no shortcuts.
 - **Shortcuts** (local, flag `shortcuts`): cards sorted by earliest next arrival; unconfigured "Adicionar" cards last. Each card's value uses `ArrivalsSource` (today: next scheduled departure from the chosen origin; if the line has live vehicles, show a small `●)) Ao vivo` badge instead of pretending to know an ETA). Tap -> `/line/:key`. Long press -> sheet (Editar, Remover). Add flow: sheet "Adicionar atalho": type (Casa, Trabalho, Escola, Faculdade, Outro + custom label) -> line (searchable list) -> origin terminal (chips; skipped if the line has one terminal) -> Salvar. Max 8 shortcuts.
-- **Ao vivo agora:** lines with live vehicles (from the live summary), most vehicles first, max 5, then "Ver todas ao vivo" -> `/lines?filter=live`.
+- **Ao vivo agora:** when any line has live vehicles, lines are listed most vehicles first, max 5, then "Ver todas ao vivo" -> `/lines?filter=live`. When nothing is sharing, the same slot shows the actionable share card "Ajude quem está esperando" with "Compartilhar minha viagem" (starts the trip flow), "Ver horários" (switches to the Linhas tab) and the anonymous trust line. The card invites the rider to become the live data instead of an empty-state dead end.
 - **Recentes:** last 6 opened lines (local), `Chip` with `LineBadge` and the line name's first 14 chars.
 - Pull-to-refresh refreshes the live summary (min 10 s between refreshes). No timers.
-- **States:** _no live lines_ -> small `EmptyState` card "Nenhum ônibus compartilhando agora" with GhostButton "Ver horários" and the sharing hint; _offline_ -> banner, content still works; _first run_ -> Welcome card (7.10); _shortcuts empty_ -> four ghost cards (Casa, Trabalho, Escola, Faculdade) each opening the add flow with the type preselected.
+- **States:** _no live lines_ -> the share card above; _offline_ -> banner, content still works, the live chip reads "Offline"; _first run_ -> Welcome card (7.10); _shortcuts empty_ -> two ghost cards (Casa, Trabalho) each opening the add flow with the type preselected.
 - Desktop/web expanded: two-column grid (shortcuts + live cards left, recents/links right), content max width 720.
+- No coachmark or other floating first-run bubble (7.10).
 
 ### 7.3 Busca `/search`
 
 - **Local, instant, offline.** Index built once from lines (name, short code, terminals, area tags) with `normalizeText` (lowercase, strip diacritics, collapse spaces). Tokenised AND match; ranking: exact short code > name prefix > terminal prefix > contains. Results update on every keystroke with no debounce (hundreds of lines is sub-millisecond).
 - Results are **grouped by kind** through the `SearchProvider` interface (kind: line and place now; stop later) so new kinds add a group without UI changes. Group header only when more than one kind exists.
-- Empty query: Recentes (last 8 searches or opened lines, "Limpar") then Sugestões (live lines first).
+- **Typed result rows** use the same line row anatomy as Linhas: badge, name, terminals, the shared `LineStatusLine` (live count, next departure, tomorrow, none today or no timetable) and the favourite star. Starring from a result uses the same toggle action and toast as Linhas, so the two screens never diverge.
+- Empty query: Recentes (last 8 searches or opened lines, "Limpar") then Sugestões (live lines first); the browse rows are the same `LineRow` with status line and star.
 - No results: `EmptyState` "Nada encontrado" + tip "Tente o nome do bairro ou o código da linha".
 - Keyboard: Enter opens the first result; Esc/back closes; Up/Down move focus through results (web); `/` focuses the field from anywhere on web.
 - Back returns to the previous screen with the keyboard dismissed.
 
 ### 7.4 Linhas `/lines`
 
+- Header: the title, a search `IconBtn` ("Buscar linha") opening `/search`, and an honest live summary ("N ao vivo") when the device is online and at least one line is live. Offline hides the count instead of showing a stale number.
+- Rows use `LineRow`: badge, name, terminals and the shared `LineStatusLine` (live count, next departure countdown, tomorrow, none today or no timetable), plus the favourite star. Countdown digits use tabular figures; the star keeps its own hit target and label.
 - Sorted: live first, then favourites, then name (pt-BR collation, accent-insensitive). Virtualized `SliverList.builder` with a prototype/fixed extent.
 - Star toggles a favourite (local); `selectionClick` haptic; optimistic.
 - Filters are chips with counts only when cheap (live count is known). Empty states per filter ("Nenhuma linha ao vivo agora", "Toque na estrela para favoritar").
-- Row subtitle shows terminals joined with " · " (ellipsis). Missing fields collapse gracefully.
+- Missing fields collapse gracefully.
 
 ### 7.5 Linha (line detail) `/line/:key` - the hero screen
 
-Layout compact: **full-bleed map + draggable bottom sheet**. The dock floats above the sheet.
+Layout compact: **full-bleed map + draggable bottom sheet**. The contextual dock floats above the sheet; never duplicate its CTA inside the sheet.
 
-Sheet: 3 snap points as screen-height fractions: **peek 0.30** (min 220 dp), **half 0.55**, **full 0.92**. Implemented with `DraggableScrollableSheet` (or an equivalent single-controller design). The sheet content is a `CustomScrollView` of slivers; the map sits **outside** the sheet's rebuild path inside a `RepaintBoundary`. When the sheet settles, call the map's camera fit with bottom padding = visible sheet height (**only on settle, never per frame**). Initial snap: peek (the map is the first thing seen). Tapping a vehicle moves the sheet to peek.
+Sheet: 3 snap points as screen-height fractions: **peek 0.30** (min **270 dp**; this supersedes the earlier 220 dp minimum), **half 0.55**, **full 0.92**. The 270 dp minimum keeps the header plus the hero's primary ETA visible at 320x568 without dragging; at 2x text the hero can sit below the fold and scrolls into view. Implemented with `DraggableScrollableSheet` (or an equivalent single-controller design). The sheet content is a `CustomScrollView` of slivers; the map sits **outside** the sheet's rebuild path inside a `RepaintBoundary`. When the sheet settles, call the map's camera fit with bottom padding = visible sheet height (**only on settle, never per frame**). Initial snap: peek (the map is the first thing seen). Tapping a vehicle moves the sheet to peek.
 
-Sheet content "Agora" (peek -> half):
+Sheet content "Agora", top to bottom:
 
-1. Header: `LineBadge(l)` (Hero), name (`headline`, 2 lines), terminals (`caption`), star, status chip (live / stale / only timetable / no live).
-2. **Next departure hero** (`ArrivalRow` large): ETA + certainty badge.
-3. **Ônibus agora** (only when live vehicles exist): `VehicleRow`s, max 5.
-4. **Próximas saídas:** next 3 `ArrivalRow`s (timetable today; live/predicted later through `ArrivalsSource`).
-5. Secondary actions row: "Ver horários" (switches tab), later: bell/alerts. Tabs (`Segmented`): **Agora** | **Horários** | (flag) **Histórico**.
+1. Header: `LineBadge(l)` (Hero), name (`headline`, 2 lines), terminals (`caption`), star, and a status line. The status line shows the certainty badge plus the live count ("2 ao vivo") or, with no live bus, "Próxima saída da tabela" on a shareable line and "Só horários" on a line without tracking; a non-shareable note ("Esta linha ainda não tem rastreamento ao vivo. Veja os horários.") follows. It never repeats the live-empty sentence; the body card owns that. No next-departure row in the header.
+2. **Hero above the tabs:** the personal arrival card when it is ready, otherwise the vertical `NextBusCard`: the ETA first, then the certainty badge and "Ônibus ao vivo" or "Próxima saída da tabela", the line identity, and "Ver horários". Vertical because the fixed-width ETA block of `ArrivalRow` clips in the narrow side panel. One hero per screen.
+3. Tabs (`Segmented`): **Agora** | **Horários** | (flag) **Histórico**.
+4. Agora body: reports (pilot), **Ônibus agora** (`VehicleRow`s, max 5) or the no-live card ("Nenhum ônibus ao vivo agora" / "Veja os horários ou compartilhe se estiver nesta linha."), the reliability card when available, then **Próximas saídas:** 3 `ArrivalRow`s after the hero (timetable today; live/predicted later through `ArrivalsSource`).
+5. Map action: on compact, when the map is collapsed (data saver or list-first), a "Ver no mapa" ghost link closes the Agora body.
 
-Dock on this screen: contextual "Estou neste ônibus" when the line supports sharing; otherwise hidden. Never duplicate the CTA inside the sheet.
+Personal arrival on this screen (details in `docs/ui/personal-arrival.md`): the personal card is the hero above the tabs when ready. When location is off, a compact prompt above the tabs ("Quanto tempo até meu ponto?" + body + "Ver quando chega no meu ponto") replaces the full card. With no live bus the card renders nothing and the standard hero stands. The personal card adds a walking estimate ("≈N min a pé", straight-line distance at 80 m per minute, minimum 1 minute for any positive distance) and a leave-now block with "Saia agora", "Saia em ≈N min", "Ainda dá tempo", "Chegando ao seu ponto" or "O ônibus está no ponto", plus a one-line hint. Every time is presented as an estimate; "Como calculamos" explains the straight-line distance and the confidence sample.
 
 Map layer details (`lib/ui/features/line/map/`):
 
@@ -450,9 +462,9 @@ Map layer details (`lib/ui/features/line/map/`):
 | Selected | scale 1.12, label bubble above: "Ônibus 1 · há 8 s" |
 | Movement | when a new position arrives, interpolate over 800 ms (linear) with a **single shared `Ticker`** that runs only while at least one marker is animating; jump (no animation) if the move is > 300 m or reduced motion is on. Never create one controller per marker. |
 
-**States:** _loading_ (static bg + badge, <= 300 ms before anything extra), _no live vehicles_ (EmptyState card in the sheet, map shows the route only), _stale_ (amber chip "Última posição há 3 min"), _offline_ (banner + last known vehicles dimmed), _unknown line key_ (`EmptyState` "Linha não encontrada" + back), _non-shareable line_ (no dock CTA, note "Esta linha ainda não tem rastreamento ao vivo. Veja os horários.").
+**States:** _loading_ (static bg + badge, <= 300 ms before anything extra), _no live vehicles_ (body card "Nenhum ônibus ao vivo agora" with "Veja os horários ou compartilhe se estiver nesta linha."; the hero still shows the next scheduled departure and the map shows the route only), _personal needsLocation_ (compact prompt above the tabs), _personal ready_ (personal card is the hero), _stale_ (amber chip "Última posição há 3 min"), _offline_ (banner + last known vehicles dimmed), _unknown line key_ (`EmptyState` "Linha não encontrada" + back), _non-shareable line_ (no dock CTA, note "Esta linha ainda não tem rastreamento ao vivo. Veja os horários.").
 
-**Expanded layout:** left 400 dp panel (the sheet content, scrollable, no drag), right map; the dock sits at the bottom of the panel.
+**Expanded layout:** left 400 dp panel at 840 dp and up (360 dp from 600 to 839 dp), the sheet content scrollable and without a drag handle, right map; the contextual dock sits at the bottom of the panel. The panel uses the same hero above the tabs; the vertical `NextBusCard` keeps the ETA readable in the narrow panel, verified at 800x600 with normal and 2x text.
 
 ### 7.6 Horários (timetable tab)
 
@@ -464,7 +476,7 @@ Map layer details (`lib/ui/features/line/map/`):
 
 ### 7.7 Compartilhar viagem (trip flow)
 
-**Entry:** dock tap. If no line is bound: a **line chooser sheet** ("Em qual linha você está?") lists sharing-capable lines (live ones first), searchable, no hard-coded count.
+**Entry:** the share card on Início, the contextual dock on a shareable line screen (7.1), or the sharing banner in Ajustes. If no line is bound: a **line chooser sheet** ("Em qual linha você está?") lists sharing-capable lines (live ones first), searchable, no hard-coded count.
 
 **Step 1 - Consent sheet** (modal bottom sheet; shown before the first trip and whenever the consent version changes; text identical on Android and Web): title "Compartilhar sua localização"; body (Android) "Para mostrar onde o ônibus está, coletamos a localização do seu celular enquanto a viagem estiver ativa, inclusive com a tela bloqueada ou o app em segundo plano."; body (Web) replaces that with "enquanto esta página estiver aberta durante a viagem"; bullets cover purpose, no direct identity, deletion at trip end, retention of anonymized trip data (routes, stops and times) to improve predictions, other riders seeing the bus, and user control; "Política de Privacidade" link; [Aceitar e continuar] / [Agora não]. Rules: no pre-ticked boxes; dismissible without side effects; acceptance recorded through the existing consent call; if offline, keep the existing retry behaviour.
 
@@ -514,8 +526,9 @@ Map layer details (`lib/ui/features/line/map/`):
 
 ### 7.10 First run
 
-- **No onboarding wall.** The app opens on Início. A one-time dismissible **Welcome card** at the top: "Veja onde o ônibus está. Quem está dentro compartilha a posição, de forma anônima. Sem cadastro, sem anúncios." + "Entendi" + "Como funciona a privacidade". Permissions are never requested here.
-- A one-time **coachmark** (small bubble pointing at the dock, 6 s, tap to dismiss): "Está no ônibus? Toque aqui." Stored in local prefs.
+- **No onboarding wall.** The app opens on Início. A one-time dismissible **Welcome card** at the top while the rider has no favourites: "Comece pelas linhas que você usa", "Escolha uma ou mais linhas para ver a próxima saída aqui. Você pode mudar depois.", the "Como funciona a privacidade" link, the primary "Escolher minhas linhas" and the ghost "Só olhar". The primary opens the line picker (7.2); saving writes the favourites and dismisses the card. A rider who already has favourites never sees it. Permissions are never requested here.
+- The old one-time dock **coachmark is removed**. There is no floating bubble and no "Está no ônibus? Toque aqui." teaching step; the share entry points are the share card on Início and the contextual dock on Linha (7.1).
+- First-run state is the local welcome flag. The removed coachmark is not rendered or set by any current UI (a legacy preference key may remain from older installs). No personal data.
 
 ## 8. Platform differences: Android vs Web
 

@@ -11,6 +11,7 @@ Documents for the Pontual UI. The specification lives in `UI_SPEC.md`; deviation
 | `a11y-script.md` | Manual accessibility run-through used before every release. |
 | `home-redesign.md`, `line-detail-redesign.md`, `lines-redesign.md`, `settings-redesign.md`, `sharing-screen-redesign.md` | Redesign brief audits and reports. All implemented; see each file for remaining open items. |
 | `personal-arrival.md` | Personal arrival at the rider's stop on the line screen: opt-in one-shot foreground fix, nearest learned stop snap, ETA via the existing server endpoint, privacy and honesty rules. See DECISIONS.md D96. |
+| `ux-2.md` | UX 2.0 answer-first design note: first-run line picker, next-departure hero, share card, line hero and leave-now, lines/search status, shell active trip bar. See DECISIONS.md D104. |
 | `DECISIONS.md` (repo root) | ADRs and deviations, append-only. |
 
 ## Where the code lives

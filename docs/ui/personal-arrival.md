@@ -1,6 +1,6 @@
 # Personal arrival at the rider's stop
 
-Status: implemented 2026-11-10, Flutter client, tests only (no device or field run).
+Status: implemented 2026-11-10, Flutter client, tests only (no device or field run). Placement updated 2026-11-11 for UX 2.0.
 
 ## Goal
 
@@ -44,6 +44,8 @@ Only the line id and stop id are sent. Coordinates never leave the device.
 - Passed and approaching distinction.
 - Arriving only when ETA <= 60 s or within 120 m with ETA <= 180 s.
 - No fake number.
+- Walking time is an estimate from the straight-line distance at 80 m per minute (minimum 1 minute); it is never presented as a route.
+- The leave-now verdict is derived from the ETA and the walk estimate, never from a separate source.
 - Server confidence (high/medium/low) and sample count shown.
 - Stale fix after 5 minutes asks to refresh; no ETA shown for an expired fix.
 
@@ -51,13 +53,13 @@ Only the line id and stop id are sent. Coordinates never leave the device.
 
 | State | Visible copy key | Behavior |
 |---|---|---|
-| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt with "Ver quando chega no meu ponto" and the privacy line. |
+| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt above the tabs with the title, the opt-in body and "Ver quando chega no meu ponto"; tapping opens the privacy sheet. |
 | loadingStops | `myStopLoading` | Fix ready, learned stops still loading. |
 | noStops | `myStopNoStops` | Fix ready, the line has no learned stops. Honest muted card. |
 | noStopNear | `myStopNoStopNear` | Fix ready, no learned stop within 300 m. Honest muted card. |
 | noLive | (none) | Fix ready, stops ready, no live vehicle. Standard timetable hero stays; card renders nothing. |
 | etaLoading | `myStopCalculating` | A live bus exists, ETA request in flight. |
-| ready | `myStopTitle` / `myStopNearby` + `myStopEta` | A live bus has a valid ETA. Lead bus = smallest `eta_s` among approaching buses. |
+| ready | `myStopTitle` / `myStopNearby` + `myStopEta` | Hero above the tabs. A live bus has a valid ETA. Lead bus = smallest `eta_s` among approaching buses. Carries the walking estimate and the leave-now verdict. |
 | noApproaching | `myStopNoApproaching` | Live buses exist but none has a valid approach/ETA. |
 | etaError | `myStopNoEstimate` | ETA request failed or returned null. Show "Sem previsão agora" plus refresh. |
 
@@ -65,12 +67,16 @@ Stop title: "Seu ponto" when distance <= 120 m, else "Ponto mais próximo".
 
 ## UI placement
 
-- Header summary at peek: when ready, replace the timetable next-departure row with a ghost link "No seu ponto, ~N min" (or "chegando"). Tapping it snaps the sheet to half and selects Agora.
-- Card in the Agora tab.
-- Card replaces the standard hero when ready (one hero per screen).
+- Personal card is the **hero above the tabs** when ready. It replaces the standard next-bus hero, so the screen has one hero. It is not a card inside the Agora tab.
+- Compact prompt above the tabs while location is off: "Quanto tempo até meu ponto?" plus the body and the "Ver quando chega no meu ponto" ghost link. Tapping opens the privacy sheet; the OS or browser prompt only follows the "Usar minha localização" tap.
+- The header no longer carries a personal summary label ("No seu ponto, ~N min"). The hero owns the ETA; the header keeps only the line status line.
+- Walking estimate under the ETA: "≈N min a pé", from the straight-line distance at 80 m per minute, with a minimum of 1 minute for any positive distance.
+- Leave-now verdict under the estimate: "Saia agora", "Saia em ≈N min", "Ainda dá tempo", "Chegando ao seu ponto" or "O ônibus está no ponto", each with a one-line hint. Leave now when the ETA is not longer than the walk; leave soon when the difference is up to 3 minutes; otherwise there is spare time. Arriving and at-stop win over the walk comparison.
+- Every time is presented as an estimate: the ≈ prefix and the "Como calculamos" sheet state that the walk is straight-line distance, not a route.
 - Map marker: distinct "Seu ponto" marker at the chosen stop, primary fill, surface ring, onPrimary inner dot, never a bus and never pulsing.
 - Per-row ETA in the vehicle list.
-- "Como calculamos" sheet with `myStopInfoBody` plus the sample count sentence.
+- "Como calculamos" sheet with `myStopInfoBody`, the walk estimate note and the sample count sentence.
+- Compact sheets keep a 270 dp peek minimum (raised from 220 dp) so the header plus the hero ETA fit at 320x568; the sheet still snaps to half and full. The medium and expanded side panels (360/400 dp) use the same hero without a drag handle.
 
 ## Battery, performance and accessibility
 
