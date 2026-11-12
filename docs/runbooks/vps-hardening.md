@@ -53,6 +53,9 @@ PostgreSQL versions get pinned here during provisioning
 - [ ] Tunnel credentials never placed in compose, env examples, git, logs
   or documentation.
 - [ ] No `pontual.service` systemd unit and no host Caddy.
+- [ ] `/etc/pontual/compose.override.yaml`, if used, is root-owned mode `0644`,
+  not group/world-writable, and reviewed; it is only used for a
+  dedicated/trusted local network.
 
 ## Memory hygiene
 

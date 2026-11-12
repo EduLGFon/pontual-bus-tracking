@@ -12,6 +12,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="$ROOT/server/deploy/compose.yaml"
+COMPOSE_FILES=(-f "$COMPOSE_FILE")
+OVERRIDE_FILE="${PONTUAL_COMPOSE_OVERRIDE:-/etc/pontual/compose.override.yaml}"
+if [ -f "$OVERRIDE_FILE" ]; then
+  COMPOSE_FILES+=(-f "$OVERRIDE_FILE")
+fi
 STATE_DIR="${PONTUAL_STATE_DIR:-/opt/pontual}"
 CURRENT_TAG="$STATE_DIR/current-tag"
 PREVIOUS_TAG="$STATE_DIR/previous-tag"
@@ -23,7 +28,7 @@ export PONTUAL_DB_ENV_FILE="${PONTUAL_DB_ENV_FILE:-/etc/pontual/db.env}"
 export PONTUAL_TUNNEL_CONFIG_FILE="${PONTUAL_TUNNEL_CONFIG_FILE:-/etc/pontual/cloudflared.yml}"
 export PONTUAL_TUNNEL_CREDENTIALS_FILE="${PONTUAL_TUNNEL_CREDENTIALS_FILE:-/etc/pontual/cloudflared_credentials.json}"
 
-compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
+compose() { docker compose "${COMPOSE_FILES[@]}" "$@"; }
 
 check_tunnel_files() {
   local cfg="${PONTUAL_TUNNEL_CONFIG_FILE:-/etc/pontual/cloudflared.yml}"
@@ -127,6 +132,9 @@ case "${1:-}" in
     fi
     if [ -f "$CREDENTIALS_FILE" ]; then
       stat -c 'tunnel credentials: %u:%g %a' "$CREDENTIALS_FILE"
+    fi
+    if [ -f "$OVERRIDE_FILE" ]; then
+      echo "compose override: $OVERRIDE_FILE"
     fi
     ;;
   *)

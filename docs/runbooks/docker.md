@@ -69,9 +69,10 @@ sudo chown 65532:65532 server/secrets/cloudflared_credentials.json
 sudo chmod 400 server/secrets/cloudflared_credentials.json
 ```
 
-Compose preserves the ownership and mode inside the container. The shared tunnel
-can keep `api-ephemeron.spotnik.space -> http://host.docker.internal:8091`;
-`extra_hosts` provides that path.
+Compose preserves the ownership and mode inside the container. A host
+service bound to loopback is not reachable through `host.docker.internal`;
+attach the tunnel container to that service's Docker network with the override,
+or use a bridge-reachable address.
 
 Hex avoids URL-encoding problems: Compose builds the migrator URL from
 `POSTGRES_PASSWORD`, and `DATABASE_URL` embeds the app password.
@@ -197,11 +198,42 @@ PONTUAL_TAG=server-v0.1.0 docker compose -f server/deploy/compose.yaml build
 PONTUAL_TAG=server-v0.1.0 docker compose -f server/deploy/compose.yaml up -d
 ```
 
+A host that uses the override must add `-f /etc/pontual/compose.override.yaml`
+to these commands, or use `deploy.sh`, which includes it automatically.
+
 `up -d` applies any pending migrations and restarts the API. To roll back,
 point `PONTUAL_TAG` at the previous image tag and run `up -d` again. The
 previous image stays on the host. Deploy off-peak: restarting the API drops
 live vehicle state (KL6). Migrations are forward-only; a rollback that needs a
 schema change is a new migration.
+
+## Optional Compose override
+
+`deploy.sh` automatically includes `/etc/pontual/compose.override.yaml` when it
+exists. Set `PONTUAL_COMPOSE_OVERRIDE` to use a different path. The file is
+deployment-specific and stays outside the repo.
+
+Use it when the shared `pontual` tunnel also serves another local container on
+a different Docker network. Attach the cloudflared service to that external
+network and use the other container's unique DNS name in the tunnel config.
+Do not publish its port on the host.
+
+```yaml
+services:
+  cloudflared:
+    networks:
+      - edge
+      - egress
+      - example
+networks:
+  example:
+    external: true
+    name: example_default
+```
+
+The file must be root-owned mode 0644 and not group/world-writable. Attach
+the tunnel container only to a dedicated, trusted network, because it can reach
+every container on that network.
 
 ## Security controls
 

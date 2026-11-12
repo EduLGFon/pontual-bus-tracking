@@ -283,3 +283,5 @@ back on failure; `deploy.sh rollback` reactivates the previous tag;
 No
 production verification is claimed; the checks above are the documented
 procedure.
+
+D103 (2026-11-12, Accepted, owner directive): host-provided Compose override for a shared tunnel. `server/deploy/deploy.sh` automatically includes `/etc/pontual/compose.override.yaml` when present (`PONTUAL_COMPOSE_OVERRIDE` overrides the path). This host uses it to attach the cloudflared container to the Ephemeron Docker network so the shared `pontual` tunnel can serve `api-ephemeron.spotnik.space` without publishing a host port. The override is root-owned mode 0644, must not be group/world-writable, and stays outside the repo. A host service bound to loopback is not reachable through `host.docker.internal`; use the external-network override or a bridge-reachable address. This supersedes D102's `extra_hosts` note for that case.

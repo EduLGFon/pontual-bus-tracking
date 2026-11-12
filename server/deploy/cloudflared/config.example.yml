@@ -12,7 +12,7 @@ ingress:
     service: http://api:8080
   - hostname: api.pontual.spotnik.space
     service: http://api:8080
-  # Optional: another hostname on the same tunnel.
-  # - hostname: api-ephemeron.spotnik.space
-  #   service: http://host.docker.internal:8091
+  # Optional: another hostname served by another local container.
+  # - hostname: other.example.com
+  #   service: http://other-container:8080
   - service: http_status:404
