@@ -1,6 +1,7 @@
-// TripDock: the global pill above the bottom navigation. Idle shows the CTA,
-// active shows a live bar with the elapsed time, and problem states are
-// amber. No destructive action lives on the bar.
+// TripDock: the trip pill. Idle shows the CTA on the line screen, active
+// shows a live bar with the elapsed time, and problem states are amber. The
+// shell renders it only while a trip runs and in normal layout above the
+// navigation. No destructive action lives on the bar.
 // See docs/ui/UI_SPEC.md 7.1.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';

@@ -1,9 +1,9 @@
 // Dock host: renders the trip dock with the label that fits the screen it
-// appears on. A line screen passes "Estou neste ônibus"; everywhere else
-// the label is the generic CTA. The host rebuilds on every controller
-// notification, so the elapsed time and the phase are always fresh: a
-// plain provider snapshot would freeze the dock at attach time.
-// See docs/ui/UI_SPEC.md 7.1.
+// appears on. A line screen passes "Estou neste ônibus"; the shell only
+// renders the active bar and asks for `showIdle: false`. The host rebuilds
+// on every controller notification, so the elapsed time and the phase are
+// always fresh: a plain provider snapshot would freeze the dock at attach
+// time. See docs/ui/UI_SPEC.md 7.1.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,12 +44,14 @@ class DockHost extends StatelessWidget {
 /// Live dock: watches the trip host and rebuilds on every notification of
 /// the attached controller. Idle taps start the share flow (with the bound
 /// line when one is set, otherwise the chooser opens); active taps go to
-/// the trip screen.
+/// the trip screen. With [showIdle] false it renders nothing while no trip
+/// is running, which lets the shell keep only the active bar in layout.
 class LiveDockHost extends ConsumerWidget {
   /// Creates the live host.
   const LiveDockHost({
     this.idleLabel = UiStrings.dockIdle,
     this.boundLine,
+    this.showIdle = true,
     super.key,
   });
 
@@ -59,10 +61,17 @@ class LiveDockHost extends ConsumerWidget {
   /// Line the dock is bound to, set by the line screen only.
   final LineVM? boundLine;
 
+  /// Whether the idle CTA renders when no trip is running. The line screen
+  /// keeps it; the shell requests the active bar only.
+  final bool showIdle;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final TripController? controller = ref.watch(tripHostProvider);
     if (controller == null) {
+      if (!showIdle) {
+        return const SizedBox.shrink();
+      }
       return DockHost(
         trip: const TripVM(phase: TripPhase.idle),
         idleLabel: idleLabel,
@@ -72,8 +81,12 @@ class LiveDockHost extends ConsumerWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (BuildContext context, Widget? child) {
+        final TripVM trip = tripVmOf(controller);
+        if (!showIdle && !trip.inProgress) {
+          return const SizedBox.shrink();
+        }
         return DockHost(
-          trip: tripVmOf(controller),
+          trip: trip,
           idleLabel: idleLabel,
           // The trip route boots from the controller in extra: without
           // it the router renders not-found and the live trip is lost.
