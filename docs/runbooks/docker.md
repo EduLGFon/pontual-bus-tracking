@@ -207,6 +207,21 @@ previous image stays on the host. Deploy off-peak: restarting the API drops
 live vehicle state (KL6). Migrations are forward-only; a rollback that needs a
 schema change is a new migration.
 
+## Empty-database preflight
+
+`deploy.sh deploy` and `deploy.sh rollback` run a read-only preflight before
+starting or updating the stack. They check whether the persistent
+`pontual-db` volume already exists and, when it does, whether the
+`devices` and `learned_routes` tables contain any rows. If the volume is
+new, or the database has zero devices and zero learned routes, the script
+prints a loud warning and refuses to proceed.
+
+This guards against starting the API on a fresh empty PostgreSQL volume after
+a container migration that did not restore the old data. Set
+`PONTUAL_ALLOW_EMPTY_DB=1` only for a genuine first install or an intentional
+reset; the flag is never required for normal deploys. The check is read-only
+and never prints environment values.
+
 ## Optional Compose override
 
 `deploy.sh` automatically includes `/etc/pontual/compose.override.yaml` when it

@@ -4,10 +4,22 @@
 // See docs/data-learning.md sections 3-5.
 import { decodePolyline, distM, encodePolyline } from "../domain/geo.ts";
 import {
+  recordLearningDirectionAssigned,
   recordLearningFlush,
+  recordLearningFlushFailed,
+  recordLearningRouteBelowMinTrips,
+  recordLearningRouteChainTooSmall,
+  recordLearningRouteNoFlapSuppressed,
+  recordLearningRouteOversized,
   recordLearningRoutePublished,
   recordLearningRouteRetired,
+  recordLearningRouteTooShort,
+  recordLearningTripGapDropped,
+  recordLearningTripIneligible,
+  recordLearningTripNoCellTransition,
   recordLearningTripsContributed,
+  recordLearningTripTooFewSamples,
+  recordLearningTripTooShort,
 } from "../observability/metrics.ts";
 import { medianDeviationM, simplify, smooth } from "./routeLearner.ts";
 import {
@@ -188,8 +200,14 @@ export class LearningConsumer {
     e: Extract<EngineEvent, { kind: "tripStarted" }>,
     opts: { consentVersion: number; eligible: boolean },
   ): void {
-    if (opts.consentVersion < this.config.minConsentVersion) return;
-    if (!opts.eligible) return;
+    if (opts.consentVersion < this.config.minConsentVersion) {
+      recordLearningTripIneligible();
+      return;
+    }
+    if (!opts.eligible) {
+      recordLearningTripIneligible();
+      return;
+    }
     const work: TripWork = {
       tripKey: e.tripKey,
       lineId: e.lineId,
@@ -262,14 +280,20 @@ export class LearningConsumer {
   }
 
   private finalizeTrip(work: TripWork): void {
-    if (work.samples.length < 3) return;
+    if (work.samples.length < 3) {
+      recordLearningTripTooFewSamples();
+      return;
+    }
     const cfg = this.config;
     // trim ends
     const start = work.startedAtMs + cfg.trimEndsS * 1000;
     const end = (work.endedAtMs ?? work.samples[work.samples.length - 1].t) -
       cfg.trimEndsS * 1000;
     const kept = work.samples.filter((s) => s.t >= start && s.t <= end);
-    if (kept.length < 3) return;
+    if (kept.length < 3) {
+      recordLearningTripTooFewSamples();
+      return;
+    }
 
     // total distance
     let total = 0;
@@ -281,11 +305,27 @@ export class LearningConsumer {
         kept[i].lng,
       );
     }
-    if (total < cfg.minTripRouteM) return;
+    if (total < cfg.minTripRouteM) {
+      recordLearningTripTooShort();
+      return;
+    }
 
     const keptPoints: Pt[] = kept.map((s) => ({ lat: s.lat, lng: s.lng }));
+    // Count dropped long gaps (segments longer than the corridor max gap).
+    const maxGapM = 500;
+    let gapDropped = false;
+    for (let i = 1; i < keptPoints.length; i++) {
+      const a = keptPoints[i - 1];
+      const b = keptPoints[i];
+      const cosLat = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+      const dxM = (b.lng - a.lng) * 111320 * cosLat;
+      const dyM = (b.lat - a.lat) * 111320;
+      if (Math.hypot(dxM, dyM) > maxGapM) gapDropped = true;
+    }
+    if (gapDropped) recordLearningTripGapDropped();
     const direction = this.assignDirection(work.lineId, keptPoints);
     work.direction = direction;
+    recordLearningDirectionAssigned();
 
     // Absolute-space corridor accumulation per (line, direction). Progress
     // bins cannot place partial trips in a shared frame. See D98.
@@ -307,6 +347,8 @@ export class LearningConsumer {
         accKey,
         (this.watermarkTrips.get(accKey) ?? 0) + 1,
       );
+    } else {
+      recordLearningTripNoCellTransition();
     }
 
     // dwell detection finalization
@@ -548,120 +590,131 @@ export class LearningConsumer {
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
     recordLearningFlush();
-    let contributed = 0;
-    for (const n of this.watermarkTrips.values()) contributed += n;
-    recordLearningTripsContributed(contributed);
-    // Persist learned route polylines from the absolute corridor. Skip when
-    // no new trips since the last publish (T1): prevents one stale trip from
-    // generating a new version every flush cycle.
-    for (const acc of this.routeAccs.values()) {
-      // Snapshot before the first await: a trip that finalizes during the
-      // awaits below belongs to the next flush, so the snapshot (never the
-      // live count) is compared and published on every path.
-      const tripCount = acc.tripCount;
-      if (tripCount < this.config.minRouteTrips) continue;
-      if (tripCount <= acc.lastPublishedTripCount) continue;
-      const chain = buildChain(acc, {
-        cellM: this.config.corridorCellM,
-        minEdgeWeight: 1,
-        minCells: this.config.corridorMinCells,
-      });
-      if (!chain) {
+    try {
+      let contributed = 0;
+      for (const n of this.watermarkTrips.values()) contributed += n;
+      recordLearningTripsContributed(contributed);
+      // Persist learned route polylines from the absolute corridor. Skip when
+      // no new trips since the last publish (T1): prevents one stale trip from
+      // generating a new version every flush cycle.
+      for (const acc of this.routeAccs.values()) {
+        // Snapshot before the first await: a trip that finalizes during the
+        // awaits below belongs to the next flush, so the snapshot (never the
+        // live count) is compared and published on every path.
+        const tripCount = acc.tripCount;
+        if (tripCount < this.config.minRouteTrips) {
+          recordLearningRouteBelowMinTrips();
+          continue;
+        }
+        if (tripCount <= acc.lastPublishedTripCount) continue;
+        const chain = buildChain(acc, {
+          cellM: this.config.corridorCellM,
+          minEdgeWeight: 1,
+          minCells: this.config.corridorMinCells,
+        });
+        if (!chain) {
+          recordLearningRouteChainTooSmall();
+          acc.lastPublishedTripCount = tripCount;
+          continue;
+        }
+        const smoothed = smooth(chain);
+        let pts = simplify(smoothed, 5);
+        if (pts.length > 400) pts = simplify(smoothed, 10);
+        // Geometric length gate (minRouteLengthM): a chain can satisfy the cell
+        // minimum yet be a short stub. Reject publication until the simplified
+        // polyline spans the configured minimum; the trip watermark still
+        // advances so this chain is not re-evaluated every flush.
+        let lengthM = 0;
+        for (let i = 1; i < pts.length; i++) {
+          lengthM += distM(
+            pts[i - 1].lat,
+            pts[i - 1].lng,
+            pts[i].lat,
+            pts[i].lng,
+          );
+        }
+        if (lengthM < this.config.minRouteLengthM) {
+          recordLearningRouteTooShort();
+          acc.lastPublishedTripCount = tripCount;
+          continue;
+        }
+        const poly = encodePolyline(pts, 5);
+        if (poly.length > 8192) {
+          recordLearningRouteOversized();
+          acc.lastPublishedTripCount = tripCount;
+          continue; // reject publication
+        }
+        await this.upsertRoute(acc, poly, pts.length, pts);
+        await this.updateStopOrdinals(acc.lineId, acc.direction, pts);
         acc.lastPublishedTripCount = tripCount;
-        continue;
       }
-      const smoothed = smooth(chain);
-      let pts = simplify(smoothed, 5);
-      if (pts.length > 400) pts = simplify(smoothed, 10);
-      // Geometric length gate (minRouteLengthM): a chain can satisfy the cell
-      // minimum yet be a short stub. Reject publication until the simplified
-      // polyline spans the configured minimum; the trip watermark still
-      // advances so this chain is not re-evaluated every flush.
-      let lengthM = 0;
-      for (let i = 1; i < pts.length; i++) {
-        lengthM += distM(
-          pts[i - 1].lat,
-          pts[i - 1].lng,
-          pts[i].lat,
-          pts[i].lng,
+
+      // Persist watermarks
+      for (const [k, n] of this.watermarkTrips) {
+        const [lineId, direction] = k.split(":").map(Number);
+        await this.upsertWatermark(lineId, direction, n);
+      }
+      this.watermarkTrips.clear();
+
+      // Determine which stop clusters qualify for promotion. Only promoted
+      // stops get a learned_stops row, so dwell/segment stats (which FK to
+      // learned_stops) must be gated on the same set. Upsert stops FIRST so
+      // the foreign keys resolve.
+      const gates = this.gates();
+      const qualifyingStopIds = new Set<string>();
+      for (const c of this.stopClusters.values()) {
+        if (c.passCount < gates.minStopPasses) continue;
+        if (c.distinctDays.size < gates.stopMinDistinctDays) continue;
+        qualifyingStopIds.add(c.id);
+      }
+      for (const c of this.stopClusters.values()) {
+        if (!qualifyingStopIds.has(c.id)) continue;
+        await this.upsertStop(c, c.ordinal);
+      }
+
+      // Persist dwell stats (only for promoted stops)
+      for (const acc of this.dwellAccs.values()) {
+        const p50 = percentile(acc.reservoir, 0.5) ||
+          acc.sumS / Math.max(1, acc.count);
+        const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
+        if (acc.count < gates.kMin) continue;
+        if (!qualifyingStopIds.has(acc.stopId)) continue;
+        if (this.terminusStopIds.has(acc.stopId)) continue;
+        await this.upsertDwell(acc, p50, p90);
+      }
+      this.dwellAccs.clear();
+
+      // Persist segment stats (only when both endpoints are promoted stops)
+      for (const acc of this.segmentAccs.values()) {
+        if (acc.count < gates.kMin) continue;
+        if (
+          !qualifyingStopIds.has(acc.fromStop) ||
+          !qualifyingStopIds.has(acc.toStop)
+        ) {
+          continue;
+        }
+        const p50 = percentile(
+          acc.reservoir.length
+            ? acc.reservoir
+            : [acc.sumS / Math.max(1, acc.count)],
+          0.5,
         );
+        const p90 = percentile(
+          acc.reservoir.length ? acc.reservoir : [acc.maxS],
+          0.9,
+        );
+        await this.upsertSegment(acc, p50, p90);
       }
-      if (lengthM < this.config.minRouteLengthM) {
-        acc.lastPublishedTripCount = tripCount;
-        continue;
-      }
-      const poly = encodePolyline(pts, 5);
-      if (poly.length > 8192) {
-        acc.lastPublishedTripCount = tripCount;
-        continue; // reject publication
-      }
-      await this.upsertRoute(acc, poly, pts.length, pts);
-      await this.updateStopOrdinals(acc.lineId, acc.direction, pts);
-      acc.lastPublishedTripCount = tripCount;
-    }
+      this.segmentAccs.clear();
 
-    // Persist watermarks
-    for (const [k, n] of this.watermarkTrips) {
-      const [lineId, direction] = k.split(":").map(Number);
-      await this.upsertWatermark(lineId, direction, n);
+      this.terminusStopIds.clear();
+      // Keep stop clusters in memory across flushes so their ids stay stable
+      // and centroids accumulate (F2). Bounded by the in-memory cluster set;
+      // decay/pruning is handled by the retention job (F6).
+    } catch (e) {
+      recordLearningFlushFailed();
+      throw e;
     }
-    this.watermarkTrips.clear();
-
-    // Determine which stop clusters qualify for promotion. Only promoted
-    // stops get a learned_stops row, so dwell/segment stats (which FK to
-    // learned_stops) must be gated on the same set. Upsert stops FIRST so
-    // the foreign keys resolve.
-    const gates = this.gates();
-    const qualifyingStopIds = new Set<string>();
-    for (const c of this.stopClusters.values()) {
-      if (c.passCount < gates.minStopPasses) continue;
-      if (c.distinctDays.size < gates.stopMinDistinctDays) continue;
-      qualifyingStopIds.add(c.id);
-    }
-    for (const c of this.stopClusters.values()) {
-      if (!qualifyingStopIds.has(c.id)) continue;
-      await this.upsertStop(c, c.ordinal);
-    }
-
-    // Persist dwell stats (only for promoted stops)
-    for (const acc of this.dwellAccs.values()) {
-      const p50 = percentile(acc.reservoir, 0.5) ||
-        acc.sumS / Math.max(1, acc.count);
-      const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
-      if (acc.count < gates.kMin) continue;
-      if (!qualifyingStopIds.has(acc.stopId)) continue;
-      if (this.terminusStopIds.has(acc.stopId)) continue;
-      await this.upsertDwell(acc, p50, p90);
-    }
-    this.dwellAccs.clear();
-
-    // Persist segment stats (only when both endpoints are promoted stops)
-    for (const acc of this.segmentAccs.values()) {
-      if (acc.count < gates.kMin) continue;
-      if (
-        !qualifyingStopIds.has(acc.fromStop) ||
-        !qualifyingStopIds.has(acc.toStop)
-      ) {
-        continue;
-      }
-      const p50 = percentile(
-        acc.reservoir.length
-          ? acc.reservoir
-          : [acc.sumS / Math.max(1, acc.count)],
-        0.5,
-      );
-      const p90 = percentile(
-        acc.reservoir.length ? acc.reservoir : [acc.maxS],
-        0.9,
-      );
-      await this.upsertSegment(acc, p50, p90);
-    }
-    this.segmentAccs.clear();
-
-    this.terminusStopIds.clear();
-    // Keep stop clusters in memory across flushes so their ids stay stable
-    // and centroids accumulate (F2). Bounded by the in-memory cluster set;
-    // decay/pruning is handled by the retention job (F6).
   }
 
   private async upsertRoute(
@@ -689,7 +742,10 @@ export class LearningConsumer {
       }
       if (activePts.length >= 2) {
         const dev = medianDeviationM(points, activePts);
-        if (dev < 15) return; // no flap
+        if (dev < 15) {
+          recordLearningRouteNoFlapSuppressed();
+          return; // no flap
+        }
       }
     }
     const rows = await this.deps.sql`
