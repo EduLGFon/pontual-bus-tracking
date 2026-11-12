@@ -22,7 +22,7 @@ import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
-/// Hero of the trip screen: indicator, headline, line, times, trust.
+/// Hero of the trip screen: indicator, headline, line, times.
 class TripHero extends ConsumerWidget {
   /// Creates the hero for [controller].
   const TripHero({
@@ -96,11 +96,7 @@ class TripHero extends ConsumerWidget {
           Center(child: pontual.Chip(label: line.terminalsText, compact: true)),
         ],
         const SizedBox(height: Space.x3),
-        _TripTimes(
-          controller: controller,
-          startedAtMs: startedAtMs,
-          nowMs: nowMs,
-        ),
+        _TripTimes(startedAtMs: startedAtMs, nowMs: nowMs),
       ],
     );
   }
@@ -146,19 +142,12 @@ class _LiveIndicator extends ConsumerWidget {
   }
 }
 
-/// Elapsed time and last-send proof. Stateless: the screen's single
+/// Elapsed trip time. Stateless: the screen's single
 /// coarse clock rebuilds this row every 5 s, and controller notifications
 /// refresh it immediately.
 class _TripTimes extends StatelessWidget {
   /// Creates the times for [controller].
-  const _TripTimes({
-    required this.controller,
-    required this.startedAtMs,
-    required this.nowMs,
-  });
-
-  /// Trip controller being read.
-  final TripController controller;
+  const _TripTimes({required this.startedAtMs, required this.nowMs});
 
   /// Trip start in milliseconds, null before confirmation.
   final int? startedAtMs;

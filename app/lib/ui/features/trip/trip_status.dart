@@ -1,4 +1,4 @@
-// Trip status block: one metrics card, one banner for the primary
+// Trip status block: one compact status line, one banner for the primary
 // issue, one neutral keep-awake tip. Everything renders from the pure
 // health model plus the measured values already carried by the
 // controller, so the same sentence never appears twice and the phone
@@ -425,42 +425,40 @@ class _StatusSummaryLine extends StatelessWidget {
         : Icons.hourglass_top_rounded;
     final String lead = switch (health.overall) {
       SharingOverall.live =>
-        intervalS == null
-            ? 'Compartilhando ao vivo.'
-            : 'Enviando a cada $intervalS s.',
+        health.lastSendStale
+            ? UiStrings.metricSendStale
+            : intervalS == null
+            ? UiStrings.tripStatusLive
+            : UiStrings.tripStatusSending(intervalS!),
       SharingOverall.starting => UiStrings.tripStatusStarting,
       SharingOverall.paused =>
         health.connectionValue == ConnectionValue.offline
             ? UiStrings.tripStatusOffline
             : UiStrings.tripStatusPaused,
-      SharingOverall.ended => UiStrings.tripStatusOffline,
+      SharingOverall.ended => UiStrings.tripStatusEnded,
     };
     final String sentence = '$lead ${UiStrings.tripStatusDetails}';
-    return Semantics(
-      button: true,
-      label: sentence,
-      child: Pressable(
-        onTap: onTap,
-        semanticLabel: sentence,
-        borderRadius: Radii.s,
-        child: SurfaceCard(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.x4,
-            vertical: Space.x3,
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(icon, size: 20, color: accent),
-              const SizedBox(width: Space.x3),
-              Expanded(
-                child: Text(
-                  sentence,
-                  style: context.text.body.copyWith(color: colors.ink),
-                ),
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: sentence,
+      borderRadius: Radii.s,
+      child: SurfaceCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Space.x4,
+          vertical: Space.x3,
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(icon, size: 20, color: accent),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Text(
+                sentence,
+                style: context.text.body.copyWith(color: colors.ink),
               ),
-              Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
-            ],
-          ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+          ],
         ),
       ),
     );
