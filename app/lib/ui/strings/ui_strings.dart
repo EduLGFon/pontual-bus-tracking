@@ -402,13 +402,13 @@ class UiStrings {
   /// Consent sheet body.
   static const String consentBody =
       'Para mostrar onde o ônibus está, coletamos a localização do seu '
-      'celular enquanto a viagem estiver ativa, inclusive com a tela '
-      'bloqueada ou o app em segundo plano (no Android).';
+      'celular enquanto a viagem estiver ativa. Inclusive com a tela '
+      'bloqueada ou o app em segundo plano, no Android.';
 
   /// Consent sheet body variant for the web.
   static const String consentBodyWeb =
       'Para mostrar onde o ônibus está, coletamos a localização do seu '
-      'celular enquanto esta página estiver aberta.';
+      'celular enquanto esta página estiver aberta, durante a viagem.';
 
   /// Consent bullet: purpose.
   static const String consentBulletPurpose =
@@ -465,12 +465,12 @@ class UiStrings {
       'localização precisa nas informações do app.';
 
   /// Location services off message.
-  static const String locationOff = 'Ative a localização do aparelho.';
+  static const String locationOff = 'Ative a localização do celular.';
 
   /// Web location failure message.
   static const String locationOffWeb =
       'Não conseguimos sua localização. Verifique se a localização do '
-      'aparelho está ligada e tente de novo.';
+      'celular está ligada e tente de novo.';
 
   /// Web unblock retry action.
   static const String alreadyAllowed = 'Já permiti, tentar de novo';
@@ -582,9 +582,9 @@ class UiStrings {
 
   /// Battery exemption card body.
   static const String batteryExemptionBody =
-      'O celular parou de enviar sua posição para economizar bateria, e '
-      'quem espera o ônibus deixa de ver ele. Libere uma vez e o envio '
-      'continua ligado até você descer.';
+      'O celular parou de enviar sua posição para economizar bateria. '
+      'Quem espera o ônibus deixa de vê-lo. Libere uma vez e o envio '
+      'continua até você descer.';
 
   /// Battery exemption card action.
   static const String batteryExemptionAction = 'Manter ativo';
@@ -626,7 +626,7 @@ class UiStrings {
   static const String shareProgressTitle = 'Iniciando viagem';
 
   /// Progress phase: device location services check.
-  static const String sharePhaseServices = 'Verificando aparelho';
+  static const String sharePhaseServices = 'Verificando celular';
 
   /// Progress phase: remote flags fetch.
   static const String sharePhaseConfig = 'Buscando configuração';
@@ -638,7 +638,7 @@ class UiStrings {
   static const String sharePhasePermission = 'Permissão do sistema';
 
   /// Progress phase: device registration.
-  static const String sharePhaseRegister = 'Registrando aparelho';
+  static const String sharePhaseRegister = 'Registrando celular';
 
   /// Progress phase: first GPS fix wait.
   static const String sharePhaseGps = 'Aguardando GPS';
@@ -731,7 +731,7 @@ class UiStrings {
 
   /// Test-only force-ping button label. Shown only behind the
   /// FORCE_PING_BUTTON dart-define, never in production builds.
-  static const String forcePingTest = 'Enviar ping agora (teste)';
+  static const String forcePingTest = 'Enviar posição agora (teste)';
 
   /// Toast after a forced ping is queued.
   static const String forcePingSent = 'Ping enviado.';
@@ -939,7 +939,7 @@ class UiStrings {
 
   /// Automatic end reason: idle.
   static const String endIdle =
-      'Encerramos porque o celular ficou parado por 10 minutos.';
+      'Encerramos: o celular ficou parado por 10 minutos.';
 
   /// Automatic end reason: walking timeout.
   static const String endWalking =
