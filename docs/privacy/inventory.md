@@ -1,12 +1,11 @@
 # Inventário de dados do Pontual
 
 Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
-Última revisão: 2026-11-10.
+Última revisão: 2026-11-12.
 
 | Dado | Finalidade | Onde | Retenção | Pessoal? |
 | ---- | ---------- | ---- | -------- | -------- |
 | Código do aparelho + hash do token, criação/último uso/expiração | limites, titularidade, prova de consentimento | PostgreSQL `devices` | até apagar ou 30 dias inativo | Sim (pseudônimo) |
-| Contador de viagens iniciadas por aparelho (`learning_trips`) | liberar agregados de aprendizado após 5 viagens | PostgreSQL `devices` | com o registro do aparelho (30 dias inativo) | Sim (pseudônimo), sem localização |
 | Versão do consentimento + data | prova de consentimento (art. 8, par. 2) | PostgreSQL `consents` | com o registro do aparelho | Sim |
 | Bloqueio (código, motivo) | controle de abuso | PostgreSQL `blocked_devices` | com o registro do aparelho | Sim (pseudônimo) |
 | Última posição: lat, lng, velocidade, direção, precisão | posicionar o ônibus | memória do servidor | até o fim da viagem | Sim (localização) |
@@ -14,7 +13,7 @@ Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
 | Posição do veículo (junção) | mostrar o ônibus | memória do servidor | some após 120 s sem sinal | Pode revelar passageiro sozinho (KL2) |
 | Ritmo do veículo (velocidade suavizada) | ETA e previsão | memória do servidor, no veículo | com o veículo; zera a cada ônibus novo | Não identifica motorista; sem histórico |
 | Passagens recentes (só instantes por linha) | frequência, histórico, atrasos | memória do servidor | anel de 32, 4 h | Sem posição, sem identidade |
-| Agregados de aprendizado (rotas, paradas, tempos de trecho e dwell) | ETA e previsão de chegada | PostgreSQL (learned_*) | indefinido (agregados anônimos) | Não (centróides agregados) |
+| Agregados de aprendizado (rotas, paradas, células de grade, tempos de trecho e de parada, contagens) | ETA, previsão de chegada e geometria | PostgreSQL (`learned_*`, `learning_*`) | enquanto a parada ou linha existir; parada sem passagem por 90 dias é desativada e apagada após 180 dias; rota aposentada após 30 dias | Não identificado; risco residual de reidentificação, pois uma única viagem consentida pode moldar o agregado |
 | Sinalização (tipo, linha, célula ~150 m, horários do servidor, contagem) | aviso público de curta duração | memória do servidor | TTL 10-30 min; máx 2 h; some ao reiniciar | Presença aproximada; público, sem identificador durável |
 | Limites por IP/aparelho | controle de abuso | memória do servidor | minutos; sem registro | Sim (IP), efêmero |
 | Registros de infra (IP, agente) | segurança/operação | Cloudflare, OSM, provedor VPS; próprios desligados ou sem IP | por provedor (curto) | Sim (IP), no provedor |
@@ -23,4 +22,4 @@ Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
 | Recentes, atalhos casa/trabalho/escola, paradas, alertas, contador | atalhos e avisos | aparelho (`shared_preferences`) | até limpar ou apagar dados | Só no aparelho; nada vai ao servidor |
 | Localização do aparelho para achar o ponto mais próximo (leitura única, no aparelho) | estimar a chegada até o ponto da linha | memória do app | até 5 min na sessão; descartada ao sair | Sim (localização), não sai do aparelho |
 
-Nunca coletado: nome, e-mail, telefone, contatos, IMEI, identificadores de publicidade, apps instalados, fotos, microfone, histórico de viagens (o contador de viagens é um número agregado, não um histórico). Quem só olha, sem compartilhar viagem e sem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo de aparelho usado contra abuso; a sinalização não é guardada junto desse código.
+Nunca coletado: nome, e-mail, telefone, contatos, IMEI, identificadores de publicidade, apps instalados, fotos, microfone, histórico de viagens (não há histórico nem contador por aparelho). Quem só olha, sem compartilhar viagem e sem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo de aparelho usado contra abuso; a sinalização não é guardada junto desse código.

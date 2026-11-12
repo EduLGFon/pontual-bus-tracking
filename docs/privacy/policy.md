@@ -27,8 +27,9 @@ Coletamos somente:
   bateria do celular. Fica só na memória do servidor e some
   quando a viagem termina (no máximo 10 minutos após o último
   envio).
-- Dados anonimizados da viagem, como rotas, paradas e tempos,
-  podem ser mantidos para melhorar previsões, sem identificação.
+- Dados agregados da viagem, como rotas, paradas e tempos, podem
+  ser mantidos para melhorar previsões, sem identificação de
+  aparelho ou de viagem.
 - Ônibus na tela: posição estimada do veículo (vários passageiros
   no mesmo ônibus viram um só ponto no mapa).
 - Para segurança: limites de uso por aparelho e por rede (só na
@@ -59,7 +60,7 @@ sem ela.
 - Escolher qual celular envia com mais frequência (economia de
   bateria de todos).
 - Provar o seu consentimento e proteger o serviço contra abuso.
-- Melhorar previsões com dados anonimizados agregados de viagens.
+- Melhorar previsões com dados agregados de viagens, sem identificação de aparelho ou de viagem.
 - Mostrar sinalizações públicas de passageiros por alguns minutos.
 
 ## 4. Base legal (LGPD)

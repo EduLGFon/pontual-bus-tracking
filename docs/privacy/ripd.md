@@ -1,6 +1,6 @@
 # RIPD do Pontual (relatório de impacto, versão enxuta)
 
-Data: 2026-10-03. Atualização: 2026-11-10 (chegada pessoal e aprendizado por viagens parciais). Responsável pela elaboração: equipe do app.
+Data: 2026-10-03. Atualização: 2026-11-12 (agregados de aprendizado cumulativos, sem elegibilidade por aparelho). Responsável pela elaboração: equipe do app.
 Revisão do responsável e de advogado: pendente. Revisar antes da
 fase 2 e a cada mudança no tratamento de dados.
 
@@ -15,11 +15,11 @@ lotado/quebrado, acesso bloqueado). Para espera e acesso
 bloqueado, o app lê a localização uma vez e envia só uma célula de
 ~150 m; a posição exata não sai do aparelho. Sem texto livre, sem
 cadastro, sem histórico, sem posição gravada em disco ou banco.
-O subsistema de aprendizagem (0.3.x) deriva agregados anônimos de
-rotas, paradas e tempos a partir de viagens consentidas; não guarda
+O subsistema de aprendizagem (0.3.x) deriva agregados de rotas,
+paradas e tempos a partir de viagens consentidas; não guarda
 coordenadas brutas, ids de aparelho ou de viagem. A chegada pessoal
 na tela da linha faz uma leitura única da posição no aparelho, sem
-envio nem armazenamento; só a linha e o ponto vão ao servidor. A elegibilidade para agregados usa um contador pseudônimo de viagens iniciadas por aparelho (`learning_trips`), sem localização, retido com o registro do aparelho.
+envio nem armazenamento; só a linha e o ponto vão ao servidor. Os agregados de aprendizado usam apenas acumuladores no PostgreSQL: células de grade da rota, centróides de paradas e histogramas de duração por faixa de 15 minutos e dia da semana, sem ids de aparelho ou de viagem e sem coordenadas brutas. Toda viagem consentida contribui; não há contador de elegibilidade por aparelho.
 
 ## 2. Necessidade e proporcionalidade
 
@@ -45,18 +45,21 @@ apagamento imediato a pedido.
 | Localização exata em log ou relatório | bug de instrumentação | Baixa | Alto | só a célula é enviada; serviço converte no aparelho; revisão de logs; sem persistência |
 | Sinalização falsa ou brigada | tokens gratuitos, retaliação | Média | Médio | tipos fechados, limites, teto por linha, TTL curto, texto "relato", kill switch |
 | Leitura local única da posição | bug de instrumentação ou engano do titular | Baixa | Baixo | toque explícito, uma leitura, sem transmissão, sem persistência, descartada em até 5 minutos |
-| Agregado de aprendizagem de um único passageiro | 5 viagens do mesmo aparelho liberam rota, paradas e tempos | Média | Médio | fase de aprendizado; supressão de término; revisão do responsável e de advogado antes do lançamento público |
+| Agregado de aprendizagem de um único passageiro | uma única viagem consentida já pode moldar rota, parada e tempos | Média | Médio | consentimento e opt-out; corte das pontas; sem ids de aparelho ou viagem; agregados cumulativos; contagem de amostras exibida; revisão do responsável e de advogado antes do lançamento público |
 
 ## 4. Risco residual
 
 KL2 é inevitável em rastreador colaborativo e está divulgado no
 consentimento. Demais riscos com controles aplicados ficam
-baixos. Sem posição em repouso, o pior vazamento possível contém
-no máximo registros pseudônimos de aparelhos.
+baixos. Sem posição individual em repouso, o pior vazamento
+possível contém registros pseudônimos de aparelhos e centróides
+agregados de paradas e células de rota; esses centróides não
+identificam um aparelho, mas podem refletir o trajeto de uma única
+viagem.
 
 ## 5. Medidas e cronograma
 
-- Revisão jurídica dos textos, incluindo o consentimento v2 e os agregados de aprendizagem: pendente, antes da fase 2.
+- Revisão jurídica dos textos, incluindo o consentimento v2, o modelo cumulativo sem elegibilidade por aparelho e os agregados de aprendizagem: pendente, antes da fase 2.
 - Verificação ECA Digital (Lei 15.211/2025): pendente (V06).
 - Confirmação da região do VPS: pendente (D24 verificou São
   Paulo, Brasil).
