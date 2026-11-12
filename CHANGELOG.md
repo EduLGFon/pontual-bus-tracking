@@ -9,6 +9,9 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
   lines/search status line and search entry, and the shell active trip bar
   replacing the idle floating dock. UI and copy only, with no new dependency
   and no new network or location behavior. See DECISIONS.md D104.
+- Line and timetable screens now use the São Mateus wall clock once; a double
+  conversion could show a past departure as the next bus. The Início live chip
+  also hugs its content again. See DECISIONS.md D104.
 - Server: Docker image and Compose deployment with a container-only public
   edge. Compose runs `db`, `migrate`, `api` and `cloudflared` services over
   two internal networks (`edge`, `data`) plus a non-internal `egress` network; the API has no
