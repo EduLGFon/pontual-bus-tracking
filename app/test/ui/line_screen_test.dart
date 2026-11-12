@@ -83,7 +83,7 @@ const StaticLine lateLine = StaticLine(
   code: 'eleven',
   short: '11',
   name: 'Onze / Centro',
-  pilot: false,
+  pilot: true,
   terminals: <String>['Centro'],
   schedules: <Map<String, dynamic>>[
     <String, dynamic>{
@@ -355,10 +355,17 @@ void main() {
     // At 23:00 the 20:20 departure is gone, so it is never the large hero.
     expect(find.byType(NextBusCard), findsNothing);
     expect(find.text('20:20'), findsNothing);
+    // The header must not point at the empty hero as the next departure.
+    expect(find.text(UiStrings.lineNextScheduled), findsNothing);
+    expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
     // The Agora body below the tabs shows the honest end-of-day state.
     await _openSheet(tester);
-    await tester.scrollUntilVisible(find.text(UiStrings.homeNoMoreToday), 200);
-    expect(find.text(UiStrings.homeNoMoreToday), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text(UiStrings.homeTomorrowAt('05:30')),
+      200,
+    );
+    // The header keeps the same copy, so the sentence appears twice.
+    expect(find.text(UiStrings.homeNoMoreToday), findsWidgets);
     expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
     expect(find.text('20:20'), findsNothing);
   });

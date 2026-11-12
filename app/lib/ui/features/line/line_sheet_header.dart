@@ -58,6 +58,7 @@ class LineSheetHeader extends StatelessWidget {
   const LineSheetHeader({
     required this.line,
     required this.vehicles,
+    this.hasUpcomingToday = true,
     super.key,
   });
 
@@ -66,6 +67,11 @@ class LineSheetHeader extends StatelessWidget {
 
   /// Vehicles of the line, for the status line.
   final List<VehicleVM> vehicles;
+
+  /// Whether the timetable still has a departure later today. When false,
+  /// a shareable line says the day is over instead of pointing at the
+  /// empty hero. Defaults to true so other call sites keep the old copy.
+  final bool hasUpcomingToday;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +113,11 @@ class LineSheetHeader extends StatelessWidget {
         const SizedBox(height: Space.x2),
         // Full width so the certainty badge and the live count do not
         // wrap into each other in the narrow side panel.
-        _StatusLine(line: line, vehicles: vehicles),
+        _StatusLine(
+          line: line,
+          vehicles: vehicles,
+          hasUpcomingToday: hasUpcomingToday,
+        ),
         if (!line.supportsSharing) ...<Widget>[
           const SizedBox(height: Space.x1),
           Text(
@@ -124,13 +134,20 @@ class LineSheetHeader extends StatelessWidget {
 /// buses, the source of the hero departure. Never repeats the empty-live
 /// sentence that the body card owns.
 class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.line, required this.vehicles});
+  const _StatusLine({
+    required this.line,
+    required this.vehicles,
+    required this.hasUpcomingToday,
+  });
 
   /// Line described by the line.
   final LineVM line;
 
   /// Vehicles of the line.
   final List<VehicleVM> vehicles;
+
+  /// Whether a departure is still ahead today.
+  final bool hasUpcomingToday;
 
   @override
   Widget build(BuildContext context) {
@@ -140,9 +157,11 @@ class _StatusLine extends StatelessWidget {
         .length;
     final String subtitle = liveCount > 0
         ? UiStrings.lineLiveCount(liveCount)
-        : line.supportsSharing
-        ? UiStrings.lineNextScheduled
-        : UiStrings.onlyTimetable;
+        : !line.supportsSharing
+        ? UiStrings.onlyTimetable
+        : !hasUpcomingToday
+        ? UiStrings.homeNoMoreToday
+        : UiStrings.lineNextScheduled;
     return Semantics(
       label: '${certaintyWordOf(certainty)}. $subtitle',
       excludeSemantics: true,

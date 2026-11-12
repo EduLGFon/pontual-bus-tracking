@@ -196,7 +196,11 @@ class _LineSheetState extends ConsumerState<LineSheet> {
               ),
             ),
             const SizedBox(height: Space.x3),
-            LineSheetHeader(line: widget.line, vehicles: widget.vehicles),
+            LineSheetHeader(
+              line: widget.line,
+              vehicles: widget.vehicles,
+              hasUpcomingToday: upcoming.isNotEmpty,
+            ),
             const SizedBox(height: Space.x3),
             // The next bus is the hero: the personal ETA when ready,
             // otherwise the live or scheduled departure. The compact
