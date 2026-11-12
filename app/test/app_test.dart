@@ -73,10 +73,10 @@ void main() {
   testWidgets('first run shows the welcome card', (WidgetTester tester) async {
     await pumpAppWithLines(tester);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text(UiStrings.welcomeTitle), findsOneWidget);
-    await tester.tap(find.text(UiStrings.ok));
+    expect(find.text(UiStrings.homeWelcomeTitle), findsOneWidget);
+    await tester.tap(find.text(UiStrings.homeWelcomeLater));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text(UiStrings.welcomeTitle), findsNothing);
+    expect(find.text(UiStrings.homeWelcomeTitle), findsNothing);
   });
 
   testWidgets('bottom navigation reaches every tab', (

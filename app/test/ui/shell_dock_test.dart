@@ -122,6 +122,9 @@ void main() {
     expect(find.byType(TripDock), findsNothing);
     expect(find.byType(BottomNav), findsOneWidget);
 
+    await tester.ensureVisible(find.byType(SearchEntry));
+    await tester.pump();
+
     await tester.tap(find.byType(SearchEntry));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
