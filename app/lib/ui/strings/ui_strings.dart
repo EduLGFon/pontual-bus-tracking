@@ -21,7 +21,7 @@ class UiStrings {
   static const String wordmark = 'pontual';
 
   /// App tagline (UI_SPEC 14), shown on Sobre.
-  static const String tagline = 'Seu ônibus, na hora.';
+  static const String tagline = 'Ônibus na hora.';
 
   /// Offline banner.
   static const String offlineBanner = 'Sem conexão. Mostrando dados salvos.';
@@ -85,7 +85,7 @@ class UiStrings {
   static const String greetingEvening = 'Boa noite';
 
   /// Fixed subtitle under the greeting.
-  static const String homeSubtitle = 'Para onde vamos?';
+  static const String homeSubtitle = 'Acompanhe seus ônibus.';
 
   /// Search field hint.
   static const String searchHint = 'Buscar linha ou bairro';
@@ -94,7 +94,7 @@ class UiStrings {
   static const String homeShortcuts = 'Seus atalhos';
 
   /// Next-buses feed header (UI_SPEC 13.3).
-  static const String saindoAgora = 'Saindo agora';
+  static const String saindoAgora = 'Partindo agora';
 
   /// Add shortcut card label.
   static const String addShortcut = 'Adicionar';
@@ -122,8 +122,7 @@ class UiStrings {
 
   /// Sharing hint under the empty state.
   static const String homeNoLiveHint =
-      'Está no ônibus? Toque em "Estou no ônibus" e mostre a posição para '
-      'quem espera. Sem cadastro.';
+      'Está no ônibus? Toque em "Estou no ônibus" para mostrar a posição.';
 
   /// Empty state action to the timetables.
   static const String seeTimetable = 'Ver horários';
@@ -164,12 +163,11 @@ class UiStrings {
   static const String homeRecentsCleared = 'Recentes apagados.';
 
   /// Welcome card title.
-  static const String welcomeTitle = 'Veja onde o ônibus está';
+  static const String welcomeTitle = 'Veja o ônibus no mapa.';
 
   /// Welcome card body.
   static const String welcomeBody =
-      'Quem está dentro compartilha a posição, de forma anônima. Sem '
-      'cadastro, sem anúncios.';
+      'Quem está a bordo compartilha a posição, sem cadastro.';
 
   /// Welcome card privacy link.
   static const String welcomePrivacy = 'Como funciona a privacidade';
@@ -220,8 +218,7 @@ class UiStrings {
 
   /// Empty live state body when nothing is sharing.
   static const String linesNoLiveBody =
-      'Está no ônibus? Toque em "Estou no ônibus" e mostre a posição para '
-      'todos.';
+      'Está no ônibus? Toque em "Estou no ônibus" para mostrar a posição.';
 
   /// Empty live state when offline: status unknown, timetables still work.
   static const String linesLiveOffline =
@@ -230,7 +227,7 @@ class UiStrings {
   /// Friendly detail for a line without timetable data.
   static const String linesNoTimetableBody =
       'Ainda não temos os horários desta linha. Está nesse ônibus? Toque '
-      'em "Estou no ônibus" para aparecer ao vivo.';
+      'em "Estou no ônibus".';
 
   /// All filter.
   static const String filterAll = 'Todas';

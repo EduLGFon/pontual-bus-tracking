@@ -166,7 +166,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apagar'));
     await tester.pumpAndSettle();
-    expect(find.text('Para onde vamos?'), findsOneWidget);
+    expect(find.text('Acompanhe seus ônibus.'), findsOneWidget);
     expect(await const TokenStore().read(), isNull);
   });
 }
