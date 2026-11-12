@@ -396,6 +396,35 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        Consumer(
+          builder: (BuildContext context, WidgetRef ref, Widget? child) {
+            final int? lineId = c.lineId;
+            if (lineId == null || !ref.watch(appFeaturesProvider).reports) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SecondaryButton(
+                  key: const ValueKey<String>('tripReport'),
+                  label: UiStrings.reportTripAction,
+                  icon: Icons.flag_rounded,
+                  semanticLabel: UiStrings.reportTripSemantic,
+                  onPressed: () => unawaited(
+                    showReportSheet(
+                      context,
+                      lineId: lineId,
+                      lineName: c.lineLabel,
+                      onSubmitted: () =>
+                          ref.read(vehicleRepoProvider(lineId)).refresh(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Space.x2),
+              ],
+            );
+          },
+        ),
         Text(
           UiStrings.tripStopCaption,
           style: context.text.caption,
@@ -455,27 +484,6 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(width: Space.x2),
           Expanded(child: Text(UiStrings.tripTitle, style: context.text.title)),
-          Consumer(
-            builder: (BuildContext context, WidgetRef ref, Widget? child) {
-              final int? lineId = c.lineId;
-              if (lineId == null || !ref.watch(appFeaturesProvider).reports) {
-                return const SizedBox.shrink();
-              }
-              return IconBtn(
-                icon: Icons.flag_outlined,
-                semanticLabel: UiStrings.reportTripSemantic,
-                onTap: () => unawaited(
-                  showReportSheet(
-                    context,
-                    lineId: lineId,
-                    lineName: c.lineLabel,
-                    onSubmitted: () =>
-                        ref.read(vehicleRepoProvider(lineId)).refresh(),
-                  ),
-                ),
-              );
-            },
-          ),
         ],
       ),
     );

@@ -514,6 +514,29 @@ class UiStrings {
   /// Trip minimize action.
   static const String tripMinimize = 'Minimizar';
 
+  /// Compact status line hint on the trip screen.
+  static const String tripStatusDetails =
+      'Toque para ver GPS, satélites e envio.';
+
+  /// Compact status line while the trip is still starting.
+  static const String tripStatusStarting = 'Iniciando compartilhamento.';
+
+  /// Compact status line while sharing is paused.
+  static const String tripStatusPaused = 'Compartilhamento pausado.';
+
+  /// Compact status line while there is no connection.
+  static const String tripStatusOffline = 'Sem conexão no momento.';
+
+  /// Compact status line while sharing live without a known interval.
+  static const String tripStatusLive = 'Compartilhando ao vivo.';
+
+  /// Compact status line while sharing live with a known interval.
+  static String tripStatusSending(int intervalS) =>
+      'Enviando a cada $intervalS s.';
+
+  /// Compact status line after the trip has ended.
+  static const String tripStatusEnded = 'Viagem encerrada.';
+
   /// Connection row label.
   static const String connection = 'Conexão';
 
@@ -857,11 +880,6 @@ class UiStrings {
   static const String lowBatteryBanner =
       'Bateria baixa. Se acabar, o compartilhamento para.';
 
-  /// Trust line under the trip times. True in code: viewers see merged
-  /// vehicles only, and the token is opaque.
-  static const String tripTrust =
-      'Anônimo. Só a posição do ônibus, sem nome nem conta.';
-
   /// Single keep-awake tip on Android (neutral, shown once).
   static const String keepAwakeTip =
       'Mantenha a tela aberta e o celular desbloqueado. Abaixe o brilho '
@@ -871,10 +889,6 @@ class UiStrings {
   static const String keepAwakeTipWeb =
       'Mantenha esta aba aberta e visível. Abaixe o brilho para '
       'economizar bateria.';
-
-  /// Prefix of the last-send proof line, for example
-  /// "Última posição enviada há 8 s".
-  static String lastSentAgo(String ago) => 'Última posição enviada $ago';
 
   /// Short relative time in pt-BR: "há 8 s", "há 1 min", "há 12 min".
   /// Negative inputs clamp to zero: a success timestamp newer than the
