@@ -27,7 +27,7 @@ microfone, histórico de viagens ou identificadores do aparelho.
 Seus direitos: você pode revogar o consentimento e apagar seus
 dados a qualquer momento nesta tela ("Apagar meus dados").
 
-Texto completo: docs/privacy/policy.md. Revisão por advogado pendente.
+Texto completo: docs/privacy/policy.md.
 ''';
 
 /// Short terms of use shown in-app.
@@ -47,5 +47,5 @@ Pontual: termos de uso (resumo)
   aparelhos em caso de abuso.
 - Lei aplicável: Brasil.
 
-Texto completo: docs/privacy/terms.md. Revisão por advogado pendente.
+Texto completo: docs/privacy/terms.md.
 ''';

@@ -611,7 +611,7 @@ class UiStrings {
 
   /// Share start failed: server rate or capacity limits.
   static const String shareBusy =
-      'Muita gente tentando agora. Aguarde um pouco e tente de novo.';
+      'Muitas pessoas tentando agora. Aguarde um pouco e tente de novo.';
 
   /// Share start failed: too many people sharing at once (UI_SPEC 14).
   static const String capacity =
@@ -935,7 +935,7 @@ class UiStrings {
       'Você está compartilhando a Linha $line';
 
   /// End card title.
-  static const String endTitle = 'Viagem encerrada. Obrigado por ajudar!';
+  static const String endTitle = 'Viagem encerrada. Obrigado por ajudar.';
 
   /// End card action.
   static const String endBack = 'Voltar às linhas';
@@ -982,7 +982,7 @@ class UiStrings {
   // Passenger reports (D82).
 
   /// Entry action on the line sheet.
-  static const String reportAction = 'Sinalizar';
+  static const String reportAction = 'Avisar';
 
   /// Report sheet title.
   static const String reportSheetTitle = 'O que está acontecendo?';
@@ -1013,32 +1013,32 @@ class UiStrings {
   static const String reportBlockedHint = 'O ponto ou o portão está bloqueado.';
 
   /// Primary action in the report sheet.
-  static const String reportSubmit = 'Enviar sinalização';
+  static const String reportSubmit = 'Enviar aviso';
 
   /// Static loading label while the report is in flight.
-  static const String reportSending = 'Enviando sinalização...';
+  static const String reportSending = 'Enviando aviso...';
 
   /// Success toast.
-  static const String reportSent = 'Sinalização enviada. Obrigado!';
+  static const String reportSent = 'Aviso enviado. Obrigado.';
 
   /// Offline failure.
   static const String reportOffline =
-      'Sem conexão. Não foi possível sinalizar agora.';
+      'Sem conexão. Não foi possível avisar agora.';
 
   /// Rate-limit failure.
   static const String reportRate =
-      'Muitas sinalizações em pouco tempo. Tente de novo em alguns minutos.';
+      'Muitas avisos em pouco tempo. Tente de novo em alguns minutos.';
 
   /// Per-line cap failure.
   static const String reportQuota =
-      'Muitas sinalizações nesta linha agora. Tente de novo em alguns minutos.';
+      'Muitas avisos nesta linha agora. Tente de novo em alguns minutos.';
 
   /// Server kill switch.
-  static const String reportDisabled = 'Sinalizações indisponíveis no momento.';
+  static const String reportDisabled = 'Avisos indisponíveis no momento.';
 
   /// Disclosure under the report sheet.
   static const String reportPrivacy =
-      'Sua sinalização é pública e anônima. Usamos só uma área aproximada '
+      'Sua aviso é pública e anônima. Usamos só uma área aproximada '
       'de 150 m, nunca a posição exata. Para evitar abuso, o aparelho recebe '
       'um código anônimo. Ela some em até 2 horas.';
 
@@ -1053,11 +1053,11 @@ class UiStrings {
   static const String reportLocationBody =
       'Para mostrar onde você está esperando, o app lê sua localização uma '
       'vez e envia apenas uma área de cerca de 150 m. A posição exata não é '
-      'enviada nem guardada. A sinalização é pública e some em até 2 horas.';
+      'enviada nem guardada. A aviso é pública e some em até 2 horas.';
 
   /// Location notice bullet: one read.
   static const String reportLocationBulletOnce =
-      'Só uma leitura, no momento de sinalizar.';
+      'Só uma leitura, no momento de avisar.';
 
   /// Location notice bullet: approximate area.
   static const String reportLocationBulletArea =
@@ -1095,7 +1095,7 @@ class UiStrings {
 
   /// Device location services off.
   static const String reportLocationServicesOff =
-      'Ative a localização do aparelho para sinalizar onde você está.';
+      'Ative a localização do aparelho para avisar onde você está.';
 
   /// Fix too coarse for a 150 m cell.
   static const String reportLocationImprecise =
@@ -1122,13 +1122,13 @@ class UiStrings {
   static const String reportAreaApprox = 'Área aproximada de 150 m';
 
   /// Own report marker.
-  static const String reportMine = 'Sua sinalização';
+  static const String reportMine = 'Sua aviso';
 
   /// Retract action.
-  static const String reportRetract = 'Remover minha sinalização';
+  static const String reportRetract = 'Remover minha aviso';
 
   /// Retract success toast.
-  static const String reportRetracted = 'Sinalização removida.';
+  static const String reportRetracted = 'Aviso removida.';
 
   /// Waiting count with at least two people.
   static String reportPeopleWaiting(int count) =>
@@ -1164,22 +1164,22 @@ class UiStrings {
   static String reportAgeHours(int hours) => 'há $hours h';
 
   /// Trip screen report action.
-  static const String reportTripAction = 'Sinalizar problema';
+  static const String reportTripAction = 'Avisar problema';
 
   /// Trip screen report semantic label.
-  static const String reportTripSemantic = 'Sinalizar problema neste ônibus';
+  static const String reportTripSemantic = 'Avisar problema neste ônibus';
 
   /// Section title for the full report list.
-  static const String reportListTitle = 'Sinalizações desta linha';
+  static const String reportListTitle = 'Avisos desta linha';
 
   /// Neutral fallback for a report kind this version does not know.
-  static const String reportUnknown = 'Sinalização';
+  static const String reportUnknown = 'Aviso';
 
   /// Overflow chip label.
   static String reportMore(int count) => '+$count';
 
   /// Report detail age sentence.
-  static String reportReportedAgo(String age) => 'Sinalizado $age';
+  static String reportReportedAgo(String age) => 'Avisado $age';
 
   /// Report detail update sentence.
   static String reportUpdatedAgo(String age) => 'Atualizado $age';
@@ -1540,7 +1540,7 @@ class UiStrings {
   static const String privacyCollectsTitle = 'O que coletamos';
 
   /// Contact row.
-  static const String contactUs = 'Falar com a gente';
+  static const String contactUs = 'Falar conosco';
 
   /// Collection summary mirroring the data inventory. The legacy screen
   /// owned this copy; the new privacy center is its only reader now.
@@ -1549,7 +1549,7 @@ class UiStrings {
     'Versão do consentimento que você aceitou e quando.',
     'Durante a viagem: posição, velocidade e bateria (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
-    'Sinalizações: tipo, linha e área aproximada (~150 m), públicas por até 2 h.',
+    'Avisos: tipo, linha e área aproximada (~150 m), públicas por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];
