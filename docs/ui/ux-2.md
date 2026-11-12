@@ -64,11 +64,11 @@ Status: implemented 2026-11-11 on the Flutter client. UI and copy only. See `DEC
 
 - Targeted suites: `home_screen_test`, `home_next_card_test`, `home_next_logic_test`, `line_screen_test`, `personal_arrival_card_test`, `personal_arrival_flow_test`, `leave_now_test`, `line_status_line_test`, `search_lines_test`, `shell_dock_test`.
 - Those targeted runs were reported green by the implementing branches, with `flutter analyze` clean at the time.
-- The full suite is still to be run by the orchestrator.
+- Full `flutter test --concurrency=1` passed on 2026-11-11: 588 tests, 1 skipped; `flutter analyze` clean on the integrated tree.
 - No new dependency: `pubspec.yaml` and `pubspec.lock` are unchanged.
 
 ## Open items
 
 - Device and field walkthrough of first run, the line picker and the leave-now verdict.
-- Full `flutter test` and final `flutter analyze` on the integrated tree.
+
 - Spec and screenshot review against `UI_SPEC.md` sections 7.1, 7.2, 7.5 and 7.10.

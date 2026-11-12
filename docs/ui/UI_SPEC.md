@@ -425,7 +425,7 @@ Behaviour:
 
 Layout compact: **full-bleed map + draggable bottom sheet**. The contextual dock floats above the sheet; never duplicate its CTA inside the sheet.
 
-Sheet: 3 snap points as screen-height fractions: **peek 0.30** (min **270 dp**; this supersedes the earlier 220 dp minimum), **half 0.55**, **full 0.92**. The 270 dp minimum keeps the header plus the hero's primary ETA visible at 320x568 without dragging; at 2x text the hero can sit below the fold and scrolls into view. Implemented with `DraggableScrollableSheet` (or an equivalent single-controller design). The sheet content is a `CustomScrollView` of slivers; the map sits **outside** the sheet's rebuild path inside a `RepaintBoundary`. When the sheet settles, call the map's camera fit with bottom padding = visible sheet height (**only on settle, never per frame**). Initial snap: peek (the map is the first thing seen). Tapping a vehicle moves the sheet to peek.
+Sheet: 3 snap points as screen-height fractions: **peek 0.30** (min **270 dp**; this supersedes the earlier 220 dp minimum), **half 0.55**, **full 0.92**. The 270 dp minimum keeps the header plus the hero's primary ETA visible at 320x568 without dragging; at 2x text the hero can sit below the fold and scrolls into view. Implemented with `DraggableScrollableSheet` (or an equivalent single-controller design). The sheet content is a scroll view (a `ListView` today); the map sits **outside** the sheet's rebuild path inside a `RepaintBoundary`. When the sheet settles, call the map's camera fit with bottom padding = visible sheet height (**only on settle, never per frame**). Initial snap: peek (the map is the first thing seen). Tapping a vehicle moves the sheet to peek.
 
 Sheet content "Agora", top to bottom:
 

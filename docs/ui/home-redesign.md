@@ -10,7 +10,7 @@ Status: implemented (see UI_SPEC 7.2, DECISIONS.md D29). Full audit, implementat
 
 ## Decisions retained
 
-- Global `TripDock` pill used instead of an extended FAB (UI_SPEC 7.1); dock clearance kept.
+- Inline share entry points replaced the global `TripDock` pill in UX 2.0 (home share card and contextual line dock); dock clearance kept.
 - Cards stay at `Sizes.shortcutWidth` (156 dp) token (UI_SPEC); 2-line label plus direction line fixes indistinguishability.
 - 1-minute `nowTickProvider` kept instead of a 30 s ticker (battery).
 - Non-breaking spaces not applied to `formatEta` because unit tests pin regular spaces.
