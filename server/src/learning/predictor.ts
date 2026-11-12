@@ -130,9 +130,8 @@ export async function predictEta(
         hb,
         dow,
       );
-      // The consumer read helpers already apply the effective privacy gate
-      // (kMin 1 in mode "all"); re-checking the raw kMin here would discard
-      // valid one-pass rows. Only presence matters.
+      // The consumer read helpers return any row with at least one sample,
+      // so a one-pass segment is valid evidence here. Only presence matters.
       if (seg) {
         const histSpeed = seg.distanceM / Math.max(seg.p50, 1);
         const factor = Math.max(
@@ -151,7 +150,7 @@ export async function predictEta(
     // dwell at curStop (except final? include dwell at intermediate; for target, maybe exclude? include)
     if (i < targetIdx) {
       const dw = await consumer.dwellStats(curStop.id, hb, dow);
-      // Same gate note as segmentStats above.
+      // Same one-sample rule as segmentStats above.
       if (dw) {
         totalS += dw.p50;
         sampleCount += dw.count;

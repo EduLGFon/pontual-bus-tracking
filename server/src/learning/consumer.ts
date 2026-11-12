@@ -32,12 +32,11 @@ import {
   type Pt,
 } from "./corridor.ts";
 import type { EngineEvent } from "../domain/types.ts";
-import type { Sql } from "../db/client.ts";
+import type { Sql, Tx } from "../db/client.ts";
 import type {
-  DwellAcc,
   LearningConfig,
-  SegmentAcc,
   StopCluster,
+  TripSample,
   TripWork,
 } from "./types.ts";
 
@@ -45,16 +44,8 @@ export interface ConsumerDeps {
   sql: Sql;
   config: () => LearningConfig;
   now: () => number;
-  /** Privacy gate selected by env; see DECISIONS.md#D98. */
-  privacyMode: () => "all" | "route_stops";
   // consent version lookup for a device is done by caller; consumer
   // receives it via handleTripStart's consentVersion.
-}
-
-function dayKey(ms: number, tzOffsetHours = -3): string {
-  // America/Sao_Paulo is UTC-3 (no DST since 2019).
-  const d = new Date(ms + tzOffsetHours * 3600 * 1000);
-  return d.toISOString().slice(0, 10);
 }
 
 function dayOfWeek(ms: number, tzOffsetHours = -3): number {
@@ -71,9 +62,6 @@ export class LearningConsumer {
   private works = new Map<string, TripWork>();
   private routeAccs = new Map<string, CorridorAcc>();
   private stopClusters = new Map<string, StopCluster>();
-  private dwellAccs = new Map<string, DwellAcc>();
-  private segmentAccs = new Map<string, SegmentAcc>();
-  private terminusStopIds = new Set<string>();
   private config: LearningConfig;
   // Serialized async work for finalized trips. Contributions and route
   // publications run off the request path but in trip-end order. The queue
@@ -182,7 +170,11 @@ export class LearningConsumer {
     return acc;
   }
 
-  /** Seed in-memory stop clusters from persisted learned_stops (F2). */
+  /**
+   * Seed the in-memory stop cache from persisted learned_stops (F2). The DB is
+   * the source of truth: the cache only answers proximity matching between
+   * trips, and reloading it returns the same ids, centroids and pass counts.
+   */
   async loadLearnedStops(): Promise<void> {
     try {
       const rows = await this.deps.sql`
@@ -212,8 +204,6 @@ export class LearningConsumer {
           centroidLng: r.lng,
           radiusM: r.radius_m,
           passCount: r.sample_passes,
-          distinctDays: new Set(["seed", "seed2", "seed3"]),
-          reservoir: [],
         };
         this.stopClusters.set(r.id, c);
       }
@@ -357,11 +347,7 @@ export class LearningConsumer {
       return;
     }
     const cfg = this.config;
-    // trim ends
-    const start = work.startedAtMs + cfg.trimEndsS * 1000;
-    const end = (work.endedAtMs ?? work.samples[work.samples.length - 1].t) -
-      cfg.trimEndsS * 1000;
-    const kept = work.samples.filter((s) => s.t >= start && s.t <= end);
+    const kept = trimSamples(work.samples, cfg.trimEndsS);
     if (kept.length < 2) {
       recordLearningTripTooFewSamples();
       return;
@@ -387,6 +373,13 @@ export class LearningConsumer {
     work.direction = direction;
     recordLearningDirectionAssigned();
 
+    // Stops, dwell bins and travel bins are persisted before the corridor
+    // contribution: publishRoute derives stop ordinals from the published
+    // chain, so this trip's new stops must already exist in learned_stops.
+    // Dwell and travel aggregates do not depend on a cell transition: a trip
+    // with at least 2 kept fixes still contributes its stops and dwells.
+    await this.contributeStops(work, kept, direction);
+
     // Temporary per-trip accumulator on the fixed grid. Dedup is structural
     // (Map keys), so each visited cell and each directed transition produces
     // exactly one row increment for this trip. Cell value is the trip's mean
@@ -404,183 +397,241 @@ export class LearningConsumer {
     } else {
       recordLearningTripNoCellTransition();
     }
+  }
 
-    // dwell detection finalization
-    const trimStart = start;
-    const trimEnd = end;
-    for (const d of work.dwells) {
-      if (d.endMs - d.startMs < cfg.minDwellS * 1000) continue;
-      if (d.startMs < trimStart || d.endMs > trimEnd) continue;
-      const durS = (d.endMs - d.startMs) / 1000;
-      const hb = hourBucket(d.startMs);
-      const dow = dayOfWeek(d.startMs);
-      const day = dayKey(d.startMs);
-      // cluster assignment deferred to flush-time; store as a pseudo-stop
-      // keyed by rounded coords for now.
-      // find existing cluster within radius
-      let cluster: StopCluster | undefined;
-      for (const c of this.stopClusters.values()) {
-        if (c.lineId !== work.lineId || c.direction !== direction) continue;
-        if (
-          distM(c.centroidLat, c.centroidLng, d.lat, d.lng) <=
-            cfg.stopClusterRadiusM
-        ) {
-          cluster = c;
-          break;
-        }
-      }
-      if (!cluster) {
-        const id = crypto.randomUUID();
-        cluster = {
-          id,
-          lineId: work.lineId,
-          direction,
-          ordinal: 0,
-          centroidLat: d.lat,
-          centroidLng: d.lng,
-          radiusM: cfg.stopClusterRadiusM,
-          passCount: 0,
-          distinctDays: new Set(),
-          reservoir: [],
-        };
-        this.stopClusters.set(id, cluster);
-      }
-      // update centroid running
-      cluster.reservoir.push({ lat: d.lat, lng: d.lng, day });
-      cluster.passCount += 1;
-      cluster.distinctDays.add(day);
-      // recompute centroid as median of reservoir (capped)
-      if (cluster.reservoir.length > 64) {
-        cluster.reservoir = cluster.reservoir.slice(-64);
-      }
-      const lats = cluster.reservoir.map((p) => p.lat);
-      const lngs = cluster.reservoir.map((p) => p.lng);
-      cluster.centroidLat = median(lats);
-      cluster.centroidLng = median(lngs);
+  private async contributeStops(
+    work: TripWork,
+    kept: TripSample[],
+    direction: number,
+  ): Promise<void> {
+    const aggregates = this.collectStopAggregates(work, kept, direction);
+    if (!aggregates) return;
+    await this.persistStopAggregates(aggregates);
+  }
 
-      // dwell stats
-      const dwellKey = `${cluster.id}:${hb}:${dow}`;
-      let da = this.dwellAccs.get(dwellKey);
-      if (!da) {
-        da = {
-          stopId: cluster.id,
-          hourBucket: hb,
-          dayOfWeek: dow,
-          count: 0,
-          sumS: 0,
-          minS: durS,
-          maxS: durS,
-          reservoir: [],
-        };
-        this.dwellAccs.set(dwellKey, da);
-      }
-      da.count += 1;
-      da.sumS += durS;
-      da.minS = Math.min(da.minS, durS);
-      da.maxS = Math.max(da.maxS, durS);
-      if (da.reservoir.length < 64) da.reservoir.push(durS);
-      else {
-        // reservoir sampling
-        const j = Math.floor(Math.random() * (da.count));
-        if (j < 64) da.reservoir[j] = durS;
-      }
+  /**
+   * Turn this trip's surviving dwells into working stops, dwell bins and
+   * travel bins. Consecutive dwells at the same stop collapse to one visit;
+   * segments run between distinct consecutive stops and use the destination
+   * arrival time for their time bucket, never the trip start.
+   */
+  private collectStopAggregates(
+    work: TripWork,
+    kept: TripSample[],
+    direction: number,
+  ): StopAggregates | null {
+    const cfg = this.config;
+    const trimStart = kept[0].t;
+    const trimEnd = kept[kept.length - 1].t;
+    const dwells = work.dwells.filter((d) =>
+      d.endMs - d.startMs >= cfg.minDwellS * 1000 &&
+      d.startMs >= trimStart && d.endMs <= trimEnd
+    );
+    if (dwells.length === 0) return null;
 
-      // segment stats will be computed in a second pass using stop sequence;
-      // store dwell centroids for now.
-    }
-
-    // segment stats: pair consecutive dwells that map to stops. Track
-    // dwell boundaries so travel time = next.start - prev.end (F4).
-    interface DwellHit {
-      cluster: StopCluster;
-      startMs: number;
-      endMs: number;
-    }
+    const working = new Map<string, WorkingStop>();
     const hits: DwellHit[] = [];
-    for (const d of work.dwells) {
-      if (d.endMs - d.startMs < cfg.minDwellS * 1000) continue;
-      if (d.startMs < trimStart || d.endMs > trimEnd) continue;
-      let cl: StopCluster | undefined;
-      for (const c of this.stopClusters.values()) {
-        if (c.lineId !== work.lineId || c.direction !== direction) continue;
-        if (
-          distM(c.centroidLat, c.centroidLng, d.lat, d.lng) <=
-            cfg.stopClusterRadiusM
-        ) {
-          cl = c;
-          break;
-        }
-      }
-      if (cl) hits.push({ cluster: cl, startMs: d.startMs, endMs: d.endMs });
+    const dwellBins: DwellBin[] = [];
+    for (const d of dwells) {
+      const stop = this.workingStopFor(
+        work.lineId,
+        direction,
+        d.lat,
+        d.lng,
+        working,
+      );
+      stop.added += 1;
+      stop.sumLat += d.lat;
+      stop.sumLng += d.lng;
+      dwellBins.push({
+        stopId: stop.cluster.id,
+        hourBucket: hourBucket(d.startMs),
+        dayOfWeek: dayOfWeek(d.startMs),
+        binS: quantizeS((d.endMs - d.startMs) / 1000),
+      });
+      hits.push({ stop, startMs: d.startMs, endMs: d.endMs });
     }
-    // dedupe consecutive same cluster, merging dwell boundaries
+
     const ordered: DwellHit[] = [];
     for (const h of hits) {
       const last = ordered[ordered.length - 1];
-      if (last && last.cluster.id === h.cluster.id) {
+      if (last && last.stop.cluster.id === h.stop.cluster.id) {
         last.endMs = Math.max(last.endMs, h.endMs);
       } else {
-        ordered.push({
-          cluster: h.cluster,
-          startMs: h.startMs,
-          endMs: h.endMs,
-        });
+        ordered.push({ stop: h.stop, startMs: h.startMs, endMs: h.endMs });
       }
     }
-    // terminus suppression: drop first and last stop's dwell stats (F4).
-    // Segment stats still use them for connectivity, but dwell stats for
-    // termini are suppressed by skipping upsertDwell for first/last cluster
-    // ids of this trip. We mark them via a set checked in flush.
-    const terminusIds = new Set<string>();
-    if (ordered.length >= 1) terminusIds.add(ordered[0].cluster.id);
-    if (ordered.length >= 2) {
-      terminusIds.add(ordered[ordered.length - 1].cluster.id);
-    }
-    for (const id of terminusIds) this.terminusStopIds.add(id);
-    for (let i = 0; i + 1 < ordered.length; i++) {
-      const from = ordered[i];
-      const to = ordered[i + 1];
+    const travelBins: TravelBin[] = [];
+    for (let i = 1; i < ordered.length; i++) {
+      const from = ordered[i - 1];
+      const to = ordered[i];
+      if (from.stop.cluster.id === to.stop.cluster.id) continue;
       const travelS = Math.max(0, (to.startMs - from.endMs) / 1000);
-      const dist = distM(
-        from.cluster.centroidLat,
-        from.cluster.centroidLng,
-        to.cluster.centroidLat,
-        to.cluster.centroidLng,
-      );
-      const segKey =
-        `${work.lineId}:${direction}:${from.cluster.id}:${to.cluster.id}`;
-      const hb = hourBucket(work.startedAtMs);
-      const dow = dayOfWeek(work.startedAtMs);
-      const key = `${segKey}:${hb}:${dow}`;
-      let sa = this.segmentAccs.get(key);
-      if (!sa) {
-        sa = {
-          lineId: work.lineId,
-          direction,
-          fromStop: from.cluster.id,
-          toStop: to.cluster.id,
-          hourBucket: hb,
-          dayOfWeek: dow,
-          count: 0,
-          sumS: 0,
-          minS: travelS,
-          maxS: travelS,
-          distanceM: dist,
-          reservoir: [],
-        };
-        this.segmentAccs.set(key, sa);
-      }
-      sa.count += 1;
-      sa.sumS += travelS;
-      sa.minS = Math.min(sa.minS, travelS);
-      sa.maxS = Math.max(sa.maxS, travelS);
-      if (sa.reservoir.length < 64) sa.reservoir.push(travelS);
-      else {
-        const j = Math.floor(Math.random() * sa.count);
-        if (j < 64) sa.reservoir[j] = travelS;
-      }
-      sa.distanceM = dist;
+      travelBins.push({
+        lineId: work.lineId,
+        direction,
+        fromStop: from.stop.cluster.id,
+        toStop: to.stop.cluster.id,
+        hourBucket: hourBucket(to.startMs),
+        dayOfWeek: dayOfWeek(to.startMs),
+        binS: quantizeS(travelS),
+      });
     }
+    return { stops: [...working.values()], dwellBins, travelBins };
+  }
+
+  /**
+   * Write one trip's stops, bins and recomputed stats in one transaction.
+   * Stats read all persisted bins, so counts are cumulative and restart-safe.
+   */
+  private async persistStopAggregates(
+    aggregates: StopAggregates,
+  ): Promise<void> {
+    const { stops, dwellBins, travelBins } = aggregates;
+    const stopsById = new Map<string, WorkingStop>();
+    for (const w of stops) stopsById.set(w.cluster.id, w);
+
+    await this.deps.sql.begin(async (tx) => {
+      for (const stop of stops) await this.persistStop(tx, stop);
+      for (const b of dwellBins) {
+        await tx`
+          insert into learning_dwell_bins
+            (stop_id, hour_bucket, day_of_week, bin_s, sample_count)
+          values (${b.stopId}, ${b.hourBucket}, ${b.dayOfWeek}, ${b.binS}, 1)
+          on conflict (stop_id, hour_bucket, day_of_week, bin_s) do update set
+            sample_count = learning_dwell_bins.sample_count + 1
+        `;
+      }
+      for (const b of travelBins) {
+        await tx`
+          insert into learning_travel_bins
+            (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+             bin_s, sample_count)
+          values (${b.lineId}, ${b.direction}, ${b.fromStop}, ${b.toStop},
+            ${b.hourBucket}, ${b.dayOfWeek}, ${b.binS}, 1)
+          on conflict (
+            line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+            bin_s
+          ) do update set
+            sample_count = learning_travel_bins.sample_count + 1
+        `;
+      }
+      for (const k of uniqueDwellKeys(dwellBins)) {
+        await this.recomputeDwellStat(tx, k);
+      }
+      for (const k of uniqueSegmentKeys(travelBins)) {
+        const from = stopsById.get(k.fromStop);
+        const to = stopsById.get(k.toStop);
+        const distanceM = from && to
+          ? distM(
+            workingLat(from),
+            workingLng(from),
+            workingLat(to),
+            workingLng(to),
+          )
+          : 0;
+        await this.recomputeSegmentStat(tx, k, distanceM);
+      }
+    });
+
+    // The DB is the source of truth. Apply the trip's changes to the cache
+    // only after the transaction commits, so a rollback leaves no phantom
+    // stop ids behind.
+    for (const stop of stops) this.cacheStop(stop);
+  }
+
+  /**
+   * Find a cache-backed stop within the cluster radius, or create a new
+   * working stop for this trip. New stops are inserted by persistStop.
+   */
+  private workingStopFor(
+    lineId: number,
+    direction: number,
+    lat: number,
+    lng: number,
+    working: Map<string, WorkingStop>,
+  ): WorkingStop {
+    const radiusM = this.config.stopClusterRadiusM;
+    for (const w of working.values()) {
+      if (w.cluster.lineId !== lineId || w.cluster.direction !== direction) {
+        continue;
+      }
+      if (distM(workingLat(w), workingLng(w), lat, lng) <= radiusM) return w;
+    }
+    for (const c of this.stopClusters.values()) {
+      if (c.lineId !== lineId || c.direction !== direction) continue;
+      if (distM(c.centroidLat, c.centroidLng, lat, lng) > radiusM) continue;
+      const w: WorkingStop = {
+        cluster: c,
+        added: 0,
+        sumLat: 0,
+        sumLng: 0,
+        created: false,
+      };
+      working.set(c.id, w);
+      return w;
+    }
+    const fresh: WorkingStop = {
+      cluster: {
+        id: crypto.randomUUID(),
+        lineId,
+        direction,
+        ordinal: 0,
+        centroidLat: 0,
+        centroidLng: 0,
+        radiusM,
+        passCount: 0,
+      },
+      added: 0,
+      sumLat: 0,
+      sumLng: 0,
+      created: true,
+    };
+    working.set(fresh.cluster.id, fresh);
+    return fresh;
+  }
+
+  private async persistStop(tx: Tx, stop: WorkingStop): Promise<void> {
+    const c = stop.cluster;
+    if (stop.created) {
+      await tx`
+        insert into learned_stops
+          (id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes,
+           first_seen_at, last_seen_at, active)
+        values (${c.id}, ${c.lineId}, ${c.direction}, ${c.ordinal},
+          ${workingLat(stop)}, ${workingLng(stop)}, ${c.radiusM},
+          ${stop.added}, now(),
+          now(), true)
+      `;
+      return;
+    }
+    // Weighted mean against the row's own pass count, so the centroid stays
+    // cumulative even if the cache is stale.
+    await tx`
+      update learned_stops set
+        lat = (lat * sample_passes + ${stop.sumLat})
+          / (sample_passes + ${stop.added}),
+        lng = (lng * sample_passes + ${stop.sumLng})
+          / (sample_passes + ${stop.added}),
+        sample_passes = sample_passes + ${stop.added},
+        last_seen_at = now(),
+        active = true
+      where id = ${c.id}
+    `;
+  }
+
+  private cacheStop(stop: WorkingStop): void {
+    const c = stop.cluster;
+    this.stopClusters.set(c.id, {
+      id: c.id,
+      lineId: c.lineId,
+      direction: c.direction,
+      ordinal: c.ordinal,
+      centroidLat: workingLat(stop),
+      centroidLng: workingLng(stop),
+      radiusM: c.radiusM,
+      passCount: c.passCount + stop.added,
+    });
   }
 
   // ---- Corridor persistence ----
@@ -875,92 +926,17 @@ export class LearningConsumer {
     return bearingRad(chain[0], chain[chain.length - 1]);
   }
 
-  /**
-   * Effective privacy thresholds. "all" is the learning phase: one pass is
-   * enough. "route_stops" keeps the configured k-anonymity gates.
-   */
-  private gates(): {
-    minStopPasses: number;
-    stopMinDistinctDays: number;
-    kMin: number;
-  } {
-    if (this.deps.privacyMode() === "all") {
-      return { minStopPasses: 1, stopMinDistinctDays: 1, kMin: 1 };
-    }
-    return {
-      minStopPasses: this.config.minStopPasses,
-      stopMinDistinctDays: this.config.stopMinDistinctDays,
-      kMin: this.config.kMin,
-    };
-  }
-
   // ---- Flush ----
 
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
     recordLearningFlush();
     try {
-      // Finalized trips write cells, edges, state and their route publication
-      // off the request path. Wait for them before touching stop aggregates.
+      // Finalized trips write cells, edges, state, stops, bins and stats off
+      // the request path. Wait for them before republishing stale routes.
       await this.drainQueue();
       // Crash-window safety net; no-op when every direction is up to date.
       await this.publishStaleRoutes();
-
-      // Determine which stop clusters qualify for promotion. Only promoted
-      // stops get a learned_stops row, so dwell/segment stats (which FK to
-      // learned_stops) must be gated on the same set. Upsert stops FIRST so
-      // the foreign keys resolve.
-      const gates = this.gates();
-      const qualifyingStopIds = new Set<string>();
-      for (const c of this.stopClusters.values()) {
-        if (c.passCount < gates.minStopPasses) continue;
-        if (c.distinctDays.size < gates.stopMinDistinctDays) continue;
-        qualifyingStopIds.add(c.id);
-      }
-      for (const c of this.stopClusters.values()) {
-        if (!qualifyingStopIds.has(c.id)) continue;
-        await this.upsertStop(c, c.ordinal);
-      }
-
-      // Persist dwell stats (only for promoted stops)
-      for (const acc of this.dwellAccs.values()) {
-        const p50 = percentile(acc.reservoir, 0.5) ||
-          acc.sumS / Math.max(1, acc.count);
-        const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
-        if (acc.count < gates.kMin) continue;
-        if (!qualifyingStopIds.has(acc.stopId)) continue;
-        if (this.terminusStopIds.has(acc.stopId)) continue;
-        await this.upsertDwell(acc, p50, p90);
-      }
-      this.dwellAccs.clear();
-
-      // Persist segment stats (only when both endpoints are promoted stops)
-      for (const acc of this.segmentAccs.values()) {
-        if (acc.count < gates.kMin) continue;
-        if (
-          !qualifyingStopIds.has(acc.fromStop) ||
-          !qualifyingStopIds.has(acc.toStop)
-        ) {
-          continue;
-        }
-        const p50 = percentile(
-          acc.reservoir.length
-            ? acc.reservoir
-            : [acc.sumS / Math.max(1, acc.count)],
-          0.5,
-        );
-        const p90 = percentile(
-          acc.reservoir.length ? acc.reservoir : [acc.maxS],
-          0.9,
-        );
-        await this.upsertSegment(acc, p50, p90);
-      }
-      this.segmentAccs.clear();
-
-      this.terminusStopIds.clear();
-      // Keep stop clusters in memory across flushes so their ids stay stable
-      // and centroids accumulate (F2). Bounded by the in-memory cluster set;
-      // decay/pruning is handled by the retention job (F6).
     } catch (e) {
       recordLearningFlushFailed();
       throw e;
@@ -1059,51 +1035,64 @@ export class LearningConsumer {
     }
   }
 
-  private async upsertDwell(
-    acc: DwellAcc,
-    p50: number,
-    p90: number,
-  ): Promise<void> {
-    await this.deps.sql`
-      insert into stop_dwell_stats (stop_id, hour_bucket, day_of_week, sample_count, dwell_p50_s, dwell_p90_s, updated_at)
-      values (${acc.stopId}, ${acc.hourBucket}, ${acc.dayOfWeek}, ${acc.count}, ${p50}, ${p90}, now())
+  /**
+   * Recompute a (stop, hour, day) dwell stat from all persisted bins. Counts
+   * and percentiles are cumulative by construction; no per-batch reservoir.
+   * Nearest-rank percentile over the bin histogram.
+   */
+  private async recomputeDwellStat(tx: Tx, key: DwellKey): Promise<void> {
+    const rows = await tx`
+      select bin_s, sample_count from learning_dwell_bins
+      where stop_id = ${key.stopId} and hour_bucket = ${key.hourBucket}
+        and day_of_week = ${key.dayOfWeek}
+      order by bin_s asc
+    ` as unknown as BinRow[];
+    const total = sumCounts(rows);
+    if (total === 0) return;
+    await tx`
+      insert into stop_dwell_stats
+        (stop_id, hour_bucket, day_of_week, sample_count, dwell_p50_s,
+         dwell_p90_s, updated_at)
+      values (${key.stopId}, ${key.hourBucket}, ${key.dayOfWeek}, ${total},
+        ${nearestRank(rows, 0.5)}, ${nearestRank(rows, 0.9)}, now())
       on conflict (stop_id, hour_bucket, day_of_week) do update set
-        sample_count = stop_dwell_stats.sample_count + ${acc.count},
-        dwell_p50_s = ${p50},
-        dwell_p90_s = ${p90},
+        sample_count = excluded.sample_count,
+        dwell_p50_s = excluded.dwell_p50_s,
+        dwell_p90_s = excluded.dwell_p90_s,
         updated_at = now()
     `;
   }
 
-  private async upsertSegment(
-    acc: SegmentAcc,
-    p50: number,
-    p90: number,
+  private async recomputeSegmentStat(
+    tx: Tx,
+    key: SegmentKey,
+    distanceM: number,
   ): Promise<void> {
-    await this.deps.sql`
-      insert into segment_stats (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week, sample_count, travel_p50_s, travel_p90_s, distance_m, updated_at)
-      values (${acc.lineId}, ${acc.direction}, ${acc.fromStop}, ${acc.toStop}, ${acc.hourBucket}, ${acc.dayOfWeek}, ${acc.count}, ${p50}, ${p90}, ${acc.distanceM}, now())
-      on conflict (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week) do update set
-        sample_count = segment_stats.sample_count + ${acc.count},
-        travel_p50_s = ${p50},
-        travel_p90_s = ${p90},
-        distance_m = ${acc.distanceM},
+    const rows = await tx`
+      select bin_s, sample_count from learning_travel_bins
+      where line_id = ${key.lineId} and direction = ${key.direction}
+        and from_stop = ${key.fromStop} and to_stop = ${key.toStop}
+        and hour_bucket = ${key.hourBucket} and day_of_week = ${key.dayOfWeek}
+      order by bin_s asc
+    ` as unknown as BinRow[];
+    const total = sumCounts(rows);
+    if (total === 0) return;
+    await tx`
+      insert into segment_stats
+        (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+         sample_count, travel_p50_s, travel_p90_s, distance_m, updated_at)
+      values (${key.lineId}, ${key.direction}, ${key.fromStop}, ${key.toStop},
+        ${key.hourBucket}, ${key.dayOfWeek}, ${total},
+        ${nearestRank(rows, 0.5)}, ${nearestRank(rows, 0.9)},
+        ${distanceM}, now())
+      on conflict (
+        line_id, direction, from_stop, to_stop, hour_bucket, day_of_week
+      ) do update set
+        sample_count = excluded.sample_count,
+        travel_p50_s = excluded.travel_p50_s,
+        travel_p90_s = excluded.travel_p90_s,
+        distance_m = excluded.distance_m,
         updated_at = now()
-    `;
-  }
-
-  private async upsertStop(c: StopCluster, ordinal: number): Promise<void> {
-    // insert if not exists by proximity? For v1 just insert new row.
-    await this.deps.sql`
-      insert into learned_stops (id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes, first_seen_at, last_seen_at, active)
-      values (${c.id}, ${c.lineId}, ${c.direction}, ${ordinal}, ${c.centroidLat}, ${c.centroidLng}, ${c.radiusM}, ${c.passCount}, now(), now(), true)
-      on conflict (id) do update set
-        lat = ${c.centroidLat},
-        lng = ${c.centroidLng},
-        ordinal = ${ordinal},
-        sample_passes = learned_stops.sample_passes + ${c.passCount},
-        last_seen_at = now(),
-        active = true
     `;
   }
 
@@ -1358,7 +1347,8 @@ export class LearningConsumer {
         }
       >)[0];
     }
-    if (!r || r.sample_count < this.gates().kMin) return null;
+    // Every stored aggregate with at least one sample is served.
+    if (!r || r.sample_count < 1) return null;
     return {
       p50: r.travel_p50_s,
       p90: r.travel_p90_s,
@@ -1393,7 +1383,8 @@ export class LearningConsumer {
         { sample_count: number; dwell_p50_s: number; dwell_p90_s: number }
       >)[0];
     }
-    if (!r || r.sample_count < this.gates().kMin) return null;
+    // Every stored aggregate with at least one sample is served.
+    if (!r || r.sample_count < 1) return null;
     return { p50: r.dwell_p50_s, p90: r.dwell_p90_s, count: r.sample_count };
   }
 }
@@ -1412,16 +1403,155 @@ function angleDiff(a: number, b: number): number {
   return Math.abs(diff);
 }
 
-function median(xs: number[]): number {
-  if (xs.length === 0) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+interface WorkingStop {
+  cluster: StopCluster;
+  /** Passes contributed by this trip; the base count lives on cluster. */
+  added: number;
+  sumLat: number;
+  sumLng: number;
+  created: boolean;
 }
 
-function percentile(xs: number[], p: number): number {
-  if (xs.length === 0) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const idx = Math.min(s.length - 1, Math.max(0, Math.ceil(p * s.length) - 1));
-  return s[idx];
+interface DwellHit {
+  stop: WorkingStop;
+  startMs: number;
+  endMs: number;
+}
+
+interface DwellBin {
+  stopId: string;
+  hourBucket: number;
+  dayOfWeek: number;
+  binS: number;
+}
+
+interface TravelBin {
+  lineId: number;
+  direction: number;
+  fromStop: string;
+  toStop: string;
+  hourBucket: number;
+  dayOfWeek: number;
+  binS: number;
+}
+
+interface StopAggregates {
+  stops: WorkingStop[];
+  dwellBins: DwellBin[];
+  travelBins: TravelBin[];
+}
+
+interface DwellKey {
+  stopId: string;
+  hourBucket: number;
+  dayOfWeek: number;
+}
+
+interface SegmentKey {
+  lineId: number;
+  direction: number;
+  fromStop: string;
+  toStop: string;
+  hourBucket: number;
+  dayOfWeek: number;
+}
+
+interface BinRow {
+  bin_s: number;
+  sample_count: number;
+}
+
+/** Weighted centroid of a working stop, combining base passes and this trip. */
+function workingLat(stop: WorkingStop): number {
+  const n = stop.cluster.passCount + stop.added;
+  if (n === 0) return stop.cluster.centroidLat;
+  return (stop.cluster.centroidLat * stop.cluster.passCount + stop.sumLat) / n;
+}
+
+function workingLng(stop: WorkingStop): number {
+  const n = stop.cluster.passCount + stop.added;
+  if (n === 0) return stop.cluster.centroidLng;
+  return (stop.cluster.centroidLng * stop.cluster.passCount + stop.sumLng) / n;
+}
+
+/**
+ * Privacy trim. Normal trips drop trimEndsS from each end. A trip shorter
+ * than 2*trimEndsS drops at most 10% per end, never the whole trip: a short
+ * trip still contributes its stops and dwells. Falls back to all samples if
+ * the proportional trim would leave fewer than 2.
+ */
+function trimSamples(
+  samples: TripSample[],
+  trimEndsS: number,
+): TripSample[] {
+  if (samples.length < 2) return samples;
+  const first = samples[0].t;
+  const last = samples[samples.length - 1].t;
+  const durationMs = Math.max(0, last - first);
+  const normalTrimMs = trimEndsS * 1000;
+  const trimMs = durationMs < 2 * normalTrimMs
+    ? Math.min(normalTrimMs, Math.floor(durationMs * 0.1))
+    : normalTrimMs;
+  const kept = samples.filter((s) =>
+    s.t >= first + trimMs && s.t <= last - trimMs
+  );
+  return kept.length >= 2 ? kept : samples;
+}
+
+/** Quantize a duration into 5 s bins clamped to [5, 3600]. */
+function quantizeS(durationS: number): number {
+  const rounded = Math.round(durationS / 5) * 5;
+  return Math.min(3600, Math.max(5, rounded));
+}
+
+function uniqueDwellKeys(bins: DwellBin[]): DwellKey[] {
+  const keys = new Map<string, DwellKey>();
+  for (const b of bins) {
+    keys.set(`${b.stopId}:${b.hourBucket}:${b.dayOfWeek}`, {
+      stopId: b.stopId,
+      hourBucket: b.hourBucket,
+      dayOfWeek: b.dayOfWeek,
+    });
+  }
+  return [...keys.values()];
+}
+
+function uniqueSegmentKeys(bins: TravelBin[]): SegmentKey[] {
+  const keys = new Map<string, SegmentKey>();
+  for (const b of bins) {
+    keys.set(
+      `${b.fromStop}:${b.toStop}:${b.hourBucket}:${b.dayOfWeek}`,
+      {
+        lineId: b.lineId,
+        direction: b.direction,
+        fromStop: b.fromStop,
+        toStop: b.toStop,
+        hourBucket: b.hourBucket,
+        dayOfWeek: b.dayOfWeek,
+      },
+    );
+  }
+  return [...keys.values()];
+}
+
+function sumCounts(bins: BinRow[]): number {
+  let total = 0;
+  for (const b of bins) total += b.sample_count;
+  return total;
+}
+
+/**
+ * Nearest-rank percentile over ordered histogram bins: the first bin whose
+ * cumulative count reaches ceil(p * total).
+ */
+function nearestRank(bins: BinRow[], p: number): number {
+  const total = sumCounts(bins);
+  if (total === 0) return 0;
+  const rank = Math.max(1, Math.ceil(p * total));
+  let cumulative = 0;
+  for (const b of bins) {
+    cumulative += b.sample_count;
+    if (cumulative >= rank) return b.bin_s;
+  }
+  return bins[bins.length - 1].bin_s;
 }

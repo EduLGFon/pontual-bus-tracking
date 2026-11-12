@@ -65,7 +65,13 @@ export async function runPurgeDiagnostics(
   return await purgeOldDiagnostics(sql, cutoff);
 }
 
-/** Retention cleanup for learning aggregates (F6). */
+/**
+ * Retention cleanup for learning aggregates (F6). Dwell and travel bins
+ * cascade from learned_stops, so removing an inactive stop removes its
+ * histogram rows too. Route cells and edges are bounded by the fixed grid and
+ * line/direction count; they are kept because the published route rebuilds
+ * from them.
+ */
 export async function runPurgeLearning(sql: Sql, now: Date): Promise<void> {
   const cutoff90 = new Date(now.getTime() - 90 * 86400 * 1000);
   const cutoff30 = new Date(now.getTime() - 30 * 86400 * 1000);

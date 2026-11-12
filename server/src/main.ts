@@ -31,7 +31,6 @@ function readEnv(): Record<string, string | undefined> {
     "METRICS_PORT",
     "LINES_JSON",
     "TEST_EASY_PUBLISH",
-    "LEARNING_PRIVACY_MODE",
   ];
   const out: Record<string, string | undefined> = {};
   for (const n of names) out[n] = Deno.env.get(n);
@@ -90,7 +89,6 @@ const learningConsumer = new LearningConsumer({
   sql,
   config: () => learningConfig,
   now: () => Date.now(),
-  privacyMode: () => config.learningPrivacyMode,
 });
 // Seed persisted direction slots and stop clusters (F2/F3). Best-effort.
 learningConsumer.loadLearnedRoutes().catch(() => {});

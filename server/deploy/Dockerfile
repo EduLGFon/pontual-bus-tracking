@@ -33,7 +33,7 @@ COPY --from=build --chown=deno:deno /app/server /app/server
 COPY --from=build --chown=deno:deno /app/build /app/build
 
 # Container-safe defaults. APP_ENV, DATABASE_URL, ALLOWED_ORIGINS,
-# TRUST_CLOUDFLARE, LOG_LEVEL and LEARNING_PRIVACY_MODE come from the
+# TRUST_CLOUDFLARE and LOG_LEVEL come from the
 # environment; HOST must be 0.0.0.0 inside the container and is published
 # on the host loopback only by compose.
 ENV DENO_DIR=/deno-dir \
