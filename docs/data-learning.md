@@ -638,7 +638,7 @@ Unit (Deno, pure functions, no database):
 - `config_test.ts` and `metrics_test.ts`: removed env/config and counter
   behavior.
 
-Integration (against PostgreSQL 16.15, existing security suite):
+Integration (against PostgreSQL 18.6, existing security suite):
 - Migrations 0001 to 0006 apply cleanly, and the 0006 down migration rolls back
   and reapplies cleanly.
 - The full server suite passes with `TEST_DATABASE_URL`: 136 passed, 0 failed.

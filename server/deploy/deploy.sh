@@ -105,6 +105,20 @@ preflight_db() {
     sleep 2
   done
 
+  # PostgreSQL 18 keeps data in /var/lib/postgresql/18/docker. An old 16
+  # cluster left at /var/lib/postgresql/data is not read by 18 and means the
+  # volume has not been migrated. Refuse before an empty database is created.
+  if compose exec -T db test -d /var/lib/postgresql/data; then
+    if [ "${PONTUAL_ALLOW_EMPTY_DB:-0}" != "1" ]; then
+      echo "!!! WARNING: old PostgreSQL data directory found at /var/lib/postgresql/data."
+      echo "!!! PostgreSQL 18 uses /var/lib/postgresql/18/docker and will not read it."
+      echo "!!! Restore the old database first (docs/runbooks/docker.md), or set"
+      echo "!!! PONTUAL_ALLOW_EMPTY_DB=1 for a genuine fresh install."
+      return 1
+    fi
+    echo "preflight: old PostgreSQL data directory present; allowed by PONTUAL_ALLOW_EMPTY_DB=1"
+  fi
+
   local counts
   counts="$(compose exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select (select count(*) from devices)::text || '"'"'|'"'"' || (select count(*) from learned_routes)::text;"' 2>/dev/null | tr -d '[:space:]')" || counts=""
 

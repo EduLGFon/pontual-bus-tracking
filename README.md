@@ -24,7 +24,7 @@ No affiliation with Viacao Sao Gabriel or the municipality.
 
 Clone and read `PLAN.md` sections 0, 16, 19 plus `DECISIONS.md` section 6.
 
-- Database: Docker with `postgres:16-alpine`, or any local PostgreSQL 16.
+- Database: Docker with `postgres:18.6-alpine`, or any local PostgreSQL 18.
 - Migrations: dbmate v2.36.0 (release binary, never committed).
 - Client env: copy `env/example.json` to `env/dev.json` and set `API_BASE_URL`
   and `STATIC_BASE_URL`. Defaults point at the local server. No secrets in
@@ -41,7 +41,7 @@ Terminal 1 - database and migrations:
 ```sh
 docker rm -f pontual-pg 2>/dev/null
 docker run -d --name pontual-pg -e POSTGRES_PASSWORD=test \
-  -e POSTGRES_DB=pontual_test -p 5433:5432 postgres:16-alpine
+  -e POSTGRES_DB=pontual_test -p 5433:5432 postgres:18.6-alpine
 export DATABASE_URL="postgresql://postgres:test@127.0.0.1:5433/pontual_test?sslmode=disable"
 /tmp/dbmate -d ./db/migrations up   # from server/
 ```

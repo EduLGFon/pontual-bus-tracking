@@ -7,7 +7,7 @@ tree. Verdicts: pass, partial (usable with a noted gap), or blocked
 ## Automated suites (all green this round)
 
 - Server: 67 passed, 0 failed (`deno task test` against local
-  PostgreSQL 16 on 5433; needs `TEST_DATABASE_URL` set, CI sets it).
+  PostgreSQL 18 on 5433; needs `TEST_DATABASE_URL` set, CI sets it).
 - Client: 131 passed (`flutter test` in `app/`).
 - `deno fmt --check`, `deno lint`, `deno check`: clean.
   `flutter analyze`: clean. Manifest source audit: PASS.

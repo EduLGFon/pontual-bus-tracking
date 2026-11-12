@@ -2,7 +2,7 @@
 
 The Compose stack runs four services from `server/deploy/compose.yaml`:
 
-- `db`: a pinned `postgres:16.15` container with a named volume. It is never
+- `db`: a pinned `postgres:18.6` container with a named volume. It is never
   published to the host and is only on the internal `data` network.
 - `migrate`: a one-shot `amacneil/dbmate:2.36.0` container that applies the
   forward-only migrations in `server/db/migrations/` and exits.
@@ -152,6 +152,61 @@ docker volume ls | grep pontual-db
 Back up with `pg_dump` and the procedure in `docs/runbooks/ops.md`. Never run
 `docker compose down -v` unless the data is intentionally being destroyed.
 
+### Upgrading from PostgreSQL 16 to 18
+
+PostgreSQL 18 changed the official image layout: `PGDATA` is
+`/var/lib/postgresql/18/docker` and the volume is mounted at
+`/var/lib/postgresql`, not `/var/lib/postgresql/data`. The major-version data
+format is incompatible, so a 16 data directory cannot be started by 18. The
+compose file now uses `postgres:18.6`; the next deploy on an existing 16 volume
+requires a dump and restore (or `pg_upgrade`). Do not swap the image and let 18
+initialize an empty cluster over the old data.
+
+The preflight in `deploy.sh` detects an old `/var/lib/postgresql/data`
+directory and refuses to continue unless `PONTUAL_ALLOW_EMPTY_DB=1` is set. Do
+not use that flag to skip the migration.
+
+Dump from the old cluster while the stack is stopped (keep the volume):
+
+```sh
+docker compose -f server/deploy/compose.yaml stop api migrate db
+docker run --rm -d --name pontual-pg16 \
+  -v pontual-api_pontual-db:/var/lib/postgresql \
+  -e PGDATA=/var/lib/postgresql/data \
+  postgres:16.15
+docker exec pontual-pg16 pg_dump -U pontual_migrator -d pontual \
+  -Fc -f /tmp/pontual.dump
+docker cp pontual-pg16:/tmp/pontual.dump ./pontual-pg16.dump
+docker stop pontual-pg16
+```
+
+Start 18 and restore into the fresh `pontual` database. The init script
+recreates the roles and TLS material; the dump carries the schema, data and
+grants.
+
+```sh
+docker compose -f server/deploy/compose.yaml up -d db
+docker compose -f server/deploy/compose.yaml exec -T db \
+  pg_restore -U pontual_migrator -d pontual --clean --if-exists \
+  < pontual-pg16.dump
+```
+
+Then deploy normally. The preflight should report a non-zero device and route
+count. If `schema_migrations` came from the dump, dbmate reports no pending
+migrations; otherwise run `migrate` once. Verify:
+
+```sh
+docker compose -f server/deploy/compose.yaml exec -T db \
+  psql -U pontual_migrator -d pontual -c \
+  "select (select count(*) from devices) as devices,
+          (select count(*) from learned_routes) as routes;"
+```
+
+Keep `pontual-pg16.dump` and the old `data/` directory until the restore is
+verified. `pg_upgrade --link` with `tianon/postgres-upgrade:16-to-18` is an
+alternative, but the dump/restore above is the supported path here. This
+procedure was not executed against the VPS in this change.
+
 ## Migrations
 
 Migrations apply automatically on `up`. dbmate runs with the migrator role,
@@ -252,7 +307,7 @@ every container on that network.
 
 ## Security controls
 
-- Base images are version-pinned (`denoland/deno:2.9.8`, `postgres:16.15`,
+- Base images are version-pinned (`denoland/deno:2.9.8`, `postgres:18.6`,
   `amacneil/dbmate:2.36.0`, `cloudflare/cloudflared:2026.11.0`); API
   dependencies are locked and cached at build time, and runtime uses
   `--cached-only`.
