@@ -1,9 +1,22 @@
 // Absolute-space corridor geometry for the learning subsystem.
 // Trip fixes cover partial routes, so progress-relative bins cannot place them
 // in a shared frame. This module accumulates samples in a metric grid anchored
-// at a per-line origin and walks the observed directed cell graph to produce an
+// at one fixed origin and walks the observed directed cell graph to produce an
 // ordered polyline. Pure functions only: no I/O, clock, randomness, or module
 // state. Coordinates stay in memory as aggregate cell centroids.
+//
+// The origin is fixed for the whole deployment, not per line and not derived
+// from the first trip of a process. Cell keys are therefore stable across
+// restarts and across API instances, which lets the DB hold the only copy of
+// corridor progress.
+
+/**
+ * Fixed grid origin near Sao Mateus (ES). Any point in the region maps to an
+ * integer cell key relative to this anchor. Never change it while existing
+ * accumulators are in use: the keys in `learning_route_cells` and
+ * `learning_route_edges` are relative to it.
+ */
+export const GRID_ORIGIN: Pt = { lat: -18.72, lng: -39.85 };
 
 export interface Pt {
   lat: number;
@@ -33,7 +46,6 @@ export interface CorridorAcc {
   cells: Map<string, CorridorCell>;
   edges: Map<string, number>;
   tripCount: number;
-  lastPublishedTripCount: number;
 }
 
 const M_PER_DEG_LAT = 111320;
@@ -60,7 +72,6 @@ export function newCorridorAcc(
     cells: new Map(),
     edges: new Map(),
     tripCount: 0,
-    lastPublishedTripCount: 0,
   };
 }
 

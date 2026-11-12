@@ -221,7 +221,6 @@ const jobs = startJobs({
     for (const ev of evs) {
       learningConsumer.handle(ev, {
         consentVersion: learningConfig.minConsentVersion,
-        eligible: true,
       });
     }
   },

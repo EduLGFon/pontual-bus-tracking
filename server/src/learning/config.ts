@@ -22,9 +22,6 @@ export async function loadLearningConfig(sql: Sql): Promise<LearningConfig> {
             num(row.value, cfg.minConsentVersion),
           );
           break;
-        case "learning_min_route_trips":
-          cfg.minRouteTrips = Math.trunc(num(row.value, cfg.minRouteTrips));
-          break;
         case "learning_min_stop_passes":
           cfg.minStopPasses = Math.trunc(num(row.value, cfg.minStopPasses));
           break;
@@ -42,9 +39,6 @@ export async function loadLearningConfig(sql: Sql): Promise<LearningConfig> {
           break;
         case "learning_corridor_cell_m":
           cfg.corridorCellM = num(row.value, cfg.corridorCellM);
-          break;
-        case "learning_min_trip_route_m":
-          cfg.minTripRouteM = num(row.value, cfg.minTripRouteM);
           break;
         case "learning_stop_cluster_radius_m":
           cfg.stopClusterRadiusM = num(row.value, cfg.stopClusterRadiusM);

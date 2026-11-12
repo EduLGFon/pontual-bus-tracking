@@ -5,7 +5,6 @@
 export interface LearningConfig {
   enabled: boolean;
   minConsentVersion: number;
-  minRouteTrips: number;
   minStopPasses: number;
   kMin: number;
   trimEndsS: number;
@@ -17,14 +16,8 @@ export interface LearningConfig {
   headwayHorizonS: number;
   defaultSpeedMps: number;
   defaultDwellS: number;
-  /** Minimum published route length; kept for static-route sanity checks. */
-  minRouteLengthM: number;
-  /** Minimum per-trip distance accepted for corridor accumulation. */
-  minTripRouteM: number;
   /** Absolute corridor grid size in metres. */
   corridorCellM: number;
-  /** Minimum cells required before a corridor chain can be published. */
-  corridorMinCells: number;
   stopMinDistinctDays: number;
   maxSamplesPerTrip: number;
   minSampleSpacingM: number;
@@ -36,7 +29,6 @@ export interface LearningConfig {
 export const defaultLearningConfig = (): LearningConfig => ({
   enabled: true,
   minConsentVersion: 2,
-  minRouteTrips: 5,
   minStopPasses: 4,
   kMin: 5,
   trimEndsS: 120,
@@ -48,10 +40,7 @@ export const defaultLearningConfig = (): LearningConfig => ({
   headwayHorizonS: 1800,
   defaultSpeedMps: 6,
   defaultDwellS: 20,
-  minRouteLengthM: 100,
-  minTripRouteM: 50,
   corridorCellM: 50,
-  corridorMinCells: 3,
   stopMinDistinctDays: 3,
   maxSamplesPerTrip: 200,
   minSampleSpacingM: 20,
@@ -72,8 +61,6 @@ export interface TripWork {
   lineId: number;
   direction: number | null;
   consentVersion: number;
-  /** Device passed the >=5 started-trips gate when the trip started. */
-  eligible: boolean;
   startedAtMs: number;
   endedAtMs: number | null;
   samples: TripSample[];

@@ -7,20 +7,18 @@ import {
   recordLearningDirectionAssigned,
   recordLearningFlush,
   recordLearningFlushFailed,
-  recordLearningRouteBelowMinTrips,
   recordLearningRouteChainTooSmall,
   recordLearningRouteNoFlapSuppressed,
   recordLearningRouteOversized,
   recordLearningRoutePublished,
   recordLearningRouteRetired,
-  recordLearningRouteTooShort,
   recordLearningTripGapDropped,
   recordLearningTripIneligible,
   recordLearningTripNoCellTransition,
   recordLearningTripsContributed,
   recordLearningTripTooFewSamples,
-  recordLearningTripTooShort,
 } from "../observability/metrics.ts";
+import { Log } from "../observability/log.ts";
 import { medianDeviationM, simplify, smooth } from "./routeLearner.ts";
 import {
   addTrip,
@@ -29,6 +27,7 @@ import {
   type CorridorAcc,
   coverageScore,
   DEFAULT_MAX_GAP_M,
+  GRID_ORIGIN,
   newCorridorAcc,
   type Pt,
 } from "./corridor.ts";
@@ -74,9 +73,13 @@ export class LearningConsumer {
   private stopClusters = new Map<string, StopCluster>();
   private dwellAccs = new Map<string, DwellAcc>();
   private segmentAccs = new Map<string, SegmentAcc>();
-  private watermarkTrips = new Map<string, number>();
   private terminusStopIds = new Set<string>();
   private config: LearningConfig;
+  // Serialized async work for finalized trips. Contributions and route
+  // publications run off the request path but in trip-end order. The queue
+  // is in memory only: if the process dies before a queued task runs, that
+  // trip's contribution is lost. No raw trip data is persisted for replay.
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(private deps: ConsumerDeps) {
     this.config = deps.config();
@@ -86,43 +89,97 @@ export class LearningConsumer {
     this.config = this.deps.config();
   }
 
-  /** Seed direction slots from persisted learned_routes (F3). */
+  /**
+   * Reconstruct corridor accumulators from PostgreSQL. Cells, edges and
+   * sample_trips are the source of truth; the in-memory copy only answers
+   * direction assignment and coverage between trips. Active route rows seed
+   * empty direction slots so an upgrade keeps the direction layout it had.
+   */
   async loadLearnedRoutes(): Promise<void> {
     try {
-      const rows = await this.deps.sql`
-        select line_id, direction, polyline from learned_routes
-        where status = 'active'
-        order by line_id asc, direction asc, version desc
+      const accs = new Map<string, CorridorAcc>();
+      const cellRows = await this.deps.sql`
+        select line_id, direction, cell_key, lat, lng, trips
+        from learning_route_cells
       `;
       for (
-        const r of rows as unknown as Array<{
+        const r of cellRows as unknown as Array<{
           line_id: number;
           direction: number;
-          polyline: string;
+          cell_key: string;
+          lat: number;
+          lng: number;
+          trips: number;
         }>
       ) {
-        const k = this.key(r.line_id, r.direction);
-        if (this.routeAccs.has(k)) continue;
-        let origin: Pt | null = null;
-        try {
-          origin = decodePolyline(r.polyline, 5)[0] ?? null;
-        } catch {
-          origin = null;
-        }
-        if (!origin) continue;
-        this.routeAccs.set(
-          k,
-          newCorridorAcc(
-            r.line_id,
-            r.direction,
-            origin,
-            this.config.corridorCellM,
-          ),
-        );
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.cells.set(r.cell_key, { lat: r.lat, lng: r.lng, n: r.trips });
       }
+      const edgeRows = await this.deps.sql`
+        select line_id, direction, from_cell, to_cell, trips
+        from learning_route_edges
+      `;
+      for (
+        const r of edgeRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+          from_cell: string;
+          to_cell: string;
+          trips: number;
+        }>
+      ) {
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.edges.set(`${r.from_cell}>${r.to_cell}`, r.trips);
+      }
+      const stateRows = await this.deps.sql`
+        select line_id, direction, sample_trips from learning_route_state
+      `;
+      for (
+        const r of stateRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+          sample_trips: number;
+        }>
+      ) {
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.tripCount = r.sample_trips;
+      }
+      const routeRows = await this.deps.sql`
+        select line_id, direction from learned_routes
+        where status = 'active'
+        group by line_id, direction
+      `;
+      for (
+        const r of routeRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+        }>
+      ) {
+        this.accFor(accs, r.line_id, r.direction);
+      }
+      this.routeAccs = accs;
     } catch {
-      // DB down.
+      // DB down: no accumulators; direction stays 0 until the next restart.
     }
+  }
+
+  private accFor(
+    accs: Map<string, CorridorAcc>,
+    lineId: number,
+    direction: number,
+  ): CorridorAcc {
+    const k = this.key(lineId, direction);
+    let acc = accs.get(k);
+    if (!acc) {
+      acc = newCorridorAcc(
+        lineId,
+        direction,
+        GRID_ORIGIN,
+        this.config.corridorCellM,
+      );
+      accs.set(k, acc);
+    }
+    return acc;
   }
 
   /** Seed in-memory stop clusters from persisted learned_stops (F2). */
@@ -179,7 +236,7 @@ export class LearningConsumer {
 
   handle(
     event: EngineEvent,
-    opts: { consentVersion: number; eligible: boolean },
+    opts: { consentVersion: number },
   ): void {
     if (!this.config.enabled) return;
     switch (event.kind) {
@@ -199,13 +256,9 @@ export class LearningConsumer {
 
   private onTripStarted(
     e: Extract<EngineEvent, { kind: "tripStarted" }>,
-    opts: { consentVersion: number; eligible: boolean },
+    opts: { consentVersion: number },
   ): void {
     if (opts.consentVersion < this.config.minConsentVersion) {
-      recordLearningTripIneligible();
-      return;
-    }
-    if (!opts.eligible) {
       recordLearningTripIneligible();
       return;
     }
@@ -214,7 +267,6 @@ export class LearningConsumer {
       lineId: e.lineId,
       direction: null,
       consentVersion: opts.consentVersion,
-      eligible: true,
       startedAtMs: e.startedAtMs,
       endedAtMs: null,
       samples: [{ t: e.startedAtMs, lat: e.lat, lng: e.lng, speed: 0 }],
@@ -276,12 +328,31 @@ export class LearningConsumer {
     const work = this.works.get(e.tripKey);
     if (!work) return;
     work.endedAtMs = this.deps.now();
-    this.finalizeTrip(work);
     this.works.delete(e.tripKey);
+    // Finalization does DB writes (cell/edge upserts, state, publish) and must
+    // not block the HTTP response. Tasks run in trip-end order.
+    this.enqueue(() => this.finalizeTrip(work));
   }
 
-  private finalizeTrip(work: TripWork): void {
-    if (work.samples.length < 3) {
+  private enqueue(task: () => Promise<void>): void {
+    this.queue = this.queue.then(task).catch((e) => {
+      Log.warn("learning contribution failed", {
+        err: String(e).slice(0, 200),
+      });
+    });
+  }
+
+  /** Wait for queued contributions, including tasks they enqueue. */
+  private async drainQueue(): Promise<void> {
+    let current: Promise<void>;
+    do {
+      current = this.queue;
+      await current;
+    } while (current !== this.queue);
+  }
+
+  private async finalizeTrip(work: TripWork): Promise<void> {
+    if (work.samples.length < 2) {
       recordLearningTripTooFewSamples();
       return;
     }
@@ -291,23 +362,8 @@ export class LearningConsumer {
     const end = (work.endedAtMs ?? work.samples[work.samples.length - 1].t) -
       cfg.trimEndsS * 1000;
     const kept = work.samples.filter((s) => s.t >= start && s.t <= end);
-    if (kept.length < 3) {
+    if (kept.length < 2) {
       recordLearningTripTooFewSamples();
-      return;
-    }
-
-    // total distance
-    let total = 0;
-    for (let i = 1; i < kept.length; i++) {
-      total += distM(
-        kept[i - 1].lat,
-        kept[i - 1].lng,
-        kept[i].lat,
-        kept[i].lng,
-      );
-    }
-    if (total < cfg.minTripRouteM) {
-      recordLearningTripTooShort();
       return;
     }
 
@@ -331,26 +387,20 @@ export class LearningConsumer {
     work.direction = direction;
     recordLearningDirectionAssigned();
 
-    // Absolute-space corridor accumulation per (line, direction). Progress
-    // bins cannot place partial trips in a shared frame. See D98.
-    const accKey = this.key(work.lineId, direction);
-    let acc = this.routeAccs.get(accKey);
-    if (!acc) {
-      acc = newCorridorAcc(
-        work.lineId,
-        direction,
-        keptPoints[0],
-        cfg.corridorCellM,
-      );
-      this.routeAccs.set(accKey, acc);
-    }
-    const beforeTrips = acc.tripCount;
-    addTrip(acc, keptPoints);
-    if (acc.tripCount > beforeTrips) {
-      this.watermarkTrips.set(
-        accKey,
-        (this.watermarkTrips.get(accKey) ?? 0) + 1,
-      );
+    // Temporary per-trip accumulator on the fixed grid. Dedup is structural
+    // (Map keys), so each visited cell and each directed transition produces
+    // exactly one row increment for this trip. Cell value is the trip's mean
+    // fix in that cell, which keeps the weighted centroid aggregate-only.
+    const tripAcc = newCorridorAcc(
+      work.lineId,
+      direction,
+      GRID_ORIGIN,
+      cfg.corridorCellM,
+    );
+    addTrip(tripAcc, keptPoints);
+    if (tripAcc.tripCount > 0) {
+      await this.contributeTrip(tripAcc);
+      recordLearningTripsContributed(1);
     } else {
       recordLearningTripNoCellTransition();
     }
@@ -533,12 +583,267 @@ export class LearningConsumer {
     }
   }
 
+  // ---- Corridor persistence ----
+
   /**
-   * Assign a direction from existing corridors for this line. No accumulator
-   * means direction 0; exactly one means that accumulator's direction, so a
-   * restart that seeded only one slot keeps new trips on it instead of
-   * splitting the corridor into direction 0. With two, the corridor covered
-   * by the trip wins, falling back to bearing only when both cover nothing.
+   * Persist one trip's deduplicated cells and edges, bump the direction's
+   * sample_trips, then publish the route. Runs inside the serialized queue,
+   * so contributions and publications for a line stay in trip-end order.
+   */
+  private async contributeTrip(trip: CorridorAcc): Promise<void> {
+    const lineId = trip.lineId;
+    const direction = trip.direction;
+    await this.upsertCells(trip);
+    await this.upsertEdges(trip);
+    await this.deps.sql`
+      insert into learning_route_state (line_id, direction, sample_trips)
+      values (${lineId}, ${direction}, 1)
+      on conflict (line_id, direction) do update set
+        sample_trips = learning_route_state.sample_trips + 1
+    `;
+    this.updateMirror(trip);
+    await this.publishRoute(lineId, direction);
+  }
+
+  /**
+   * One parameterized statement per trip. jsonb_to_recordset keeps the rows
+   * out of the SQL text; values are server-derived grid keys and centroids.
+   * A cell row's `trips` counts contributing trips, not fixes.
+   */
+  private async upsertCells(trip: CorridorAcc): Promise<void> {
+    if (trip.cells.size === 0) return;
+    const rows = [...trip.cells].map(([cellKey, cell]) => ({
+      cell_key: cellKey,
+      lat: cell.lat,
+      lng: cell.lng,
+    }));
+    await this.deps.sql`
+      insert into learning_route_cells
+        (line_id, direction, cell_key, lat, lng, trips,
+         first_seen_at, last_seen_at)
+      select ${trip.lineId}, ${trip.direction}, x.cell_key, x.lat, x.lng,
+        1, now(), now()
+      from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+        as x(cell_key text, lat double precision, lng double precision)
+      on conflict (line_id, direction, cell_key) do update set
+        lat = (learning_route_cells.lat * learning_route_cells.trips
+          + excluded.lat) / (learning_route_cells.trips + 1),
+        lng = (learning_route_cells.lng * learning_route_cells.trips
+          + excluded.lng) / (learning_route_cells.trips + 1),
+        trips = learning_route_cells.trips + 1,
+        last_seen_at = now()
+    `;
+  }
+
+  private async upsertEdges(trip: CorridorAcc): Promise<void> {
+    if (trip.edges.size === 0) return;
+    const rows: Array<{ from_cell: string; to_cell: string }> = [];
+    for (const key of trip.edges.keys()) {
+      const sep = key.indexOf(">");
+      if (sep <= 0 || sep === key.length - 1) continue;
+      rows.push({
+        from_cell: key.slice(0, sep),
+        to_cell: key.slice(sep + 1),
+      });
+    }
+    if (rows.length === 0) return;
+    await this.deps.sql`
+      insert into learning_route_edges
+        (line_id, direction, from_cell, to_cell, trips,
+         first_seen_at, last_seen_at)
+      select ${trip.lineId}, ${trip.direction}, x.from_cell, x.to_cell,
+        1, now(), now()
+      from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+        as x(from_cell text, to_cell text)
+      on conflict (line_id, direction, from_cell, to_cell) do update set
+        trips = learning_route_edges.trips + 1,
+        last_seen_at = now()
+    `;
+  }
+
+  /**
+   * Keep the in-memory direction mirror aligned with the DB. The mirror only
+   * answers direction assignment between trips; publication always rebuilds
+   * from PostgreSQL.
+   */
+  private updateMirror(trip: CorridorAcc): void {
+    const acc = this.accFor(this.routeAccs, trip.lineId, trip.direction);
+    for (const [key, cell] of trip.cells) {
+      const existing = acc.cells.get(key);
+      if (!existing) {
+        acc.cells.set(key, { lat: cell.lat, lng: cell.lng, n: 1 });
+        continue;
+      }
+      const n = existing.n + 1;
+      existing.lat += (cell.lat - existing.lat) / n;
+      existing.lng += (cell.lng - existing.lng) / n;
+      existing.n = n;
+    }
+    for (const key of trip.edges.keys()) {
+      acc.edges.set(key, (acc.edges.get(key) ?? 0) + 1);
+    }
+    acc.tripCount += 1;
+  }
+
+  /**
+   * Rebuild the corridor from PostgreSQL and publish after each contributing
+   * trip. There is no trip-count, cell-count or minimum-length publication
+   * gate: only geometry validity (2 points) and the polyline size cap apply.
+   * Version churn is controlled geometrically: a route within 15 m median
+   * deviation of the active one is updated in place.
+   */
+  private async publishRoute(
+    lineId: number,
+    direction: number,
+  ): Promise<void> {
+    const acc = await this.loadCorridorAcc(lineId, direction);
+    const chain = buildChain(acc, {
+      cellM: this.config.corridorCellM,
+      minEdgeWeight: 1,
+      minCells: 2,
+    });
+    const sampleTrips = acc.tripCount;
+    if (!chain) {
+      recordLearningRouteChainTooSmall();
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    const smoothed = smooth(chain);
+    let pts = simplify(smoothed, 5);
+    if (pts.length > 400) pts = simplify(smoothed, 10);
+    if (pts.length < 2) {
+      recordLearningRouteChainTooSmall();
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    const poly = encodePolyline(pts, 5);
+    if (poly.length > 8192) {
+      recordLearningRouteOversized();
+      // Keep the active geometry; confidence still belongs to this direction.
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    await this.upsertRoute(
+      lineId,
+      direction,
+      poly,
+      pts.length,
+      pts,
+      sampleTrips,
+    );
+    await this.updateStopOrdinals(lineId, direction, pts);
+    await this.markPublishAttempt(lineId, direction);
+  }
+
+  private async loadCorridorAcc(
+    lineId: number,
+    direction: number,
+  ): Promise<CorridorAcc> {
+    const acc = newCorridorAcc(
+      lineId,
+      direction,
+      GRID_ORIGIN,
+      this.config.corridorCellM,
+    );
+    const cellRows = await this.deps.sql`
+      select cell_key, lat, lng, trips
+      from learning_route_cells
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    for (
+      const r of cellRows as unknown as Array<{
+        cell_key: string;
+        lat: number;
+        lng: number;
+        trips: number;
+      }>
+    ) {
+      acc.cells.set(r.cell_key, { lat: r.lat, lng: r.lng, n: r.trips });
+    }
+    const edgeRows = await this.deps.sql`
+      select from_cell, to_cell, trips
+      from learning_route_edges
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    for (
+      const r of edgeRows as unknown as Array<{
+        from_cell: string;
+        to_cell: string;
+        trips: number;
+      }>
+    ) {
+      acc.edges.set(`${r.from_cell}>${r.to_cell}`, r.trips);
+    }
+    const stateRows = await this.deps.sql`
+      select sample_trips from learning_route_state
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    acc.tripCount = Number(
+      (stateRows as unknown as Array<{ sample_trips: number }>)[0]
+        ?.sample_trips ?? 0,
+    );
+    return acc;
+  }
+
+  private async updateActiveSampleTrips(
+    lineId: number,
+    direction: number,
+    sampleTrips: number,
+  ): Promise<void> {
+    if (sampleTrips <= 0) return;
+    await this.deps.sql`
+      update learned_routes set sample_trips = ${sampleTrips}
+      where line_id = ${lineId} and direction = ${direction}
+        and status = 'active'
+    `;
+  }
+
+  private async markPublishAttempt(
+    lineId: number,
+    direction: number,
+  ): Promise<void> {
+    await this.deps.sql`
+      update learning_route_state set last_publish_at = now()
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+  }
+
+  /**
+   * Safety net for the crash window between the sample_trips increment and
+   * the async publication. The periodic flush republishes any direction whose
+   * stored sample count is ahead of its active route. A trip queued but never
+   * started is lost; only aggregate progress already in the DB is recovered.
+   */
+  private async publishStaleRoutes(): Promise<void> {
+    const rows = await this.deps.sql`
+      select s.line_id, s.direction
+      from learning_route_state s
+      left join learned_routes r
+        on r.line_id = s.line_id and r.direction = s.direction
+       and r.status = 'active'
+      where s.sample_trips > 0
+        and (r.id is null or s.sample_trips > r.sample_trips)
+    `;
+    for (
+      const r of rows as unknown as Array<{
+        line_id: number;
+        direction: number;
+      }>
+    ) {
+      await this.publishRoute(r.line_id, r.direction);
+    }
+  }
+
+  /**
+   * Assign a direction from DB-backed corridor accumulators for this line.
+   * No accumulator means direction 0; exactly one means that accumulator's
+   * direction, so a restart that reloaded only one slot keeps new trips on it
+   * instead of splitting the corridor into direction 0. With two, the corridor
+   * covered by the trip wins, falling back to bearing only when both cover
+   * nothing.
    */
   private assignDirection(lineId: number, pts: Pt[]): number {
     const accs = [...this.routeAccs.values()]
@@ -595,70 +900,11 @@ export class LearningConsumer {
     if (!this.config.enabled) return;
     recordLearningFlush();
     try {
-      let contributed = 0;
-      for (const n of this.watermarkTrips.values()) contributed += n;
-      recordLearningTripsContributed(contributed);
-      // Persist learned route polylines from the absolute corridor. Skip when
-      // no new trips since the last publish (T1): prevents one stale trip from
-      // generating a new version every flush cycle.
-      for (const acc of this.routeAccs.values()) {
-        // Snapshot before the first await: a trip that finalizes during the
-        // awaits below belongs to the next flush, so the snapshot (never the
-        // live count) is compared and published on every path.
-        const tripCount = acc.tripCount;
-        if (tripCount < this.config.minRouteTrips) {
-          recordLearningRouteBelowMinTrips();
-          continue;
-        }
-        if (tripCount <= acc.lastPublishedTripCount) continue;
-        const chain = buildChain(acc, {
-          cellM: this.config.corridorCellM,
-          minEdgeWeight: 1,
-          minCells: this.config.corridorMinCells,
-        });
-        if (!chain) {
-          recordLearningRouteChainTooSmall();
-          acc.lastPublishedTripCount = tripCount;
-          continue;
-        }
-        const smoothed = smooth(chain);
-        let pts = simplify(smoothed, 5);
-        if (pts.length > 400) pts = simplify(smoothed, 10);
-        // Geometric length gate (minRouteLengthM): a chain can satisfy the cell
-        // minimum yet be a short stub. Reject publication until the simplified
-        // polyline spans the configured minimum; the trip watermark still
-        // advances so this chain is not re-evaluated every flush.
-        let lengthM = 0;
-        for (let i = 1; i < pts.length; i++) {
-          lengthM += distM(
-            pts[i - 1].lat,
-            pts[i - 1].lng,
-            pts[i].lat,
-            pts[i].lng,
-          );
-        }
-        if (lengthM < this.config.minRouteLengthM) {
-          recordLearningRouteTooShort();
-          acc.lastPublishedTripCount = tripCount;
-          continue;
-        }
-        const poly = encodePolyline(pts, 5);
-        if (poly.length > 8192) {
-          recordLearningRouteOversized();
-          acc.lastPublishedTripCount = tripCount;
-          continue; // reject publication
-        }
-        await this.upsertRoute(acc, poly, pts.length, pts);
-        await this.updateStopOrdinals(acc.lineId, acc.direction, pts);
-        acc.lastPublishedTripCount = tripCount;
-      }
-
-      // Persist watermarks
-      for (const [k, n] of this.watermarkTrips) {
-        const [lineId, direction] = k.split(":").map(Number);
-        await this.upsertWatermark(lineId, direction, n);
-      }
-      this.watermarkTrips.clear();
+      // Finalized trips write cells, edges, state and their route publication
+      // off the request path. Wait for them before touching stop aggregates.
+      await this.drainQueue();
+      // Crash-window safety net; no-op when every direction is up to date.
+      await this.publishStaleRoutes();
 
       // Determine which stop clusters qualify for promotion. Only promoted
       // stops get a learned_stops row, so dwell/segment stats (which FK to
@@ -722,40 +968,50 @@ export class LearningConsumer {
   }
 
   private async upsertRoute(
-    acc: { lineId: number; direction: number; tripCount: number },
+    lineId: number,
+    direction: number,
     polyline: string,
     pointCount: number,
-    points: Array<{ lat: number; lng: number }>,
+    points: Pt[],
+    sampleTrips: number,
   ): Promise<void> {
-    // No-flap gate: if an active route exists and the new polyline deviates
-    // less than 15 m on median, keep the old version (docs 5.1).
+    // Version churn control: an active route within 15 m median deviation is
+    // kept, with its confidence and computed_at refreshed in place.
     const activeRows = await this.deps.sql`
-      select polyline from learned_routes
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      select id, polyline from learned_routes
+      where line_id = ${lineId} and direction = ${direction}
         and status = 'active'
       order by version desc
       limit 1
     `;
-    const active = (activeRows as unknown as Array<{ polyline: string }>)[0];
+    const active = (activeRows as unknown as Array<{
+      id: string;
+      polyline: string;
+    }>)[0];
+    let activePts: Pt[] = [];
     if (active) {
-      let activePts: Array<{ lat: number; lng: number }> = [];
       try {
         activePts = decodePolyline(active.polyline, 5);
       } catch {
         activePts = [];
       }
-      if (activePts.length >= 2) {
-        const dev = medianDeviationM(points, activePts);
-        if (dev < 15) {
-          recordLearningRouteNoFlapSuppressed();
-          return; // no flap
-        }
-      }
+    }
+    const dev = activePts.length >= 2
+      ? medianDeviationM(points, activePts)
+      : null;
+    if (active && dev !== null && dev < 15) {
+      recordLearningRouteNoFlapSuppressed();
+      await this.deps.sql`
+        update learned_routes
+        set sample_trips = ${sampleTrips}, computed_at = now()
+        where id = ${active.id}
+      `;
+      return;
     }
     const rows = await this.deps.sql`
       select coalesce(max(version), 0) as v
       from learned_routes
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      where line_id = ${lineId} and direction = ${direction}
     `;
     const version =
       Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
@@ -764,26 +1020,14 @@ export class LearningConsumer {
     const retired = await this.deps.sql`
       update learned_routes
       set status = 'retired', retired_at = now()
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      where line_id = ${lineId} and direction = ${direction}
         and status = 'active'
       returning id
     `;
     recordLearningRouteRetired((retired as unknown[]).length);
-    const dev = active
-      ? medianDeviationM(
-        points,
-        (() => {
-          try {
-            return decodePolyline(active.polyline, 5);
-          } catch {
-            return [];
-          }
-        })(),
-      )
-      : null;
     await this.deps.sql`
       insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, median_deviation_m, computed_at)
-      values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, ${dev}, now())
+      values (${lineId}, ${direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${sampleTrips}, ${dev}, now())
     `;
     recordLearningRoutePublished();
   }
@@ -813,21 +1057,6 @@ export class LearningConsumer {
         where id = ${clusters[i].id}
       `;
     }
-  }
-
-  private async upsertWatermark(
-    lineId: number,
-    direction: number,
-    trips: number,
-  ): Promise<void> {
-    await this.deps.sql`
-      insert into learning_watermarks (line_id, direction, trips_since_route_recompute, trips_since_stop_recompute, last_flush_at)
-      values (${lineId}, ${direction}, ${trips}, ${trips}, now())
-      on conflict (line_id, direction) do update set
-        trips_since_route_recompute = learning_watermarks.trips_since_route_recompute + ${trips},
-        trips_since_stop_recompute = learning_watermarks.trips_since_stop_recompute + ${trips},
-        last_flush_at = now()
-    `;
   }
 
   private async upsertDwell(
