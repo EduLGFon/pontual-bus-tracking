@@ -138,11 +138,11 @@ class UiStrings {
   static const String homeLiveNone = 'Nenhum ao vivo';
 
   /// Live summary chip while the app is offline.
-  static const String homeOffline = 'Offline';
+  static const String homeOffline = 'Sem conexão';
 
   /// Trust line under the empty live card, with a lock icon.
   static const String homeTrust =
-      'Anônimo. Sua localização só é usada enquanto você compartilha.';
+      'Sua localização só é usada quando você pede.';
 
   /// Shortcut card state when the timetable has no more departures today.
   static const String homeNoMoreToday = 'Sem mais saídas hoje';
@@ -652,7 +652,7 @@ class UiStrings {
   static const String sharePhaseStatusActive = 'em andamento';
 
   /// Screen-reader status for a done phase.
-  static const String sharePhaseStatusDone = 'concluído';
+  static const String sharePhaseStatusDone = 'concluída';
 
   /// Screen-reader status for a failed phase.
   static const String sharePhaseStatusFailed = 'falhou';
@@ -937,7 +937,7 @@ class UiStrings {
   /// Sharing banner message for [line], the shared line id or label from
   /// the live sharing state.
   static String sharingNow(String line) =>
-      'Você está compartilhando a Linha $line';
+      'Você está compartilhando a linha $line';
 
   /// End card title.
   static const String endTitle = 'Viagem encerrada. Obrigado por ajudar.';
@@ -992,11 +992,11 @@ class UiStrings {
   static const String reportSheetTitle = 'O que está acontecendo?';
 
   /// Waiting report label.
-  static const String reportWaiting = 'Ainda estou esperando';
+  static const String reportWaiting = 'Alguém esperando';
 
   /// Waiting report hint.
   static const String reportWaitingHint =
-      'Continuo neste ponto esperando o ônibus.';
+      'Tem gente neste ponto esperando o ônibus.';
 
   /// Full bus report label.
   static const String reportFull = 'Ônibus lotado';
@@ -1043,7 +1043,7 @@ class UiStrings {
   /// Disclosure under the report sheet.
   static const String reportPrivacy =
       'O aviso é público e anônimo. Usamos só uma área aproximada de 150 m, '
-      'nunca a posição exata. Para evitar abuso, o aparelho recebe um código '
+      'nunca a posição exata. Para evitar abuso, o celular recebe um código '
       'anônimo. Some em até 2 horas.';
 
   /// Honesty footnote on report surfaces.
@@ -1079,8 +1079,7 @@ class UiStrings {
 
   /// Inline note for area-based kinds.
   static const String reportLocationNote =
-      'Sua localização aproximada (área de ~150 m) será usada só para mostrar '
-      'onde você está. A posição exata não é enviada.';
+      'Lemos sua localização uma vez para mostrar a área.';
 
   /// Static loading label while the one-shot fix is running.
   static const String reportLocating = 'Obtendo localização…';
@@ -1099,7 +1098,7 @@ class UiStrings {
 
   /// Device location services off.
   static const String reportLocationServicesOff =
-      'Ative a localização do aparelho para avisar onde você está.';
+      'Ative a localização do celular para avisar onde você está.';
 
   /// Fix too coarse for a 150 m cell.
   static const String reportLocationImprecise =
@@ -1204,14 +1203,14 @@ class UiStrings {
 
   /// Privacy line under the opt-in.
   static const String myStopPrivacy =
-      'Sua localização fica no aparelho. Sua posição não é enviada.';
+      'Sua localização fica no celular. Sua posição não é enviada.';
 
   /// Location note title.
   static const String myStopPrivacyTitle = 'Usar sua localização?';
 
   /// Location note body.
   static const String myStopPrivacyBody =
-      'Usamos sua localização só neste aparelho para achar o ponto mais '
+      'Usamos sua localização só neste celular para achar o ponto mais '
       'próximo. A posição exata não é enviada.';
 
   /// Location note primary action.
@@ -1280,7 +1279,7 @@ class UiStrings {
 
   /// Location services off in the line screen context.
   static const String myStopServicesOff =
-      'Ative a localização do aparelho para achar o ponto mais próximo.';
+      'Ative a localização do celular para achar o ponto mais próximo.';
 
   /// No estimate for the chosen stop.
   static const String myStopNoEstimate = 'Sem previsão agora.';
@@ -1327,7 +1326,7 @@ class UiStrings {
 
   /// Screen-reader sentence with minutes.
   static String myStopA11y(int minutes, int meters) =>
-      'Seu ônibus chega em cerca de $minutes minutos no ponto a '
+      'Seu ônibus chega em cerca de ${minutes == 1 ? '1 minuto' : '$minutes minutos'} no ponto a '
       '$meters metros de você.';
 
   /// Screen-reader sentence when arriving.
@@ -1426,7 +1425,7 @@ class UiStrings {
 
   /// One-line privacy summary under the help header.
   static const String privacySummary =
-      'Sem cadastro. Sua localização só é usada enquanto você compartilha.';
+      'Sem cadastro. Usamos sua localização só quando você pede.';
 
   /// Theme row.
   static const String theme = 'Tema';
@@ -1467,16 +1466,14 @@ class UiStrings {
 
   /// Clear local data description.
   static const String clearLocalDataHint =
-      'Remove favoritos, recentes e dados salvos no aparelho. Ajustes '
-      'continuam.';
+      'Remove favoritos, recentes, atalhos e cache deste celular. O código do aparelho e o consentimento ficam.';
 
   /// Clear local data confirmation title.
   static const String clearLocalDataTitle = 'Limpar dados locais?';
 
   /// Clear local data confirmation body.
   static const String clearLocalDataBody =
-      'Remove favoritos, recentes, atalhos, alertas e o cache de horários '
-      'deste aparelho. Ajustes continuam. Não pode ser desfeito.';
+      'Remove favoritos, recentes, atalhos, avisos e o cache de horários deste celular. O código do aparelho e o consentimento continuam. Não pode ser desfeito.';
 
   /// Clear local data confirm action.
   static const String clearLocalDataConfirm = 'Limpar';
@@ -1516,8 +1513,7 @@ class UiStrings {
 
   /// Delete confirmation body.
   static const String privacyDeleteBody =
-      'Encerra sua viagem, apaga os dados ligados a este aparelho no '
-      'servidor e reinicia o app.';
+      'Encerra sua viagem, apaga os dados deste celular no servidor e volta para o início.';
 
   /// Delete confirm action.
   static const String privacyConfirmDelete = 'Apagar';
@@ -1544,11 +1540,11 @@ class UiStrings {
 
   /// Collection summary mirroring the data inventory.
   static const List<String> collectsSummary = <String>[
-    'Aparelho anônimo: um código aleatório, sem nome ou e-mail.',
+    'Código anônimo do celular, sem nome ou e-mail.',
     'Versão do consentimento que você aceitou e quando.',
-    'Durante a viagem: posição, velocidade e bateria (só na memória).',
+    'Durante a viagem: posição, velocidade, direção e precisão (só na memória).',
     'Ao descer, a posição some na hora. Sem histórico.',
-    'Avisos: tipo, linha e área aproximada (~150 m), públicos por até 2 h.',
+    'Avisos: tipo, linha, área aproximada (~150 m), horário do servidor e contagem, públicos por até 2 h.',
     'Quem só olha o mapa não cria registro nenhum.',
     'Nunca: nome, e-mail, telefone, fotos ou microfone.',
   ];
@@ -1806,4 +1802,21 @@ class UiStrings {
 
   /// Shortcut kind custom.
   static const String shortcutKindCustom = 'Outro';
+
+  /// Trip notification title shown while sharing.
+  static String tripNotificationTitle(String line) =>
+      'Compartilhando a linha $line';
+
+  /// Trip notification body text.
+  static const String tripNotificationText = 'Toque para abrir ou encerrar.';
+
+  /// Title when only approximate location is granted.
+  static const String permissionImpreciseTitle = 'Localização aproximada';
+
+  /// Title when location services are off.
+  static const String permissionServicesOffTitle = 'Localização desligada';
+
+  /// Title when a trip could not be started.
+  static const String shareProgressFailedTitle =
+      'Não foi possível iniciar a viagem';
 }

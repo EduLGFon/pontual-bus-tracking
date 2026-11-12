@@ -12,7 +12,7 @@ Quem somos: app independente e não oficial de acompanhamento de
 configurações quando definido.
 
 O que coletamos:
-- Um código aleatório do aparelho (sem nome, e-mail ou telefone).
+- Um código aleatório do celular (sem nome, e-mail ou telefone).
 - A versão do consentimento que você aceitou e quando.
 - Durante a viagem: posição, velocidade e bateria do celular. Isso
   fica só na memória do servidor e some quando a viagem termina.
@@ -22,7 +22,7 @@ O que coletamos:
   avisar, não cria registro nenhum.
 
 O que nunca coletamos: nome, e-mail, telefone, contatos, fotos,
-microfone, histórico de viagens ou identificadores do aparelho.
+microfone, histórico de viagens ou identificadores do celular.
 
 Seus direitos: você pode revogar o consentimento e apagar seus
 dados a qualquer momento nesta tela ("Apagar meus dados").
@@ -38,9 +38,9 @@ Pontual: termos de uso (resumo)
   da Prefeitura de São Mateus.
 - Horários não oficiais e posições aproximadas: sem garantia de
   exatidão ou disponibilidade.
-- Use honesto: compartilhe só quando estiver no ônibus, sem
+- Seja honesto: compartilhe só quando estiver no ônibus, sem
   localizações falsas e sem automação.
-- Avisos são relatos públicos de passageiros, não informação
+- Avisos são relatos públicos de passageiros, não são informação
   oficial. Para espera ou acesso bloqueado, usamos uma área de
   ~150 m, não a posição exata.
 - Podemos encerrar viagens, remover avisos e bloquear aparelhos
