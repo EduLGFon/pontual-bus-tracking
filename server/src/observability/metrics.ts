@@ -23,6 +23,19 @@ export interface MetricsSnapshot {
   learningRoutesPublishedTotal: number;
   learningRoutesRetiredTotal: number;
   learningTripsContributedTotal: number;
+  /** Drop-reason counters for the learning subsystem (aggregate only). */
+  learningTripsIneligibleTotal: number;
+  learningTripsTooFewSamplesTotal: number;
+  learningTripsTooShortTotal: number;
+  learningTripsGapDroppedTotal: number;
+  learningTripsNoCellTransitionTotal: number;
+  learningTripsDirectionAssignedTotal: number;
+  learningRoutesBelowMinTripsTotal: number;
+  learningRoutesChainTooSmallTotal: number;
+  learningRoutesTooShortTotal: number;
+  learningRoutesOversizedTotal: number;
+  learningRoutesNoFlapSuppressedTotal: number;
+  learningFlushesFailedTotal: number;
 }
 
 const startedAtMs = Date.now();
@@ -39,6 +52,18 @@ let learningFlushesTotal = 0;
 let learningRoutesPublishedTotal = 0;
 let learningRoutesRetiredTotal = 0;
 let learningTripsContributedTotal = 0;
+let learningTripsIneligibleTotal = 0;
+let learningTripsTooFewSamplesTotal = 0;
+let learningTripsTooShortTotal = 0;
+let learningTripsGapDroppedTotal = 0;
+let learningTripsNoCellTransitionTotal = 0;
+let learningTripsDirectionAssignedTotal = 0;
+let learningRoutesBelowMinTripsTotal = 0;
+let learningRoutesChainTooSmallTotal = 0;
+let learningRoutesTooShortTotal = 0;
+let learningRoutesOversizedTotal = 0;
+let learningRoutesNoFlapSuppressedTotal = 0;
+let learningFlushesFailedTotal = 0;
 
 export function recordRequest(): void {
   requestsTotal += 1;
@@ -93,6 +118,54 @@ export function recordLearningTripsContributed(n: number): void {
   learningTripsContributedTotal += n;
 }
 
+export function recordLearningTripIneligible(): void {
+  learningTripsIneligibleTotal += 1;
+}
+
+export function recordLearningTripTooFewSamples(): void {
+  learningTripsTooFewSamplesTotal += 1;
+}
+
+export function recordLearningTripTooShort(): void {
+  learningTripsTooShortTotal += 1;
+}
+
+export function recordLearningTripGapDropped(): void {
+  learningTripsGapDroppedTotal += 1;
+}
+
+export function recordLearningTripNoCellTransition(): void {
+  learningTripsNoCellTransitionTotal += 1;
+}
+
+export function recordLearningDirectionAssigned(): void {
+  learningTripsDirectionAssignedTotal += 1;
+}
+
+export function recordLearningRouteBelowMinTrips(): void {
+  learningRoutesBelowMinTripsTotal += 1;
+}
+
+export function recordLearningRouteChainTooSmall(): void {
+  learningRoutesChainTooSmallTotal += 1;
+}
+
+export function recordLearningRouteTooShort(): void {
+  learningRoutesTooShortTotal += 1;
+}
+
+export function recordLearningRouteOversized(): void {
+  learningRoutesOversizedTotal += 1;
+}
+
+export function recordLearningRouteNoFlapSuppressed(): void {
+  learningRoutesNoFlapSuppressedTotal += 1;
+}
+
+export function recordLearningFlushFailed(): void {
+  learningFlushesFailedTotal += 1;
+}
+
 export function snapshot(): MetricsSnapshot {
   return {
     startedAt: new Date(startedAtMs).toISOString(),
@@ -110,5 +183,17 @@ export function snapshot(): MetricsSnapshot {
     learningRoutesPublishedTotal,
     learningRoutesRetiredTotal,
     learningTripsContributedTotal,
+    learningTripsIneligibleTotal,
+    learningTripsTooFewSamplesTotal,
+    learningTripsTooShortTotal,
+    learningTripsGapDroppedTotal,
+    learningTripsNoCellTransitionTotal,
+    learningTripsDirectionAssignedTotal,
+    learningRoutesBelowMinTripsTotal,
+    learningRoutesChainTooSmallTotal,
+    learningRoutesTooShortTotal,
+    learningRoutesOversizedTotal,
+    learningRoutesNoFlapSuppressedTotal,
+    learningFlushesFailedTotal,
   };
 }

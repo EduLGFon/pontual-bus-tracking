@@ -130,7 +130,7 @@ interface DwellAccumulator { stopId: string; hourBucket: number; dayOfWeek: numb
 interface SegmentAccumulator { lineId: number; direction: number; fromStop: string; toStop: string; hourBucket: number; dayOfWeek: number; count: number; sumS: number; minS: number; maxS: number; distanceM: number; reservoir: number[]; }
 ```
 
-Accumulators flushed to PostgreSQL via upserts, then cleared from memory for flushed keys to bound memory. Counters representing lifetime sample counts are persisted and reloaded on startup, so flushing does not lose history.
+Accumulators are flushed to PostgreSQL via upserts, then cleared from memory for flushed keys to bound memory. Route corridor trip counts (`CorridorAcc.tripCount`) and dwell/segment sample counts are NOT persisted or reloaded: `learning_watermarks` only stores cumulative trip counts per (line, direction), and the in-memory `routeAccs` map is seeded from `learned_routes` rows as empty corridors (no trip count). The route publication gate therefore requires 5 corridor-contributing trips in the SAME API process for one (line, direction). A process restart or deploy resets corridor progress even though watermark rows and learned routes remain in PostgreSQL. Recovery: keep the API process running across flushes; after a restart, trips must re-accumulate before a new route version can publish. Counts in `learned_stops.sample_passes` and `segment_stats.sample_count` are persisted cumulatively and do reload via upserts, but corridor trip counts do not.
 
 4.3 Direction assignment:
 - Collect the existing absolute-corridor accumulators for the line.
