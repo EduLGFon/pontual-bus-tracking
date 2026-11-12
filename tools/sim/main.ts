@@ -148,6 +148,7 @@ async function main(): Promise<void> {
       acc: 10,
       bat: 75,
       chg: false,
+      synthetic: true,
     });
     if (start.status !== 201) {
       errors.push(`start failed: ${start.status}`);
@@ -225,6 +226,7 @@ async function main(): Promise<void> {
         acc: 10,
         bat: 100,
         chg: false,
+        synthetic: true,
       });
       if (spoof.status !== 201 && spoof.status !== 422) {
         errors.push(`spoof unexpected: ${spoof.status}`);

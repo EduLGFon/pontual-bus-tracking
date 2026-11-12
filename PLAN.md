@@ -646,7 +646,7 @@ object-id attacks and keeps ids out of proxy logs).
 | `GET /v1/health` | no | none | `200 {"ok":true}` (DB reachability cached 10 s) | IP / generous |
 | `POST /v1/devices` | no (Turnstile token on web when enabled) | `{}` | `201 {"token":"bm1_...","exp":<epoch_s>,"id":"<uuid>"}` | IP `register_per_ip_per_hour`, global cap |
 | `POST /v1/consents` | yes | `{"version":1}` | `200 {"ok":true}` (`version` must equal the current one) | device 10/h |
-| `POST /v1/trip` | yes | `{"line":7,"lat":-18.72345,"lng":-39.85678,"acc":12,"bat":75,"chg":false,"resume":false}` | `201 {"r":"W","n":20}` | device `max_starts_per_hour`; `resume` has its own budget |
+| `POST /v1/trip` | yes | `{"line":7,"lat":-18.72345,"lng":-39.85678,"acc":12,"bat":75,"chg":false,"resume":false,"synthetic":false}` | `201 {"r":"W","n":20}` | device `max_starts_per_hour`; `resume` has its own budget; optional `synthetic` only suppresses learning for that trip |
 | `POST /v1/trip/ping` | yes | `{"seq":42,"lat":..,"lng":..,"spd":8.3,"hdg":270,"acc":12,"bat":75,"chg":false,"role":"L"}` | `200 {"r":"L","n":15}` plus optional `"e"` and `"a":1` | device: `min_ping_interval_s` strikes + 30/min bucket |
 | `DELETE /v1/trip` | yes | none | `204` (idempotent) | device 30/min |
 | `GET /v1/lines/{id}/vehicles` | no | none | `200 {"t":<epoch_s>,"v":[[id,lat,lng,hdg,kmh,n,age_s],...],"r":[...]}` with `ETag`; `304` on match; `Cache-Control: public, max-age=5` | IP 120/min |

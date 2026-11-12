@@ -64,7 +64,7 @@ function runTrip(
   lineId: number,
   tripKey: string,
   points: TripPoint[],
-  opts = { consentVersion: 2 },
+  opts: { consentVersion: number; synthetic?: boolean } = { consentVersion: 2 },
   clock: { now: number } = { now: 0 },
 ): void {
   const first = points[0];
@@ -75,6 +75,7 @@ function runTrip(
     startedAtMs: first.tMs,
     lat: first.lat,
     lng: first.lng,
+    synthetic: opts.synthetic === true,
   }, opts);
   for (const p of points.slice(1)) {
     consumer.handle({
@@ -183,6 +184,41 @@ Deno.test("first contributing trip persists aggregates and publishes", async () 
       q.text.includes("select id, lat, lng from learned_stops")
     ),
   );
+});
+
+Deno.test("a synthetic trip contributes no aggregates", async () => {
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+
+  runTrip(
+    consumer,
+    12,
+    "synthetic-trip",
+    path(0, 400, 1_000_000),
+    { consentVersion: 2, synthetic: true },
+    clock,
+  );
+  await consumer.flush();
+
+  for (
+    const marker of [
+      "insert into learning_route_cells",
+      "insert into learning_route_edges",
+      "insert into learning_route_state",
+      "insert into learned_stops",
+      "insert into learning_dwell_bins",
+      "insert into learning_travel_bins",
+      "insert into learned_routes",
+    ]
+  ) {
+    assertEquals(
+      queries.filter((q) => q.text.includes(marker)).length,
+      0,
+      marker,
+    );
+  }
 });
 
 Deno.test("trip below minimum consent never contributes", async () => {

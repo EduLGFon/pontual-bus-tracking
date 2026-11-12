@@ -248,6 +248,8 @@ export class LearningConsumer {
     e: Extract<EngineEvent, { kind: "tripStarted" }>,
     opts: { consentVersion: number },
   ): void {
+    // Test and simulator trips opt out explicitly; live sharing still runs.
+    if (e.synthetic === true) return;
     if (opts.consentVersion < this.config.minConsentVersion) {
       recordLearningTripIneligible();
       return;

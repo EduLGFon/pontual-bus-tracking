@@ -157,6 +157,8 @@ export type EngineEvent =
     startedAtMs: number;
     lat: number;
     lng: number;
+    /** Client-supplied; never used for auth or ownership. See D110. */
+    synthetic?: boolean;
   }
   | {
     kind: "fixAccepted";

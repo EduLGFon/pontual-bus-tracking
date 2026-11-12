@@ -88,6 +88,7 @@ export function startTrip(
   fix: Fix,
   nowMs: number,
   cfg: EngineConfig,
+  synthetic = false,
 ): StartResult {
   if (!line || !line.isActive) return { ok: false, code: "line" };
   if (store.trips.size >= cfg.maxActiveTrips && !store.trips.has(deviceId)) {
@@ -129,6 +130,7 @@ export function startTrip(
     startedAtMs: nowMs,
     lat: fix.lat,
     lng: fix.lng,
+    synthetic,
   });
   return { ok: true, role: "W", intervalS: cfg.waitingIntervalS };
 }

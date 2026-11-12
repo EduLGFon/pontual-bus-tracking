@@ -123,6 +123,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       },
       Date.now(),
       cfg,
+      parsed.output.synthetic,
     );
     if (!out.ok) {
       if (out.code === "line") return c.json({ e: "line" }, 404);
