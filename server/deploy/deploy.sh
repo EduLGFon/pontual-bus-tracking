@@ -78,7 +78,7 @@ wait_health() {
 }
 
 preflight_db() {
-  local volume_name="${COMPOSE_PROJECT_NAME:-pontual-api}_pontual-db"
+  local volume_name="pontual-api_pontual-db"
   local volume_exists=0
   if docker volume inspect "$volume_name" >/dev/null 2>&1; then
     volume_exists=1

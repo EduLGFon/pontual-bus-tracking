@@ -209,7 +209,7 @@ schema change is a new migration.
 
 ## Empty-database preflight
 
-`deploy.sh deploy` and `deploy.sh rollback` run a read-only preflight before
+`deploy.sh deploy` runs a read-only preflight before
 starting or updating the stack. They check whether the persistent
 `pontual-db` volume already exists and, when it does, whether the
 `devices` and `learned_routes` tables contain any rows. If the volume is
