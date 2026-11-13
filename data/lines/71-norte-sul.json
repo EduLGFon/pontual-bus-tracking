@@ -13,7 +13,7 @@
     "Sul"
   ],
   "is_active": true,
-  "pilot": false,
+  "pilot": true,
   "schedules": [
     {
       "day_type": "weekday",

@@ -10,7 +10,7 @@ Status: implemented (see UI_SPEC 7.4, DECISIONS.md D31). Full audit, implementat
 ## Decisions retained
 
 - 1-minute tick over 30 s (battery).
-- No bottom sheet for unsupported lines: detail already handles empty timetables plus the non-pilot note.
+- No bottom sheet for unsupported lines: every active line is now live-capable and shareable, so the timetable-only fallback applies only to inactive lines.
 - Favorites copy drops `e na tela inicial`: favorites do not feed Home shortcuts (separate store).
 - Inline search on Linhas skipped: global Busca (`/search`) already searches the same index offline; 21 grouped rows need no second search box. Revisit if the catalog grows past comfortable scanning.
 - Dock pill over FAB (UI_SPEC 7.1); clearance kept.

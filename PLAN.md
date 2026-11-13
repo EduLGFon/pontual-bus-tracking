@@ -137,9 +137,9 @@ possible but not built.
 - Android app (Flutter), Portuguese (pt-BR) only.
 - Web/PWA build (same codebase) so iOS users can at least **watch** the map [A];
   web **sharing** (foreground only) [A\*].
-- 1-3 pilot lines seeded manually (all 21 line names listed in the line list,
-  but only pilot lines flagged `pilot`/live-capable) [A]; remaining lines show
-  timetable only.
+- All active lines seeded manually (24 today, including the internal test
+  line), every active line flagged `pilot` and therefore live-capable and
+  accepting trip sharing [A]; inactive lines remain timetable only.
 - Anonymous device tokens (no sign-up), per-trip location sharing with explicit
   consent.
 - Vehicle merging, leader election, live map, static timetables,
@@ -304,7 +304,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 
 | ID | Requirement | Tag | Notes |
 | --- | --- | --- | --- |
-| RF01 | User picks the line they are riding from the list of urban lines. | A | Lines without `pilot` flag show timetable only. |
+| RF01 | User picks the line they are riding from the list of urban lines. | A | Every active line is live-capable; inactive lines show timetable only. |
 | RF02 | Starting a **trip session** happens when the user taps "Estou no ônibus" and confirms. | A | Requires consent (§13) + permissions. |
 | RF03 | User can end the trip manually ("Desci"). | A | Also from the Android notification. |
 | RF04 | Trip ends automatically: no ping for 10 min, hard cap 4 h, permission revoked, app swiped away. Stationary trips are never ended for standing still (traffic jams, construction stops); movement gates only decide publishing, not survival. | A | Server enforces; client also ends early where it can. |
@@ -322,7 +322,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 | RF16 | "Você ainda está no ônibus?" prompt when the device is slow for 15 min; no answer in 5 min -> trip ends. Forgotten stationary trips still die; traffic jams and construction stops survive unattended. | A\* | |
 | RF17 | **Kill switch / maintenance / forced update**: static `config.json` (CDN) and server flag; app shows a blocking or banner state. | A | Ops safety. |
 | RF18 | Live-lines indicator on the home list (which lines have vehicles now). | A | One cheap, edge-cacheable endpoint `GET /v1/live`. |
-| RF19 | Route polyline drawn on the line map (from pilot-line traces). | A\* | Encoded polyline, lazy loaded. |
+| RF19 | Route polyline drawn on the line map (learned from trips; hand-recorded polylines where available). | A\* | Encoded polyline, lazy loaded. |
 | RF20 | Stops layer / next-bus-at-stop ETA. | A | Layer ships with mapped stops; per-stop ETA follows coverage. |
 | RF21 | Community timetable corrections form. | L | Report §12.3. |
 | RF22 | Notifications, favourites, history, delay stats. | L | Out of scope (report §4). |
@@ -946,7 +946,7 @@ latency weekly (§18).
   1. `build/lines.<hash>.json` - all lines + timetables (immutable,
      content-hashed name).
   2. `build/routes/<code>.<hash>.json` - encoded polyline (precision 5) per
-     pilot line.
+     line with recorded geometry.
   3. `build/manifest.json` -
      `{ "data_version": "...", "lines": "lines.<hash>.json", "routes": {"<code>": "routes/<code>.<hash>.json"}, "generated_at": "..." }`.
   4. `build/config.json` - remote flags:
@@ -990,7 +990,10 @@ latency weekly (§18).
 Rules: `id` is a stable smallint, **never reused**; `code` is an immutable slug
 (`^[a-z0-9-]{2,40}$`); removing a line = `is_active:false`; times are `HH:MM`
 24 h, ascending, unique; `day_type ∈ {weekday, saturday, sunday_holiday}`;
-`short` <= 3 chars (badge), unique across lines. File budget: all lines <= 100 KB
+`short` <= 3 chars (badge), unique across lines. `pilot` is the per-line
+live-capability switch: every active line sets it true, enabling trip sharing,
+the live map, passenger reports and personal arrival; an inactive line keeps it
+false and remains timetable-only. File budget: all lines <= 100 KB
 raw (≈ 10-15 KB compressed). `data/sources.md` lists every source with URL,
 retrieval date and licence/permission status.
 
@@ -1405,8 +1408,9 @@ fixed item extent. Place search filters locally.
 
 Purpose: see vehicles of this line; start sharing. Map (flutter_map), vehicle
 markers, status row (live/stale/no vehicles/connecting/offline), list rows as
-text alternative, primary "Estou no ônibus" button. Non-pilot lines hide the
-share button and show "Esta linha ainda não tem rastreamento ao vivo." Marker:
+text alternative, primary "Estou no ônibus" button. Every active line is
+shareable; inactive lines hide the share button and show "Esta linha ainda não
+tem rastreamento ao vivo." Marker:
 circle + heading arrow; tooltip "Há N s". Leaving the screen closes the live
 stream. Status states in `docs/ui/UI_SPEC.md`.
 
@@ -1486,7 +1490,7 @@ failed request, disappears after next success. Never blocks input.
 Purpose: let a passenger signal a short-lived, public condition without opening
 a chat, without a location prompt, and without pretending the report is
 verified. Entry points: line sheet "Sinalizar" ghost action plus a strip of at
-most two report chips and a `+N` overflow chip (only on pilot lines); trip
+most two report chips and a `+N` overflow chip (on every active line); trip
 screen AppBar flag icon. Any viewer can use it; no trip or bus presence required.
 Stop dots on the map stay decorative; no stop sheet or stop picker (D83).
 

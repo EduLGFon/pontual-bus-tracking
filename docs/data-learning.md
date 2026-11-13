@@ -16,7 +16,7 @@ PostgreSQL migration run, and tuning.
 ## 0. Purpose and status
 
 Pontual serves live vehicle positions from rider pings plus static timetables
-and, for pilot lines, hand-recorded route polylines. This subsystem lets
+and hand-recorded route polylines where available. This subsystem lets
 crowd-sourced trips teach the system: the driven way-path per line as a
 polyline; stops actually served with cumulative dwell distributions by time of
 day and day of week; real ETA prediction from current pace plus historic
@@ -49,7 +49,7 @@ Success criteria:
   labelled with `trips: 1`. With at least 5 trips in a direction, the median
   distance to a hand-recorded route (where one exists) is under 40 m.
 - Stop detection precision and recall are at least 0.8 on manually labelled
-  stops on two pilot lines.
+  stops on two active lines.
 - ETA median absolute error at a 5-minute horizon is under 90 s on a held-out
   week of simulator trips.
 - The prediction endpoints add less than 5 ms p99 to snapshot build time, and

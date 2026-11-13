@@ -4,6 +4,7 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- Line data: every active line is now live-capable and accepts trip sharing; `pilot` remains the per-line capability switch for the live map, reports and personal arrival, and inactive lines stay timetable-only. The static bundle and the bundled app asset were regenerated. No Dart, server or API change. See DECISIONS.md D113.
 - Database: PostgreSQL 18.6. Compose now uses the 18 volume layout (`/var/lib/postgresql`, `PGDATA=/var/lib/postgresql/18/docker`), CI and the README use 18.6, and the deploy preflight refuses an unmigrated 16 data directory. Migrations and the full server suite pass on 18.6. See DECISIONS.md D112 and docs/runbooks/docker.md.
 - Learning v2: every consenting organic trip contributes. Route cells, edges and sample counts, stop centroids, and cumulative dwell/travel histograms now live in PostgreSQL on a fixed grid, so progress survives restarts. Aggregates are served from one sample with the count attached; day and hour buckets use the dwell or destination event, not the trip start. Removes the 5-trip device gate, `learning_min_route_trips`, `kMin`, terminus suppression and `LEARNING_PRIVACY_MODE`, and replaces the rolling stat delete with stop-lifecycle retention. See DECISIONS.md D109 and docs/data-learning.md.
 - Privacy: the privacy center now has a confirmed "Parar de contribuir com dados agregados" action that calls `DELETE /v1/me/learning`. It is one-way, reports offline honestly, and keeps past aggregates. See DECISIONS.md D111.
