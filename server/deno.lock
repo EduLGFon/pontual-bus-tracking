@@ -1,16 +1,16 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@4.13.14": "4.13.14",
+    "jsr:@hono/hono@4.13.18": "4.13.18",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@valibot/valibot@*": "1.5.0",
     "jsr:@valibot/valibot@1.5.0": "1.5.0",
-    "npm:postgres@4.0.0": "4.0.0"
+    "npm:postgres@4.1.1": "4.1.1"
   },
   "jsr": {
-    "@hono/hono@4.13.14": {
-      "integrity": "eb72ba9062b84caed0d6160804645f8d5c984ec47fd301df3f995ab8c5135123"
+    "@hono/hono@4.13.18": {
+      "integrity": "2e9a294f8ed5ca8f0dddf08927ad46111e756f3329f1483db550cd60757f7e21"
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -26,16 +26,16 @@
     }
   },
   "npm": {
-    "postgres@4.0.0": {
-      "integrity": "sha512-kBh8qXtcvvIAc00DftQyOxz7M/3Zxww1tRMXZPLzipNXXl5PIzHml+9zB3Mrge2U8ldc0WF1ZdLp1iYQi7Kh3A=="
+    "postgres@4.1.1": {
+      "integrity": "sha512-1kJDojqNZC+iTHHXh6eif0J98LUtyLAePe/qkW1GK35eh2JixlsAiIKq3FGI+xqI+SUGTNodzf7TScVeIIyUug=="
     }
   },
   "workspace": {
     "dependencies": [
-      "jsr:@hono/hono@4.13.14",
+      "jsr:@hono/hono@4.13.18",
       "jsr:@std/assert@1",
       "jsr:@valibot/valibot@1.5.0",
-      "npm:postgres@4.0.0"
+      "npm:postgres@4.1.1"
     ]
   }
 }
