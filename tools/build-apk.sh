@@ -6,7 +6,7 @@
 # See env/example.json. No secrets belong in client env files.
 set -eu
 
-ENV_FILE="${1:-env/dev.json}"
+ENV_FILE="${1:-env/phone.json}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "error: env file not found: $ENV_FILE" >&2
