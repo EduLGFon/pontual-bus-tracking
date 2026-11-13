@@ -1,4 +1,4 @@
-// Deterministic tests for the 5 s ping scheduler (PLAN.md 8.7).
+// Deterministic tests for the 5 s ping scheduler (ARCHITECTURE.md 8.7).
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';

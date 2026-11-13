@@ -3,7 +3,7 @@
 // stream is never recreated more than once per 30 s, but upgrades to a
 // faster cadence apply immediately so a new leader reaches its 5 s rate
 // on the next fix instead of stalling a full hysteresis window.
-// See PLAN.md 8.6.
+// See ARCHITECTURE.md 8.6.
 
 /// Location request modes.
 enum SamplingMode {

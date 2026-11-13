@@ -3,7 +3,7 @@
 // denied, but the trip itself keeps running. This asks once per share
 // attempt, never blocks sharing, and never throws. Location permission
 // stays owned by the PermissionGateway; this covers notifications only.
-// See PLAN.md 8.2 and S07.
+// See ARCHITECTURE.md 8.2 and S07.
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pontual/core/logging/log.dart';

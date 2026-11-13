@@ -2,7 +2,7 @@
 // service and sends pings. Orchestrates consent, permission,
 // registration, start, fixes, ping outcomes, auto-end, and manual end.
 // Widgets read state and call methods; they hold no logic.
-// See PLAN.md 8.5, 14.3, and S08.
+// See ARCHITECTURE.md 8.5, 14.3, and S08.
 import 'dart:async';
 import 'dart:math';
 
@@ -66,7 +66,7 @@ enum StartFailure {
 /// under the 60 m publish gate: this never drops a fix. See D65.
 const double firstFixGoodAccuracyM = 30;
 
-/// Server trip timeout fallback in milliseconds. PLAN.md RF04 and the
+/// Server trip timeout fallback in milliseconds. ARCHITECTURE.md RF04 and the
 /// server default are 10 minutes. The client never uses this to end a
 /// trip; it only recognizes that a long web hide probably outlived the
 /// server record, so the first `gone` after returning is shown as a
@@ -200,7 +200,7 @@ class TripController extends ChangeNotifier {
   /// When the last ping request left the client, in ms. The next slot
   /// is measured from here, not from the response, so a slow round trip
   /// cannot stretch the server interval into a longer effective cadence.
-  /// See PLAN.md 8.7.
+  /// See ARCHITECTURE.md 8.7.
   int _lastPingSentAtMs = 0;
 
   /// Latest accepted fix that has not yet been sent. Latest-wins: a new
@@ -228,7 +228,7 @@ class TripController extends ChangeNotifier {
 
   /// True while the web page is hidden (foreground-only sharing).
   /// Fixes are dropped while hidden; the server timeout ends the trip
-  /// if the page stays hidden. See PLAN.md 8.12.
+  /// if the page stays hidden. See ARCHITECTURE.md 8.12.
   bool get isWebHidden => _webHidden;
   bool _webHidden = false;
 

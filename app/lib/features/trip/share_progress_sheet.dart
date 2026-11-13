@@ -3,7 +3,7 @@
 // phase with pending/active/done/failed states, a GPS countdown, and
 // an expandable technical details block (error codes and counts only,
 // never coordinates, tokens, or device ids). Widgets hold no logic;
-// the ShareProgressTracker owns state. See PLAN.md S06.
+// the ShareProgressTracker owns state. See ARCHITECTURE.md S06.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

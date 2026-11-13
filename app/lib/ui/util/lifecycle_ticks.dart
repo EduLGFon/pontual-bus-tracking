@@ -2,7 +2,7 @@
 // resumed, so screens do not wake the isolate to rebuild invisible
 // content, and resume without a burst of catch-up ticks. Consumers own
 // cancellation by cancelling the subscription.
-// See PLAN.md 10.2.5 and 10.3.3.
+// See ARCHITECTURE.md 10.2.5 and 10.3.3.
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';

@@ -1,5 +1,5 @@
 // Trip request schemas. Strict objects, finite numbers, no ids.
-// See PLAN.md 6.5. Ping outcomes that end the trip are HTTP 200 with "e".
+// See ARCHITECTURE.md 6.5. Ping outcomes that end the trip are HTTP 200 with "e".
 import * as v from "@valibot/valibot";
 
 const finite = v.pipe(v.number(), v.finite());

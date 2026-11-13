@@ -1,5 +1,5 @@
 // T11 job tests: overlap guard, tick behavior, purge, config refresh,
-// db health, and restart semantics (engine test 19 per PLAN.md 15.2).
+// db health, and restart semantics (engine test 19 per ARCHITECTURE.md 15.2).
 import { assert, assertEquals } from "@std/assert";
 import { openDb } from "../src/db/client.ts";
 import { insertDevice } from "../src/db/devices.ts";

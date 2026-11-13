@@ -1,7 +1,7 @@
 // BusApi base: typed HTTP over the shared client with the bearer token.
 // Registration happens on demand only when sharing starts: at most one
 // registration per install. No request fires at startup or first paint.
-// See PLAN.md 8.4 and 6.5.
+// See ARCHITECTURE.md 8.4 and 6.5.
 // SECURITY: the token is sent as a Bearer header only, never in URLs,
 // and error mapping never echoes tokens or coordinates.
 import 'dart:async';

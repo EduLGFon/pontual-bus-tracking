@@ -1,6 +1,6 @@
 // In-memory rate limiter. Fixed-window buckets per key, pruned on access.
 // IPs are bucket keys only, never stored beyond the window. Limits stay
-// generous but finite per PLAN.md 12.4 (CGNAT: never block by IP).
+// generous but finite per ARCHITECTURE.md 12.4 (CGNAT: never block by IP).
 // Time is a parameter so tests use a fake clock.
 
 export interface Bucket {

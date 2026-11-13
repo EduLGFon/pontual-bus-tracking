@@ -2,7 +2,7 @@
 // behind ShareProgressSheet: share_flow drives services/config, and
 // TripController reports consent/permission/register/gps/start through
 // onPhase. Holds no PII: error codes and counts only, never coordinates,
-// tokens, or device ids. See PLAN.md S06.
+// tokens, or device ids. See ARCHITECTURE.md S06.
 import 'package:flutter/foundation.dart';
 import 'package:pontual/domain/trip/share_phases.dart';
 

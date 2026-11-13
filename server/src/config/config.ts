@@ -1,5 +1,5 @@
 // Server runtime config. Validated at boot; the process refuses to start
-// on any invalid or missing value. See PLAN.md 6.3.
+// on any invalid or missing value. See ARCHITECTURE.md 6.3.
 // No secrets are read from the repo; they come from the environment only.
 
 export type AppEnv = "local" | "staging" | "prod";

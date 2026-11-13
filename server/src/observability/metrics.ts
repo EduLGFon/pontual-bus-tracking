@@ -1,4 +1,4 @@
-// Aggregate counters only. No PII, no coordinates. See PLAN.md RNF18.
+// Aggregate counters only. No PII, no coordinates. See ARCHITECTURE.md RNF18.
 
 export interface MetricsSnapshot {
   startedAt: string;

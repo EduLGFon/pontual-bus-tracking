@@ -1,6 +1,6 @@
 // Leader election. Pure. Prefers charging, then highest battery at or
 // above the minimum unless alone, tie goes to least time led.
-// See PLAN.md RF07 and 6.6 tick step 2.
+// See ARCHITECTURE.md RF07 and 6.6 tick step 2.
 import type { EngineConfig, Trip } from "./types.ts";
 
 /** Rank members; first element wins. */

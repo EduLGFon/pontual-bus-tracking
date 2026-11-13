@@ -1,5 +1,5 @@
 // Bootstrap: config, HTTP server, internal metrics listener, shutdown.
-// See PLAN.md 6.2, 6.9, 6.10.
+// See ARCHITECTURE.md 6.2, 6.9, 6.10.
 import { loadConfig } from "./config/config.ts";
 import { defaultRuntimeConfig, loadRuntimeConfig } from "./config/runtime.ts";
 import { loadLinesFromDir, registryResolver } from "./data/lines.ts";

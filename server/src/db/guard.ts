@@ -1,7 +1,7 @@
 // Guard state in one round trip. The ping hot path used to call isBlocked
 // plus latestConsentVersion (two round trips per ping); this answers both
 // at once with identical semantics. The pair stays for their own callers
-// and tests. See PLAN.md 6.9.
+// and tests. See ARCHITECTURE.md 6.9.
 import type { Sql } from "./client.ts";
 
 export interface GuardState {

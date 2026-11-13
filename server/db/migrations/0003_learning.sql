@@ -1,7 +1,7 @@
 -- 0003_learning.sql: de-identified aggregates for the learning subsystem.
 -- See docs/data-learning.md. Forward-only; never edit after merge.
 -- Location exists only as aggregate centroids (stops) and learned routes,
--- never as per-trip fixes. See PLAN.md D02 and D20.
+-- never as per-trip fixes. See ARCHITECTURE.md D02 and D20.
 
 -- migrate:up
 

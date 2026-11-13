@@ -1,7 +1,7 @@
 // Delete-my-data and revoke-consent actions. Pure orchestration over
 // the typed API and local stores; the screen handles dialogs and
 // navigation. Offline delete reports honestly and keeps local data.
-// See PLAN.md S11 and RF15.
+// See ARCHITECTURE.md S11 and RF15.
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/prefs/consent_store.dart';

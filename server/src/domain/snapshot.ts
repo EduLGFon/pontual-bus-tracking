@@ -1,7 +1,7 @@
 // Snapshot builder. Public payload exposes vehicles only: no device or
 // trip ids, no battery, member count capped at 3. Coordinates at 5 decimals.
 // Row field 7 (paceKmh) is optional and additive: old readers use fields
-// 0-6 unchanged. See PLAN.md 6.6 snapshot format and DECISIONS.md#D30.
+// 0-6 unchanged. See ARCHITECTURE.md 6.6 snapshot format and DECISIONS.md#D30.
 import type { Trip, Vehicle } from "./types.ts";
 
 export type SnapshotRow = [

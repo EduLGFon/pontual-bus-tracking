@@ -1,5 +1,5 @@
 // Public read endpoints and the read-only stream. Vehicle positions and
-// passenger reports are public by design; reads need no login. See PLAN.md
+// passenger reports are public by design; reads need no login. See ARCHITECTURE.md
 // 6.5 and 6.8.
 import { Hono } from "@hono/hono";
 import type { LineResolver } from "../data/lines.ts";

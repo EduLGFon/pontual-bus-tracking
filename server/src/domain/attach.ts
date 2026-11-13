@@ -1,5 +1,5 @@
 // Attach-at-ping online clustering with dead reckoning. Pure.
-// See PLAN.md D04 and 6.6 step 9. Stable vehicle ids, no marker flicker.
+// See ARCHITECTURE.md D04 and 6.6 step 9. Stable vehicle ids, no marker flicker.
 import { attachTolM, distM, predict } from "./geo.ts";
 import type { EngineConfig, Trip, Vehicle } from "./types.ts";
 

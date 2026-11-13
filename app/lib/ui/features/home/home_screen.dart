@@ -166,7 +166,7 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          // PLAN.md 9.5 S03: pull-to-refresh is one of the three triggers for
+          // ARCHITECTURE.md 9.5 S03: pull-to-refresh is one of the three triggers for
           // /v1/live; the refresher keeps a 10 s floor.
           onRefresh: () => ref.read(liveRefresherProvider).refresh(),
           child: SingleChildScrollView(

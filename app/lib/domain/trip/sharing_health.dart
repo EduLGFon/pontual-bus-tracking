@@ -3,7 +3,7 @@
 // shows at most one banner for the primary issue, so the same sentence
 // never appears twice. Time is a parameter; the caller owns ticks.
 // Thresholds new to the project live here and are listed in
-// docs/ui/sharing-screen-redesign.md.
+// docs/ui/UI_SPEC.md.
 library;
 
 /// Severity of one tile. Green is OK only; tips are neutral.

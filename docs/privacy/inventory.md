@@ -1,7 +1,6 @@
 # Inventário de dados do Pontual
 
-Fonte: PLAN.md 13.2. Atualizar a cada mudança no tratamento.
-Última revisão: 2026-11-12.
+Fonte: ARCHITECTURE.md 13.2. Atualizar a cada mudança no tratamento. Última revisão: 2026-11-12.
 
 | Dado | Finalidade | Onde | Retenção | Pessoal? |
 | ---- | ---------- | ---- | -------- | -------- |

@@ -1,7 +1,7 @@
 // Shortcuts section of Início: the horizontal snap list of saved journeys,
 // the first-run add cards, and the sort that puts the earliest next arrival
 // first. Pure presentation over the shortcut notifier and the timetable seam.
-// See docs/ui/UI_SPEC.md 7.2 and docs/ui/home-redesign.md.
+// See docs/ui/UI_SPEC.md 7.2 and docs/ui/UI_SPEC.md.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

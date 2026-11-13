@@ -70,7 +70,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
   Future<void> _streamStopped = Future<void>.value();
 
   /// False while a full page covers this screen. The viewer socket is
-  /// closed then (PLAN.md 8.8.4 and 10.4.6) and reopened on return.
+  /// closed then (ARCHITECTURE.md 8.8.4 and 10.4.6) and reopened on return.
   bool _routeVisible = true;
 
   /// True once the route observer subscription is in place.
@@ -101,7 +101,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
 
   /// Backgrounding the app hides this screen without a route change, so
   /// close the socket and stop the 5 s ticker. Resuming reopens only when
-  /// no full page covers the screen. PLAN.md 8.8.4 and 10.4.6.
+  /// no full page covers the screen. ARCHITECTURE.md 8.8.4 and 10.4.6.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -458,7 +458,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
   }
 
   /// Closes the viewer socket while another page covers this screen.
-  /// PLAN.md 8.8.4 and 10.4.6: no stream when the screen is not visible.
+  /// ARCHITECTURE.md 8.8.4 and 10.4.6: no stream when the screen is not visible.
   void _stopStream() {
     final VehicleRepository? repo = _repo;
     _repo = null;

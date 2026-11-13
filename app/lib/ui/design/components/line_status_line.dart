@@ -1,7 +1,7 @@
 // One status line for a line row, shared by Linhas and Busca so the
 // wording, colours and dot never diverge between screens. Live wins, then
 // the timetable states; the line always shows something.
-// See docs/ui/UI_SPEC.md 5 and docs/ui/lines-redesign.md.
+// See docs/ui/UI_SPEC.md 5 and docs/ui/UI_SPEC.md.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/theme/context.dart';

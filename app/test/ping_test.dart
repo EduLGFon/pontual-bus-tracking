@@ -1,4 +1,4 @@
-// T32 tests: PingClient semantics from PLAN.md 15.3.
+// T32 tests: PingClient semantics from ARCHITECTURE.md 15.3.
 import 'dart:async';
 import 'dart:math';
 

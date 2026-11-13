@@ -1,49 +1,33 @@
 # Docker deployment (D101, D102)
 
-The Compose stack runs four services from `server/deploy/compose.yaml`:
+Compose stack (`server/deploy/compose.yaml`) runs four services:
 
-- `db`: a pinned `postgres:18.6` container with a named volume. It is never
-  published to the host and is only on the internal `data` network.
-- `migrate`: a one-shot `amacneil/dbmate:2.36.0` container that applies the
-  forward-only migrations in `server/db/migrations/` and exits.
-- `api`: the image built from `server/deploy/Dockerfile`, on the internal
-  `edge` and `data` networks. It has no published port.
-- `cloudflared`: `cloudflare/cloudflared:2026.11.0`, on the internal `edge`
-  network and the non-internal `egress` network. It provides the public edge
-  through an outbound-only Cloudflare Tunnel.
+- `db`: pinned `postgres:18.6`, named volume, internal `data` network only.
+- `migrate`: one-shot `amacneil/dbmate:2.36.0` applying forward-only migrations in `server/db/migrations/`.
+- `api`: image from `server/deploy/Dockerfile`, on internal `edge` + `data` networks, no published port.
+- `cloudflared`: `cloudflare/cloudflared:2026.11.0`, on internal `edge` + non-internal `egress`, outbound-only tunnel.
 
-Networks:
+Networks: `edge` internal (`api`+`cloudflared`); `data` internal (`api`+`db`+`migrate`); `egress` non-internal (`cloudflared` only).
 
-- `edge` (internal): `api` + `cloudflared`.
-- `data` (internal): `api` + `db` + `migrate`.
-- `egress` (not internal): `cloudflared` only.
-
-Static data is built inside the API image from `data/` and `tools/`. No secret
-enters any image.
+Static data built inside the API image from `data/` and `tools/`. No secret in any image.
 
 ## Prerequisites
 
-- Docker Engine with Compose v2.
-- A locally managed Cloudflare Tunnel named `pontual`. No dashboard-managed
-  ingress is required: ingress rules live in the mounted config file. The
-  public hostname `api-pontual.spotnik.space` (and optionally
-  `api.pontual.spotnik.space`) points at `http://api:8080`. The web app
-  origin remains `https://pontual.spotnik.space`.
+- Docker Engine + Compose v2.
+- Locally managed Cloudflare Tunnel named `pontual`. Ingress rules in mounted config; public hostname `api-pontual.spotnik.space` (optional `api.pontual.spotnik.space`) points at `http://api:8080`. Web origin `https://pontual.spotnik.space`.
 
 ## Environment
 
-Three secret sources keep credentials out of the API container and out of git:
+Three secret sources keep credentials out of the API container and git:
 
 | File | Used by | Contents |
 | --- | --- | --- |
-| `server/.env` | `api` | `APP_ENV`, `DATABASE_URL` for the app role, origins, log level |
+| `server/.env` | `api` | `APP_ENV`, `DATABASE_URL` (app role), origins, log level |
 | `server/.env.db` | `db`, `migrate` | `POSTGRES_PASSWORD`, `PONTUAL_APP_PASSWORD` |
 | `server/secrets/cloudflared.yml` | `cloudflared` | tunnel config (non-secret), readable |
-| `server/secrets/cloudflared_credentials.json` | `cloudflared` | tunnel credentials, owned by uid 65532 mode 0400 |
+| `server/secrets/cloudflared_credentials.json` | `cloudflared` | tunnel credentials, uid 65532 mode 0400 |
 
-Copy both env examples, generate hex passwords, and keep
-`PONTUAL_APP_PASSWORD` identical to the password inside the app
-`DATABASE_URL`:
+Copy examples, generate hex passwords, keep `PONTUAL_APP_PASSWORD` identical to the password in `DATABASE_URL`:
 
 ```sh
 test -f server/.env || cp server/.env.docker.example server/.env
@@ -53,34 +37,24 @@ openssl rand -hex 32   # migrator password -> server/.env.db POSTGRES_PASSWORD
 openssl rand -hex 32   # app password -> PONTUAL_APP_PASSWORD and DATABASE_URL
 ```
 
-Store the tunnel config (non-secret, world-readable 0644/0444 or owner uid 65532 with owner-read) and the credentials
-JSON (secret, owned by uid 65532 mode 0400). The config's `credentials-file`
-must be `/run/secrets/cloudflared_credentials`. Never put secrets in compose,
-env examples, git, logs or documentation.
+Tunnel config non-secret world-readable `0644`/`0444` or owner uid 65532 owner-read; credentials JSON uid 65532 mode 0400. Config's `credentials-file` must be `/run/secrets/cloudflared_credentials`. Never put secrets in compose, env examples, git, logs or docs.
 
 ```sh
 install -d -m 700 server/secrets
 cp server/deploy/cloudflared/config.example.yml server/secrets/cloudflared.yml
 chmod 644 server/secrets/cloudflared.yml
-# Replace the placeholder tunnel UUID with the real one from `cloudflared tunnel list`
-# (or the TunnelID field of the credentials JSON).
-# place the credentials JSON from `cloudflared tunnel create pontual`, then:
+# replace placeholder tunnel UUID with real one from `cloudflared tunnel list`
+# (or TunnelID field of credentials JSON)
+# place credentials JSON from `cloudflared tunnel create pontual`, then:
 sudo chown 65532:65532 server/secrets/cloudflared_credentials.json
 sudo chmod 400 server/secrets/cloudflared_credentials.json
 ```
 
-Compose preserves the ownership and mode inside the container. A host
-service bound to loopback is not reachable through `host.docker.internal`;
-attach the tunnel container to that service's Docker network with the override,
-or use a bridge-reachable address.
+Compose preserves ownership/mode inside container. A host service bound to loopback is not reachable through `host.docker.internal`; attach tunnel container to that service's Docker network with override, or use a bridge-reachable address.
 
-Hex avoids URL-encoding problems: Compose builds the migrator URL from
-`POSTGRES_PASSWORD`, and `DATABASE_URL` embeds the app password.
+Hex avoids URL-encoding problems: Compose builds the migrator URL from `POSTGRES_PASSWORD`, and `DATABASE_URL` embeds the app password.
 
-`PONTUAL_ENV_FILE`, `PONTUAL_DB_ENV_FILE`, `PONTUAL_TUNNEL_CONFIG_FILE` and `PONTUAL_TUNNEL_CREDENTIALS_FILE`
-are read by Compose interpolation from the shell (or from a `.env` file next
-to the compose file), not from `server/.env`. Both env files default to paths
-next to the compose file. For root-owned files, point the variables at them:
+`PONTUAL_ENV_FILE`, `PONTUAL_DB_ENV_FILE`, `PONTUAL_TUNNEL_CONFIG_FILE`, `PONTUAL_TUNNEL_CREDENTIALS_FILE` are read by Compose interpolation from shell (or `.env` next to compose file), not from `server/.env`. Both env files default to paths next to compose file. For root-owned files, point variables at them:
 
 ```sh
 PONTUAL_ENV_FILE=/etc/pontual/api.env \
@@ -90,25 +64,19 @@ PONTUAL_TUNNEL_CREDENTIALS_FILE=/etc/pontual/cloudflared_credentials.json \
   docker compose -f server/deploy/compose.yaml up -d
 ```
 
-Compose sets `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/app/build` and a loopback
-`METRICS_PORT` inside the API container. Do not override `HOST` to a public
-interface: the API is not published.
+Compose sets `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/app/build` and a loopback `METRICS_PORT` inside the API container. Do not override `HOST` to a public interface: API is not published.
 
-`DATABASE_URL` must use `db:5432` for the bundled database. The stack is
-self-contained: the API has no internet egress and requires the bundled
-database.
+`DATABASE_URL` must use `db:5432` for bundled database. Stack self-contained: API has no internet egress, requires bundled database.
 
 ## Build and run
 
-From the repository root:
+From repo root:
 
 ```sh
 docker compose -f server/deploy/compose.yaml up -d --build
 ```
 
-`up` starts `db`, waits for its healthcheck, runs `migrate`, waits for it to
-exit successfully, then starts `api` and `cloudflared`. Check the result from
-inside the containers (there is no host port to curl):
+`up` starts `db`, waits healthcheck, runs `migrate`, waits exit success, then starts `api` and `cloudflared`. Check from inside containers (no host port):
 
 ```sh
 docker compose -f server/deploy/compose.yaml ps
@@ -118,58 +86,36 @@ docker compose -f server/deploy/compose.yaml exec -T api deno eval --quiet --no-
 docker compose -f server/deploy/compose.yaml exec -T cloudflared cloudflared tunnel --metrics 127.0.0.1:2000 ready
 ```
 
-`migrate` must show `Exited (0)`. The API image healthcheck calls
-`/v1/health` from inside the container.
+`migrate` must show `Exited (0)`. API healthcheck calls `/v1/health` from inside container.
 
 ## Database
 
-The database is reachable only from the compose network. There is no host port
-mapping. Open a session through the container:
+Reachable only from compose network; no host port mapping. Open session through container:
 
 ```sh
 docker compose -f server/deploy/compose.yaml exec db \
   psql -U pontual_migrator -d pontual
 ```
 
-Role model (PLAN.md 6.4):
+Role model (ARCHITECTURE.md 6.4): `pontual_migrator` owns schema, used only by `migrate`. `pontual_app` has SELECT/INSERT/UPDATE/DELETE on app tables, only credential in API `DATABASE_URL`.
 
-- `pontual_migrator` owns the schema and is used only by `migrate`.
-- `pontual_app` has `SELECT, INSERT, UPDATE, DELETE` on application tables and
-  is the only credential in the API `DATABASE_URL`.
+First start creates self-signed cert in DB volume, appends `ssl=on` to `postgresql.conf`. `pg_hba.conf` switched to `hostssl`; cleartext TCP rejected. Clients use `sslmode=require` (encrypts without verifying self-signed). Unix socket inside container remains available to psql and healthcheck.
 
-The first start creates a self-signed certificate in the database volume and
-appends `ssl=on` to `postgresql.conf`. `pg_hba.conf` is switched to `hostssl`,
-so cleartext TCP connections are rejected. Clients use `sslmode=require`,
-which encrypts without verifying the self-signed certificate. The Unix socket
-inside the container remains available to `psql` and the healthcheck.
-
-The named volume is the only persistent state:
+Named volume is only persistent state:
 
 ```sh
 docker volume ls | grep pontual-db
 ```
 
-Back up with `pg_dump` and the procedure in `docs/runbooks/ops.md`. Never run
-`docker compose down -v` unless the data is intentionally being destroyed.
+Back up with `pg_dump` per `docs/runbooks/ops.md`. Never run `docker compose down -v` unless data intentionally destroyed.
 
-### Upgrading from PostgreSQL 16 to 18
+### Upgrading PostgreSQL 16 to 18
 
-PostgreSQL 18 changed the official image layout: `PGDATA` is
-`/var/lib/postgresql/18/docker` and the volume is mounted at
-`/var/lib/postgresql`, not `/var/lib/postgresql/data`. The old 16 volume was
-mounted directly at `/var/lib/postgresql/data`, so its files are the volume
-root. After the new mount they appear at `/var/lib/postgresql/PG_VERSION`,
-`/var/lib/postgresql/base`, and so on, not under a `data/` directory. The 18
-cluster is created beside them in `/var/lib/postgresql/18/docker`. The major
-format is incompatible, so 18 cannot start the old files.
+PG 18 changed image layout: `PGDATA` is `/var/lib/postgresql/18/docker`, volume mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`. Old 16 volume mounted directly at `/var/lib/postgresql/data`, so its files are the volume root. After new mount they appear at `/var/lib/postgresql/PG_VERSION`, `/var/lib/postgresql/base`, etc., not under `data/`. 18 cluster created beside them in `/var/lib/postgresql/18/docker`. Major format incompatible; 18 cannot start old files.
 
-The preflight in `deploy.sh` detects a `PG_VERSION` at the volume root and
-prints the migration hint when the 18 cluster is empty or unqueryable. It does
-not block a successfully restored cluster. Do not use
-`PONTUAL_ALLOW_EMPTY_DB=1` to skip the migration.
+Preflight in `deploy.sh` detects `PG_VERSION` at volume root and prints migration hint when 18 cluster empty/unqueryable. Does not block a successfully restored cluster. Do not use `PONTUAL_ALLOW_EMPTY_DB=1` to skip migration.
 
-**1. Dump the running 16 database before changing the stack.** Keep the stack
-up for this step; `pg_dump` reads over the container's local socket.
+1. Dump running 16 DB before changing stack. Keep stack up; `pg_dump` reads over container local socket.
 
 ```sh
 mkdir -p /var/backups/pontual
@@ -179,8 +125,7 @@ docker compose -f server/deploy/compose.yaml exec -T db \
 sha256sum /var/backups/pontual/*.dump
 ```
 
-If the stack is already stopped, the same dump can be taken from a temporary
-16 container. The volume root is the old data directory:
+If stack already stopped, dump from temporary 16 container; volume root is old data dir:
 
 ```sh
 docker run --rm -d --name pontual-pg16 \
@@ -194,16 +139,14 @@ docker cp pontual-pg16:/tmp/pontual.dump \
 docker stop pontual-pg16
 ```
 
-**2. Stop the old stack and start 18.** Keep the volume. The init script
-recreates the roles and TLS material in the new cluster.
+2. Stop old stack and start 18. Keep volume. Init script recreates roles and TLS material in new cluster.
 
 ```sh
 docker compose -f server/deploy/compose.yaml stop api cloudflared migrate db
 docker compose -f server/deploy/compose.yaml up -d db
 ```
 
-**3. Restore the database.** The new `pontual` database is empty. The dump
-carries the schema, data and grants.
+3. Restore. New `pontual` DB empty; dump carries schema/data/grants.
 
 ```sh
 docker compose -f server/deploy/compose.yaml exec -T db \
@@ -211,9 +154,7 @@ docker compose -f server/deploy/compose.yaml exec -T db \
   < /var/backups/pontual/pontual-pg16-YYYYmmddTHHMMSS.dump
 ```
 
-**4. Deploy normally.** The preflight should report a non-zero device and
-route count. If `schema_migrations` came from the dump, dbmate reports no
-pending migrations; otherwise `migrate` applies the rest. Verify:
+4. Deploy normally. Preflight should report non-zero device and route count. If `schema_migrations` came from dump, dbmate reports no pending migrations; otherwise `migrate` applies rest. Verify:
 
 ```sh
 docker compose -f server/deploy/compose.yaml exec -T db \
@@ -222,95 +163,59 @@ docker compose -f server/deploy/compose.yaml exec -T db \
           (select count(*) from learned_routes) as routes;"
 ```
 
-Keep the dump and the old files at the volume root until the restore and API
-health are verified. To roll back, stop the stack and run a 16 container with
-the volume at `/var/lib/postgresql` and `PGDATA=/var/lib/postgresql`, then
-restore the old compose mount. Do not delete the old files until the 18
-deployment has been stable for the agreed window. `pg_upgrade --link` with
-`tianon/postgres-upgrade:16-to-18` is an alternative; the dump/restore above is
-the supported path. This procedure was not executed against the VPS in this
-change.
+Keep dump and old files at volume root until restore and API health verified. To roll back: stop stack, run 16 container with volume at `/var/lib/postgresql` and `PGDATA=/var/lib/postgresql`, then restore old compose mount. Do not delete old files until 18 deployment stable for agreed window. `pg_upgrade --link` with `tianon/postgres-upgrade:16-to-18` is alternative; dump/restore above is supported path. Procedure not executed against VPS in this change.
 
 ## Migrations
 
-Migrations apply automatically on `up`. dbmate runs with the migrator role,
-points at the read-only `server/db/migrations/` mount, and uses
-`--no-dump-schema`.
+Apply automatically on `up`. dbmate runs migrator role, points at read-only `server/db/migrations/` mount, uses `--no-dump-schema`.
 
-Run the one-shot service again without touching the API:
+Run one-shot service again without touching API:
 
 ```sh
 docker compose -f server/deploy/compose.yaml run --rm migrate
 ```
 
-Or run dbmate manually with the migrator URL:
+Or dbmate manually with migrator URL:
 
 ```sh
 DATABASE_URL='postgresql://pontual_migrator:...@db:5432/pontual?sslmode=require' \
   dbmate -d server/db/migrations up
 ```
 
-Migrations remain forward-only and backward compatible for one release
-(PLAN.md 17.5). Add a new numbered file; never edit a merged migration.
+Forward-only and backward compatible for one release (ARCHITECTURE.md 17.5). Add new numbered file; never edit merged migration.
 
 ## Deploy and rollback
 
-`server/deploy/deploy.sh` automates the release flow:
+`server/deploy/deploy.sh` automates release flow:
 
-- `deploy.sh deploy <tag>` builds `pontual-api:<tag>`, runs
-  `docker compose up -d`, checks API health with the `docker compose exec`
-  command above, checks the tunnel with the `cloudflared` command above,
-  records current and previous tags under `/opt/pontual` by default, and rolls
-  back on failure.
-- `deploy.sh rollback` reactivates the previous tag.
-- `deploy.sh status` runs `docker compose ps`.
+- `deploy.sh deploy <tag>`: builds `pontual-api:<tag>`, runs `docker compose up -d`, checks API health with exec command above, checks tunnel with cloudflared command above, records current/previous tags under `/opt/pontual` (default), rolls back on failure.
+- `deploy.sh rollback`: reactivates previous tag.
+- `deploy.sh status`: runs `docker compose ps`.
 
-It reads `/etc/pontual/api.env`, `/etc/pontual/db.env`,
-`/etc/pontual/cloudflared.yml` and `/etc/pontual/cloudflared_credentials.json` by default. Check out the release tag first, then
-run `deploy.sh deploy <tag>` with sudo or with read access to `/etc/pontual`
-and the Docker socket.
+Reads `/etc/pontual/api.env`, `/etc/pontual/db.env`, `/etc/pontual/cloudflared.yml`, `/etc/pontual/cloudflared_credentials.json` by default. Check out release tag first, then run `deploy.sh deploy <tag>` with sudo or read access to `/etc/pontual` and Docker socket.
 
-Tag the API image with the release name and reuse it for rollback:
+Tag API image with release name and reuse for rollback:
 
 ```sh
 PONTUAL_TAG=server-v0.1.0 docker compose -f server/deploy/compose.yaml build
 PONTUAL_TAG=server-v0.1.0 docker compose -f server/deploy/compose.yaml up -d
 ```
 
-A host that uses the override must add `-f /etc/pontual/compose.override.yaml`
-to these commands, or use `deploy.sh`, which includes it automatically.
+Host using override must add `-f /etc/pontual/compose.override.yaml` to these commands, or use `deploy.sh` (includes automatically).
 
-`up -d` applies any pending migrations and restarts the API. To roll back,
-point `PONTUAL_TAG` at the previous image tag and run `up -d` again. The
-previous image stays on the host. Deploy off-peak: restarting the API drops
-live vehicle state (KL6). Migrations are forward-only; a rollback that needs a
-schema change is a new migration.
+`up -d` applies pending migrations and restarts API. To roll back, point `PONTUAL_TAG` at previous image tag and run `up -d` again. Previous image stays on host. Deploy off-peak: restarting API drops live vehicle state (KL6). Migrations forward-only; rollback needing schema change is new migration.
 
 ## Empty-database preflight
 
-`deploy.sh deploy` runs a read-only preflight before
-starting or updating the stack. It checks whether the persistent
-`pontual-api_pontual-db` volume already exists and, when it does, whether the
-`devices` and `learned_routes` tables contain any rows. If the volume is
-new, or the database has zero devices and zero learned routes, the script
-prints a loud warning and refuses to proceed. Rollback is excluded.
+`deploy.sh deploy` runs read-only preflight before starting/updating stack. Checks whether persistent `pontual-api_pontual-db` volume exists and, when it does, whether `devices` and `learned_routes` contain rows. If volume new, or DB has zero devices and zero learned routes, prints loud warning and refuses to proceed. Rollback excluded.
 
-This guards against starting the API on a fresh empty PostgreSQL volume after
-a container migration that did not restore the old data. Set
-`PONTUAL_ALLOW_EMPTY_DB=1` only for a genuine first install or an intentional
-reset; the flag is never required for normal deploys. The check is read-only
-and never prints environment values.
+Guards against starting API on fresh empty PG volume after container migration that did not restore old data. Set `PONTUAL_ALLOW_EMPTY_DB=1` only for genuine first install or intentional reset; never required for normal deploys. Check read-only, never prints env values.
 
 ## Optional Compose override
 
-`deploy.sh` automatically includes `/etc/pontual/compose.override.yaml` when it
-exists. Set `PONTUAL_COMPOSE_OVERRIDE` to use a different path. The file is
-deployment-specific and stays outside the repo.
+`deploy.sh` automatically includes `/etc/pontual/compose.override.yaml` when it exists. Set `PONTUAL_COMPOSE_OVERRIDE` for different path. Deployment-specific, stays outside repo.
 
-Use it when the shared `pontual` tunnel also serves another local container on
-a different Docker network. Attach the cloudflared service to that external
-network and use the other container's unique DNS name in the tunnel config.
-Do not publish its port on the host.
+Use when shared `pontual` tunnel also serves another local container on a different Docker network. Attach cloudflared service to that external network and use other container's unique DNS name in tunnel config. Do not publish its port on host.
 
 ```yaml
 services:
@@ -325,42 +230,18 @@ networks:
     name: example_default
 ```
 
-The file must be root-owned mode 0644 and not group/world-writable. Attach
-the tunnel container only to a dedicated, trusted network, because it can reach
-every container on that network.
+File must be root-owned mode 0644, not group/world-writable. Attach tunnel container only to dedicated trusted network, because it can reach every container on that network.
 
 ## Security controls
 
-- Base images are version-pinned (`denoland/deno:2.9.8`, `postgres:18.6`,
-  `amacneil/dbmate:2.36.0`, `cloudflare/cloudflared:2026.11.0`); API
-  dependencies are locked and cached at build time, and runtime uses
-  `--cached-only`.
-- The API runs as the non-root `deno` user on a read-only root filesystem with
-  a 16 MiB noexec `/tmp`. All capabilities are dropped,
-  `no-new-privileges` is set, and PIDs, memory, CPU and log size are bounded.
-- `cloudflared` runs as uid 65532 on a read-only root filesystem, drops all
-  capabilities, sets `no-new-privileges`, and exposes no host port. It uses a
-  locally managed config plus credentials, not a dashboard-managed token.
-- The tunnel config is mounted at `/etc/cloudflared/config.yml` from
-  `PONTUAL_TUNNEL_CONFIG_FILE` (default `server/secrets/cloudflared.yml`); it
-  is non-secret. The credentials JSON is mounted at
-  `/run/secrets/cloudflared_credentials` from
-  `PONTUAL_TUNNEL_CREDENTIALS_FILE` (default
-  `server/secrets/cloudflared_credentials.json`); it is never in the
-  environment or image.
-- `migrate` runs as an unprivileged numeric user on a read-only filesystem and
-  drops all capabilities.
-- `db` has no published port, bounded resources, no core dumps, and a
-  `no-new-privileges` policy.
-- No host port is published. Metrics and PostgreSQL stay internal.
-- TLS is required for TCP database connections. Secrets are generated into the
-  database volume, not committed.
-- The API Deno permissions deny write, run, ffi and sys. Network access is
-  limited to the API bind, the metrics listener and the database hosts.
-- Secrets come only from the env files and the credentials file. Docker
-  environment values are visible to root and the docker group. Keep docker
-  socket access limited to the admin user. Env files are root-owned mode
-  `0600`; the tunnel config is world-readable `0644`/`0444` or owner uid 65532 with owner-read; the credentials JSON is
-  owned by uid 65532 mode `0400`.
-- Logs are structured and must never contain coordinates, tokens, session ids or
-  device ids.
+- Base images version-pinned (`denoland/deno:2.9.8`, `postgres:18.6`, `amacneil/dbmate:2.36.0`, `cloudflare/cloudflared:2026.11.0`); API deps locked and cached at build, runtime uses `--cached-only`.
+- API runs as non-root `deno` on read-only root fs with 16 MiB noexec `/tmp`. All caps dropped, `no-new-privileges`, PIDs/memory/CPU/log size bounded.
+- `cloudflared` runs as uid 65532 on read-only root fs, drops all caps, sets `no-new-privileges`, exposes no host port. Uses locally managed config + credentials, not dashboard-managed token.
+- Tunnel config mounted at `/etc/cloudflared/config.yml` from `PONTUAL_TUNNEL_CONFIG_FILE` (default `server/secrets/cloudflared.yml`), non-secret. Credentials JSON mounted at `/run/secrets/cloudflared_credentials` from `PONTUAL_TUNNEL_CREDENTIALS_FILE` (default `server/secrets/cloudflared_credentials.json`), never in env or image.
+- `migrate` runs as unprivileged numeric user on read-only fs, drops all caps.
+- `db` has no published port, bounded resources, no core dumps, `no-new-privileges`.
+- No host port published. Metrics and PostgreSQL stay internal.
+- TLS required for TCP DB connections. Secrets generated into DB volume, not committed.
+- API Deno permissions deny write/run/ffi/sys. Network limited to API bind, metrics listener, DB hosts.
+- Secrets only from env files and credentials file. Docker env values visible to root and docker group. Keep docker socket access limited to admin user. Env files root-owned `0600`; tunnel config world-readable `0644`/`0444` or owner uid 65532 owner-read; credentials JSON uid 65532 mode `0400`.
+- Logs structured, must never contain coordinates, tokens, session ids or device ids.

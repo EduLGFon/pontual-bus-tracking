@@ -1,6 +1,6 @@
 // Runtime config loader. Defaults compiled in; app_config rows override.
 // Reloaded every 30 s by the background job (T11). Time is a parameter so
-// tests use a fake clock. See PLAN.md 6.3.
+// tests use a fake clock. See ARCHITECTURE.md 6.3.
 import type { Sql } from "../db/client.ts";
 import { defaultReportsConfig, type ReportsConfig } from "../domain/reports.ts";
 

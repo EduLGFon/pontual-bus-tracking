@@ -1,5 +1,5 @@
 // Bootstrap. runApp happens immediately: no await before the first frame,
-// everything else is initialised after it. See PLAN.md 8.4 and
+// everything else is initialised after it. See ARCHITECTURE.md 8.4 and
 // docs/ui/UI_SPEC.md 11.3.
 import 'dart:async';
 
@@ -58,7 +58,7 @@ class _PontualAppState extends ConsumerState<PontualApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // PLAN.md 9.5 S03: live dots refresh on resumed, never on a timer.
+      // ARCHITECTURE.md 9.5 S03: live dots refresh on resumed, never on a timer.
       unawaited(ref.read(liveRefresherProvider).refresh());
       unawaited(_uploadDiagnostics());
     }

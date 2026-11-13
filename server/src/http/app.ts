@@ -1,4 +1,4 @@
-// Hono app. Middleware order per PLAN.md 6.9: request id, secure headers,
+// Hono app. Middleware order per ARCHITECTURE.md 6.9: request id, secure headers,
 // client IP resolution, then per-route body limit, rate limit, auth, schema
 // validation, handler, and the global error handler.
 import { Hono } from "@hono/hono";

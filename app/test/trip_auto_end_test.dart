@@ -1,5 +1,5 @@
 // T34 tests: auto-end, RF16 walking prompt, offline saver, GPS-off and
-// permission-revoked handling on the controller. See PLAN.md 8.6, 11.3,
+// permission-revoked handling on the controller. See ARCHITECTURE.md 8.6, 11.3,
 // S08, and RF16.
 import 'dart:async';
 

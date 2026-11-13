@@ -1,5 +1,5 @@
 // AC22: no location at rest. Migrations must contain no location-like
-// columns. See PLAN.md 6.4 and 12.6 AC22.
+// columns. See ARCHITECTURE.md 6.4 and 12.6 AC22.
 import { assertEquals } from "@std/assert";
 
 const FORBIDDEN = [

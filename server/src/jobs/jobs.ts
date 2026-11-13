@@ -1,7 +1,7 @@
 // Background jobs. Tick, config refresh, device purge, db health.
 // Overlap guard on the tick; every timer is registered for graceful
 // shutdown. Time is a parameter where tests need a fake clock.
-// See PLAN.md 6.10.
+// See ARCHITECTURE.md 6.10.
 import type { Sql } from "../db/client.ts";
 import { purgeExpiredDevices } from "../db/devices.ts";
 import { purgeOldDiagnostics } from "../db/diagnostics.ts";

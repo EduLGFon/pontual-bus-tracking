@@ -1,7 +1,7 @@
 // Trip lifecycle. Pure and synchronous; time and randomness are parameters.
 // Handlers check kill switch, blocklist, and consent before calling here.
 // Engine checks line validity, bbox, plausibility, and capacity.
-// See PLAN.md 6.6 steps for startTrip, applyPing, endTrip.
+// See ARCHITECTURE.md 6.6 steps for startTrip, applyPing, endTrip.
 import { isCoherent, nearestVehicle } from "./attach.ts";
 import { recordPassage } from "./arrivals.ts";
 import { distM, distToShapeM, type RouteShape } from "./geo.ts";
@@ -135,7 +135,7 @@ export function startTrip(
   return { ok: true, role: "W", intervalS: cfg.waitingIntervalS };
 }
 
-/** Apply a ping. Follows the normative order in PLAN.md 6.6. */
+/** Apply a ping. Follows the normative order in ARCHITECTURE.md 6.6. */
 export function applyPing(
   store: Store,
   events: EngineEvent[],

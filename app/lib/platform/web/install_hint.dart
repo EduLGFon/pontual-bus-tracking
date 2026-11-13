@@ -1,6 +1,6 @@
 // iOS "Add to Home Screen" hint. Shown once on iOS web browsers so
 // viewers get the PWA experience (standalone, geolocation on tap).
-// See PLAN.md 8.12 and T39.
+// See ARCHITECTURE.md 8.12 and T39.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/theme/context.dart';

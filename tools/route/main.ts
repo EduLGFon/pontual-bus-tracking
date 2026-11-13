@@ -1,7 +1,7 @@
 // Route geometry: simplify traces and encode polylines.
 // Input: GPX tracks or GeoJSON LineString (field rides, never committed raw
 // unless the owner approves). Output: data/routes/<code>.geojson simplified
-// LineString plus encoded polyline for the app bundle. See PLAN.md 7.4.
+// LineString plus encoded polyline for the app bundle. See ARCHITECTURE.md 7.4.
 // Precision 5, Douglas-Peucker tolerance about 5 m.
 
 export interface Point {

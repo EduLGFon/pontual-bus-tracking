@@ -92,7 +92,7 @@ class LinesScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: RefreshIndicator(
-          // PLAN.md 9.5 S03: pull-to-refresh asks for fresh live dots;
+          // ARCHITECTURE.md 9.5 S03: pull-to-refresh asks for fresh live dots;
           // the refresher enforces the 10 s floor.
           onRefresh: () => ref.read(liveRefresherProvider).refresh(),
           child: CustomScrollView(

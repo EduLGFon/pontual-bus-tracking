@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Manifest audit for T03. Fails on forbidden permissions.
-# See PLAN.md 8.6 and 12.6 AC15.
+# See ARCHITECTURE.md 8.6 and 12.6 AC15.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MANIFEST_DIR="$ROOT/app/android"

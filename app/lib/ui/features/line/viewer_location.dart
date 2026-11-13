@@ -7,7 +7,7 @@
 // PRIVACY: the fix lives only in this provider's memory. Never log the
 // coordinates, the accuracy, or any identifier, never persist it, never
 // send it. The ETA request carries only line id and stop id.
-// See PLAN.md PRV01 and docs/ui/UI_SPEC.md 7.5.
+// See ARCHITECTURE.md PRV01 and docs/ui/UI_SPEC.md 7.5.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

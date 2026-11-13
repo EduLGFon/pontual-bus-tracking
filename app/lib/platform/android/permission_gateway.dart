@@ -1,5 +1,5 @@
 // Geolocator-backed permission gateway. Implements the T30 interface
-// with the real OS APIs. See PLAN.md S07 and spike S1.
+// with the real OS APIs. See ARCHITECTURE.md S07 and spike S1.
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 

@@ -1,6 +1,6 @@
 // Trip endpoints wired to the pure engine. Handlers check kill switch,
 // blocklist, consent, quotas, and line validity; the engine owns the rest.
-// See PLAN.md 6.5 and 6.6. No trip or session ids anywhere.
+// See ARCHITECTURE.md 6.5 and 6.6. No trip or session ids anywhere.
 import { Hono } from "@hono/hono";
 import * as v from "@valibot/valibot";
 import type { Sql } from "../db/client.ts";
@@ -135,7 +135,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       return c.json({ e: "bad_request" }, 400);
     }
     if (deps.learning) {
-      // Learning is best-effort (PLAN.md 5.5). Live sharing must still start
+      // Learning is best-effort (ARCHITECTURE.md 5.5). Live sharing must still start
       // when learning storage is unavailable, but a failure to establish
       // opt-out contributes nothing. PRIVACY: fail closed.
       try {

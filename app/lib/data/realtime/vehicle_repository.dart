@@ -1,7 +1,7 @@
 // Vehicle repository: snapshot first, then the read-only WebSocket
 // stream, with a watchdog resync and a polling fallback. Stops cleanly
 // when the UI goes to background. Unknown server keys are ignored so the
-// app-level heartbeat never breaks parsing. See PLAN.md 6.8 and 15.3.
+// app-level heartbeat never breaks parsing. See ARCHITECTURE.md 6.8 and 15.3.
 import 'dart:async';
 import 'dart:convert';
 
@@ -247,7 +247,7 @@ typedef SnapshotFetcher = Future<ClientSnapshot> Function(int lineId);
 
 /// Reconnect delays in seconds: 5, 10, 20, then 30 s until the screen
 /// goes away. The socket is re-established while polling covers the data,
-/// per the failure matrix (PLAN.md 11.3).
+/// per the failure matrix (ARCHITECTURE.md 11.3).
 const List<int> reconnectDelaysS = <int>[5, 10, 20, 30];
 
 /// Vehicle stream for one line with snapshot, socket, watchdog, polling.

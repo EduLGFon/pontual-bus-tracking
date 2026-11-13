@@ -2,7 +2,7 @@
 // departure dedupe keys, shortcut state resolution, direction labels and
 // the first departure of the next day. No widgets here, so the unit tests
 // stay free of the render tree.
-// See docs/ui/home-redesign.md.
+// See docs/ui/UI_SPEC.md.
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/adapters/arrivals_adapter.dart';

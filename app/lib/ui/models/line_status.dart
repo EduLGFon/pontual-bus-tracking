@@ -1,6 +1,6 @@
 // Line row status: one status line that always exists. Pure and unit tested.
 // Live wins, then timetable states. A departure at the current minute counts
-// as now. See docs/ui/lines-redesign.md.
+// as now. See docs/ui/UI_SPEC.md.
 import 'package:pontual/domain/schedule.dart';
 import 'package:pontual/ui/util/search_index.dart';
 

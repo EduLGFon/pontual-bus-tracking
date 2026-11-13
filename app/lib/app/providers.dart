@@ -1,6 +1,6 @@
 // Riverpod providers wiring features to data. Side effects live in
 // controllers, not widgets. Providers are overridable in tests.
-// See PLAN.md 14.3.
+// See ARCHITECTURE.md 14.3.
 import 'dart:async';
 import 'dart:convert';
 
@@ -371,7 +371,7 @@ class LastLive extends Notifier<LiveLines> {
 final NotifierProvider<LastLive, LiveLines> lastLiveProvider =
     NotifierProvider<LastLive, LiveLines>(LastLive.new);
 
-/// Minimum gap between /v1/live calls (PLAN.md 9.5 S03).
+/// Minimum gap between /v1/live calls (ARCHITECTURE.md 9.5 S03).
 const Duration liveRefreshMinGap = Duration(seconds: 10);
 
 /// Coordinates live-lines refreshes for the open, resumed and

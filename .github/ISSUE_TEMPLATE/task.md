@@ -1,6 +1,6 @@
 ---
 name: Task
-about: One PLAN.md task per issue
+about: One ARCHITECTURE.md task per issue
 ---
 
 ## PLAN task
@@ -8,7 +8,7 @@ about: One PLAN.md task per issue
 ID (e.g. T01): ___
 Milestone: ___
 
-## Acceptance criteria (from PLAN.md)
+## Acceptance criteria (from ARCHITECTURE.md)
 
 -
 

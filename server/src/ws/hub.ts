@@ -1,7 +1,7 @@
 // Read-only WebSocket hub. Clients subscribe to one line; they cannot send
 // data on the stream. Caps and message rate limits protect the service.
 // Heartbeat keeps Cloudflare idle timeouts away; Deno protocol ping/pong
-// (idleTimeout) closes dead sockets. See PLAN.md 6.8.
+// (idleTimeout) closes dead sockets. See ARCHITECTURE.md 6.8.
 // SECURITY: no token on the socket; vehicle positions are public by design.
 
 export interface HubSocket {

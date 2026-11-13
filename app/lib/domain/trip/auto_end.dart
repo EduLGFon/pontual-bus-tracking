@@ -1,6 +1,6 @@
 // Auto-end policy. Pure evaluation of end conditions: GPS off, permission
 // revoked, walking-prompt timeout, and maximum duration. Time is a
-// parameter; the controller owns timers and dialogs. See PLAN.md RF04.
+// parameter; the controller owns timers and dialogs. See ARCHITECTURE.md RF04.
 
 /// Reasons the client ends a trip by itself.
 enum AutoEndReason {
