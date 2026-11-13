@@ -23,7 +23,7 @@ case "$(cat "$ENV_FILE")" in
 esac
 
 cd app
-flutter build apk --release --split-per-abi \
+flutter build apk --release --target-platform=android-arm64 \
   --dart-define-from-file="../$ENV_FILE"
 
 echo "APKs in app/build/app/outputs/flutter-apk/ (install the arm64-v8a one on most phones)."
