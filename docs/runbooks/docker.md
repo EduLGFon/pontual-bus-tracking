@@ -156,44 +156,64 @@ Back up with `pg_dump` and the procedure in `docs/runbooks/ops.md`. Never run
 
 PostgreSQL 18 changed the official image layout: `PGDATA` is
 `/var/lib/postgresql/18/docker` and the volume is mounted at
-`/var/lib/postgresql`, not `/var/lib/postgresql/data`. The major-version data
-format is incompatible, so a 16 data directory cannot be started by 18. The
-compose file now uses `postgres:18.6`; the next deploy on an existing 16 volume
-requires a dump and restore (or `pg_upgrade`). Do not swap the image and let 18
-initialize an empty cluster over the old data.
+`/var/lib/postgresql`, not `/var/lib/postgresql/data`. The old 16 volume was
+mounted directly at `/var/lib/postgresql/data`, so its files are the volume
+root. After the new mount they appear at `/var/lib/postgresql/PG_VERSION`,
+`/var/lib/postgresql/base`, and so on, not under a `data/` directory. The 18
+cluster is created beside them in `/var/lib/postgresql/18/docker`. The major
+format is incompatible, so 18 cannot start the old files.
 
-The preflight in `deploy.sh` detects an old `/var/lib/postgresql/data`
-directory and refuses to continue unless `PONTUAL_ALLOW_EMPTY_DB=1` is set. Do
-not use that flag to skip the migration.
+The preflight in `deploy.sh` detects a `PG_VERSION` at the volume root and
+prints the migration hint when the 18 cluster is empty or unqueryable. It does
+not block a successfully restored cluster. Do not use
+`PONTUAL_ALLOW_EMPTY_DB=1` to skip the migration.
 
-Dump from the old cluster while the stack is stopped (keep the volume):
+**1. Dump the running 16 database before changing the stack.** Keep the stack
+up for this step; `pg_dump` reads over the container's local socket.
 
 ```sh
-docker compose -f server/deploy/compose.yaml stop api migrate db
+mkdir -p /var/backups/pontual
+docker compose -f server/deploy/compose.yaml exec -T db \
+  pg_dump -U pontual_migrator -d pontual -Fc \
+  > /var/backups/pontual/pontual-pg16-$(date +%Y%m%dT%H%M%S).dump
+sha256sum /var/backups/pontual/*.dump
+```
+
+If the stack is already stopped, the same dump can be taken from a temporary
+16 container. The volume root is the old data directory:
+
+```sh
 docker run --rm -d --name pontual-pg16 \
   -v pontual-api_pontual-db:/var/lib/postgresql \
-  -e PGDATA=/var/lib/postgresql/data \
+  -e PGDATA=/var/lib/postgresql \
   postgres:16.15
 docker exec pontual-pg16 pg_dump -U pontual_migrator -d pontual \
   -Fc -f /tmp/pontual.dump
-docker cp pontual-pg16:/tmp/pontual.dump ./pontual-pg16.dump
+docker cp pontual-pg16:/tmp/pontual.dump \
+  /var/backups/pontual/pontual-pg16.dump
 docker stop pontual-pg16
 ```
 
-Start 18 and restore into the fresh `pontual` database. The init script
-recreates the roles and TLS material; the dump carries the schema, data and
-grants.
+**2. Stop the old stack and start 18.** Keep the volume. The init script
+recreates the roles and TLS material in the new cluster.
 
 ```sh
+docker compose -f server/deploy/compose.yaml stop api cloudflared migrate db
 docker compose -f server/deploy/compose.yaml up -d db
-docker compose -f server/deploy/compose.yaml exec -T db \
-  pg_restore -U pontual_migrator -d pontual --clean --if-exists \
-  < pontual-pg16.dump
 ```
 
-Then deploy normally. The preflight should report a non-zero device and route
-count. If `schema_migrations` came from the dump, dbmate reports no pending
-migrations; otherwise run `migrate` once. Verify:
+**3. Restore the database.** The new `pontual` database is empty. The dump
+carries the schema, data and grants.
+
+```sh
+docker compose -f server/deploy/compose.yaml exec -T db \
+  pg_restore -U pontual_migrator -d pontual --clean --if-exists \
+  < /var/backups/pontual/pontual-pg16-YYYYmmddTHHMMSS.dump
+```
+
+**4. Deploy normally.** The preflight should report a non-zero device and
+route count. If `schema_migrations` came from the dump, dbmate reports no
+pending migrations; otherwise `migrate` applies the rest. Verify:
 
 ```sh
 docker compose -f server/deploy/compose.yaml exec -T db \
@@ -202,10 +222,14 @@ docker compose -f server/deploy/compose.yaml exec -T db \
           (select count(*) from learned_routes) as routes;"
 ```
 
-Keep `pontual-pg16.dump` and the old `data/` directory until the restore is
-verified. `pg_upgrade --link` with `tianon/postgres-upgrade:16-to-18` is an
-alternative, but the dump/restore above is the supported path here. This
-procedure was not executed against the VPS in this change.
+Keep the dump and the old files at the volume root until the restore and API
+health are verified. To roll back, stop the stack and run a 16 container with
+the volume at `/var/lib/postgresql` and `PGDATA=/var/lib/postgresql`, then
+restore the old compose mount. Do not delete the old files until the 18
+deployment has been stable for the agreed window. `pg_upgrade --link` with
+`tianon/postgres-upgrade:16-to-18` is an alternative; the dump/restore above is
+the supported path. This procedure was not executed against the VPS in this
+change.
 
 ## Migrations
 

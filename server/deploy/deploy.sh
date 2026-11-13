@@ -105,18 +105,15 @@ preflight_db() {
     sleep 2
   done
 
-  # PostgreSQL 18 keeps data in /var/lib/postgresql/18/docker. An old 16
-  # cluster left at /var/lib/postgresql/data is not read by 18 and means the
-  # volume has not been migrated. Refuse before an empty database is created.
-  if compose exec -T db test -d /var/lib/postgresql/data; then
-    if [ "${PONTUAL_ALLOW_EMPTY_DB:-0}" != "1" ]; then
-      echo "!!! WARNING: old PostgreSQL data directory found at /var/lib/postgresql/data."
-      echo "!!! PostgreSQL 18 uses /var/lib/postgresql/18/docker and will not read it."
-      echo "!!! Restore the old database first (docs/runbooks/docker.md), or set"
-      echo "!!! PONTUAL_ALLOW_EMPTY_DB=1 for a genuine fresh install."
-      return 1
-    fi
-    echo "preflight: old PostgreSQL data directory present; allowed by PONTUAL_ALLOW_EMPTY_DB=1"
+  # PostgreSQL 18 keeps data in /var/lib/postgresql/18/docker. The old 16
+  # volume was mounted at /var/lib/postgresql/data, so its files now appear at
+  # the volume root (/var/lib/postgresql/PG_VERSION). 18 does not read them.
+  # Remember this and print the migration hint only if the new cluster is also
+  # empty or unqueryable; a restored 18 cluster must still deploy.
+  local old_pg_data=0
+  if compose exec -T db test -f /var/lib/postgresql/PG_VERSION; then
+    old_pg_data=1
+    echo "preflight: old PostgreSQL 16 data files found at the volume root (not used by 18)."
   fi
 
   local counts
@@ -135,6 +132,11 @@ preflight_db() {
       return 0
     fi
     echo "!!! WARNING: database volume exists but could not confirm devices/learned_routes rows."
+    if [ "$old_pg_data" = "1" ]; then
+      echo "!!! Old PostgreSQL 16 data is still at the volume root. Restore it into the"
+      echo "!!! 18 cluster first (docs/runbooks/docker.md). Do not skip with"
+      echo "!!! PONTUAL_ALLOW_EMPTY_DB=1."
+    fi
     echo "!!! Refusing to start unless PONTUAL_ALLOW_EMPTY_DB=1."
     return 1
   fi
@@ -145,6 +147,10 @@ preflight_db() {
       return 0
     fi
     echo "!!! WARNING: database volume exists but has 0 devices and 0 learned_routes."
+    if [ "$old_pg_data" = "1" ]; then
+      echo "!!! Old PostgreSQL 16 data is still at the volume root and has not been restored."
+      echo "!!! See docs/runbooks/docker.md before setting PONTUAL_ALLOW_EMPTY_DB=1."
+    fi
     echo "!!! This may indicate an empty or wiped database."
     echo "!!! Refusing to start unless PONTUAL_ALLOW_EMPTY_DB=1."
     return 1
