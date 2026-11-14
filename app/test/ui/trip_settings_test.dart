@@ -13,6 +13,7 @@ import 'package:http/testing.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/platform/android/gnss_quality.dart';
+import 'package:pontual/platform/screen_wake.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/settings/about_screen.dart';
@@ -85,6 +86,72 @@ void main() {
       expect(tester.takeException(), isNull);
       // Inline teardown: the invariant check runs before addTearDown, so
       // the controller and its timers must stop inside the test body.
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('screen-on toggle starts off on Android and enables on tap', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final FakeScreenWake wake = FakeScreenWake();
+      await tester.pumpWidget(
+        wrapApp(TripScreen(controller: r.controller, screenWake: wake)),
+      );
+      await tester.pump();
+      // Android starts off: the foreground service keeps sharing with the
+      // screen locked, and the neutral tip says so.
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      final Iterable<Semantics> labels = tester.widgetList<Semantics>(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('tripScreenOn')),
+          matching: find.byType(Semantics),
+        ),
+      );
+      expect(
+        labels.any(
+          (Semantics node) =>
+              node.properties.label == UiStrings.screenOnOffSemantic,
+        ),
+        isTrue,
+      );
+      expect(find.text(UiStrings.keepAwakeTip), findsOneWidget);
+      expect(wake.enables, 0);
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.enables, 1);
+      expect(wake.held, isTrue);
+      expect(find.text(UiStrings.screenOnOn), findsOneWidget);
+      expect(find.text(UiStrings.screenOnUnsupported), findsNothing);
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.disables, 1);
+      expect(wake.held, isFalse);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('failed Android enable stays off and shows the caption', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final FakeScreenWake wake = FakeScreenWake(failEnable: true);
+      await tester.pumpWidget(
+        wrapApp(TripScreen(controller: r.controller, screenWake: wake)),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.enables, 1);
+      expect(wake.held, isFalse);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(find.text(UiStrings.screenOnUnsupported), findsOneWidget);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
     });

@@ -68,6 +68,8 @@ class StatusBlock extends StatefulWidget {
   const StatusBlock({
     required this.controller,
     required this.wakeUnsupported,
+    this.screenOn = true,
+    this.isWeb,
     this.nowMs,
     this.requestExemption = requestIgnoreBatteryOptimizations,
     super.key,
@@ -78,6 +80,13 @@ class StatusBlock extends StatefulWidget {
 
   /// True when the browser cannot hold a Screen Wake Lock.
   final bool wakeUnsupported;
+
+  /// True while the rider asked the screen to stay on. The web banner
+  /// uses it to stop claiming the screen stays on once toggled off.
+  final bool screenOn;
+
+  /// Overrides web detection for tests. Null follows the real platform.
+  final bool? isWeb;
 
   /// Clock in milliseconds, injectable for deterministic tests.
   final int Function()? nowMs;
@@ -106,6 +115,7 @@ class _StatusBlockState extends State<StatusBlock> {
     final TripController c = widget.controller;
     final SharingHealth health = c.sharingHealth(_nowMs());
     final SharingIssue shown = _debouncer.update(health.issue, _nowMs());
+    final bool isWeb = widget.isWeb ?? PlatformInfo.isWeb;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -146,15 +156,16 @@ class _StatusBlockState extends State<StatusBlock> {
             onRequest: () => unawaited(_requestExemption()),
           ),
         ],
-        if (PlatformInfo.isWeb) ...<Widget>[
+        if (isWeb) ...<Widget>[
           const SizedBox(height: Space.x3),
           WebTripBanner(
             paused: c.isWebHidden,
             wakeUnsupported: widget.wakeUnsupported,
+            screenOn: widget.screenOn,
           ),
         ],
         const SizedBox(height: Space.x3),
-        const _KeepAwakeTip(key: ValueKey<String>('tripTip')),
+        _KeepAwakeTip(key: const ValueKey<String>('tripTip'), isWeb: isWeb),
       ],
     );
   }
@@ -525,13 +536,16 @@ class _BatteryExemptionCard extends StatelessWidget {
 
 /// The single keep-awake tip. Neutral color always, exactly once.
 class _KeepAwakeTip extends StatelessWidget {
-  /// Creates the tip.
-  const _KeepAwakeTip({super.key});
+  /// Creates the tip for the current platform.
+  const _KeepAwakeTip({required this.isWeb, super.key});
+
+  /// True on the web build, which uses the tab-visibility copy.
+  final bool isWeb;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final String message = PlatformInfo.isWeb
+    final String message = isWeb
         ? UiStrings.keepAwakeTipWeb
         : UiStrings.keepAwakeTip;
     return Semantics(
