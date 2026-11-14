@@ -132,7 +132,7 @@ flutter run -d chrome --web-port 5000 \
   --dart-define-from-file=../env/example.json
 ```
 
-`permission_handler` stays on 12.x: 13.x requires compileSdk 37, which Flutter 3.47 and AGP 9.1 do not support (DECISIONS.md). Do not pass `--no-pub` after `flutter pub get`; pub get writes a debug plugin registrant including `integration_test` and breaks release Java compilation.
+`permission_handler` is on 13.x with `compileSdk = 37` in `app/android/app/build.gradle.kts`; AGP 9.1 only warns (not errors) about the unsupported compile SDK. Do not pass `--no-pub` after `flutter pub get`; pub get writes a debug plugin registrant including `integration_test` and breaks release Java compilation.
 
 ## Domains
 
