@@ -675,6 +675,12 @@ class UiStrings {
       'A tela fica ligada durante a viagem. Abaixe o brilho para economizar '
       'bateria.';
 
+  /// Web trip note when the rider turned the screen-on toggle off. It
+  /// must not claim the display stays on.
+  static const String webWakeOffNote =
+      'Tela sempre ligada desativada. Mantenha a tela ligada e esta página '
+      'visível para continuar compartilhando.';
+
   /// Shown when the browser cannot hold a wake lock.
   static const String webWakeUnsupported =
       'Este navegador não mantém a tela ligada. Abaixe o brilho e não troque '
@@ -885,15 +891,36 @@ class UiStrings {
   static const String lowBatteryBanner =
       'Bateria baixa. Se acabar, o compartilhamento para.';
 
-  /// Single keep-awake tip on Android (neutral, shown once).
+  /// Single keep-awake tip on Android (neutral, shown once). Sharing
+  /// continues through the foreground-service notification with the
+  /// screen off and the phone locked.
   static const String keepAwakeTip =
-      'Mantenha a tela aberta e o celular desbloqueado. Abaixe o brilho '
-      'para economizar bateria.';
+      'Você pode desligar a tela e bloquear o celular. O compartilhamento '
+      'continua pelo aviso na notificação.';
 
-  /// Single keep-awake tip on the web (tab must stay visible).
+  /// Single keep-awake tip on the web (tab must stay visible, and the
+  /// screen-on toggle controls automatic screen lock).
   static const String keepAwakeTipWeb =
-      'Mantenha esta aba aberta e visível. Abaixe o brilho para '
-      'economizar bateria.';
+      'Mantenha esta aba aberta e visível. A tela sempre ligada evita o '
+      'bloqueio automático; abaixe o brilho para economizar bateria.';
+
+  /// Screen-on toggle label while the wake lock is off.
+  static const String screenOnOff = 'Manter tela ligada';
+
+  /// Screen-on toggle label while the wake lock is on.
+  static const String screenOnOn = 'Tela ligada';
+
+  /// Screen-reader label for the off state, naming the action.
+  static const String screenOnOffSemantic =
+      'Manter a tela ligada durante a viagem';
+
+  /// Screen-reader label for the on state, naming the action.
+  static const String screenOnOnSemantic =
+      'Tela ligada. Toque para permitir que a tela apague';
+
+  /// Short caption when enabling the wake lock fails.
+  static const String screenOnUnsupported =
+      'Não foi possível manter a tela ligada neste aparelho.';
 
   /// Short relative time in pt-BR: "há 8 s", "há 1 min", "há 12 min".
   /// Negative inputs clamp to zero: a success timestamp newer than the
