@@ -254,21 +254,32 @@ recompute `segment_stats` from all retained bins like dwell stats.
 ### 5.5 ETA prediction
 
 For vehicle + target downstream stop S:
-1. Snap vehicle to active polyline (or static route); compute progress p (0..1).
-   No route -> fall back to straight-line distance / assumed speed.
+1. Snap vehicle to active polyline (or static route); compute progress p (0..1)
+   using cumulative along-route distance from the snapped vehicle position. No
+   route -> return a parameterised straight-line fallback at
+   `learning_default_speed_mps`, low confidence, method `fallback_distance`;
+   never a fake zero or `passed`.
 2. Find next stop at progress > p.
 3. Remaining stops = next stop to S inclusive.
 4. For each remaining segment, look up `segment_stats` for (line, direction,
    from, to, hour, day). If no exact bucket, try same hour any day, then
    `distance / defaultSpeedMps`. Base time = p50 of chosen row. Adjust by
    current pace: `factor = clamp(histSpeed / currentSpeed, 0.5, 2.0)`, where
-   `histSpeed = distance / baseTime`, `currentSpeed = max(vehicle.paceMps, 1)`.
-   Add dwell p50 for following stop, or `defaultDwellS`.
-5. Add partial time from vehicle position to next stop at current speed, capped
-   at twice historic segment rate.
-6. Return `{ etaS, confidence, sampleCount, method }`. Confidence reflects data
+   `histSpeed = distance / baseTime`. Pace below about 1.5 m/s is treated as
+   stopped and priced at `learning_default_speed_mps` instead of dividing
+   distance by a clamped 1 m/s pace; `currentSpeed` uses that rule. Add dwell
+   p50 for following stop, or `defaultDwellS`.
+5. Add partial time from vehicle position to next stop using cumulative
+   along-route distance from the snapped vehicle position to the next stop, not
+   only the remainder of one polyline segment, at current speed, capped at twice
+   historic segment rate.
+6. `passed` requires route geometry and the vehicle clearly past the target,
+   with a 30 m tolerance.
+7. Return `{ etaS, confidence, sampleCount, method }`. Confidence reflects data
    coverage: `high` when every bucket found, `medium` for 1-2 defaults, `low`
-   for > 2 defaults. `sampleCount` = sum of counts of rows used.
+   for > 2 defaults. `sampleCount` = sum of counts of rows used. Method
+   `learned` remains for the normal path. Segment and dwell stats, sample counts
+   and confidence tiers remain.
 
 Predictions computed on demand in predictor.ts, never stored.
 

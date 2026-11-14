@@ -1,6 +1,6 @@
 # Personal arrival at the rider's stop
 
-Status: implemented 2026-11-10 (Flutter client, tests only, no device/field run); placement updated 2026-11-11 for UX 2.0. See D96.
+Status: implemented 2026-11-10 (Flutter client, tests only, no device/field run); placement updated 2026-11-11 for UX 2.0; viewer location auto-request and 60 s refresh added 2026-11-13. See D96 and D116.
 
 ## Goal
 
@@ -17,10 +17,11 @@ Non-goals: routing, geocoding, stop picker, push notifications, background locat
 
 ## Data path
 
-1. `viewerFixProvider` (`NotifierProvider<ViewerFixController, ViewerFixState>`): explicit request, status, position, accuracy, timestamp.
+1. `viewerFixProvider` (`NotifierProvider<ViewerFixController, ViewerFixState>`): automatic foreground request on first open of a pilot line (one attempt, recorded in local pref `viewer_location_auto_requested_v1`), status, position, accuracy, timestamp; explicit rider taps (including the map focus-on-viewer control) can retry or force an immediate fix.
 2. `viewerLocationProvider`: `FutureProvider<LatLng?>` derived from fix state; compatibility seam for `line_screen.dart` and `reports_adapter.dart`.
 3. `learnedStopsProvider(lineId)`: existing, returns line direction-0 learned stops.
 4. `etaProvider((lineId, stopId))`: existing, calls server ETA endpoint. Refreshed by invalidation at most every 10 s while line screen visible and not in data saver. No timer/poll loop; reuses existing `vehicleTickProvider` (5 s, pauses off-foreground).
+5. Viewer fix refresh: while the line screen is open and the app is resumed and data saver is off, the fix refreshes at most every 60 s on the existing 5 s vehicle tick (no new timer, no position stream, no background location). The map focus-on-viewer control forces a fresh fix immediately, recenters immediately and again after the new fix lands, and resets the 60 s window. An in-flight refresh keeps the previous position visible; a silent failure keeps the old fix until the existing 5 minute staleness rule; a refresh never prompts.
 5. `personalArrivalProvider(lineId)`: composes fix, stops, vehicles and ETA into one `PersonalArrivalVM`.
 6. Pure logic in `ui/adapters/personal_arrival.dart`: nearest stop, ETA mapping, approach filter, formatting. Unit tested with no widgets.
 
@@ -30,12 +31,13 @@ Only line id and stop id are sent. Coordinates never leave the device.
 
 ## Privacy
 
-- Tap only. No location request on mount.
-- Foreground one-shot. No `getPositionStream`, no watcher, no background permission, no wake lock.
+- One automatic foreground request on first open of a pilot line; the reusable OS/browser permission prompt is the only first-use permission UI. The in-app pre-permission privacy sheet is no longer on the normal path.
+- After a denial, automatic attempts never prompt again; a later attempt may silently reuse a grant made in system settings; explicit rider taps can retry.
+- Foreground only. No `getPositionStream`, no watcher, no background permission, no wake lock for location.
 - Native precise-only with 120 m gate; web 200 m gate.
 - No persistence, logging or sending of coordinates.
-- Fix reused for 5 minutes within app session; after that card asks to refresh.
-- `viewerLocationProvider` no longer auto-prompts on web; it derives from explicit fix.
+- Fix is refreshed at most every 60 s while the line screen is open and the app is resumed and data saver is off; an in-flight refresh keeps the previous position visible and a silent failure keeps the old fix until the existing 5 minute staleness rule.
+- `viewerLocationProvider` no longer auto-prompts on web; it derives from the fix state.
 
 ## Honesty rules
 
@@ -53,7 +55,8 @@ Only line id and stop id are sent. Coordinates never leave the device.
 
 | State | Visible copy key | Behavior |
 |---|---|---|
-| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt above tabs with title, opt-in body and "Ver quando chega no meu ponto"; tapping opens privacy sheet. |
+| locating | `myStopLoading` | Automatic foreground fix in flight; shows the existing loading copy instead of the opt-in prompt. |
+| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt above tabs with title, opt-in body and "Ver quando chega no meu ponto"; tapping opens privacy sheet; used after a denied or failed automatic attempt when the rider retries. |
 | loadingStops | `myStopLoading` | Fix ready, learned stops still loading. |
 | noStops | `myStopNoStops` | Fix ready, line has no learned stops. Honest muted card. |
 | noStopNear | `myStopNoStopNear` | Fix ready, no learned stop within 300 m. Honest muted card. |
@@ -80,7 +83,7 @@ Stop title: "Seu ponto" when distance <= 120 m, else "Ponto mais próximo".
 
 ## Battery, performance and accessibility
 
-- One fix, no timer, throttle at most every 10 s on existing 5 s vehicle tick.
+- One automatic foreground fix on first open; refresh at most every 60 s on the existing 5 s vehicle tick while the line screen is open and the app is resumed and data saver is off. No new timer, no position stream, no background location.
 - Pauses off-route and in data saver.
 - One sentence per card and row.
 - Separate action nodes.
@@ -105,7 +108,7 @@ Full suite result: `flutter test` in `app/` passed, 514 tests, 1 skipped. No dev
 - Direction-0 learned route and stops on server; no learned stops means no personal ETA.
 - Precise-only excludes approximate grants.
 - No push notification.
-- Fix is one-shot and stale after 5 minutes.
+- Fix refreshes at most every 60 s while the line screen is open and the app is resumed and data saver is off; a locating state shows the existing loading copy. The fix is stale after 5 minutes and then asks to refresh.
 - Map marker is decorative for screen readers because map has one summary label and card carries sentence.
 - No device or field verification.
 
@@ -117,7 +120,7 @@ Full suite result: `flutter test` in `app/` passed, 514 tests, 1 skipped. No dev
 - No new dependency in `pubspec.yaml` or `pubspec.lock`.
 - No server, schema or API contract change.
 - No coordinate logged, persisted or sent.
-- Line screen shows "Ver quando chega no meu ponto" before any location request.
+- On first open of a pilot line, one automatic foreground fix request occurs; the reusable OS/browser permission prompt is the only first-use permission UI. After a denial automatic attempts never prompt again; explicit rider taps can retry.
 - Tapping prompt opens privacy sheet; OS/browser prompt only follows "Usar minha localização" tap.
 - With granted precise fix and learned stops, card shows "Seu ponto"/"Ponto mais próximo" with ETA, confidence and stop distance.
 - With no stops, no live bus, no approach or ETA failure, card shows matching honest state and never fake number.

@@ -65,12 +65,12 @@ Current web policy pauses sends after 60 s hidden (product policy, not platform 
 | Native iOS app | No | Yes, with Always auth | Core Location background updates |
 
 ## 4. Current implementation (foreground-only + gap recovery)
-- `TripScreen` requests wake lock while alive, returns on `resumed`, re-requests on every visible transition (`app/lib/ui/features/trip/trip_screen.dart`).
+- `TripScreen` requests wake lock while alive through `app/lib/platform/screen_wake.dart`, returns on `resumed`, re-requests on every visible transition. The rider can release the web wake lock with the keep-screen-on toggle while the banner stays honest about foreground-only sharing.
 - `WebVisibilityTracker` pauses after 60 s hidden; keeps hidden-since timestamp even if 5 s check timer frozen; reports real gap to controller on resume (`app/lib/platform/web/visibility.dart`).
 - `TripController.setWebHidden(true)` drops fixes while hidden. On visible, `recoverWebSharing` clears pause and asks `LocationService` for one high-accuracy one-shot; service restarts stream if dead/silent; one-shot emitted through normal filter (`trip_controller.dart`, `location_service.dart`).
 - Accepted fix uses `_nextPingAtMs` pacing; recovery does not bypass server interval. `TripFix.acceptedAtMs` lets controller drop a fix queued across hide that would otherwise be published stale.
 - If hidden >= 10 min server-timeout fallback, next `gone` shown as `TripEndKind.automatic` detail `timeout`; not revived with stale fix. Short gaps keep one-time revive path for server restart/lost record.
-- `WebTripBanner` always visible during web trip: "Mantenha esta tela aberta e o celular desbloqueado."
+- `WebTripBanner` always visible during web trip: "Mantenha esta tela aberta e o celular desbloqueado." The keep-screen-on toggle can release the web wake lock while this banner stays honest.
 - Server ends trip after 600 s without ping (`trip_timeout_s = 600`); viewer hides vehicle after 120 s without fix.
 
 Limits: no background acquisition; pause flag not guaranteed if frozen (tracker reports gap on resume); wake-lock reacquisition unverified on devices; timeout fallback is prediction, server authoritative; client never ends trip on its own.
@@ -214,4 +214,4 @@ D74 answers 1, 2, 4: foreground-only accepted for alpha, gap recovery implemente
 ## 10. Sources
 All web sources accessed 2026-10-19: W3C Geolocation CR 2026-03-26; Chrome one-time permissions; MDN Document PiP; WICG Document PiP spec; Chrome Document PiP docs; caniuse DocumentPictureInPicture; MDN Notifications API; Chrome Page Lifecycle API; W3C Screen Wake Lock; Chrome Periodic Background Sync; MDN Service Worker API; Chrome TWA overview; Chrome postMessage TWA; Capacitor Geolocation; Android foreground service types; Apple Core Location background updates; Apple allowsBackgroundLocationUpdates; WebKit Safari 16.4 features.
 
-Project references: ARCHITECTURE.md 8.12, 13.2, 13.4, RF04, PRV03; DECISIONS.md D11, D-U24, D59, D63-D69; app/lib/platform/web/visibility.dart; app/lib/platform/web/wake_lock.dart; app/lib/platform/web/web_banner.dart; app/lib/ui/features/trip/trip_screen.dart; app/lib/features/trip/location_service.dart; app/lib/features/trip/trip_controller.dart; server/src/domain/types.ts (tripTimeoutS); docs/ui/UI_SPEC.md.
+Project references: ARCHITECTURE.md 8.12, 13.2, 13.4, RF04, PRV03; DECISIONS.md D11, D-U24, D59, D63-D69, D117; app/lib/platform/screen_wake.dart; app/lib/platform/web/visibility.dart; app/lib/platform/web/web_banner.dart; app/lib/ui/features/trip/trip_screen.dart; app/lib/features/trip/location_service.dart; app/lib/features/trip/trip_controller.dart; server/src/domain/types.ts (tripTimeoutS); docs/ui/UI_SPEC.md.
