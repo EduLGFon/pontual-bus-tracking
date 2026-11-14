@@ -102,7 +102,7 @@ Unit, card, map, location, row and flow test files:
 - `app/test/ui/personal_arrival_flow_test.dart`
 - `app/test/ui/line_screen_test.dart`
 
-Full suite result: `flutter test` in `app/` passed, 610 tests, 1 skipped. No device or field verification.
+Full suite result: `flutter test` in `app/` passed, 629 tests, 1 skipped. No device or field verification.
 
 ## Limitations
 
