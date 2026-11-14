@@ -21,7 +21,7 @@ Non-goals: routing, geocoding, stop picker, push notifications, background locat
 2. `viewerLocationProvider`: `FutureProvider<LatLng?>` derived from fix state; compatibility seam for `line_screen.dart` and `reports_adapter.dart`.
 3. `learnedStopsProvider(lineId)`: existing, returns line direction-0 learned stops.
 4. `etaProvider((lineId, stopId))`: existing, calls server ETA endpoint. Refreshed by invalidation at most every 10 s while line screen visible and not in data saver. No timer/poll loop; reuses existing `vehicleTickProvider` (5 s, pauses off-foreground).
-5. Viewer fix refresh: while the line screen is open and the app is resumed and data saver is off, the fix refreshes at most every 60 s on the existing 5 s vehicle tick (no new timer, no position stream, no background location). The map focus-on-viewer control forces a fresh fix immediately, recenters immediately and again after the new fix lands, and resets the 60 s window. An in-flight refresh keeps the previous position visible; a silent failure keeps the old fix until the existing 5 minute staleness rule; a refresh never prompts.
+5. Viewer fix refresh: while a trip is active, the viewer dot reuses `TripController`'s latest accepted in-memory fix instead of a second foreground GPS read. Reuse requires a fix no older than 2 minutes, newer than the current viewer fix, and within the existing viewer accuracy gate (120 m native, 200 m web); it runs on line-screen mount, on the existing 5 s vehicle tick, on the map focus-on-viewer tap, and on the personal refresh action, so the dot updates at the trip fix cadence (typically 5 s). If there is no live trip fix, the trip fix is stale, or it is too coarse, the existing auto request and 60 s direct refresh behavior is unchanged. Otherwise, while the line screen is open and the app is resumed and data saver is off, the fix refreshes at most every 60 s on the existing 5 s vehicle tick (no new timer, no position stream, no background location). The map focus-on-viewer control forces a fresh fix immediately, recenters immediately and again after the new fix lands, and resets the 60 s window. An in-flight refresh keeps the previous position visible; a silent failure keeps the old fix until the existing 5 minute staleness rule; a refresh never prompts.
 6. `personalArrivalProvider(lineId)`: composes fix, stops, vehicles and ETA into one `PersonalArrivalVM`.
 7. Pure logic in `ui/adapters/personal_arrival.dart`: nearest stop, ETA mapping, approach filter, formatting. Unit tested with no widgets.
 
@@ -36,6 +36,7 @@ Only line id and stop id are sent. Coordinates never leave the device.
 - Foreground only. No `getPositionStream`, no watcher, no background permission, no wake lock for location.
 - Native precise-only with 120 m gate; web 200 m gate.
 - No persistence, logging or sending of coordinates.
+- While a trip is active, the viewer dot reuses the trip's latest accepted in-memory fix before any new foreground GPS read, when that fix is no older than 2 minutes, newer than the current viewer fix, and within the viewer accuracy gate (120 m native, 200 m web); otherwise the existing auto request and 60 s direct refresh behavior is unchanged. No new read, send or storage happens during reuse.
 - Fix is refreshed at most every 60 s while the line screen is open and the app is resumed and data saver is off; an in-flight refresh keeps the previous position visible and a silent failure keeps the old fix until the existing 5 minute staleness rule.
 - `viewerLocationProvider` no longer auto-prompts on web; it derives from the fix state.
 
@@ -83,7 +84,7 @@ Stop title: "Seu ponto" when distance <= 120 m, else "Ponto mais próximo".
 
 ## Battery, performance and accessibility
 
-- One automatic foreground fix on first open; refresh at most every 60 s on the existing 5 s vehicle tick while the line screen is open and the app is resumed and data saver is off. No new timer, no position stream, no background location.
+- One automatic foreground fix on first open; while a trip is active, reuse the trip's latest accepted in-memory fix for the viewer dot before any new foreground GPS read, when it is fresh enough and accurate enough. Refresh at most every 60 s on the existing 5 s vehicle tick while the line screen is open and the app is resumed and data saver is off. No new timer, no position stream, no background location, no new GPS read during reuse.
 - Pauses off-route and in data saver.
 - One sentence per card and row.
 - Separate action nodes.
@@ -108,6 +109,7 @@ Full suite result: `flutter test` in `app/` passed, 610 tests, 1 skipped. No dev
 - Direction-0 learned route and stops on server; no learned stops means no personal ETA.
 - Precise-only excludes approximate grants.
 - No push notification.
+- While a trip is active, the viewer dot reuses the trip's latest accepted in-memory fix when it is no older than 2 minutes, newer than the current viewer fix, and within the viewer accuracy gate (120 m native, 200 m web); otherwise the existing auto request and 60 s direct refresh run unchanged.
 - Fix refreshes at most every 60 s while the line screen is open and the app is resumed and data saver is off; a locating state shows the existing loading copy. The fix is stale after 5 minutes and then asks to refresh.
 - Map marker is decorative for screen readers because map has one summary label and card carries sentence.
 - No device or field verification.
@@ -130,6 +132,6 @@ Full suite result: `flutter test` in `app/` passed, 610 tests, 1 skipped. No dev
 
 ## References
 
-- DECISIONS.md D96
+- DECISIONS.md D96, D116, D119
 - docs/ui/UI_SPEC.md 7.5
 - AGENTS.md sections 8 and 15

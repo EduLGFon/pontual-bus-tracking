@@ -26,7 +26,7 @@ Opt-out de agregados: em "Privacidade e dados". Vale para próximas viagens; nã
 
 Nunca coletamos: nome, e-mail, telefone, contatos, fotos, microfone, histórico de viagens, IMEI ou identificadores de publicidade. Quem só olha o mapa/horários, sem compartilhar viagem nem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo usado para limitar abuso; a sinalização não é guardada junto desse código.
 
-Leitura local opcional: na tela da linha, ao abrir em uma linha piloto, o app faz uma leitura automática em primeiro plano da posição do aparelho, só no aparelho, para achar o ponto mais próximo da linha e estimar a chegada; depois, enquanto a tela estiver aberta e o app em uso, com economia de dados desligada, atualiza no máximo uma vez por minuto. A posição exata não é enviada nem guardada; a previsão pede só a linha e o ponto. Fica na memória do app por até 5 min, pode ser recusada; o app funciona sem ela. O pedido do navegador/sistema é o único aviso de permissão na primeira vez.
+Leitura local opcional: na tela da linha, ao abrir em uma linha piloto, o app faz uma leitura automática em primeiro plano da posição do aparelho, só no aparelho, para achar o ponto mais próximo da linha e estimar a chegada; depois, enquanto a tela estiver aberta e o app em uso, com economia de dados desligada, atualiza no máximo uma vez por minuto. A posição exata não é enviada nem guardada; a previsão pede só a linha e o ponto. Fica na memória do app por até 5 min, pode ser recusada; o app funciona sem ela. O pedido do navegador/sistema é o único aviso de permissão na primeira vez. Durante uma viagem compartilhada ativa, o app reutiliza a última posição já mantida na memória, sem nova leitura, envio ou armazenamento.
 
 ## 3. Finalidades
 
