@@ -72,6 +72,43 @@ void main() {
       expect(await const ConsentStore().read(), 2);
     });
 
+    test('stop learning calls the one-way endpoint', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        tokenPrefsKey: 'bm1_x',
+      });
+      bool called = false;
+      final PrivacyActions actions = PrivacyActions(
+        api: apiFor((http.Request req) async {
+          if (req.url.path == '/v1/me/learning' && req.method == 'DELETE') {
+            called = true;
+            return http.Response('', 204);
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+      expect(await actions.stopLearning(), isTrue);
+      expect(called, isTrue);
+    });
+
+    test('stop learning offline changes nothing and reports false', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        tokenPrefsKey: 'bm1_x',
+      });
+      final PrivacyActions actions = PrivacyActions(
+        api: apiFor((_) async => http.Response('{}', 503)),
+      );
+      expect(await actions.stopLearning(), isFalse);
+      expect(await const TokenStore().read(), 'bm1_x');
+    });
+
+    test('stop learning without a token is a no-op success', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final PrivacyActions actions = PrivacyActions(
+        api: apiFor((_) async => http.Response('{}', 500)),
+      );
+      expect(await actions.stopLearning(), isTrue);
+    });
+
     test('revoke clears consent and ends the trip best-effort', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         tokenPrefsKey: 'bm1_x',
@@ -166,7 +203,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apagar'));
     await tester.pumpAndSettle();
-    expect(find.text('Para onde vamos?'), findsOneWidget);
+    expect(find.text('Acompanhe seus ônibus.'), findsOneWidget);
     expect(await const TokenStore().read(), isNull);
   });
 }

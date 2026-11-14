@@ -1,6 +1,6 @@
 // Static data repository: bundled data first, then cache, then conditional
 // GET, with atomic swap. The first frame never waits on the network.
-// Every line list the UI shows comes from here. See PLAN.md 7.1.
+// Every line list the UI shows comes from here. See ARCHITECTURE.md 7.1.
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

@@ -2,7 +2,7 @@
 // The hash palette stays for unknown contexts; real lines use the category
 // fills below, which carry region meaning. Both avoid pure green (live)
 // and red (errors). Badge text colour is computed per fill.
-// See docs/ui/UI_SPEC.md 4.1 and docs/ui/lines-redesign.md.
+// See docs/ui/UI_SPEC.md 4.1 and docs/ui/UI_SPEC.md.
 import 'package:flutter/material.dart';
 import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/util/contrast.dart';

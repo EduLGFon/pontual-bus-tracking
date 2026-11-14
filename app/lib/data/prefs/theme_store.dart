@@ -1,5 +1,5 @@
 // Persisted theme mode. System default; the settings screen writes
-// through this store and updates themeModeProvider. See PLAN.md S10.
+// through this store and updates themeModeProvider. See ARCHITECTURE.md S10.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

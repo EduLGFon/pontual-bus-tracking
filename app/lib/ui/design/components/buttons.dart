@@ -87,6 +87,7 @@ class SecondaryButton extends StatelessWidget {
     this.icon,
     this.compact = false,
     this.fullWidth = true,
+    this.semanticLabel,
     super.key,
   });
 
@@ -105,13 +106,16 @@ class SecondaryButton extends StatelessWidget {
   /// Stretches to the available width.
   final bool fullWidth;
 
+  /// Screen-reader label when it differs from [label].
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final Color labelColor = colors.ink;
     return Pressable(
       onTap: onPressed,
-      semanticLabel: label,
+      semanticLabel: semanticLabel ?? label,
       borderRadius: Radii.pill,
       minSize: 0,
       child: Container(

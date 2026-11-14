@@ -1,6 +1,6 @@
 // S06 share-trip sheet: prominent disclosure plus consent. Shown before
 // the first trip and whenever consent_version changes. No pre-ticked
-// boxes; dismissible without side effects. See PLAN.md S06.
+// boxes; dismissible without side effects. See ARCHITECTURE.md S06.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -51,7 +51,7 @@ class ConsentSheet extends StatelessWidget {
               '• É apagada quando a viagem termina.\n'
               '• Dados anonimizados da viagem (rotas, paradas, tempos) podem '
               'ser mantidos para melhorar previsões; sem identificação.\n'
-              '• Outros usuários veem a posição do ônibus, não quem está nele. '
+              '• Outras pessoas veem a posição do ônibus, não quem está nele. '
               'Se só você compartilhar, a posição do ônibus é a sua.\n'
               '• Você pode encerrar quando quiser.',
               style: context.text.body,

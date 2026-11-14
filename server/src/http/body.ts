@@ -1,5 +1,5 @@
 // Small strict body reader shared by JSON endpoints. Body limits are per
-// route in PLAN.md 6.5; callers pass the cap. Malformed or empty bodies
+// route in ARCHITECTURE.md 6.5; callers pass the cap. Malformed or empty bodies
 // stay distinguishable so handlers can answer 400 instead of 500.
 export type ParsedBody =
   | { kind: "json"; value: unknown }

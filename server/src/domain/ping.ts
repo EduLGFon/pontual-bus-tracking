@@ -1,7 +1,7 @@
 // Trip lifecycle. Pure and synchronous; time and randomness are parameters.
 // Handlers check kill switch, blocklist, and consent before calling here.
 // Engine checks line validity, bbox, plausibility, and capacity.
-// See PLAN.md 6.6 steps for startTrip, applyPing, endTrip.
+// See ARCHITECTURE.md 6.6 steps for startTrip, applyPing, endTrip.
 import { isCoherent, nearestVehicle } from "./attach.ts";
 import { recordPassage } from "./arrivals.ts";
 import { distM, distToShapeM, type RouteShape } from "./geo.ts";
@@ -30,6 +30,8 @@ export interface PingResult {
   intervalS: number;
   end?: EndReason;
   ackLeader?: boolean;
+  /** True when the ping was dropped by the 4 s min-interval defense. */
+  rateLimited?: boolean;
 }
 
 export type PingOutcome = PingResult | { gone: true };
@@ -86,6 +88,7 @@ export function startTrip(
   fix: Fix,
   nowMs: number,
   cfg: EngineConfig,
+  synthetic = false,
 ): StartResult {
   if (!line || !line.isActive) return { ok: false, code: "line" };
   if (store.trips.size >= cfg.maxActiveTrips && !store.trips.has(deviceId)) {
@@ -127,11 +130,12 @@ export function startTrip(
     startedAtMs: nowMs,
     lat: fix.lat,
     lng: fix.lng,
+    synthetic,
   });
   return { ok: true, role: "W", intervalS: cfg.waitingIntervalS };
 }
 
-/** Apply a ping. Follows the normative order in PLAN.md 6.6. */
+/** Apply a ping. Follows the normative order in ARCHITECTURE.md 6.6. */
 export function applyPing(
   store: Store,
   events: EngineEvent[],
@@ -157,7 +161,7 @@ export function applyPing(
     trip.lastSeenAtMs !== null &&
     nowMs - trip.lastSeenAtMs < cfg.minPingIntervalS * 1000
   ) {
-    return currentInstruction(store, trip, cfg);
+    return { ...currentInstruction(store, trip, cfg), rateLimited: true };
   }
   // 4. Validate.
   if (validateFix(fix, cfg)) {

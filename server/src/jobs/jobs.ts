@@ -1,7 +1,7 @@
 // Background jobs. Tick, config refresh, device purge, db health.
 // Overlap guard on the tick; every timer is registered for graceful
 // shutdown. Time is a parameter where tests need a fake clock.
-// See PLAN.md 6.10.
+// See ARCHITECTURE.md 6.10.
 import type { Sql } from "../db/client.ts";
 import { purgeExpiredDevices } from "../db/devices.ts";
 import { purgeOldDiagnostics } from "../db/diagnostics.ts";
@@ -65,13 +65,21 @@ export async function runPurgeDiagnostics(
   return await purgeOldDiagnostics(sql, cutoff);
 }
 
-/** Retention cleanup for learning aggregates (F6). */
+/**
+ * Retention cleanup for learning aggregates (F6). Histograms are cumulative
+ * and carry no per-trip timestamps, so retention follows the stop lifecycle:
+ * a stop with no pass for 90 days is deactivated, and an inactive stop is
+ * deleted after another 90 days. Bins and derived stats cascade with it.
+ * Route cells and edges are bounded by the fixed grid and line/direction
+ * count; they are kept because the published route rebuilds from them.
+ * See DECISIONS.md#D109.
+ */
 export async function runPurgeLearning(sql: Sql, now: Date): Promise<void> {
   const cutoff90 = new Date(now.getTime() - 90 * 86400 * 1000);
+  const cutoff180 = new Date(now.getTime() - 180 * 86400 * 1000);
   const cutoff30 = new Date(now.getTime() - 30 * 86400 * 1000);
-  await sql`delete from stop_dwell_stats where updated_at < ${cutoff90}`;
-  await sql`delete from segment_stats where updated_at < ${cutoff90}`;
-  await sql`delete from learned_stops where active = false and last_seen_at < ${cutoff90}`;
+  await sql`update learned_stops set active = false where active = true and last_seen_at < ${cutoff90}`;
+  await sql`delete from learned_stops where active = false and last_seen_at < ${cutoff180}`;
   await sql`delete from learned_routes where status = 'retired' and retired_at < ${cutoff30}`;
 }
 

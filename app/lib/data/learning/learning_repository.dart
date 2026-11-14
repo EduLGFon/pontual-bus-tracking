@@ -1,5 +1,5 @@
 // Repository for the de-identified learning endpoints. HTTP only; no
-// Flutter imports beyond the shared http client. See PLAN.md 6.5.
+// Flutter imports beyond the shared http client. See ARCHITECTURE.md 6.5.
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

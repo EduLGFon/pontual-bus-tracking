@@ -12,10 +12,12 @@ import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
+import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/search_field.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/home/welcome_state.dart';
 import 'package:pontual/ui/features/home/home_screen.dart';
+import 'package:pontual/ui/shell/offline_bridge.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,6 +43,7 @@ Widget wrapHome(
   required String liveBody,
   Size surface = const Size(390, 560),
   double textScale = 1,
+  bool offline = false,
 }) {
   final MockClient client = MockClient((http.Request req) async {
     if (req.url.path == '/v1/live') {
@@ -62,6 +65,7 @@ Widget wrapHome(
         ).lines(),
       ),
       currentNowProvider.overrideWith((Ref ref) => fixedNow),
+      offlineFlagProvider.overrideWith((Ref ref) => offline),
     ],
     child: MediaQuery(
       data: MediaQueryData(
@@ -76,6 +80,21 @@ Widget wrapHome(
 /// Themed Início app for direct pumping.
 Widget homeApp() {
   return MaterialApp(theme: pontualLightTheme(), home: const HomeScreen());
+}
+
+/// The live summary pill that contains [label].
+///
+/// The label sits inside the pill [Container], so the nearest Container
+/// ancestor is the pill itself.
+Finder pillFinder(String label) {
+  return find
+      .ancestor(of: find.text(label), matching: find.byType(Container))
+      .first;
+}
+
+/// Width of the live summary pill that contains [label].
+double pillWidth(WidgetTester tester, String label) {
+  return tester.getSize(pillFinder(label)).width;
 }
 
 void main() {
@@ -141,7 +160,7 @@ void main() {
     expect(find.text('search-marker'), findsOneWidget);
   });
 
-  testWidgets('welcome card shows once and hides after dismissal', (
+  testWidgets('welcome card offers setup and hides after later', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -150,19 +169,78 @@ void main() {
     await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
     await tester.pumpAndSettle();
 
-    expect(find.text(UiStrings.welcomeTitle), findsOneWidget);
+    expect(find.text(UiStrings.homeWelcomeTitle), findsOneWidget);
+    expect(find.text(UiStrings.homeWelcomeBody), findsOneWidget);
+    expect(find.text(UiStrings.homeWelcomeChoose), findsOneWidget);
 
-    await tester.tap(find.text(UiStrings.ok));
+    await tester.tap(find.text(UiStrings.homeWelcomeLater));
     await tester.pumpAndSettle();
 
-    expect(find.text(UiStrings.welcomeTitle), findsNothing);
+    expect(find.text(UiStrings.homeWelcomeTitle), findsNothing);
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(welcomeSeenKey), isTrue);
 
     // Relaunching reads the persisted flag: no welcome card again.
     await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
     await tester.pumpAndSettle();
-    expect(find.text(UiStrings.welcomeTitle), findsNothing);
+    expect(find.text(UiStrings.homeWelcomeTitle), findsNothing);
+  });
+
+  testWidgets('first-run picker saves favourites and shows the hero', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      coachmarkSeenKey: true,
+    });
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(UiStrings.homeWelcomeChoose));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeChooseTitle), findsOneWidget);
+    expect(find.text(UiStrings.homeChooseBody), findsOneWidget);
+    await tester.tap(find.text('Litorâneo / Aviação'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(UiStrings.homeChooseSave));
+    await tester.tap(find.text(UiStrings.homeChooseSave));
+    await tester.pumpAndSettle();
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList(favoritesKey), contains('60-litoraneo-aviacao'));
+    expect(prefs.getBool(welcomeSeenKey), isTrue);
+    expect(find.text(UiStrings.homeWelcomeTitle), findsNothing);
+    // 10:00 now, next departure on the chosen line is 10:20.
+    expect(find.text(UiStrings.homeNextEyebrow), findsOneWidget);
+    expect(find.text('10:20'), findsOneWidget);
+    expect(find.text(UiStrings.homeNextOpen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    // Let the save toast timer complete; no ToastHost renders it here.
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('welcome card stays hidden when favourites exist', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      favoritesKey: <String>['60-litoraneo-aviacao'],
+      coachmarkSeenKey: true,
+    });
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeWelcomeTitle), findsNothing);
+    expect(find.text(UiStrings.homeNextEyebrow), findsOneWidget);
+  });
+
+  testWidgets('removed coachmark never renders', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      welcomeSeenKey: true,
+    });
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.coachmark), findsNothing);
   });
 
   testWidgets('shortcut add flow saves and renders a card', (
@@ -214,6 +292,101 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('header wraps at 320x568 and 2x with the live chip', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(
+      wrapHome(
+        tester,
+        homeApp(),
+        liveBody: '[[60,2]]',
+        surface: const Size(320, 568),
+        textScale: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
+    expect(find.text(UiStrings.homeLiveNow), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('header chip keeps the honest zero state at 2x', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(
+      wrapHome(
+        tester,
+        homeApp(),
+        liveBody: '[]',
+        surface: const Size(320, 568),
+        textScale: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
+    expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('live chip hugs its content instead of filling the header', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
+    // 390 dp minus the 20 dp compact margins leaves 350 dp of content; a
+    // pill spanning the header row would be that wide.
+    expect(pillWidth(tester, UiStrings.homeLiveNone), lessThan(300));
+    // It still sits at the right edge of the header, after the wordmark.
+    expect(
+      tester.getTopLeft(pillFinder(UiStrings.homeLiveNone)).dx,
+      greaterThan(tester.getTopRight(find.text(UiStrings.wordmark)).dx),
+    );
+
+    // At 320 dp with 2x text the pill may grow and move to its own run, but
+    // it must stay inside the header instead of overflowing.
+    await tester.pumpWidget(
+      wrapHome(
+        tester,
+        homeApp(),
+        liveBody: '[]',
+        surface: const Size(320, 568),
+        textScale: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeLiveNone), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('header chip keeps the offline state at 2x', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(
+      wrapHome(
+        tester,
+        homeApp(),
+        liveBody: '[]',
+        surface: const Size(320, 568),
+        textScale: 2,
+        offline: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeOffline), findsOneWidget);
+    expect(find.text(UiStrings.homeSubtitle), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('departures section hides when cards cover every departure', (
     WidgetTester tester,
   ) async {
@@ -261,6 +434,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(UiStrings.saindoAgora), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('share card exposes the wired primary action', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(onboardingDone);
+    await tester.pumpWidget(wrapHome(tester, homeApp(), liveBody: '[]'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(UiStrings.homeShareCardTitle), findsOneWidget);
+    expect(find.text(UiStrings.homeShareCardBody), findsOneWidget);
+    expect(find.text(UiStrings.homeShareCardTimetable), findsOneWidget);
+    expect(find.text(UiStrings.homeTrust), findsOneWidget);
+    // The honest zero state stays on the summary chip, never as the card
+    // title too.
+    expect(find.text(UiStrings.homeNoLive), findsNothing);
+    final PrimaryButton action = tester.widget<PrimaryButton>(
+      find.widgetWithText(PrimaryButton, UiStrings.homeShareCardAction),
+    );
+    expect(action.onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
 }

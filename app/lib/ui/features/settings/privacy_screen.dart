@@ -85,6 +85,11 @@ class PrivacyScreen extends ConsumerWidget {
               ),
             const SizedBox(height: Space.x4),
             SettingsRow(
+              icon: Icons.analytics_outlined,
+              label: UiStrings.privacyStopLearning,
+              onTap: () => unawaited(_stopLearning(context, ref)),
+            ),
+            SettingsRow(
               icon: Icons.restart_alt_rounded,
               label: UiStrings.privacyRevoke,
               onTap: () => unawaited(_revoke(context, ref)),
@@ -116,6 +121,50 @@ class PrivacyScreen extends ConsumerWidget {
       return;
     }
     ref.read(toastControllerProvider.notifier).show(UiStrings.privacyRevoked);
+  }
+
+  /// Stops future aggregate contributions after confirmation. One-way, so
+  /// the body says so. Offline reports the failure and changes nothing.
+  Future<void> _stopLearning(BuildContext context, WidgetRef ref) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: Text(
+          UiStrings.privacyStopLearningTitle,
+          style: context.text.title,
+        ),
+        content: Text(
+          UiStrings.privacyStopLearningBody,
+          style: context.text.body,
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(UiStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(UiStrings.privacyConfirmStopLearning),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) {
+      return;
+    }
+    final bool ok = await PrivacyActions(api: ref.read(busApiProvider))
+        .stopLearning();
+    if (!context.mounted) {
+      return;
+    }
+    ref
+        .read(toastControllerProvider.notifier)
+        .show(
+          ok
+              ? UiStrings.privacyStopLearningDone
+              : UiStrings.privacyStopLearningOffline,
+        );
   }
 
   /// Deletes the data this device left on the server. Offline reports the

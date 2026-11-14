@@ -63,9 +63,12 @@ class VehicleRow extends StatelessWidget {
     bits.add(UiStrings.aboard(vehicle.members));
     final String? eta = _nonEmpty(personalEta);
     final String? etaSemantic = _nonEmpty(personalEtaSemantic);
+    final String speedClause = vehicle.speedKmh == null
+        ? ''
+        : '${vehicle.speedKmh!.round()} quilômetros por hora, ';
     final String a11y =
         '$label, atualizado há ${_ageWords(vehicle.ageSeconds)}, '
-        '${vehicle.speedKmh?.round() ?? 0} quilômetros por hora, '
+        '$speedClause'
         '${UiStrings.aboard(vehicle.members)}.'
         '${etaSemantic == null ? '' : ' $etaSemantic'}';
     return SurfaceCard(

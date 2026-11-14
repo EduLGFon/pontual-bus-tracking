@@ -1,15 +1,11 @@
 // Trip endpoints wired to the pure engine. Handlers check kill switch,
 // blocklist, consent, quotas, and line validity; the engine owns the rest.
-// See PLAN.md 6.5 and 6.6. No trip or session ids anywhere.
+// See ARCHITECTURE.md 6.5 and 6.6. No trip or session ids anywhere.
 import { Hono } from "@hono/hono";
 import * as v from "@valibot/valibot";
 import type { Sql } from "../db/client.ts";
 import { guardState } from "../db/guard.ts";
-import {
-  bumpLearningTrips,
-  getLearningOptOut,
-  getLearningTrips,
-} from "../db/devices.ts";
+import { getLearningOptOut } from "../db/devices.ts";
 import type { RuntimeConfig } from "../config/runtime.ts";
 import type { LineResolver } from "../data/lines.ts";
 import { applyPing, endTrip, isGone, startTrip } from "../domain/ping.ts";
@@ -17,7 +13,11 @@ import type { Store } from "../state/store.ts";
 import { authMiddleware } from "../security/auth.ts";
 import { RateLimiter } from "../security/rateLimit.ts";
 import { Log } from "../observability/log.ts";
-import { recordHttp403, recordHttp429 } from "../observability/metrics.ts";
+import {
+  recordHttp403,
+  recordHttp429,
+  recordPingRateLimited,
+} from "../observability/metrics.ts";
 import { TripPingBody, TripStartBody } from "./tripSchemas.ts";
 import type { EngineConfig, EngineEvent } from "../domain/types.ts";
 import { readJsonBody } from "./body.ts";
@@ -31,9 +31,6 @@ type Ctx = {
   json(o: unknown, status?: number): Response;
   header(n: string, v: string): void;
 };
-
-/** Started trips required before a device unlocks learning aggregates. */
-const LEARNING_TRIP_THRESHOLD = 5;
 
 export interface TripDeps {
   sql: Sql;
@@ -126,6 +123,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       },
       Date.now(),
       cfg,
+      parsed.output.synthetic,
     );
     if (!out.ok) {
       if (out.code === "line") return c.json({ e: "line" }, 404);
@@ -137,24 +135,15 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
       return c.json({ e: "bad_request" }, 400);
     }
     if (deps.learning) {
-      // Learning is best-effort (PLAN.md 5.5). Live sharing must still start
+      // Learning is best-effort (ARCHITECTURE.md 5.5). Live sharing must still start
       // when learning storage is unavailable, but a failure to establish
-      // opt-out or eligibility contributes nothing. PRIVACY: fail closed.
+      // opt-out contributes nothing. PRIVACY: fail closed.
       try {
         const optedOut = await getLearningOptOut(deps.sql, deviceId);
         if (!optedOut) {
-          // Eligibility is a pseudonymous per-device counter. Resume must not
-          // inflate it; a fresh start increments once, after consent and
-          // opt-out checks. See DECISIONS.md#D98.
-          const trips = resume
-            ? await getLearningTrips(deps.sql, deviceId)
-            : await bumpLearningTrips(deps.sql, deviceId);
           const rt2 = await deps.runtime();
           for (const ev of events) {
-            deps.learning.handle(ev, {
-              consentVersion: rt2.consentVersion,
-              eligible: trips >= LEARNING_TRIP_THRESHOLD,
-            });
+            deps.learning.handle(ev, { consentVersion: rt2.consentVersion });
           }
         }
       } catch (e) {
@@ -217,14 +206,23 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     if (deps.learning) {
       const rt2 = await deps.runtime();
       for (const ev of events) {
-        deps.learning.handle(ev, {
-          consentVersion: rt2.consentVersion,
-          eligible: true,
-        });
+        deps.learning.handle(ev, { consentVersion: rt2.consentVersion });
       }
     }
-    if (out.end) return c.json({ r: out.role, n: out.intervalS, e: out.end });
-    return c.json({ r: out.role, n: out.intervalS });
+    if (out.rateLimited) recordPingRateLimited();
+    if (out.end) {
+      return c.json({
+        r: out.role,
+        n: out.intervalS,
+        e: out.end,
+        ...(out.rateLimited ? { rl: true } : {}),
+      });
+    }
+    return c.json({
+      r: out.role,
+      n: out.intervalS,
+      ...(out.rateLimited ? { rl: true } : {}),
+    });
   });
 
   // End intentionally skips guard(): ending is cleanup and must succeed
@@ -243,10 +241,7 @@ export function buildTripRoutes(deps: TripDeps): Hono<Vars> {
     if (deps.learning) {
       const rt = await deps.runtime();
       for (const ev of evs) {
-        deps.learning.handle(ev, {
-          consentVersion: rt.consentVersion,
-          eligible: true,
-        });
+        deps.learning.handle(ev, { consentVersion: rt.consentVersion });
       }
     }
     return c.body(null, 204);

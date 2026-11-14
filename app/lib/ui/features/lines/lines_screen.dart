@@ -1,8 +1,6 @@
 // Lines screen: the Linhas tab. The filter lives in the URL so links and the
 // browser back button restore the same view, and every count comes from the
 // data. See docs/ui/UI_SPEC.md 7.4.
-import 'dart:async';
-
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,17 +11,20 @@ import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
+import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
+import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/lines/favorite_action.dart';
 import 'package:pontual/ui/features/lines/favorites_store_bridge.dart';
 import 'package:pontual/ui/features/lines/lines_logic.dart';
 import 'package:pontual/ui/features/timetable/timetable_data.dart';
+import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/shell/offline_bridge.dart';
-import 'package:pontual/ui/shell/toast_host.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Filters offered by the chips row.
@@ -91,14 +92,19 @@ class LinesScreen extends ConsumerWidget {
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: RefreshIndicator(
-          // PLAN.md 9.5 S03: pull-to-refresh asks for fresh live dots;
+          // ARCHITECTURE.md 9.5 S03: pull-to-refresh asks for fresh live dots;
           // the refresher enforces the 10 s floor.
           onRefresh: () => ref.read(liveRefresherProvider).refresh(),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
               SliverToBoxAdapter(
-                child: _Header(total: all.length, withTimes: withTimes),
+                child: _Header(
+                  total: all.length,
+                  withTimes: withTimes,
+                  liveCount: liveLines,
+                  offline: offline,
+                ),
               ),
               SliverPersistentHeader(
                 pinned: true,
@@ -189,16 +195,29 @@ class _CategoryHeader extends StatelessWidget {
   }
 }
 
-/// Screen title and the honest totals derived from the data.
+/// Screen title, the search entry and the honest totals derived from the data.
 class _Header extends StatelessWidget {
-  /// Creates the header for [total] lines with [withTimes] timetabled.
-  const _Header({required this.total, required this.withTimes});
+  /// Creates the header for [total] lines, [withTimes] timetabled and
+  /// [liveCount] sharing. [offline] hides the live count, which is unknown
+  /// while the endpoint is unreachable.
+  const _Header({
+    required this.total,
+    required this.withTimes,
+    required this.liveCount,
+    required this.offline,
+  });
 
   /// Total active lines.
   final int total;
 
   /// Lines with at least one timetable time.
   final int withTimes;
+
+  /// Lines currently sharing.
+  final int liveCount;
+
+  /// True while the app is offline.
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
@@ -212,14 +231,64 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(UiStrings.linesTitle, style: context.text.title),
-          Text(
-            '$total ${total == 1 ? _oneLine : UiStrings.linesCount} '
-            '· $withTimes ${UiStrings.linesWithTimes}',
-            style: context.text.caption,
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  UiStrings.linesTitle,
+                  style: context.text.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconBtn(
+                icon: Icons.search_rounded,
+                semanticLabel: UiStrings.linesSearchAction,
+                onTap: () => context.push('/search'),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: Space.x2,
+            runSpacing: Space.x1,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              Text(
+                '$total ${total == 1 ? _oneLine : UiStrings.linesCount} '
+                '· $withTimes ${UiStrings.linesWithTimes}',
+                style: context.text.caption,
+              ),
+              if (!offline && liveCount > 0) _LiveSummary(liveCount: liveCount),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Inline live count, same source as the Ao vivo chip and the rows.
+class _LiveSummary extends StatelessWidget {
+  /// Creates the summary for [liveCount] lines sharing.
+  const _LiveSummary({required this.liveCount});
+
+  /// Lines currently sharing.
+  final int liveCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const LiveDot(certainty: Certainty.live),
+        const SizedBox(width: Space.x1),
+        Text(
+          UiStrings.linesSummaryLive(liveCount),
+          style: context.text.caption.copyWith(color: context.colors.liveText),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -354,23 +423,9 @@ class _LineCard extends ConsumerWidget {
       line: line,
       status: status,
       isFavorite: isFavorite,
-      onToggleFavorite: () => _toggleFavorite(context, ref),
+      onToggleFavorite: () => toggleFavoriteLine(ref, line.key),
       onTap: () => context.push('/line/${line.key}'),
     );
-  }
-
-  void _toggleFavorite(BuildContext context, WidgetRef ref) {
-    HapticFeedback.selectionClick();
-    final bool wasFavorite = ref.read(favoritesProvider).contains(line.key);
-    unawaited(ref.read(favoritesProvider.notifier).toggle(line.key));
-    ref
-        .read(toastControllerProvider.notifier)
-        .show(
-          wasFavorite ? UiStrings.linesFavRemoved : UiStrings.linesFavAdded,
-          actionLabel: UiStrings.undo,
-          onAction: () =>
-              unawaited(ref.read(favoritesProvider.notifier).toggle(line.key)),
-        );
   }
 }
 

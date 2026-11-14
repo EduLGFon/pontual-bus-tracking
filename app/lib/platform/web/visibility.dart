@@ -1,7 +1,7 @@
 // Web visibility policy. Sharing works only in the foreground: when the
 // page is hidden for more than 60 s the controller pauses sends until
 // the page is visible again. Pure Dart so it is unit testable; the
-// widget layer feeds lifecycle events. See PLAN.md 8.12.
+// widget layer feeds lifecycle events. See ARCHITECTURE.md 8.12.
 
 /// Milliseconds of hidden time before a web trip pauses.
 const int webHiddenPauseMs = 60 * 1000;

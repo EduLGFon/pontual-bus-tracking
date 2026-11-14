@@ -1,6 +1,6 @@
 // Pure helpers for the Linhas list: category grouping and sorting.
 // No widgets here, so unit tests stay free of the render tree.
-// See docs/ui/lines-redesign.md.
+// See docs/ui/UI_SPEC.md.
 import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 

@@ -37,6 +37,9 @@ enum PersonalArrivalStatus {
   /// No usable fix yet: the card offers the opt-in prompt.
   needsLocation,
 
+  /// The automatic first fix is in flight: show the existing loading copy.
+  locating,
+
   /// A fix exists but the learned stops are still loading.
   loadingStops,
 
@@ -218,9 +221,14 @@ PersonalArrivalVM buildPersonalArrival({
   required EtaResult? eta,
   required bool etaLoading,
   required bool etaFailed,
+  bool locating = false,
 }) {
   if (viewer == null) {
-    return const PersonalArrivalVM(status: PersonalArrivalStatus.needsLocation);
+    return PersonalArrivalVM(
+      status: locating
+          ? PersonalArrivalStatus.locating
+          : PersonalArrivalStatus.needsLocation,
+    );
   }
   final bool staleFix =
       fixAt != null &&

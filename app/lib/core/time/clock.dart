@@ -1,5 +1,5 @@
 // Clock abstraction. Production code never calls DateTime.now directly in
-// logic; tests inject FakeClock. See PLAN.md 14.2.
+// logic; tests inject FakeClock. See ARCHITECTURE.md 14.2.
 
 /// Abstraction over wall-clock and monotonic time.
 abstract class Clock {

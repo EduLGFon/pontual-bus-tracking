@@ -2,7 +2,7 @@
 // start, then the trip screen. MapTab buttons call shareTrip and do
 // nothing else. Only pilot lines can share. A phased progress sheet
 // covers the silent part (register, GPS, start) so a tap never ends
-// with nothing. See PLAN.md S06, S07, S08.
+// with nothing. See ARCHITECTURE.md S06, S07, S08.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

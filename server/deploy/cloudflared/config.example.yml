@@ -1,0 +1,18 @@
+# Example locally managed Cloudflare Tunnel config for the cloudflared container.
+# Copy to server/secrets/cloudflared.yml (gitignored) or /etc/pontual/cloudflared.yml.
+# The credentials file is mounted by Compose at /run/secrets/cloudflared_credentials.
+# Use the tunnel UUID, not the name. Running by name requires cert.pem, which is
+# not mounted. Get it from `cloudflared tunnel list` or the TunnelID field in
+# the credentials JSON.
+tunnel: 00000000-0000-0000-0000-000000000000
+credentials-file: /run/secrets/cloudflared_credentials
+
+ingress:
+  - hostname: api-pontual.spotnik.space
+    service: http://api:8080
+  - hostname: api.pontual.spotnik.space
+    service: http://api:8080
+  # Optional: another hostname served by another local container.
+  # - hostname: other.example.com
+  #   service: http://other-container:8080
+  - service: http_status:404

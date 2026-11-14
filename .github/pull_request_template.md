@@ -1,4 +1,4 @@
-# PR checklist (PLAN.md 14.10)
+# PR checklist (ARCHITECTURE.md 14.10)
 
 ## Task
 
@@ -7,14 +7,14 @@
 
 ## Checks
 
-- [ ] Tests added or updated; `flutter test` / `deno test` green where relevant
+- [ ] Tests added/updated; `flutter test` / `deno test` green where relevant
 - [ ] `dart format` / analyzer clean; `deno fmt` / `deno lint` clean where relevant
 - [ ] No new permission or dependency without ADR in DECISIONS.md
 - [ ] Budgets not regressed (size check; perf check if UI/location/net touched)
-- [ ] Security and privacy items re-verified (PLAN.md 12.6, 13.8)
-- [ ] Docs updated (PLAN.md / DECISIONS.md / CHANGELOG.md as needed)
+- [ ] Security/privacy re-verified (ARCHITECTURE.md 12.6, 13.8)
+- [ ] Docs updated (ARCHITECTURE.md / DECISIONS.md / CHANGELOG.md as needed)
 
 ## Notes
 
 - Related DECISIONS.md entries: ___
-- Verification that was not possible and why: ___
+- Verification not possible and why: ___

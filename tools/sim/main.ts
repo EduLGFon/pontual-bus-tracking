@@ -1,6 +1,6 @@
 // Driver simulator: buses, riders, abuse scenarios, latency report.
 // Uses real HTTP and WebSocket against the local or staging server.
-// Abuse scenarios run against localhost only. See PLAN.md T13.
+// Abuse scenarios run against localhost only. See ARCHITECTURE.md T13.
 // Usage: deno task sim -- --base http://127.0.0.1:8080 --line 7 ...
 
 interface Args {
@@ -148,6 +148,7 @@ async function main(): Promise<void> {
       acc: 10,
       bat: 75,
       chg: false,
+      synthetic: true,
     });
     if (start.status !== 201) {
       errors.push(`start failed: ${start.status}`);
@@ -225,6 +226,7 @@ async function main(): Promise<void> {
         acc: 10,
         bat: 100,
         chg: false,
+        synthetic: true,
       });
       if (spoof.status !== 201 && spoof.status !== 422) {
         errors.push(`spoof unexpected: ${spoof.status}`);

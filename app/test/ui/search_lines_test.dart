@@ -34,6 +34,9 @@ const String linesJson =
 /// Fixed São Mateus wall clock: Wednesday 10:00.
 final DateTime fixedNow = DateTime.utc(2026, 10, 14, 10, 0);
 
+/// Smallest supported viewport, used for the 2x text checks.
+const Size smallViewport = Size(320, 568);
+
 /// Provider scope with deterministic lines and live answers.
 Widget wrapTest(Widget app, {required String liveBody}) {
   final MockClient client = MockClient((http.Request req) async {
@@ -159,6 +162,67 @@ void main() {
       await settleOnce(tester);
       expect(find.text('line:62-guriri'), findsOneWidget);
     });
+
+    testWidgets('typed result shows the status and the favourite star', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(wrapRouter('/search', liveBody: '[]'));
+      await settleOnce(tester);
+      await tester.enterText(find.byType(TextField), 'litoraneo');
+      await settleOnce(tester);
+      expect(find.text('Litorâneo / Aviação'), findsOneWidget);
+      // 10:20 at the fixed 10:00 clock is 20 minutes away.
+      expect(
+        find.text('${UiStrings.nextDeparture} 10:20 · em 20 min'),
+        findsOneWidget,
+      );
+      final BuildContext context = tester.element(find.byType(SearchScreen));
+      final ProviderContainer container = ProviderScope.containerOf(context);
+      expect(container.read(favoritesProvider), isEmpty);
+      await tester.tap(
+        find.bySemanticsLabel(UiStrings.favoriteLine('60')).first,
+      );
+      await settleOnce(tester);
+      expect(
+        container.read(favoritesProvider).contains('60-litoraneo-aviacao'),
+        isTrue,
+      );
+      expect(
+        find.bySemanticsLabel(UiStrings.unfavoriteLine('60')),
+        findsOneWidget,
+      );
+      final ToastData? toast = container.read(toastControllerProvider).current;
+      expect(toast?.message, UiStrings.linesFavAdded);
+      expect(toast?.actionLabel, UiStrings.undo);
+      // Flush the toast timer before teardown (fake time).
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('320x568 at 2x text renders Busca without overflow', (
+      WidgetTester tester,
+    ) async {
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      tester.view.physicalSize = smallViewport;
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(wrapRouter('/search', liveBody: '[]'));
+      await settleOnce(tester);
+      expect(
+        MediaQuery.textScalerOf(tester.element(find.byType(SearchScreen)))
+            .scale(10),
+        20,
+      );
+      expect(
+        MediaQuery.sizeOf(tester.element(find.byType(SearchScreen))).width,
+        smallViewport.width,
+      );
+      await tester.enterText(find.byType(TextField), 'litoraneo');
+      await settleOnce(tester);
+      expect(find.text('Litorâneo / Aviação'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('LinesScreen', () {
@@ -235,5 +299,52 @@ void main() {
       await settleOnce(tester);
       expect(find.text('line:62-guriri'), findsOneWidget);
     });
+
+    testWidgets('search icon opens Busca', (WidgetTester tester) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await settleOnce(tester);
+      await tester.tap(find.bySemanticsLabel(UiStrings.linesSearchAction));
+      await settleOnce(tester);
+      expect(find.byType(SearchScreen), findsOneWidget);
+    });
+
+    testWidgets('live summary appears only when a line is live', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(wrapRouter('/lines'));
+      await settleOnce(tester);
+      expect(find.text(UiStrings.linesSummaryLive(1)), findsOneWidget);
+      await tester.pumpWidget(wrapRouter('/lines', liveBody: '[]'));
+      await settleOnce(tester);
+      expect(find.text(UiStrings.linesSummaryLive(1)), findsNothing);
+    });
+
+    testWidgets(
+      '320x568 at 2x text renders Linhas and keeps search reachable',
+      (WidgetTester tester) async {
+        addTearDown(tester.platformDispatcher.clearAllTestValues);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+        tester.view.physicalSize = smallViewport;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(wrapRouter('/lines'));
+        await settleOnce(tester);
+        expect(
+          MediaQuery.textScalerOf(tester.element(find.byType(LinesScreen)))
+              .scale(10),
+          20,
+        );
+        expect(
+          MediaQuery.sizeOf(tester.element(find.byType(LinesScreen))).width,
+          smallViewport.width,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.bySemanticsLabel(UiStrings.linesSearchAction));
+        await settleOnce(tester);
+        expect(find.byType(SearchScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

@@ -58,7 +58,7 @@ class _TimetableTabState extends State<TimetableTab> {
   @override
   void initState() {
     super.initState();
-    _day = dayTypeFor(saoMateusTime(widget.now));
+    _day = dayTypeFor(widget.now);
     final List<String> origins = timetableOriginsOf(widget.line, _day);
     _origin = origins.isEmpty ? '' : origins.first;
   }
@@ -76,7 +76,7 @@ class _TimetableTabState extends State<TimetableTab> {
   @override
   Widget build(BuildContext context) {
     final List<String> times = _times;
-    final DateTime local = saoMateusTime(widget.now);
+    final DateTime local = widget.now;
     final DayType today = dayTypeFor(local);
     final int nowMinutes = local.hour * 60 + local.minute;
     // The next highlight only applies to today. Past dimming in the rail
@@ -147,7 +147,7 @@ class _TimetableTabState extends State<TimetableTab> {
     }
     return ArrivalRow(
       arrival: arrival,
-      now: saoMateusTime(widget.now),
+      now: widget.now,
       line: lineVmOf(widget.line),
       large: true,
     );

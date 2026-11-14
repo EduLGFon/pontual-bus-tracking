@@ -1,6 +1,6 @@
 // Pure trip state machine. Sealed states, pure transitions, effects as
 // data executed by TripController. Only one trip at a time. Illegal
-// events are ignored. See PLAN.md 8.5.
+// events are ignored. See ARCHITECTURE.md 8.5.
 
 /// Sampling roles inside an active trip.
 enum TripRole {

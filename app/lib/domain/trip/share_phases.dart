@@ -1,6 +1,6 @@
 // Share-start phases for the progress sheet. Pure model: no Flutter,
 // no I/O, no clock. The tracker lives in features/ and the sheet
-// renders this. See PLAN.md S06.
+// renders this. See ARCHITECTURE.md S06.
 
 /// One step of the share-start flow shown in the progress sheet.
 enum SharePhase {

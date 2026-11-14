@@ -1,6 +1,6 @@
 // Retry backoff with jitter. Steps 5/10/20/40/60 seconds with bounded
 // jitter; randomness is injectable so tests are deterministic.
-// See PLAN.md 15.3 PingClient expectations.
+// See ARCHITECTURE.md 15.3 PingClient expectations.
 import 'dart:math';
 
 /// Backoff ladder in seconds.

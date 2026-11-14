@@ -1,6 +1,6 @@
 // Device, consent, and delete routes. Handlers stay thin: parse,
 // authenticate, call a repository, format the response.
-// See PLAN.md 6.5. No trip or session ids anywhere.
+// See ARCHITECTURE.md 6.5. No trip or session ids anywhere.
 import { Hono } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
 import {

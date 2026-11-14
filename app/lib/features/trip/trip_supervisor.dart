@@ -1,7 +1,7 @@
 // TripSupervisor: tracks trip health (location services, permission,
 // slowness, ping success) and evaluates auto-end, offline-saver, and
 // sampling decisions. TripController applies the decisions to the state
-// machine and owns all I/O. See PLAN.md 8.6, 11.3, RF04, and RF16.
+// machine and owns all I/O. See ARCHITECTURE.md 8.6, 11.3, RF04, and RF16.
 // ignore_for_file: prefer_initializing_formals - injected fakes keep
 // stable public names while the fields stay private.
 import 'package:pontual/domain/trip/auto_end.dart';

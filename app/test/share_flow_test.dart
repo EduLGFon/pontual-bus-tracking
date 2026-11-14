@@ -3,7 +3,7 @@
 // and /trip serves the started controller or the fallback. Covers both
 // the legacy shareTrip entry and the new startShare entry (which
 // delegates to shareTrip). Merged into one file so the suite pays a
-// single test-process startup instead of two. See PLAN.md S06 and S08.
+// single test-process startup instead of two. See ARCHITECTURE.md S06 and S08.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

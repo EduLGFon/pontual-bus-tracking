@@ -2,7 +2,7 @@
 // app/lib/ui/features/reports/report_style.dart.
 import type { ReportKind } from "../../../domain/reporting/reportKind";
 
-/** Ghost action label on the line sheet (PLAN.md S15). No uiStrings key. */
+/** Ghost action label on the line sheet (ARCHITECTURE.md S15). No uiStrings key. */
 export const reportActionLabel = "Sinalizar";
 
 export function reportLabel(kind: ReportKind): string {

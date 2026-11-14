@@ -12,6 +12,7 @@ import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/design/components/eta_text.dart';
+import 'package:pontual/ui/features/line/leave_now.dart';
 import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 
@@ -53,7 +54,8 @@ class PersonalArrivalCard extends StatelessWidget {
       return _promptCard(context);
     }
 
-    if (status == PersonalArrivalStatus.loadingStops) {
+    if (status == PersonalArrivalStatus.locating ||
+        status == PersonalArrivalStatus.loadingStops) {
       return Semantics(
         label: UiStrings.myStopLoading,
         excludeSemantics: true,
@@ -175,13 +177,50 @@ class PersonalArrivalCard extends StatelessWidget {
     final PersonalEtaVM lead = vm.lead!;
     final bool arriving = lead.arriving;
     final int minutes = lead.minutes;
-    final String semantic = distance == null
+    final int walkMinutes = walkMinutesFor((distance ?? 0).toDouble());
+    // A bus that is already at the stop has no remaining ETA.
+    final bool atStop = arriving && lead.etaSeconds <= 0;
+    final LeaveNowPlan plan = planLeaveNow(
+      etaMinutes: minutes,
+      walkMinutes: walkMinutes,
+      arriving: arriving && !atStop,
+      atStop: atStop,
+    );
+    final String walkText = UiStrings.lineWalkTime(walkMinutes);
+    final String verdict = switch (plan.kind) {
+      LeaveNowKind.atStop => UiStrings.lineAtStop,
+      LeaveNowKind.arriving => UiStrings.lineArrivingNow,
+      LeaveNowKind.leaveNow => UiStrings.lineLeaveNow,
+      LeaveNowKind.leaveSoon => UiStrings.lineLeaveSoon(plan.leaveInMin ?? 0),
+      LeaveNowKind.stillTime => UiStrings.lineStillTime,
+    };
+    final String? detail = switch (plan.kind) {
+      LeaveNowKind.atStop || LeaveNowKind.arriving => null,
+      LeaveNowKind.leaveNow => UiStrings.lineLeaveNowHint(minutes, walkMinutes),
+      LeaveNowKind.leaveSoon => UiStrings.lineLeaveSoonHint(
+        minutes,
+        plan.leaveInMin ?? 0,
+      ),
+      LeaveNowKind.stillTime => UiStrings.lineStillTimeHint(
+        minutes,
+        plan.spareMin ?? 0,
+      ),
+    };
+    final Color verdictColor = switch (plan.kind) {
+      LeaveNowKind.leaveNow => context.colors.primary,
+      LeaveNowKind.stillTime => context.colors.inkMuted,
+      _ => context.colors.ink,
+    };
+    final String base = distance == null
         ? (arriving
               ? '${UiStrings.certaintyPredicted}. ${UiStrings.myStopArriving}.'
               : '${UiStrings.certaintyPredicted}. ${UiStrings.myStopEta(minutes)}.')
         : (arriving
               ? '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11yArriving(distance)}'
               : '${UiStrings.certaintyPredicted}. ${UiStrings.myStopA11y(minutes, distance)}');
+    final String semantic = detail == null
+        ? '$base $verdict. $walkText.'
+        : '$base $verdict. $detail';
 
     final Widget readyCard = SurfaceCard(
       onTap: onTapLead,
@@ -228,6 +267,13 @@ class PersonalArrivalCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Space.x2),
+            _WalkVerdict(
+              walkText: walkText,
+              verdict: verdict,
+              detail: detail,
+              verdictColor: verdictColor,
+            ),
+            const SizedBox(height: Space.x2),
             Row(
               children: <Widget>[
                 ConfidenceMeter(level: lead.confidence),
@@ -263,38 +309,35 @@ class PersonalArrivalCard extends StatelessWidget {
   }
 
   Widget _promptCard(BuildContext context) {
-    const String sentence =
-        '${UiStrings.myStopEnable}. ${UiStrings.myStopPrivacy}';
-    final Widget card = SurfaceCard(
-      onTap: onEnableLocation,
-      semanticLabel: onEnableLocation == null ? null : sentence,
-      child: ExcludeSemantics(
-        child: Row(
-          children: <Widget>[
-            Icon(
-              Icons.my_location_rounded,
-              color: context.colors.primary,
-              size: 24,
+    const String title = UiStrings.linePersonalPromptTitle;
+    const String body = UiStrings.linePersonalPromptBody;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Semantics(
+            label: '$title. $body',
+            excludeSemantics: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(title, style: context.text.title),
+                const SizedBox(height: Space.x1),
+                Text(body, style: context.text.body),
+              ],
             ),
-            const SizedBox(width: Space.x3),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(UiStrings.myStopEnable, style: context.text.title),
-                  Text(UiStrings.myStopPrivacy, style: context.text.caption),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: context.colors.inkMuted),
-          ],
-        ),
+          ),
+          const SizedBox(height: Space.x1),
+          GhostLink(
+            label: UiStrings.myStopEnable,
+            icon: Icons.location_on_outlined,
+            onTap: onEnableLocation,
+          ),
+        ],
       ),
     );
-    return onEnableLocation == null
-        ? Semantics(label: sentence, excludeSemantics: true, child: card)
-        : card;
   }
 
   Widget _expiredCard(BuildContext context) {
@@ -357,6 +400,8 @@ class PersonalArrivalCard extends StatelessWidget {
           children: <Widget>[
             Text(UiStrings.myStopInfoBody, style: context.text.body),
             const SizedBox(height: Space.x2),
+            Text(UiStrings.lineWalkEstimateNote, style: context.text.caption),
+            const SizedBox(height: Space.x2),
             Text(
               lead.sampleCount > 0
                   ? UiStrings.myStopInfoSample(lead.sampleCount)
@@ -371,6 +416,48 @@ class PersonalArrivalCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Walking time, verdict and optional hint below the personal ETA.
+class _WalkVerdict extends StatelessWidget {
+  const _WalkVerdict({
+    required this.walkText,
+    required this.verdict,
+    required this.detail,
+    required this.verdictColor,
+  });
+
+  /// "≈8 min a pé" from the stop distance.
+  final String walkText;
+
+  /// The leave-now verdict.
+  final String verdict;
+
+  /// The supporting hint, null for at-stop and arriving.
+  final String? detail;
+
+  /// Token colour of the verdict: primary now, muted when there is time.
+  final Color verdictColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(walkText, style: context.text.caption),
+        const SizedBox(height: Space.x1),
+        Text(
+          verdict,
+          style: context.text.headline.copyWith(color: verdictColor),
+        ),
+        if (detail != null) ...<Widget>[
+          const SizedBox(height: Space.x1),
+          Text(detail!, style: context.text.body),
+        ],
+      ],
     );
   }
 }

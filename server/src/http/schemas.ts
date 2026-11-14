@@ -1,6 +1,6 @@
 // Strict request schemas. Unknown keys rejected, finite numbers only.
 // Every body is parsed here at the boundary; handlers receive typed values.
-// See PLAN.md 6.5 and 14.4.
+// See ARCHITECTURE.md 6.5 and 14.4.
 import * as v from "@valibot/valibot";
 
 function strictObject<T extends v.ObjectEntries>(entries: T) {

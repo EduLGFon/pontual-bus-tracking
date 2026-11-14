@@ -1,4 +1,4 @@
-// Pure geo helpers. No I/O, no clock. See PLAN.md 6.6.
+// Pure geo helpers. No I/O, no clock. See ARCHITECTURE.md 6.6.
 // Units carry suffixes: distM, speedMps, dtS.
 
 const EARTH_M = 6371000;
@@ -27,7 +27,7 @@ export interface Predicted {
 /**
  * Dead reckoning (equirectangular, fine at city scale). Heading h is radians
  * clockwise from north. Null heading keeps position; callers widen tolerance
- * by v*dt. See PLAN.md 6.6.
+ * by v*dt. See ARCHITECTURE.md 6.6.
  */
 export function predict(
   lat: number,

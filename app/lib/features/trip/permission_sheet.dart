@@ -1,7 +1,7 @@
 // S07 permission education and denied states. The OS permission request
 // itself is owned by LocationService (T31); these sheets cover the
 // education, denied, permanently-denied, and services-off states.
-// See PLAN.md S07.
+// See ARCHITECTURE.md S07.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 

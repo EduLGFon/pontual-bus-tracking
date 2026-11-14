@@ -1,7 +1,7 @@
 // Shortcuts section of Início: the horizontal snap list of saved journeys,
 // the first-run add cards, and the sort that puts the earliest next arrival
 // first. Pure presentation over the shortcut notifier and the timetable seam.
-// See docs/ui/UI_SPEC.md 7.2 and docs/ui/home-redesign.md.
+// See docs/ui/UI_SPEC.md 7.2 and docs/ui/UI_SPEC.md.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,8 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';
-import 'package:pontual/domain/schedule.dart';
-import 'package:pontual/ui/adapters/arrivals_adapter.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
@@ -68,28 +66,6 @@ StaticLine? _staticOf(List<StaticLine> lines, String code) {
   return null;
 }
 
-/// Next upcoming arrival for a shortcut. Falls back to the merged timetable
-/// when an origin yields nothing, which keeps the card honest. A departure
-/// at the current minute counts as now, using the shared minute rule.
-ArrivalVM? _nextArrival(StaticLine line, String? origin, DateTime now) {
-  final TimetableArrivalsSource source = TimetableArrivalsSource(
-    line: line,
-    now: now,
-  );
-  List<ArrivalVM> departures = source.departures(
-    ArrivalQuery(lineKey: line.code, originLabel: origin, limit: 0),
-  );
-  if (departures.isEmpty && origin != null) {
-    departures = source.departures(ArrivalQuery(lineKey: line.code, limit: 0));
-  }
-  for (final ArrivalVM arrival in departures) {
-    if (!isPastMinute(arrival.at, now)) {
-      return arrival;
-    }
-  }
-  return null;
-}
-
 /// Shortcut entries for the current lines and instant, sorted with live
 /// lines first (a bus on the route now beats any timetable time) and the
 /// earliest next arrival winning inside each group. D30.
@@ -113,7 +89,7 @@ List<_ShortcutEntry> _shortcutEntries(
         staticLine: static,
         arrival: static == null
             ? null
-            : _nextArrival(static, shortcut.originLabel, now),
+            : nextArrivalFor(static, shortcut.originLabel, now),
       ),
     );
   }

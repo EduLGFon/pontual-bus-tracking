@@ -4,11 +4,21 @@
 // See docs/data-learning.md sections 3-5.
 import { decodePolyline, distM, encodePolyline } from "../domain/geo.ts";
 import {
+  recordLearningDirectionAssigned,
   recordLearningFlush,
+  recordLearningFlushFailed,
+  recordLearningRouteChainTooSmall,
+  recordLearningRouteNoFlapSuppressed,
+  recordLearningRouteOversized,
   recordLearningRoutePublished,
   recordLearningRouteRetired,
+  recordLearningTripGapDropped,
+  recordLearningTripIneligible,
+  recordLearningTripNoCellTransition,
   recordLearningTripsContributed,
+  recordLearningTripTooFewSamples,
 } from "../observability/metrics.ts";
+import { Log } from "../observability/log.ts";
 import { medianDeviationM, simplify, smooth } from "./routeLearner.ts";
 import {
   addTrip,
@@ -16,16 +26,17 @@ import {
   buildChain,
   type CorridorAcc,
   coverageScore,
+  DEFAULT_MAX_GAP_M,
+  GRID_ORIGIN,
   newCorridorAcc,
   type Pt,
 } from "./corridor.ts";
 import type { EngineEvent } from "../domain/types.ts";
-import type { Sql } from "../db/client.ts";
+import type { Sql, Tx } from "../db/client.ts";
 import type {
-  DwellAcc,
   LearningConfig,
-  SegmentAcc,
   StopCluster,
+  TripSample,
   TripWork,
 } from "./types.ts";
 
@@ -33,16 +44,8 @@ export interface ConsumerDeps {
   sql: Sql;
   config: () => LearningConfig;
   now: () => number;
-  /** Privacy gate selected by env; see DECISIONS.md#D98. */
-  privacyMode: () => "all" | "route_stops";
   // consent version lookup for a device is done by caller; consumer
   // receives it via handleTripStart's consentVersion.
-}
-
-function dayKey(ms: number, tzOffsetHours = -3): string {
-  // America/Sao_Paulo is UTC-3 (no DST since 2019).
-  const d = new Date(ms + tzOffsetHours * 3600 * 1000);
-  return d.toISOString().slice(0, 10);
 }
 
 function dayOfWeek(ms: number, tzOffsetHours = -3): number {
@@ -59,11 +62,12 @@ export class LearningConsumer {
   private works = new Map<string, TripWork>();
   private routeAccs = new Map<string, CorridorAcc>();
   private stopClusters = new Map<string, StopCluster>();
-  private dwellAccs = new Map<string, DwellAcc>();
-  private segmentAccs = new Map<string, SegmentAcc>();
-  private watermarkTrips = new Map<string, number>();
-  private terminusStopIds = new Set<string>();
   private config: LearningConfig;
+  // Serialized async work for finalized trips. Contributions and route
+  // publications run off the request path but in trip-end order. The queue
+  // is in memory only: if the process dies before a queued task runs, that
+  // trip's contribution is lost. No raw trip data is persisted for replay.
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(private deps: ConsumerDeps) {
     this.config = deps.config();
@@ -73,46 +77,104 @@ export class LearningConsumer {
     this.config = this.deps.config();
   }
 
-  /** Seed direction slots from persisted learned_routes (F3). */
+  /**
+   * Reconstruct corridor accumulators from PostgreSQL. Cells, edges and
+   * sample_trips are the source of truth; the in-memory copy only answers
+   * direction assignment and coverage between trips. Active route rows seed
+   * empty direction slots so an upgrade keeps the direction layout it had.
+   */
   async loadLearnedRoutes(): Promise<void> {
     try {
-      const rows = await this.deps.sql`
-        select line_id, direction, polyline from learned_routes
-        where status = 'active'
-        order by line_id asc, direction asc, version desc
+      const accs = new Map<string, CorridorAcc>();
+      const cellRows = await this.deps.sql`
+        select line_id, direction, cell_key, lat, lng, trips
+        from learning_route_cells
       `;
       for (
-        const r of rows as unknown as Array<{
+        const r of cellRows as unknown as Array<{
           line_id: number;
           direction: number;
-          polyline: string;
+          cell_key: string;
+          lat: number;
+          lng: number;
+          trips: number;
         }>
       ) {
-        const k = this.key(r.line_id, r.direction);
-        if (this.routeAccs.has(k)) continue;
-        let origin: Pt | null = null;
-        try {
-          origin = decodePolyline(r.polyline, 5)[0] ?? null;
-        } catch {
-          origin = null;
-        }
-        if (!origin) continue;
-        this.routeAccs.set(
-          k,
-          newCorridorAcc(
-            r.line_id,
-            r.direction,
-            origin,
-            this.config.corridorCellM,
-          ),
-        );
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.cells.set(r.cell_key, { lat: r.lat, lng: r.lng, n: r.trips });
       }
+      const edgeRows = await this.deps.sql`
+        select line_id, direction, from_cell, to_cell, trips
+        from learning_route_edges
+      `;
+      for (
+        const r of edgeRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+          from_cell: string;
+          to_cell: string;
+          trips: number;
+        }>
+      ) {
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.edges.set(`${r.from_cell}>${r.to_cell}`, r.trips);
+      }
+      const stateRows = await this.deps.sql`
+        select line_id, direction, sample_trips from learning_route_state
+      `;
+      for (
+        const r of stateRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+          sample_trips: number;
+        }>
+      ) {
+        const acc = this.accFor(accs, r.line_id, r.direction);
+        acc.tripCount = r.sample_trips;
+      }
+      const routeRows = await this.deps.sql`
+        select line_id, direction from learned_routes
+        where status = 'active'
+        group by line_id, direction
+      `;
+      for (
+        const r of routeRows as unknown as Array<{
+          line_id: number;
+          direction: number;
+        }>
+      ) {
+        this.accFor(accs, r.line_id, r.direction);
+      }
+      this.routeAccs = accs;
     } catch {
-      // DB down.
+      // DB down: no accumulators; direction stays 0 until the next restart.
     }
   }
 
-  /** Seed in-memory stop clusters from persisted learned_stops (F2). */
+  private accFor(
+    accs: Map<string, CorridorAcc>,
+    lineId: number,
+    direction: number,
+  ): CorridorAcc {
+    const k = this.key(lineId, direction);
+    let acc = accs.get(k);
+    if (!acc) {
+      acc = newCorridorAcc(
+        lineId,
+        direction,
+        GRID_ORIGIN,
+        this.config.corridorCellM,
+      );
+      accs.set(k, acc);
+    }
+    return acc;
+  }
+
+  /**
+   * Seed the in-memory stop cache from persisted learned_stops (F2). The DB is
+   * the source of truth: the cache only answers proximity matching between
+   * trips, and reloading it returns the same ids, centroids and pass counts.
+   */
   async loadLearnedStops(): Promise<void> {
     try {
       const rows = await this.deps.sql`
@@ -142,8 +204,6 @@ export class LearningConsumer {
           centroidLng: r.lng,
           radiusM: r.radius_m,
           passCount: r.sample_passes,
-          distinctDays: new Set(["seed", "seed2", "seed3"]),
-          reservoir: [],
         };
         this.stopClusters.set(r.id, c);
       }
@@ -166,7 +226,7 @@ export class LearningConsumer {
 
   handle(
     event: EngineEvent,
-    opts: { consentVersion: number; eligible: boolean },
+    opts: { consentVersion: number },
   ): void {
     if (!this.config.enabled) return;
     switch (event.kind) {
@@ -186,16 +246,19 @@ export class LearningConsumer {
 
   private onTripStarted(
     e: Extract<EngineEvent, { kind: "tripStarted" }>,
-    opts: { consentVersion: number; eligible: boolean },
+    opts: { consentVersion: number },
   ): void {
-    if (opts.consentVersion < this.config.minConsentVersion) return;
-    if (!opts.eligible) return;
+    // Test and simulator trips opt out explicitly; live sharing still runs.
+    if (e.synthetic === true) return;
+    if (opts.consentVersion < this.config.minConsentVersion) {
+      recordLearningTripIneligible();
+      return;
+    }
     const work: TripWork = {
       tripKey: e.tripKey,
       lineId: e.lineId,
       direction: null,
       consentVersion: opts.consentVersion,
-      eligible: true,
       startedAtMs: e.startedAtMs,
       endedAtMs: null,
       samples: [{ t: e.startedAtMs, lat: e.lat, lng: e.lng, speed: 0 }],
@@ -213,6 +276,29 @@ export class LearningConsumer {
     const last = work.samples[work.samples.length - 1];
     const dt = e.atMs - last.t;
     const dd = distM(last.lat, last.lng, e.lat, e.lng);
+
+    // Dwell detection runs for every accepted fix, before the corridor
+    // downsample decision. At the app's 5 s stationary cadence a stopped bus
+    // produces dd < minSampleSpacingM and dt < minSampleSpacingS on every
+    // fix, so a downsample early return here would discard every dwell.
+    if (e.speedMps < this.config.stopSpeedMps) {
+      const lastDwell = work.dwells[work.dwells.length - 1];
+      if (
+        lastDwell &&
+        e.atMs - lastDwell.endMs < this.config.minDwellS * 1000 + 5000
+      ) {
+        lastDwell.endMs = e.atMs;
+        // update centroid running (simple: keep first; recompute at flush)
+      } else {
+        work.dwells.push({
+          lat: e.lat,
+          lng: e.lng,
+          startMs: e.atMs,
+          endMs: e.atMs,
+        });
+      }
+    }
+
     if (
       dd < this.config.minSampleSpacingM &&
       dt < this.config.minSampleSpacingS * 1000
@@ -232,267 +318,589 @@ export class LearningConsumer {
     }
     work.samples.push({ t: e.atMs, lat: e.lat, lng: e.lng, speed: e.speedMps });
     work.totalDistanceM += dd;
-
-    // dwell detection: if speed below threshold, extend or start dwell
-    if (e.speedMps < this.config.stopSpeedMps) {
-      const lastDwell = work.dwells[work.dwells.length - 1];
-      if (
-        lastDwell &&
-        e.atMs - lastDwell.endMs < this.config.minDwellS * 1000 + 5000
-      ) {
-        lastDwell.endMs = e.atMs;
-        // update centroid running (simple: keep first; recompute at flush)
-      } else {
-        work.dwells.push({
-          lat: e.lat,
-          lng: e.lng,
-          startMs: e.atMs,
-          endMs: e.atMs,
-        });
-      }
-    }
   }
 
   private onTripEnded(e: Extract<EngineEvent, { kind: "tripEnded" }>): void {
     const work = this.works.get(e.tripKey);
     if (!work) return;
     work.endedAtMs = this.deps.now();
-    this.finalizeTrip(work);
     this.works.delete(e.tripKey);
+    // Finalization does DB writes (cell/edge upserts, state, publish) and must
+    // not block the HTTP response. Tasks run in trip-end order.
+    this.enqueue(() => this.finalizeTrip(work));
   }
 
-  private finalizeTrip(work: TripWork): void {
-    if (work.samples.length < 3) return;
-    const cfg = this.config;
-    // trim ends
-    const start = work.startedAtMs + cfg.trimEndsS * 1000;
-    const end = (work.endedAtMs ?? work.samples[work.samples.length - 1].t) -
-      cfg.trimEndsS * 1000;
-    const kept = work.samples.filter((s) => s.t >= start && s.t <= end);
-    if (kept.length < 3) return;
+  private enqueue(task: () => Promise<void>): void {
+    this.queue = this.queue.then(task).catch((e) => {
+      Log.warn("learning contribution failed", {
+        err: String(e).slice(0, 200),
+      });
+    });
+  }
 
-    // total distance
-    let total = 0;
-    for (let i = 1; i < kept.length; i++) {
-      total += distM(
-        kept[i - 1].lat,
-        kept[i - 1].lng,
-        kept[i].lat,
-        kept[i].lng,
-      );
+  /** Wait for queued contributions, including tasks they enqueue. */
+  private async drainQueue(): Promise<void> {
+    let current: Promise<void>;
+    do {
+      current = this.queue;
+      await current;
+    } while (current !== this.queue);
+  }
+
+  private async finalizeTrip(work: TripWork): Promise<void> {
+    if (work.samples.length < 2) {
+      recordLearningTripTooFewSamples();
+      return;
     }
-    if (total < cfg.minTripRouteM) return;
+    const cfg = this.config;
+    const kept = trimSamples(work.samples, cfg.trimEndsS);
+    if (kept.length < 2) {
+      recordLearningTripTooFewSamples();
+      return;
+    }
 
     const keptPoints: Pt[] = kept.map((s) => ({ lat: s.lat, lng: s.lng }));
+    // Count dropped long gaps (segments longer than the corridor max gap).
+    let gapDropped = false;
+    for (let i = 1; i < keptPoints.length; i++) {
+      if (
+        distM(
+          keptPoints[i - 1].lat,
+          keptPoints[i - 1].lng,
+          keptPoints[i].lat,
+          keptPoints[i].lng,
+        ) > DEFAULT_MAX_GAP_M
+      ) {
+        gapDropped = true;
+      }
+    }
+    if (gapDropped) recordLearningTripGapDropped();
     const direction = this.assignDirection(work.lineId, keptPoints);
     work.direction = direction;
+    recordLearningDirectionAssigned();
 
-    // Absolute-space corridor accumulation per (line, direction). Progress
-    // bins cannot place partial trips in a shared frame. See D98.
-    const accKey = this.key(work.lineId, direction);
-    let acc = this.routeAccs.get(accKey);
-    if (!acc) {
-      acc = newCorridorAcc(
+    // Stops, dwell bins and travel bins are persisted before the corridor
+    // contribution: publishRoute derives stop ordinals from the published
+    // chain, so this trip's new stops must already exist in learned_stops.
+    // Dwell and travel aggregates do not depend on a cell transition: a trip
+    // with at least 2 kept fixes still contributes its stops and dwells.
+    await this.contributeStops(work, kept, direction);
+
+    // Temporary per-trip accumulator on the fixed grid. Dedup is structural
+    // (Map keys), so each visited cell and each directed transition produces
+    // exactly one row increment for this trip. Cell value is the trip's mean
+    // fix in that cell, which keeps the weighted centroid aggregate-only.
+    const tripAcc = newCorridorAcc(
+      work.lineId,
+      direction,
+      GRID_ORIGIN,
+      cfg.corridorCellM,
+    );
+    addTrip(tripAcc, keptPoints);
+    if (tripAcc.tripCount > 0) {
+      await this.contributeTrip(tripAcc);
+      recordLearningTripsContributed(1);
+    } else {
+      recordLearningTripNoCellTransition();
+    }
+  }
+
+  private async contributeStops(
+    work: TripWork,
+    kept: TripSample[],
+    direction: number,
+  ): Promise<void> {
+    const aggregates = this.collectStopAggregates(work, kept, direction);
+    if (!aggregates) return;
+    await this.persistStopAggregates(aggregates);
+  }
+
+  /**
+   * Turn this trip's surviving dwells into working stops, dwell bins and
+   * travel bins. Consecutive dwells at the same stop collapse to one visit;
+   * segments run between distinct consecutive stops and use the destination
+   * arrival time for their time bucket, never the trip start.
+   */
+  private collectStopAggregates(
+    work: TripWork,
+    kept: TripSample[],
+    direction: number,
+  ): StopAggregates | null {
+    const cfg = this.config;
+    const trimStart = kept[0].t;
+    const trimEnd = kept[kept.length - 1].t;
+    const dwells = work.dwells.filter((d) =>
+      d.endMs - d.startMs >= cfg.minDwellS * 1000 &&
+      d.startMs >= trimStart && d.endMs <= trimEnd
+    );
+    if (dwells.length === 0) return null;
+
+    const working = new Map<string, WorkingStop>();
+    const hits: DwellHit[] = [];
+    const dwellBins: DwellBin[] = [];
+    for (const d of dwells) {
+      const stop = this.workingStopFor(
         work.lineId,
         direction,
-        keptPoints[0],
-        cfg.corridorCellM,
+        d.lat,
+        d.lng,
+        working,
       );
-      this.routeAccs.set(accKey, acc);
-    }
-    const beforeTrips = acc.tripCount;
-    addTrip(acc, keptPoints);
-    if (acc.tripCount > beforeTrips) {
-      this.watermarkTrips.set(
-        accKey,
-        (this.watermarkTrips.get(accKey) ?? 0) + 1,
-      );
-    }
-
-    // dwell detection finalization
-    const trimStart = start;
-    const trimEnd = end;
-    for (const d of work.dwells) {
-      if (d.endMs - d.startMs < cfg.minDwellS * 1000) continue;
-      if (d.startMs < trimStart || d.endMs > trimEnd) continue;
-      const durS = (d.endMs - d.startMs) / 1000;
-      const hb = hourBucket(d.startMs);
-      const dow = dayOfWeek(d.startMs);
-      const day = dayKey(d.startMs);
-      // cluster assignment deferred to flush-time; store as a pseudo-stop
-      // keyed by rounded coords for now.
-      // find existing cluster within radius
-      let cluster: StopCluster | undefined;
-      for (const c of this.stopClusters.values()) {
-        if (c.lineId !== work.lineId || c.direction !== direction) continue;
-        if (
-          distM(c.centroidLat, c.centroidLng, d.lat, d.lng) <=
-            cfg.stopClusterRadiusM
-        ) {
-          cluster = c;
-          break;
-        }
-      }
-      if (!cluster) {
-        const id = crypto.randomUUID();
-        cluster = {
-          id,
-          lineId: work.lineId,
-          direction,
-          ordinal: 0,
-          centroidLat: d.lat,
-          centroidLng: d.lng,
-          radiusM: cfg.stopClusterRadiusM,
-          passCount: 0,
-          distinctDays: new Set(),
-          reservoir: [],
-        };
-        this.stopClusters.set(id, cluster);
-      }
-      // update centroid running
-      cluster.reservoir.push({ lat: d.lat, lng: d.lng, day });
-      cluster.passCount += 1;
-      cluster.distinctDays.add(day);
-      // recompute centroid as median of reservoir (capped)
-      if (cluster.reservoir.length > 64) {
-        cluster.reservoir = cluster.reservoir.slice(-64);
-      }
-      const lats = cluster.reservoir.map((p) => p.lat);
-      const lngs = cluster.reservoir.map((p) => p.lng);
-      cluster.centroidLat = median(lats);
-      cluster.centroidLng = median(lngs);
-
-      // dwell stats
-      const dwellKey = `${cluster.id}:${hb}:${dow}`;
-      let da = this.dwellAccs.get(dwellKey);
-      if (!da) {
-        da = {
-          stopId: cluster.id,
-          hourBucket: hb,
-          dayOfWeek: dow,
-          count: 0,
-          sumS: 0,
-          minS: durS,
-          maxS: durS,
-          reservoir: [],
-        };
-        this.dwellAccs.set(dwellKey, da);
-      }
-      da.count += 1;
-      da.sumS += durS;
-      da.minS = Math.min(da.minS, durS);
-      da.maxS = Math.max(da.maxS, durS);
-      if (da.reservoir.length < 64) da.reservoir.push(durS);
-      else {
-        // reservoir sampling
-        const j = Math.floor(Math.random() * (da.count));
-        if (j < 64) da.reservoir[j] = durS;
-      }
-
-      // segment stats will be computed in a second pass using stop sequence;
-      // store dwell centroids for now.
+      stop.added += 1;
+      stop.sumLat += d.lat;
+      stop.sumLng += d.lng;
+      dwellBins.push({
+        stopId: stop.cluster.id,
+        hourBucket: hourBucket(d.startMs),
+        dayOfWeek: dayOfWeek(d.startMs),
+        binS: quantizeS((d.endMs - d.startMs) / 1000),
+      });
+      hits.push({ stop, startMs: d.startMs, endMs: d.endMs });
     }
 
-    // segment stats: pair consecutive dwells that map to stops. Track
-    // dwell boundaries so travel time = next.start - prev.end (F4).
-    interface DwellHit {
-      cluster: StopCluster;
-      startMs: number;
-      endMs: number;
-    }
-    const hits: DwellHit[] = [];
-    for (const d of work.dwells) {
-      if (d.endMs - d.startMs < cfg.minDwellS * 1000) continue;
-      if (d.startMs < trimStart || d.endMs > trimEnd) continue;
-      let cl: StopCluster | undefined;
-      for (const c of this.stopClusters.values()) {
-        if (c.lineId !== work.lineId || c.direction !== direction) continue;
-        if (
-          distM(c.centroidLat, c.centroidLng, d.lat, d.lng) <=
-            cfg.stopClusterRadiusM
-        ) {
-          cl = c;
-          break;
-        }
-      }
-      if (cl) hits.push({ cluster: cl, startMs: d.startMs, endMs: d.endMs });
-    }
-    // dedupe consecutive same cluster, merging dwell boundaries
     const ordered: DwellHit[] = [];
     for (const h of hits) {
       const last = ordered[ordered.length - 1];
-      if (last && last.cluster.id === h.cluster.id) {
+      if (last && last.stop.cluster.id === h.stop.cluster.id) {
         last.endMs = Math.max(last.endMs, h.endMs);
       } else {
-        ordered.push({
-          cluster: h.cluster,
-          startMs: h.startMs,
-          endMs: h.endMs,
-        });
+        ordered.push({ stop: h.stop, startMs: h.startMs, endMs: h.endMs });
       }
     }
-    // terminus suppression: drop first and last stop's dwell stats (F4).
-    // Segment stats still use them for connectivity, but dwell stats for
-    // termini are suppressed by skipping upsertDwell for first/last cluster
-    // ids of this trip. We mark them via a set checked in flush.
-    const terminusIds = new Set<string>();
-    if (ordered.length >= 1) terminusIds.add(ordered[0].cluster.id);
-    if (ordered.length >= 2) {
-      terminusIds.add(ordered[ordered.length - 1].cluster.id);
-    }
-    for (const id of terminusIds) this.terminusStopIds.add(id);
-    for (let i = 0; i + 1 < ordered.length; i++) {
-      const from = ordered[i];
-      const to = ordered[i + 1];
+    const travelBins: TravelBin[] = [];
+    for (let i = 1; i < ordered.length; i++) {
+      const from = ordered[i - 1];
+      const to = ordered[i];
+      if (from.stop.cluster.id === to.stop.cluster.id) continue;
       const travelS = Math.max(0, (to.startMs - from.endMs) / 1000);
-      const dist = distM(
-        from.cluster.centroidLat,
-        from.cluster.centroidLng,
-        to.cluster.centroidLat,
-        to.cluster.centroidLng,
-      );
-      const segKey =
-        `${work.lineId}:${direction}:${from.cluster.id}:${to.cluster.id}`;
-      const hb = hourBucket(work.startedAtMs);
-      const dow = dayOfWeek(work.startedAtMs);
-      const key = `${segKey}:${hb}:${dow}`;
-      let sa = this.segmentAccs.get(key);
-      if (!sa) {
-        sa = {
-          lineId: work.lineId,
-          direction,
-          fromStop: from.cluster.id,
-          toStop: to.cluster.id,
-          hourBucket: hb,
-          dayOfWeek: dow,
-          count: 0,
-          sumS: 0,
-          minS: travelS,
-          maxS: travelS,
-          distanceM: dist,
-          reservoir: [],
-        };
-        this.segmentAccs.set(key, sa);
+      travelBins.push({
+        lineId: work.lineId,
+        direction,
+        fromStop: from.stop.cluster.id,
+        toStop: to.stop.cluster.id,
+        hourBucket: hourBucket(to.startMs),
+        dayOfWeek: dayOfWeek(to.startMs),
+        binS: quantizeS(travelS),
+      });
+    }
+    return { stops: [...working.values()], dwellBins, travelBins };
+  }
+
+  /**
+   * Write one trip's stops, bins and recomputed stats in one transaction.
+   * Stats read all persisted bins, so counts are cumulative and restart-safe.
+   */
+  private async persistStopAggregates(
+    aggregates: StopAggregates,
+  ): Promise<void> {
+    const { stops, dwellBins, travelBins } = aggregates;
+    const stopsById = new Map<string, WorkingStop>();
+    for (const w of stops) stopsById.set(w.cluster.id, w);
+
+    await this.deps.sql.begin(async (tx) => {
+      for (const stop of stops) await this.persistStop(tx, stop);
+      for (const b of dwellBins) {
+        await tx`
+          insert into learning_dwell_bins
+            (stop_id, hour_bucket, day_of_week, bin_s, sample_count)
+          values (${b.stopId}, ${b.hourBucket}, ${b.dayOfWeek}, ${b.binS}, 1)
+          on conflict (stop_id, hour_bucket, day_of_week, bin_s) do update set
+            sample_count = learning_dwell_bins.sample_count + 1
+        `;
       }
-      sa.count += 1;
-      sa.sumS += travelS;
-      sa.minS = Math.min(sa.minS, travelS);
-      sa.maxS = Math.max(sa.maxS, travelS);
-      if (sa.reservoir.length < 64) sa.reservoir.push(travelS);
-      else {
-        const j = Math.floor(Math.random() * sa.count);
-        if (j < 64) sa.reservoir[j] = travelS;
+      for (const b of travelBins) {
+        await tx`
+          insert into learning_travel_bins
+            (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+             bin_s, sample_count)
+          values (${b.lineId}, ${b.direction}, ${b.fromStop}, ${b.toStop},
+            ${b.hourBucket}, ${b.dayOfWeek}, ${b.binS}, 1)
+          on conflict (
+            line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+            bin_s
+          ) do update set
+            sample_count = learning_travel_bins.sample_count + 1
+        `;
       }
-      sa.distanceM = dist;
+      for (const k of uniqueDwellKeys(dwellBins)) {
+        await this.recomputeDwellStat(tx, k);
+      }
+      for (const k of uniqueSegmentKeys(travelBins)) {
+        const from = stopsById.get(k.fromStop);
+        const to = stopsById.get(k.toStop);
+        const distanceM = from && to
+          ? distM(
+            workingLat(from),
+            workingLng(from),
+            workingLat(to),
+            workingLng(to),
+          )
+          : 0;
+        await this.recomputeSegmentStat(tx, k, distanceM);
+      }
+    });
+
+    // The DB is the source of truth. Apply the trip's changes to the cache
+    // only after the transaction commits, so a rollback leaves no phantom
+    // stop ids behind.
+    for (const stop of stops) this.cacheStop(stop);
+  }
+
+  /**
+   * Find a cache-backed stop within the cluster radius, or create a new
+   * working stop for this trip. New stops are inserted by persistStop.
+   */
+  private workingStopFor(
+    lineId: number,
+    direction: number,
+    lat: number,
+    lng: number,
+    working: Map<string, WorkingStop>,
+  ): WorkingStop {
+    const radiusM = this.config.stopClusterRadiusM;
+    for (const w of working.values()) {
+      if (w.cluster.lineId !== lineId || w.cluster.direction !== direction) {
+        continue;
+      }
+      if (distM(workingLat(w), workingLng(w), lat, lng) <= radiusM) return w;
+    }
+    for (const c of this.stopClusters.values()) {
+      if (c.lineId !== lineId || c.direction !== direction) continue;
+      if (distM(c.centroidLat, c.centroidLng, lat, lng) > radiusM) continue;
+      const w: WorkingStop = {
+        cluster: c,
+        added: 0,
+        sumLat: 0,
+        sumLng: 0,
+        created: false,
+      };
+      working.set(c.id, w);
+      return w;
+    }
+    const fresh: WorkingStop = {
+      cluster: {
+        id: crypto.randomUUID(),
+        lineId,
+        direction,
+        ordinal: 0,
+        centroidLat: 0,
+        centroidLng: 0,
+        radiusM,
+        passCount: 0,
+      },
+      added: 0,
+      sumLat: 0,
+      sumLng: 0,
+      created: true,
+    };
+    working.set(fresh.cluster.id, fresh);
+    return fresh;
+  }
+
+  private async persistStop(tx: Tx, stop: WorkingStop): Promise<void> {
+    const c = stop.cluster;
+    if (stop.created) {
+      await tx`
+        insert into learned_stops
+          (id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes,
+           first_seen_at, last_seen_at, active)
+        values (${c.id}, ${c.lineId}, ${c.direction}, ${c.ordinal},
+          ${workingLat(stop)}, ${workingLng(stop)}, ${c.radiusM},
+          ${stop.added}, now(),
+          now(), true)
+      `;
+      return;
+    }
+    // Weighted mean against the row's own pass count, so the centroid stays
+    // cumulative even if the cache is stale.
+    await tx`
+      update learned_stops set
+        lat = (lat * sample_passes + ${stop.sumLat})
+          / (sample_passes + ${stop.added}),
+        lng = (lng * sample_passes + ${stop.sumLng})
+          / (sample_passes + ${stop.added}),
+        sample_passes = sample_passes + ${stop.added},
+        last_seen_at = now(),
+        active = true
+      where id = ${c.id}
+    `;
+  }
+
+  private cacheStop(stop: WorkingStop): void {
+    const c = stop.cluster;
+    this.stopClusters.set(c.id, {
+      id: c.id,
+      lineId: c.lineId,
+      direction: c.direction,
+      ordinal: c.ordinal,
+      centroidLat: workingLat(stop),
+      centroidLng: workingLng(stop),
+      radiusM: c.radiusM,
+      passCount: c.passCount + stop.added,
+    });
+  }
+
+  // ---- Corridor persistence ----
+
+  /**
+   * Persist one trip's deduplicated cells and edges, bump the direction's
+   * sample_trips, then publish the route. Runs inside the serialized queue,
+   * so contributions and publications for a line stay in trip-end order.
+   */
+  private async contributeTrip(trip: CorridorAcc): Promise<void> {
+    const lineId = trip.lineId;
+    const direction = trip.direction;
+    await this.upsertCells(trip);
+    await this.upsertEdges(trip);
+    await this.deps.sql`
+      insert into learning_route_state (line_id, direction, sample_trips)
+      values (${lineId}, ${direction}, 1)
+      on conflict (line_id, direction) do update set
+        sample_trips = learning_route_state.sample_trips + 1
+    `;
+    this.updateMirror(trip);
+    await this.publishRoute(lineId, direction);
+  }
+
+  /**
+   * One parameterized statement per trip. jsonb_to_recordset keeps the rows
+   * out of the SQL text; values are server-derived grid keys and centroids.
+   * A cell row's `trips` counts contributing trips, not fixes.
+   */
+  private async upsertCells(trip: CorridorAcc): Promise<void> {
+    if (trip.cells.size === 0) return;
+    const rows = [...trip.cells].map(([cellKey, cell]) => ({
+      cell_key: cellKey,
+      lat: cell.lat,
+      lng: cell.lng,
+    }));
+    await this.deps.sql`
+      insert into learning_route_cells
+        (line_id, direction, cell_key, lat, lng, trips,
+         first_seen_at, last_seen_at)
+      select ${trip.lineId}, ${trip.direction}, x.cell_key, x.lat, x.lng,
+        1, now(), now()
+      from jsonb_to_recordset(${this.deps.sql.json(rows)}::jsonb)
+        as x(cell_key text, lat double precision, lng double precision)
+      on conflict (line_id, direction, cell_key) do update set
+        lat = (learning_route_cells.lat * learning_route_cells.trips
+          + excluded.lat) / (learning_route_cells.trips + 1),
+        lng = (learning_route_cells.lng * learning_route_cells.trips
+          + excluded.lng) / (learning_route_cells.trips + 1),
+        trips = learning_route_cells.trips + 1,
+        last_seen_at = now()
+    `;
+  }
+
+  private async upsertEdges(trip: CorridorAcc): Promise<void> {
+    if (trip.edges.size === 0) return;
+    const rows: Array<{ from_cell: string; to_cell: string }> = [];
+    for (const key of trip.edges.keys()) {
+      const sep = key.indexOf(">");
+      if (sep <= 0 || sep === key.length - 1) continue;
+      rows.push({
+        from_cell: key.slice(0, sep),
+        to_cell: key.slice(sep + 1),
+      });
+    }
+    if (rows.length === 0) return;
+    await this.deps.sql`
+      insert into learning_route_edges
+        (line_id, direction, from_cell, to_cell, trips,
+         first_seen_at, last_seen_at)
+      select ${trip.lineId}, ${trip.direction}, x.from_cell, x.to_cell,
+        1, now(), now()
+      from jsonb_to_recordset(${this.deps.sql.json(rows)}::jsonb)
+        as x(from_cell text, to_cell text)
+      on conflict (line_id, direction, from_cell, to_cell) do update set
+        trips = learning_route_edges.trips + 1,
+        last_seen_at = now()
+    `;
+  }
+
+  /**
+   * Keep the in-memory direction mirror aligned with the DB. The mirror only
+   * answers direction assignment between trips; publication always rebuilds
+   * from PostgreSQL.
+   */
+  private updateMirror(trip: CorridorAcc): void {
+    const acc = this.accFor(this.routeAccs, trip.lineId, trip.direction);
+    for (const [key, cell] of trip.cells) {
+      const existing = acc.cells.get(key);
+      if (!existing) {
+        acc.cells.set(key, { lat: cell.lat, lng: cell.lng, n: 1 });
+        continue;
+      }
+      const n = existing.n + 1;
+      existing.lat += (cell.lat - existing.lat) / n;
+      existing.lng += (cell.lng - existing.lng) / n;
+      existing.n = n;
+    }
+    for (const key of trip.edges.keys()) {
+      acc.edges.set(key, (acc.edges.get(key) ?? 0) + 1);
+    }
+    acc.tripCount += 1;
+  }
+
+  /**
+   * Rebuild the corridor from PostgreSQL and publish after each contributing
+   * trip. There is no trip-count, cell-count or minimum-length publication
+   * gate: only geometry validity (2 points) and the polyline size cap apply.
+   * Version churn is controlled geometrically: a route within 15 m median
+   * deviation of the active one is updated in place.
+   */
+  private async publishRoute(
+    lineId: number,
+    direction: number,
+  ): Promise<void> {
+    const acc = await this.loadCorridorAcc(lineId, direction);
+    const chain = buildChain(acc, {
+      cellM: this.config.corridorCellM,
+      minEdgeWeight: 1,
+      minCells: 2,
+    });
+    const sampleTrips = acc.tripCount;
+    if (!chain) {
+      recordLearningRouteChainTooSmall();
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    const smoothed = smooth(chain);
+    let pts = simplify(smoothed, 5);
+    if (pts.length > 400) pts = simplify(smoothed, 10);
+    if (pts.length < 2) {
+      recordLearningRouteChainTooSmall();
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    const poly = encodePolyline(pts, 5);
+    if (poly.length > 8192) {
+      recordLearningRouteOversized();
+      // Keep the active geometry; confidence still belongs to this direction.
+      await this.updateActiveSampleTrips(lineId, direction, sampleTrips);
+      await this.markPublishAttempt(lineId, direction);
+      return;
+    }
+    await this.upsertRoute(
+      lineId,
+      direction,
+      poly,
+      pts.length,
+      pts,
+      sampleTrips,
+    );
+    await this.updateStopOrdinals(lineId, direction, pts);
+    await this.markPublishAttempt(lineId, direction);
+  }
+
+  private async loadCorridorAcc(
+    lineId: number,
+    direction: number,
+  ): Promise<CorridorAcc> {
+    const acc = newCorridorAcc(
+      lineId,
+      direction,
+      GRID_ORIGIN,
+      this.config.corridorCellM,
+    );
+    const cellRows = await this.deps.sql`
+      select cell_key, lat, lng, trips
+      from learning_route_cells
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    for (
+      const r of cellRows as unknown as Array<{
+        cell_key: string;
+        lat: number;
+        lng: number;
+        trips: number;
+      }>
+    ) {
+      acc.cells.set(r.cell_key, { lat: r.lat, lng: r.lng, n: r.trips });
+    }
+    const edgeRows = await this.deps.sql`
+      select from_cell, to_cell, trips
+      from learning_route_edges
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    for (
+      const r of edgeRows as unknown as Array<{
+        from_cell: string;
+        to_cell: string;
+        trips: number;
+      }>
+    ) {
+      acc.edges.set(`${r.from_cell}>${r.to_cell}`, r.trips);
+    }
+    const stateRows = await this.deps.sql`
+      select sample_trips from learning_route_state
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+    acc.tripCount = Number(
+      (stateRows as unknown as Array<{ sample_trips: number }>)[0]
+        ?.sample_trips ?? 0,
+    );
+    return acc;
+  }
+
+  private async updateActiveSampleTrips(
+    lineId: number,
+    direction: number,
+    sampleTrips: number,
+  ): Promise<void> {
+    if (sampleTrips <= 0) return;
+    await this.deps.sql`
+      update learned_routes set sample_trips = ${sampleTrips}
+      where line_id = ${lineId} and direction = ${direction}
+        and status = 'active'
+    `;
+  }
+
+  private async markPublishAttempt(
+    lineId: number,
+    direction: number,
+  ): Promise<void> {
+    await this.deps.sql`
+      update learning_route_state set last_publish_at = now()
+      where line_id = ${lineId} and direction = ${direction}
+    `;
+  }
+
+  /**
+   * Safety net for the crash window between the sample_trips increment and
+   * the async publication. The periodic flush republishes any direction whose
+   * stored sample count is ahead of its active route. A trip queued but never
+   * started is lost; only aggregate progress already in the DB is recovered.
+   */
+  private async publishStaleRoutes(): Promise<void> {
+    const rows = await this.deps.sql`
+      select s.line_id, s.direction
+      from learning_route_state s
+      left join learned_routes r
+        on r.line_id = s.line_id and r.direction = s.direction
+       and r.status = 'active'
+      where s.sample_trips > 0
+        and (r.id is null or s.sample_trips > r.sample_trips)
+    `;
+    for (
+      const r of rows as unknown as Array<{
+        line_id: number;
+        direction: number;
+      }>
+    ) {
+      await this.publishRoute(r.line_id, r.direction);
     }
   }
 
   /**
-   * Assign a direction from existing corridors for this line. No accumulator
-   * means direction 0; exactly one means that accumulator's direction, so a
-   * restart that seeded only one slot keeps new trips on it instead of
-   * splitting the corridor into direction 0. With two, the corridor covered
-   * by the trip wins, falling back to bearing only when both cover nothing.
+   * Assign a direction from DB-backed corridor accumulators for this line.
+   * No accumulator means direction 0; exactly one means that accumulator's
+   * direction, so a restart that reloaded only one slot keeps new trips on it
+   * instead of splitting the corridor into direction 0. With two, the corridor
+   * covered by the trip wins, falling back to bearing only when both cover
+   * nothing.
    */
   private assignDirection(lineId: number, pts: Pt[]): number {
     const accs = [...this.routeAccs.values()]
@@ -524,178 +932,68 @@ export class LearningConsumer {
     return bearingRad(chain[0], chain[chain.length - 1]);
   }
 
-  /**
-   * Effective privacy thresholds. "all" is the learning phase: one pass is
-   * enough. "route_stops" keeps the configured k-anonymity gates.
-   */
-  private gates(): {
-    minStopPasses: number;
-    stopMinDistinctDays: number;
-    kMin: number;
-  } {
-    if (this.deps.privacyMode() === "all") {
-      return { minStopPasses: 1, stopMinDistinctDays: 1, kMin: 1 };
-    }
-    return {
-      minStopPasses: this.config.minStopPasses,
-      stopMinDistinctDays: this.config.stopMinDistinctDays,
-      kMin: this.config.kMin,
-    };
-  }
-
   // ---- Flush ----
 
   async flush(): Promise<void> {
     if (!this.config.enabled) return;
     recordLearningFlush();
-    let contributed = 0;
-    for (const n of this.watermarkTrips.values()) contributed += n;
-    recordLearningTripsContributed(contributed);
-    // Persist learned route polylines from the absolute corridor. Skip when
-    // no new trips since the last publish (T1): prevents one stale trip from
-    // generating a new version every flush cycle.
-    for (const acc of this.routeAccs.values()) {
-      // Snapshot before the first await: a trip that finalizes during the
-      // awaits below belongs to the next flush, so the snapshot (never the
-      // live count) is compared and published on every path.
-      const tripCount = acc.tripCount;
-      if (tripCount < this.config.minRouteTrips) continue;
-      if (tripCount <= acc.lastPublishedTripCount) continue;
-      const chain = buildChain(acc, {
-        cellM: this.config.corridorCellM,
-        minEdgeWeight: 1,
-        minCells: this.config.corridorMinCells,
-      });
-      if (!chain) {
-        acc.lastPublishedTripCount = tripCount;
-        continue;
-      }
-      const smoothed = smooth(chain);
-      let pts = simplify(smoothed, 5);
-      if (pts.length > 400) pts = simplify(smoothed, 10);
-      // Geometric length gate (minRouteLengthM): a chain can satisfy the cell
-      // minimum yet be a short stub. Reject publication until the simplified
-      // polyline spans the configured minimum; the trip watermark still
-      // advances so this chain is not re-evaluated every flush.
-      let lengthM = 0;
-      for (let i = 1; i < pts.length; i++) {
-        lengthM += distM(
-          pts[i - 1].lat,
-          pts[i - 1].lng,
-          pts[i].lat,
-          pts[i].lng,
-        );
-      }
-      if (lengthM < this.config.minRouteLengthM) {
-        acc.lastPublishedTripCount = tripCount;
-        continue;
-      }
-      const poly = encodePolyline(pts, 5);
-      if (poly.length > 8192) {
-        acc.lastPublishedTripCount = tripCount;
-        continue; // reject publication
-      }
-      await this.upsertRoute(acc, poly, pts.length, pts);
-      await this.updateStopOrdinals(acc.lineId, acc.direction, pts);
-      acc.lastPublishedTripCount = tripCount;
+    try {
+      // Finalized trips write cells, edges, state, stops, bins and stats off
+      // the request path. Wait for them before republishing stale routes.
+      await this.drainQueue();
+      // Crash-window safety net; no-op when every direction is up to date.
+      await this.publishStaleRoutes();
+    } catch (e) {
+      recordLearningFlushFailed();
+      throw e;
     }
-
-    // Persist watermarks
-    for (const [k, n] of this.watermarkTrips) {
-      const [lineId, direction] = k.split(":").map(Number);
-      await this.upsertWatermark(lineId, direction, n);
-    }
-    this.watermarkTrips.clear();
-
-    // Determine which stop clusters qualify for promotion. Only promoted
-    // stops get a learned_stops row, so dwell/segment stats (which FK to
-    // learned_stops) must be gated on the same set. Upsert stops FIRST so
-    // the foreign keys resolve.
-    const gates = this.gates();
-    const qualifyingStopIds = new Set<string>();
-    for (const c of this.stopClusters.values()) {
-      if (c.passCount < gates.minStopPasses) continue;
-      if (c.distinctDays.size < gates.stopMinDistinctDays) continue;
-      qualifyingStopIds.add(c.id);
-    }
-    for (const c of this.stopClusters.values()) {
-      if (!qualifyingStopIds.has(c.id)) continue;
-      await this.upsertStop(c, c.ordinal);
-    }
-
-    // Persist dwell stats (only for promoted stops)
-    for (const acc of this.dwellAccs.values()) {
-      const p50 = percentile(acc.reservoir, 0.5) ||
-        acc.sumS / Math.max(1, acc.count);
-      const p90 = percentile(acc.reservoir, 0.9) || acc.maxS;
-      if (acc.count < gates.kMin) continue;
-      if (!qualifyingStopIds.has(acc.stopId)) continue;
-      if (this.terminusStopIds.has(acc.stopId)) continue;
-      await this.upsertDwell(acc, p50, p90);
-    }
-    this.dwellAccs.clear();
-
-    // Persist segment stats (only when both endpoints are promoted stops)
-    for (const acc of this.segmentAccs.values()) {
-      if (acc.count < gates.kMin) continue;
-      if (
-        !qualifyingStopIds.has(acc.fromStop) ||
-        !qualifyingStopIds.has(acc.toStop)
-      ) {
-        continue;
-      }
-      const p50 = percentile(
-        acc.reservoir.length
-          ? acc.reservoir
-          : [acc.sumS / Math.max(1, acc.count)],
-        0.5,
-      );
-      const p90 = percentile(
-        acc.reservoir.length ? acc.reservoir : [acc.maxS],
-        0.9,
-      );
-      await this.upsertSegment(acc, p50, p90);
-    }
-    this.segmentAccs.clear();
-
-    this.terminusStopIds.clear();
-    // Keep stop clusters in memory across flushes so their ids stay stable
-    // and centroids accumulate (F2). Bounded by the in-memory cluster set;
-    // decay/pruning is handled by the retention job (F6).
   }
 
   private async upsertRoute(
-    acc: { lineId: number; direction: number; tripCount: number },
+    lineId: number,
+    direction: number,
     polyline: string,
     pointCount: number,
-    points: Array<{ lat: number; lng: number }>,
+    points: Pt[],
+    sampleTrips: number,
   ): Promise<void> {
-    // No-flap gate: if an active route exists and the new polyline deviates
-    // less than 15 m on median, keep the old version (docs 5.1).
+    // Version churn control: an active route within 15 m median deviation is
+    // kept, with its confidence and computed_at refreshed in place.
     const activeRows = await this.deps.sql`
-      select polyline from learned_routes
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      select id, polyline from learned_routes
+      where line_id = ${lineId} and direction = ${direction}
         and status = 'active'
       order by version desc
       limit 1
     `;
-    const active = (activeRows as unknown as Array<{ polyline: string }>)[0];
+    const active = (activeRows as unknown as Array<{
+      id: string;
+      polyline: string;
+    }>)[0];
+    let activePts: Pt[] = [];
     if (active) {
-      let activePts: Array<{ lat: number; lng: number }> = [];
       try {
         activePts = decodePolyline(active.polyline, 5);
       } catch {
         activePts = [];
       }
-      if (activePts.length >= 2) {
-        const dev = medianDeviationM(points, activePts);
-        if (dev < 15) return; // no flap
-      }
+    }
+    const dev = activePts.length >= 2
+      ? medianDeviationM(points, activePts)
+      : null;
+    if (active && dev !== null && dev < 15) {
+      recordLearningRouteNoFlapSuppressed();
+      await this.deps.sql`
+        update learned_routes
+        set sample_trips = ${sampleTrips}, computed_at = now()
+        where id = ${active.id}
+      `;
+      return;
     }
     const rows = await this.deps.sql`
       select coalesce(max(version), 0) as v
       from learned_routes
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      where line_id = ${lineId} and direction = ${direction}
     `;
     const version =
       Number((rows as unknown as Array<{ v: number }>)[0]?.v ?? 0) + 1;
@@ -704,26 +1002,14 @@ export class LearningConsumer {
     const retired = await this.deps.sql`
       update learned_routes
       set status = 'retired', retired_at = now()
-      where line_id = ${acc.lineId} and direction = ${acc.direction}
+      where line_id = ${lineId} and direction = ${direction}
         and status = 'active'
       returning id
     `;
     recordLearningRouteRetired((retired as unknown[]).length);
-    const dev = active
-      ? medianDeviationM(
-        points,
-        (() => {
-          try {
-            return decodePolyline(active.polyline, 5);
-          } catch {
-            return [];
-          }
-        })(),
-      )
-      : null;
     await this.deps.sql`
       insert into learned_routes (line_id, direction, version, status, polyline, point_count, sample_trips, median_deviation_m, computed_at)
-      values (${acc.lineId}, ${acc.direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${acc.tripCount}, ${dev}, now())
+      values (${lineId}, ${direction}, ${version}, 'active', ${polyline}, ${pointCount}, ${sampleTrips}, ${dev}, now())
     `;
     recordLearningRoutePublished();
   }
@@ -738,83 +1024,90 @@ export class LearningConsumer {
     direction: number,
     chain: Pt[],
   ): Promise<void> {
-    const clusters = [...this.stopClusters.values()].filter(
-      (c) => c.lineId === lineId && c.direction === direction,
-    );
-    if (clusters.length === 0) return;
+    // Read from PostgreSQL, not the in-memory mirror: another process or a
+    // direct admin fix can add a stop that this process has not cached yet.
+    const rows = await this.deps.sql`
+      select id, lat, lng from learned_stops
+      where line_id = ${lineId} and direction = ${direction} and active = true
+    `;
+    const stops = rows as unknown as Array<{
+      id: string;
+      lat: number;
+      lng: number;
+    }>;
+    if (stops.length === 0) return;
     const ordinals = assignOrdinals(
-      clusters.map((c) => ({ lat: c.centroidLat, lng: c.centroidLng })),
+      stops.map((s) => ({ lat: s.lat, lng: s.lng })),
       chain,
     );
-    for (let i = 0; i < clusters.length; i++) {
-      clusters[i].ordinal = ordinals[i];
+    for (let i = 0; i < stops.length; i++) {
       await this.deps.sql`
         update learned_stops set ordinal = ${ordinals[i]}
-        where id = ${clusters[i].id}
+        where id = ${stops[i].id}
       `;
+      const cached = this.stopClusters.get(stops[i].id);
+      if (cached) cached.ordinal = ordinals[i];
     }
   }
 
-  private async upsertWatermark(
-    lineId: number,
-    direction: number,
-    trips: number,
-  ): Promise<void> {
-    await this.deps.sql`
-      insert into learning_watermarks (line_id, direction, trips_since_route_recompute, trips_since_stop_recompute, last_flush_at)
-      values (${lineId}, ${direction}, ${trips}, ${trips}, now())
-      on conflict (line_id, direction) do update set
-        trips_since_route_recompute = learning_watermarks.trips_since_route_recompute + ${trips},
-        trips_since_stop_recompute = learning_watermarks.trips_since_stop_recompute + ${trips},
-        last_flush_at = now()
-    `;
-  }
-
-  private async upsertDwell(
-    acc: DwellAcc,
-    p50: number,
-    p90: number,
-  ): Promise<void> {
-    await this.deps.sql`
-      insert into stop_dwell_stats (stop_id, hour_bucket, day_of_week, sample_count, dwell_p50_s, dwell_p90_s, updated_at)
-      values (${acc.stopId}, ${acc.hourBucket}, ${acc.dayOfWeek}, ${acc.count}, ${p50}, ${p90}, now())
+  /**
+   * Recompute a (stop, hour, day) dwell stat from all persisted bins. Counts
+   * and percentiles are cumulative by construction; no per-batch reservoir.
+   * Nearest-rank percentile over the bin histogram.
+   */
+  private async recomputeDwellStat(tx: Tx, key: DwellKey): Promise<void> {
+    const rows = await tx`
+      select bin_s, sample_count from learning_dwell_bins
+      where stop_id = ${key.stopId} and hour_bucket = ${key.hourBucket}
+        and day_of_week = ${key.dayOfWeek}
+      order by bin_s asc
+    ` as unknown as BinRow[];
+    const total = sumCounts(rows);
+    if (total === 0) return;
+    await tx`
+      insert into stop_dwell_stats
+        (stop_id, hour_bucket, day_of_week, sample_count, dwell_p50_s,
+         dwell_p90_s, updated_at)
+      values (${key.stopId}, ${key.hourBucket}, ${key.dayOfWeek}, ${total},
+        ${nearestRank(rows, 0.5)}, ${nearestRank(rows, 0.9)}, now())
       on conflict (stop_id, hour_bucket, day_of_week) do update set
-        sample_count = stop_dwell_stats.sample_count + ${acc.count},
-        dwell_p50_s = ${p50},
-        dwell_p90_s = ${p90},
+        sample_count = excluded.sample_count,
+        dwell_p50_s = excluded.dwell_p50_s,
+        dwell_p90_s = excluded.dwell_p90_s,
         updated_at = now()
     `;
   }
 
-  private async upsertSegment(
-    acc: SegmentAcc,
-    p50: number,
-    p90: number,
+  private async recomputeSegmentStat(
+    tx: Tx,
+    key: SegmentKey,
+    distanceM: number,
   ): Promise<void> {
-    await this.deps.sql`
-      insert into segment_stats (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week, sample_count, travel_p50_s, travel_p90_s, distance_m, updated_at)
-      values (${acc.lineId}, ${acc.direction}, ${acc.fromStop}, ${acc.toStop}, ${acc.hourBucket}, ${acc.dayOfWeek}, ${acc.count}, ${p50}, ${p90}, ${acc.distanceM}, now())
-      on conflict (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week) do update set
-        sample_count = segment_stats.sample_count + ${acc.count},
-        travel_p50_s = ${p50},
-        travel_p90_s = ${p90},
-        distance_m = ${acc.distanceM},
+    const rows = await tx`
+      select bin_s, sample_count from learning_travel_bins
+      where line_id = ${key.lineId} and direction = ${key.direction}
+        and from_stop = ${key.fromStop} and to_stop = ${key.toStop}
+        and hour_bucket = ${key.hourBucket} and day_of_week = ${key.dayOfWeek}
+      order by bin_s asc
+    ` as unknown as BinRow[];
+    const total = sumCounts(rows);
+    if (total === 0) return;
+    await tx`
+      insert into segment_stats
+        (line_id, direction, from_stop, to_stop, hour_bucket, day_of_week,
+         sample_count, travel_p50_s, travel_p90_s, distance_m, updated_at)
+      values (${key.lineId}, ${key.direction}, ${key.fromStop}, ${key.toStop},
+        ${key.hourBucket}, ${key.dayOfWeek}, ${total},
+        ${nearestRank(rows, 0.5)}, ${nearestRank(rows, 0.9)},
+        ${distanceM}, now())
+      on conflict (
+        line_id, direction, from_stop, to_stop, hour_bucket, day_of_week
+      ) do update set
+        sample_count = excluded.sample_count,
+        travel_p50_s = excluded.travel_p50_s,
+        travel_p90_s = excluded.travel_p90_s,
+        distance_m = excluded.distance_m,
         updated_at = now()
-    `;
-  }
-
-  private async upsertStop(c: StopCluster, ordinal: number): Promise<void> {
-    // insert if not exists by proximity? For v1 just insert new row.
-    await this.deps.sql`
-      insert into learned_stops (id, line_id, direction, ordinal, lat, lng, radius_m, sample_passes, first_seen_at, last_seen_at, active)
-      values (${c.id}, ${c.lineId}, ${c.direction}, ${ordinal}, ${c.centroidLat}, ${c.centroidLng}, ${c.radiusM}, ${c.passCount}, now(), now(), true)
-      on conflict (id) do update set
-        lat = ${c.centroidLat},
-        lng = ${c.centroidLng},
-        ordinal = ${ordinal},
-        sample_passes = learned_stops.sample_passes + ${c.passCount},
-        last_seen_at = now(),
-        active = true
     `;
   }
 
@@ -1069,7 +1362,8 @@ export class LearningConsumer {
         }
       >)[0];
     }
-    if (!r || r.sample_count < this.gates().kMin) return null;
+    // Every stored aggregate with at least one sample is served.
+    if (!r || r.sample_count < 1) return null;
     return {
       p50: r.travel_p50_s,
       p90: r.travel_p90_s,
@@ -1104,7 +1398,8 @@ export class LearningConsumer {
         { sample_count: number; dwell_p50_s: number; dwell_p90_s: number }
       >)[0];
     }
-    if (!r || r.sample_count < this.gates().kMin) return null;
+    // Every stored aggregate with at least one sample is served.
+    if (!r || r.sample_count < 1) return null;
     return { p50: r.dwell_p50_s, p90: r.dwell_p90_s, count: r.sample_count };
   }
 }
@@ -1123,16 +1418,155 @@ function angleDiff(a: number, b: number): number {
   return Math.abs(diff);
 }
 
-function median(xs: number[]): number {
-  if (xs.length === 0) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+interface WorkingStop {
+  cluster: StopCluster;
+  /** Passes contributed by this trip; the base count lives on cluster. */
+  added: number;
+  sumLat: number;
+  sumLng: number;
+  created: boolean;
 }
 
-function percentile(xs: number[], p: number): number {
-  if (xs.length === 0) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const idx = Math.min(s.length - 1, Math.max(0, Math.ceil(p * s.length) - 1));
-  return s[idx];
+interface DwellHit {
+  stop: WorkingStop;
+  startMs: number;
+  endMs: number;
+}
+
+interface DwellBin {
+  stopId: string;
+  hourBucket: number;
+  dayOfWeek: number;
+  binS: number;
+}
+
+interface TravelBin {
+  lineId: number;
+  direction: number;
+  fromStop: string;
+  toStop: string;
+  hourBucket: number;
+  dayOfWeek: number;
+  binS: number;
+}
+
+interface StopAggregates {
+  stops: WorkingStop[];
+  dwellBins: DwellBin[];
+  travelBins: TravelBin[];
+}
+
+interface DwellKey {
+  stopId: string;
+  hourBucket: number;
+  dayOfWeek: number;
+}
+
+interface SegmentKey {
+  lineId: number;
+  direction: number;
+  fromStop: string;
+  toStop: string;
+  hourBucket: number;
+  dayOfWeek: number;
+}
+
+interface BinRow {
+  bin_s: number;
+  sample_count: number;
+}
+
+/** Weighted centroid of a working stop, combining base passes and this trip. */
+function workingLat(stop: WorkingStop): number {
+  const n = stop.cluster.passCount + stop.added;
+  if (n === 0) return stop.cluster.centroidLat;
+  return (stop.cluster.centroidLat * stop.cluster.passCount + stop.sumLat) / n;
+}
+
+function workingLng(stop: WorkingStop): number {
+  const n = stop.cluster.passCount + stop.added;
+  if (n === 0) return stop.cluster.centroidLng;
+  return (stop.cluster.centroidLng * stop.cluster.passCount + stop.sumLng) / n;
+}
+
+/**
+ * Privacy trim. Normal trips drop trimEndsS from each end. A trip shorter
+ * than 2*trimEndsS drops at most 10% per end, never the whole trip: a short
+ * trip still contributes its stops and dwells. Falls back to all samples if
+ * the proportional trim would leave fewer than 2.
+ */
+function trimSamples(
+  samples: TripSample[],
+  trimEndsS: number,
+): TripSample[] {
+  if (samples.length < 2) return samples;
+  const first = samples[0].t;
+  const last = samples[samples.length - 1].t;
+  const durationMs = Math.max(0, last - first);
+  const normalTrimMs = trimEndsS * 1000;
+  const trimMs = durationMs < 2 * normalTrimMs
+    ? Math.min(normalTrimMs, Math.floor(durationMs * 0.1))
+    : normalTrimMs;
+  const kept = samples.filter((s) =>
+    s.t >= first + trimMs && s.t <= last - trimMs
+  );
+  return kept.length >= 2 ? kept : samples;
+}
+
+/** Quantize a duration into 5 s bins clamped to [5, 3600]. */
+function quantizeS(durationS: number): number {
+  const rounded = Math.round(durationS / 5) * 5;
+  return Math.min(3600, Math.max(5, rounded));
+}
+
+function uniqueDwellKeys(bins: DwellBin[]): DwellKey[] {
+  const keys = new Map<string, DwellKey>();
+  for (const b of bins) {
+    keys.set(`${b.stopId}:${b.hourBucket}:${b.dayOfWeek}`, {
+      stopId: b.stopId,
+      hourBucket: b.hourBucket,
+      dayOfWeek: b.dayOfWeek,
+    });
+  }
+  return [...keys.values()];
+}
+
+function uniqueSegmentKeys(bins: TravelBin[]): SegmentKey[] {
+  const keys = new Map<string, SegmentKey>();
+  for (const b of bins) {
+    keys.set(
+      `${b.fromStop}:${b.toStop}:${b.hourBucket}:${b.dayOfWeek}`,
+      {
+        lineId: b.lineId,
+        direction: b.direction,
+        fromStop: b.fromStop,
+        toStop: b.toStop,
+        hourBucket: b.hourBucket,
+        dayOfWeek: b.dayOfWeek,
+      },
+    );
+  }
+  return [...keys.values()];
+}
+
+function sumCounts(bins: BinRow[]): number {
+  let total = 0;
+  for (const b of bins) total += b.sample_count;
+  return total;
+}
+
+/**
+ * Nearest-rank percentile over ordered histogram bins: the first bin whose
+ * cumulative count reaches ceil(p * total).
+ */
+function nearestRank(bins: BinRow[], p: number): number {
+  const total = sumCounts(bins);
+  if (total === 0) return 0;
+  const rank = Math.max(1, Math.ceil(p * total));
+  let cumulative = 0;
+  for (const b of bins) {
+    cumulative += b.sample_count;
+    if (cumulative >= rank) return b.bin_s;
+  }
+  return bins[bins.length - 1].bin_s;
 }

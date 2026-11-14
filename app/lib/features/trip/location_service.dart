@@ -1,7 +1,7 @@
 // Location service producing filtered fixes. The foreground service with
 // a persistent notification starts from the visible activity; swiping the
 // app away ends the trip. Fixes are filtered client-side and re-checked
-// server-side. See PLAN.md 8.6 and spike S1.
+// server-side. See ARCHITECTURE.md 8.6 and spike S1.
 // PRIVACY: fixes are rounded before sending and never logged; see Log
 // which has no coordinate API. Mocked fixes are rejected.
 // ignore_for_file: prefer_initializing_formals - injected fakes keep
@@ -15,6 +15,7 @@ import 'package:pontual/core/config/env.dart';
 import 'package:pontual/core/geo/geo.dart';
 import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 
 /// Accepted area for fixes. Mirrors the server bbox.
 const BBox fixArea = BBox(
@@ -193,8 +194,8 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
   // not request background location, wake locks, or exemptions.
   final ForegroundNotificationConfig notification =
       ForegroundNotificationConfig(
-        notificationTitle: 'Compartilhando viagem - $lineLabel',
-        notificationText: 'Toque para abrir ou encerrar',
+        notificationTitle: UiStrings.tripNotificationTitle(lineLabel),
+        notificationText: UiStrings.tripNotificationText,
         setOngoing: true,
       );
   switch (mode) {
@@ -206,7 +207,7 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
       // indicator), and yields fixes above the 60 m gate, which made the
       // start stall the full 60 s window and then fail. The waiting window
       // is bounded (<= 60 s) and short-lived, so the battery cost of high
-      // accuracy here is acceptable. See PLAN.md 8.6.
+      // accuracy here is acceptable. See ARCHITECTURE.md 8.6.
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
@@ -272,7 +273,7 @@ class _LifecycleObserver extends WidgetsBindingObserver {
 }
 
 /// Produces filtered fixes for the active trip. Only TripController drives
-/// this service. See PLAN.md 14.3.
+/// this service. See ARCHITECTURE.md 14.3.
 class LocationService {
   /// Creates a service. Production uses geolocator and battery_plus.
   LocationService({

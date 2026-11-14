@@ -2,11 +2,11 @@
 // No coordinates, no free text, no votes: a report is created, refreshed by
 // the same device, or retracted. Counts are distinct reporters, not votes.
 // PRIVACY: reports live in API memory only and expire with their TTL.
-// See DECISIONS.md#D82/D83 and PLAN.md 6.6.
+// See DECISIONS.md#D82/D83 and ARCHITECTURE.md 6.6.
 import type { ReportKind, ReportState } from "./types.ts";
 import type { Store } from "./store.ts";
 
-/** Runtime tunables for reports. Defaults mirror PLAN.md 6.3. */
+/** Runtime tunables for reports. Defaults mirror ARCHITECTURE.md 6.3. */
 export interface ReportsConfig {
   enabled: boolean;
   maxPerLine: number;

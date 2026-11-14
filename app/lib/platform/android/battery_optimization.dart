@@ -3,7 +3,7 @@
 // foreground service; the system exemption dialog keeps sharing alive
 // with the screen off. Android only, user-tapped only, never blocks
 // sharing, never throws. Needs the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-// manifest permission (owner order D61). See PLAN.md 8.6.
+// manifest permission (owner order D61). See ARCHITECTURE.md 8.6.
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pontual/core/logging/log.dart';

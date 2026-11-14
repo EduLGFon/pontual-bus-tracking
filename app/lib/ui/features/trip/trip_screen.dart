@@ -11,8 +11,8 @@ import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/platform/screen_wake.dart';
 import 'package:pontual/platform/web/visibility.dart';
-import 'package:pontual/platform/web/wake_lock.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
@@ -84,7 +84,7 @@ class TripScreen extends StatefulWidget {
     this.nowMs,
     this.showForcePing = forcePingButton,
     this.isWeb,
-    this.wakeLock,
+    this.screenWake,
     super.key,
   });
 
@@ -102,8 +102,8 @@ class TripScreen extends StatefulWidget {
   /// Overrides web detection for tests. Null follows the real platform.
   final bool? isWeb;
 
-  /// Wake lock implementation, injectable for tests.
-  final WebWakeLock? wakeLock;
+  /// Screen wake implementation, injectable for tests.
+  final ScreenWake? screenWake;
 
   @override
   State<TripScreen> createState() => _TripScreenState();
@@ -121,44 +121,63 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   bool _promptOpen = false;
   bool _wakeUnsupported = false;
   bool _kudosCounted = false;
+  bool _screenOn = false;
   int? _helpedTrips;
   final WebVisibilityTracker _visibility = WebVisibilityTracker();
-  late final WebWakeLock _wakeLock;
+  late final ScreenWake _screenWake;
 
   bool get _isWeb => widget.isWeb ?? PlatformInfo.isWeb;
+
+  /// Android and web offer the screen-on toggle. Android starts off so
+  /// the foreground service keeps sharing with the screen locked.
+  bool get _supportsScreenOn => _isWeb || PlatformInfo.isAndroid;
 
   @override
   void initState() {
     super.initState();
-    _wakeLock = widget.wakeLock ?? const ProdWebWakeLock();
+    _screenWake = widget.screenWake ?? const ProdScreenWake();
     widget.controller.addListener(_maybePrompt);
     // The observer runs on every platform: it pauses the coarse clock in
     // the background and drives the web visibility tracker.
     WidgetsBinding.instance.addObserver(this);
     _startTicker();
     if (_isWeb) {
-      unawaited(_holdWakeLock());
+      // Web trips acquire the wake lock automatically; the toggle only
+      // lets the rider release and reacquire it.
+      _screenOn = true;
+      unawaited(_acquireScreenWake());
     }
   }
 
-  Future<void> _holdWakeLock() async {
+  /// Requests the wake lock and mirrors the platform result in the
+  /// toggle. A refusal turns the toggle back off and shows the caption.
+  Future<void> _acquireScreenWake() async {
     if (!tripInProgress(widget.controller.state)) {
       return;
     }
-    await _wakeLock.enable();
-    final bool held = await _wakeLock.enabled;
+    await _screenWake.enable();
+    final bool held = await _screenWake.enabled;
     if (!mounted) {
       return;
     }
-    if (!held && !_wakeUnsupported) {
+    setState(() {
+      _screenOn = held;
+      _wakeUnsupported = !held;
+    });
+  }
+
+  /// Turns the screen-on intent on or off. Android defaults to off, so
+  /// sharing continues with the screen locked until the rider opts in.
+  Future<void> _toggleScreenOn() async {
+    if (_screenOn) {
       setState(() {
-        _wakeUnsupported = true;
-      });
-    } else if (held && _wakeUnsupported) {
-      setState(() {
+        _screenOn = false;
         _wakeUnsupported = false;
       });
+      await _screenWake.disable();
+      return;
     }
+    await _acquireScreenWake();
   }
 
   @override
@@ -184,11 +203,13 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     unawaited(_recoverWeb(hiddenForMs));
   }
 
-  /// Re-acquires the wake lock and asks the controller for a fresh fix.
-  /// Both are best effort: the existing stream and the stall watchdog
-  /// remain the fallback when the browser refuses either request.
+  /// Re-acquires the wake lock only when the rider left it on, and asks
+  /// the controller for a fresh fix. Both are best effort: the existing
+  /// stream and the stall watchdog remain the fallback.
   Future<void> _recoverWeb(int hiddenForMs) async {
-    unawaited(_holdWakeLock());
+    if (_screenOn) {
+      unawaited(_acquireScreenWake());
+    }
     await widget.controller.recoverWebSharing(hiddenForMs: hiddenForMs);
   }
 
@@ -196,9 +217,7 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
   void dispose() {
     _stopTicker();
     WidgetsBinding.instance.removeObserver(this);
-    if (_isWeb) {
-      unawaited(_wakeLock.disable());
-    }
+    unawaited(_screenWake.disable());
     widget.controller.removeListener(_maybePrompt);
     super.dispose();
   }
@@ -365,8 +384,14 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
                         StatusBlock(
                           controller: c,
                           wakeUnsupported: _wakeUnsupported,
+                          screenOn: _screenOn,
+                          isWeb: _isWeb,
                           nowMs: _nowMs,
                         ),
+                        if (_supportsScreenOn) ...<Widget>[
+                          const SizedBox(height: Space.x3),
+                          _screenOnBlock(context),
+                        ],
                         const SizedBox(height: Space.x4),
                       ],
                     ),
@@ -389,6 +414,36 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Full-width screen-on toggle. It is the rider's opt-in on Android
+  /// and a release/reacquire control on the web. A refused request turns
+  /// the toggle off and shows one short caption.
+  Widget _screenOnBlock(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        SecondaryButton(
+          key: const ValueKey<String>('tripScreenOn'),
+          label: _screenOn ? UiStrings.screenOnOn : UiStrings.screenOnOff,
+          icon: _screenOn
+              ? Icons.light_mode_rounded
+              : Icons.light_mode_outlined,
+          semanticLabel: _screenOn
+              ? UiStrings.screenOnOnSemantic
+              : UiStrings.screenOnOffSemantic,
+          onPressed: () => unawaited(_toggleScreenOn()),
+        ),
+        if (_wakeUnsupported) ...<Widget>[
+          const SizedBox(height: Space.x2),
+          Text(
+            UiStrings.screenOnUnsupported,
+            style: context.text.caption,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    );
+  }
+
   /// Pinned stop action: caption plus a full-width 56 dp button that is
   /// never disabled. One tap ends the trip, online or offline.
   Widget _stopBlock(BuildContext context, TripController c) {
@@ -396,6 +451,35 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        Consumer(
+          builder: (BuildContext context, WidgetRef ref, Widget? child) {
+            final int? lineId = c.lineId;
+            if (lineId == null || !ref.watch(appFeaturesProvider).reports) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SecondaryButton(
+                  key: const ValueKey<String>('tripReport'),
+                  label: UiStrings.reportTripAction,
+                  icon: Icons.flag_rounded,
+                  semanticLabel: UiStrings.reportTripSemantic,
+                  onPressed: () => unawaited(
+                    showReportSheet(
+                      context,
+                      lineId: lineId,
+                      lineName: c.lineLabel,
+                      onSubmitted: () =>
+                          ref.read(vehicleRepoProvider(lineId)).refresh(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Space.x2),
+              ],
+            );
+          },
+        ),
         Text(
           UiStrings.tripStopCaption,
           style: context.text.caption,
@@ -455,27 +539,6 @@ class _TripScreenState extends State<TripScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(width: Space.x2),
           Expanded(child: Text(UiStrings.tripTitle, style: context.text.title)),
-          Consumer(
-            builder: (BuildContext context, WidgetRef ref, Widget? child) {
-              final int? lineId = c.lineId;
-              if (lineId == null || !ref.watch(appFeaturesProvider).reports) {
-                return const SizedBox.shrink();
-              }
-              return IconBtn(
-                icon: Icons.flag_outlined,
-                semanticLabel: UiStrings.reportTripSemantic,
-                onTap: () => unawaited(
-                  showReportSheet(
-                    context,
-                    lineId: lineId,
-                    lineName: c.lineLabel,
-                    onSubmitted: () =>
-                        ref.read(vehicleRepoProvider(lineId)).refresh(),
-                  ),
-                ),
-              );
-            },
-          ),
         ],
       ),
     );

@@ -1120,7 +1120,7 @@ void main() {
   test('the next ping slot starts at send time, not response time', () async {
     // Regression: re-arming from the response added the round trip to
     // every interval. With the 5 s role cadence a slow response would
-    // skip the next fix and halve the effective rate. PLAN.md 8.7 says
+    // skip the next fix and halve the effective rate. ARCHITECTURE.md 8.7 says
     // n seconds after the last send.
     String? token;
     final FakeClock clock = FakeClock(100000);

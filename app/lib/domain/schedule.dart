@@ -2,7 +2,7 @@
 // São Mateus calendar: Saturday maps to saturday, Sunday to
 // sunday_holiday; public holidays are not auto-detected in alpha and the
 // user switches manually. Times are HH:mm on a fixed UTC-3 offset.
-// See PLAN.md S05.
+// See ARCHITECTURE.md S05.
 library;
 
 /// Day types used by timetables.

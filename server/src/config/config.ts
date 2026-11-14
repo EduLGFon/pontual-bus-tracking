@@ -1,11 +1,9 @@
 // Server runtime config. Validated at boot; the process refuses to start
-// on any invalid or missing value. See PLAN.md 6.3.
+// on any invalid or missing value. See ARCHITECTURE.md 6.3.
 // No secrets are read from the repo; they come from the environment only.
 
 export type AppEnv = "local" | "staging" | "prod";
 export type LogLevel = "debug" | "info" | "warn" | "error";
-/** Learning privacy gate. Env-only, never app_config. See DECISIONS.md#D98. */
-export type LearningPrivacyMode = "all" | "route_stops";
 
 export interface ServerConfig {
   appEnv: AppEnv;
@@ -20,8 +18,6 @@ export interface ServerConfig {
   metricsPort: number;
   /** Local-dev line seed until the T14 bundle lands. Empty in staging/prod. */
   linesJson: { id: number; isActive: boolean }[];
-  /** Learning privacy gate: "all" (default) or "route_stops". */
-  learningPrivacyMode: LearningPrivacyMode;
   /**
    * Test-only relaxation: publish on the first ping and count every fix
    * as moving. Local only; refused in staging/prod.
@@ -100,10 +96,6 @@ export function loadConfig(
     throw new Error("invalid env LOG_LEVEL");
   }
   const metrics = parseHostPort(required("METRICS_PORT", env), "METRICS_PORT");
-  const privacyRaw = env["LEARNING_PRIVACY_MODE"] ?? "all";
-  if (privacyRaw !== "all" && privacyRaw !== "route_stops") {
-    throw new Error("invalid env LEARNING_PRIVACY_MODE");
-  }
   const easyRaw = env["TEST_EASY_PUBLISH"] ?? "false";
   if (easyRaw !== "true" && easyRaw !== "false") {
     throw new Error("invalid env TEST_EASY_PUBLISH");
@@ -142,7 +134,6 @@ export function loadConfig(
     metricsHost: metrics.host,
     metricsPort: metrics.port,
     linesJson,
-    learningPrivacyMode: privacyRaw,
     testEasyPublish,
   };
 }

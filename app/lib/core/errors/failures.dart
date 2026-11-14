@@ -1,6 +1,6 @@
 // Typed failures and Result helpers. Production code returns Result
 // instead of throwing across module boundaries; user-facing messages come
-// from strings_pt.dart at the presentation layer. See PLAN.md 14.2.
+// from strings_pt.dart at the presentation layer. See ARCHITECTURE.md 14.2.
 
 /// Sealed family of application failures.
 sealed class AppFailure {

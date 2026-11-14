@@ -2,7 +2,7 @@
 // a coordinate. The client computes the cell on-device; the server only
 // validates the id and stores it in memory for the report TTL.
 // PRIVACY: a cell is approximate presence, not a position. Never log it.
-// See DECISIONS.md#D83 and PLAN.md 6.6.
+// See DECISIONS.md#D83 and ARCHITECTURE.md 6.6.
 import { defaultEngineConfig } from "./types.ts";
 
 /** Cell edge in meters. */

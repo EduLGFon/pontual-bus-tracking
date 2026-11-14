@@ -1,4 +1,4 @@
-// Trip status block: one metrics card, one banner for the primary
+// Trip status block: one compact status line, one banner for the primary
 // issue, one neutral keep-awake tip. Everything renders from the pure
 // health model plus the measured values already carried by the
 // controller, so the same sentence never appears twice and the phone
@@ -8,10 +8,13 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Banner;
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
+import 'package:pontual/domain/trip/trip_state.dart';
+import 'package:pontual/platform/android/gnss_quality.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/platform/android/battery_optimization.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/components/banner.dart';
+import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
@@ -65,6 +68,8 @@ class StatusBlock extends StatefulWidget {
   const StatusBlock({
     required this.controller,
     required this.wakeUnsupported,
+    this.screenOn = true,
+    this.isWeb,
     this.nowMs,
     this.requestExemption = requestIgnoreBatteryOptimizations,
     super.key,
@@ -75,6 +80,13 @@ class StatusBlock extends StatefulWidget {
 
   /// True when the browser cannot hold a Screen Wake Lock.
   final bool wakeUnsupported;
+
+  /// True while the rider asked the screen to stay on. The web banner
+  /// uses it to stop claiming the screen stays on once toggled off.
+  final bool screenOn;
+
+  /// Overrides web detection for tests. Null follows the real platform.
+  final bool? isWeb;
 
   /// Clock in milliseconds, injectable for deterministic tests.
   final int Function()? nowMs;
@@ -103,15 +115,27 @@ class _StatusBlockState extends State<StatusBlock> {
     final TripController c = widget.controller;
     final SharingHealth health = c.sharingHealth(_nowMs());
     final SharingIssue shown = _debouncer.update(health.issue, _nowMs());
+    final bool isWeb = widget.isWeb ?? PlatformInfo.isWeb;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        StatusMetrics(
+        _StatusSummaryLine(
+          key: const ValueKey<String>('tripStatusLine'),
           health: health,
           gnss: c.lastGnssQuality,
           accuracyM: c.lastAccuracyM,
           intervalS: c.intervalS,
           role: c.role,
+          onTap: () => unawaited(
+            _openStatusDetails(
+              context,
+              health,
+              c.lastGnssQuality,
+              c.lastAccuracyM,
+              c.intervalS,
+              c.role,
+            ),
+          ),
         ),
         if (_bannerOf(shown) != null) ...<Widget>[
           const SizedBox(height: Space.x3),
@@ -132,16 +156,44 @@ class _StatusBlockState extends State<StatusBlock> {
             onRequest: () => unawaited(_requestExemption()),
           ),
         ],
-        if (PlatformInfo.isWeb) ...<Widget>[
+        if (isWeb) ...<Widget>[
           const SizedBox(height: Space.x3),
           WebTripBanner(
             paused: c.isWebHidden,
             wakeUnsupported: widget.wakeUnsupported,
+            screenOn: widget.screenOn,
           ),
         ],
         const SizedBox(height: Space.x3),
-        const _KeepAwakeTip(key: ValueKey<String>('tripTip')),
+        _KeepAwakeTip(key: const ValueKey<String>('tripTip'), isWeb: isWeb),
       ],
+    );
+  }
+
+  /// Opens the details bottom sheet with the full StatusMetrics.
+  Future<void> _openStatusDetails(
+    BuildContext context,
+    SharingHealth health,
+    GnssQuality? gnss,
+    double? accuracyM,
+    int? intervalS,
+    TripRole? role,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return Padding(
+          padding: const EdgeInsets.all(Space.x4),
+          child: StatusMetrics(
+            health: health,
+            gnss: gnss,
+            accuracyM: accuracyM,
+            intervalS: intervalS,
+            role: role,
+          ),
+        );
+      },
     );
   }
 
@@ -337,6 +389,93 @@ class _IssueBanner extends StatelessWidget {
   }
 }
 
+/// Compact status line that summarizes sharing health and opens the
+/// details sheet with the full metrics.
+class _StatusSummaryLine extends StatelessWidget {
+  /// Creates the line.
+  const _StatusSummaryLine({
+    required this.health,
+    required this.gnss,
+    required this.accuracyM,
+    required this.intervalS,
+    required this.role,
+    required this.onTap,
+    super.key,
+  });
+
+  /// Resolved health.
+  final SharingHealth health;
+
+  /// Latest GNSS quality sample.
+  final GnssQuality? gnss;
+
+  /// Last accepted fix accuracy.
+  final double? accuracyM;
+
+  /// Server-instructed send interval.
+  final int? intervalS;
+
+  /// Current sampling role.
+  final TripRole? role;
+
+  /// Opens the details sheet.
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final Color accent = health.overall == SharingOverall.live
+        ? colors.liveText
+        : health.overall == SharingOverall.paused
+        ? colors.warningText
+        : colors.inkMuted;
+    final IconData icon = health.overall == SharingOverall.live
+        ? Icons.sensors_rounded
+        : health.overall == SharingOverall.paused
+        ? Icons.pause_circle_rounded
+        : Icons.hourglass_top_rounded;
+    final String lead = switch (health.overall) {
+      SharingOverall.live =>
+        health.lastSendStale
+            ? UiStrings.metricSendStale
+            : intervalS == null
+            ? UiStrings.tripStatusLive
+            : UiStrings.tripStatusSending(intervalS!),
+      SharingOverall.starting => UiStrings.tripStatusStarting,
+      SharingOverall.paused =>
+        health.connectionValue == ConnectionValue.offline
+            ? UiStrings.tripStatusOffline
+            : UiStrings.tripStatusPaused,
+      SharingOverall.ended => UiStrings.tripStatusEnded,
+    };
+    final String sentence = '$lead ${UiStrings.tripStatusDetails}';
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: sentence,
+      borderRadius: Radii.s,
+      child: SurfaceCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Space.x4,
+          vertical: Space.x3,
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(icon, size: 20, color: accent),
+            const SizedBox(width: Space.x3),
+            Expanded(
+              child: Text(
+                sentence,
+                style: context.text.body.copyWith(color: colors.ink),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Battery exemption card shown while the trip is offline on Android.
 /// Title plus body plus one action. Never blocks sharing: denial only
 /// toasts and the trip keeps retrying.
@@ -397,13 +536,16 @@ class _BatteryExemptionCard extends StatelessWidget {
 
 /// The single keep-awake tip. Neutral color always, exactly once.
 class _KeepAwakeTip extends StatelessWidget {
-  /// Creates the tip.
-  const _KeepAwakeTip({super.key});
+  /// Creates the tip for the current platform.
+  const _KeepAwakeTip({required this.isWeb, super.key});
+
+  /// True on the web build, which uses the tab-visibility copy.
+  final bool isWeb;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final String message = PlatformInfo.isWeb
+    final String message = isWeb
         ? UiStrings.keepAwakeTipWeb
         : UiStrings.keepAwakeTip;
     return Semantics(

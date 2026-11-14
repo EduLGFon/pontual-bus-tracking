@@ -1,6 +1,6 @@
 // T08 security tests: AC01, AC03, AC11, AC13, AC18, AC23.
 // HTTP-level tests run the real app in-process against test PostgreSQL.
-// See PLAN.md 12.6.
+// See ARCHITECTURE.md 12.6.
 import { assert, assertEquals } from "@std/assert";
 import { registryResolver } from "../src/data/lines.ts";
 import { openDb } from "../src/db/client.ts";

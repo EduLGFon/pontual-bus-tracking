@@ -1,7 +1,7 @@
 // In-memory engine state shared by the pure domain functions. The shape
 // lives in domain/ so the engine imports nothing outside its own layer;
 // state/store.ts owns construction. Location exists only in this memory and
-// is dropped when a trip ends. See PLAN.md D02, 6.6, 6.7 and 8.3.
+// is dropped when a trip ends. See ARCHITECTURE.md D02, 6.6, 6.7 and 8.3.
 import type { ReportState, Trip, Vehicle } from "./types.ts";
 
 export interface Store {

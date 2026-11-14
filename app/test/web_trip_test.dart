@@ -1,5 +1,6 @@
-// T38 web sharing tests: visibility pause policy, wake lock fake, the
-// controller hidden flag, and the always-visible web banner.
+// T38 web sharing tests: visibility pause policy, screen wake fake, the
+// controller hidden flag, the always-visible web banner, and the trip
+// screen screen-on toggle.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,14 +9,37 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
+import 'package:pontual/platform/screen_wake.dart';
 import 'package:pontual/platform/web/visibility.dart';
-import 'package:pontual/platform/web/wake_lock.dart';
 import 'package:pontual/platform/web/web_banner.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/trip/trip_screen.dart';
+import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'trip_rig.dart';
+
+/// Web trip screen with an injected wake lock and clock.
+Widget webTrip(Rig r, FakeScreenWake wake, {int Function()? nowMs}) {
+  return ProviderScope(
+    child: MaterialApp(
+      theme: pontualLightTheme(),
+      home: TripScreen(
+        controller: r.controller,
+        isWeb: true,
+        nowMs: nowMs,
+        screenWake: wake,
+      ),
+    ),
+  );
+}
+
+/// Empty app that unmounts the trip screen and releases its lock.
+Widget blankApp() {
+  return ProviderScope(
+    child: MaterialApp(theme: pontualLightTheme(), home: const SizedBox()),
+  );
+}
 
 void main() {
   group('webShouldPause', () {
@@ -62,9 +86,9 @@ void main() {
     });
   });
 
-  group('FakeWebWakeLock', () {
+  group('FakeScreenWake', () {
     test('tracks enable and disable', () async {
-      final FakeWebWakeLock lock = FakeWebWakeLock();
+      final FakeScreenWake lock = FakeScreenWake();
       expect(await lock.enabled, isFalse);
       await lock.enable();
       expect(await lock.enabled, isTrue);
@@ -72,6 +96,13 @@ void main() {
       await lock.disable();
       expect(await lock.enabled, isFalse);
       expect(lock.disables, 1);
+    });
+
+    test('failEnable leaves the lock unheld', () async {
+      final FakeScreenWake lock = FakeScreenWake(failEnable: true);
+      await lock.enable();
+      expect(await lock.enabled, isFalse);
+      expect(lock.enables, 1);
     });
   });
 
@@ -198,13 +229,110 @@ void main() {
     });
   });
 
-  group('TripScreen web resume', () {
+  group('TripScreen web wake lock', () {
+    testWidgets('auto-enables on start and shows the on label', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final Rig r = rig(happy());
+      await start(r);
+      final FakeScreenWake lock = FakeScreenWake();
+      await tester.pumpWidget(webTrip(r, lock));
+      await tester.pump();
+      expect(lock.enables, 1);
+      expect(lock.held, isTrue);
+      expect(find.text(UiStrings.screenOnOn), findsOneWidget);
+      expect(find.text(UiStrings.screenOnOff), findsNothing);
+      await tester.pumpWidget(blankApp());
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('toggle off releases the lock; resume keeps it off', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final Rig r = rig(happy());
+      await start(r);
+      final FakeScreenWake lock = FakeScreenWake();
+      await tester.pumpWidget(webTrip(r, lock));
+      await tester.pump();
+      expect(lock.enables, 1);
+
+      final Finder toggle = find.byKey(const ValueKey<String>('tripScreenOn'));
+      await tester.ensureVisible(toggle);
+      await tester.pump();
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(lock.disables, 1);
+      expect(lock.held, isFalse);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(find.text(UiStrings.webWakeNote), findsNothing);
+      expect(find.text(UiStrings.webWakeOffNote), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(lock.enables, 1);
+
+      await tester.ensureVisible(toggle);
+      await tester.pump();
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(lock.enables, 2);
+      expect(lock.held, isTrue);
+      expect(find.text(UiStrings.screenOnOn), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(lock.enables, 3);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(blankApp());
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('failed enable turns the toggle off and captions it', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final Rig r = rig(happy());
+      await start(r);
+      final FakeScreenWake lock = FakeScreenWake(failEnable: true);
+      await tester.pumpWidget(webTrip(r, lock));
+      await tester.pump();
+      expect(lock.enables, 1);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(find.text(UiStrings.screenOnUnsupported), findsOneWidget);
+      expect(find.text(UiStrings.webWakeUnsupported), findsOneWidget);
+      await tester.pumpWidget(blankApp());
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('releases the lock on dispose', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final Rig r = rig(happy());
+      await start(r);
+      final FakeScreenWake lock = FakeScreenWake();
+      await tester.pumpWidget(webTrip(r, lock));
+      await tester.pump();
+      expect(lock.held, isTrue);
+      await tester.pumpWidget(blankApp());
+      await tester.pump();
+      expect(lock.disables, 1);
+      expect(lock.held, isFalse);
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
     testWidgets('reacquires the wake lock and requests a fresh fix', (
       WidgetTester tester,
     ) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final FakeClock clock = FakeClock(100000);
-      final FakeWebWakeLock lock = FakeWebWakeLock();
+      final FakeScreenWake lock = FakeScreenWake();
       int oneShots = 0;
       final Rig r = rig(
         happy(),
@@ -215,19 +343,7 @@ void main() {
         },
       );
       await start(r);
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            theme: pontualLightTheme(),
-            home: TripScreen(
-              controller: r.controller,
-              isWeb: true,
-              nowMs: clock.nowMs,
-              wakeLock: lock,
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(webTrip(r, lock, nowMs: clock.nowMs));
       await tester.pump();
       final int enablesBefore = lock.enables;
       final int shotsBefore = oneShots;
@@ -242,14 +358,7 @@ void main() {
       expect(lock.enables, enablesBefore + 1);
       expect(oneShots, shotsBefore + 1);
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            theme: pontualLightTheme(),
-            home: const SizedBox(),
-          ),
-        ),
-      );
+      await tester.pumpWidget(blankApp());
       r.controller.dispose();
       await r.positions.close();
     });
@@ -276,6 +385,32 @@ void main() {
       );
       expect(find.textContaining('Tela oculta'), findsOneWidget);
       expect(find.textContaining('não mantém a tela ligada'), findsOneWidget);
+    });
+
+    testWidgets('off toggle no longer claims the screen stays on', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: WebTripBanner(screenOn: false))),
+      );
+      expect(find.text(UiStrings.webWakeOffNote), findsOneWidget);
+      expect(find.text(UiStrings.webWakeNote), findsNothing);
+      expect(find.textContaining('Tela ligada desativada'), findsOneWidget);
+      expect(find.textContaining('página visível'), findsOneWidget);
+    });
+  });
+
+  group('keep-awake copy', () {
+    test('Android says the screen can be off and locked', () {
+      expect(UiStrings.keepAwakeTip, contains('desligar a tela'));
+      expect(UiStrings.keepAwakeTip, contains('bloquear o celular'));
+      expect(UiStrings.keepAwakeTip, contains('notificação'));
+    });
+
+    test('web keeps the tab visible and mentions the screen lock', () {
+      expect(UiStrings.keepAwakeTipWeb, contains('aba aberta'));
+      expect(UiStrings.keepAwakeTipWeb, contains('visível'));
+      expect(UiStrings.keepAwakeTipWeb, contains('tela sempre ligada'));
     });
   });
 }

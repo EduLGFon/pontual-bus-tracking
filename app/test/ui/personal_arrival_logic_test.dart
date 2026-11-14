@@ -195,6 +195,7 @@ PersonalArrivalVM build({
   EtaResult? eta,
   bool etaLoading = false,
   bool etaFailed = false,
+  bool locating = false,
 }) {
   return buildPersonalArrival(
     viewer: viewer,
@@ -206,6 +207,7 @@ PersonalArrivalVM build({
     eta: eta,
     etaLoading: etaLoading,
     etaFailed: etaFailed,
+    locating: locating,
   );
 }
 
@@ -286,6 +288,12 @@ void main() {
     test('no viewer asks for location', () {
       final PersonalArrivalVM vm = build(viewer: null);
       expect(vm.status, PersonalArrivalStatus.needsLocation);
+      expect(vm.staleFix, isFalse);
+    });
+
+    test('locating while the automatic fix runs', () {
+      final PersonalArrivalVM vm = build(viewer: null, locating: true);
+      expect(vm.status, PersonalArrivalStatus.locating);
       expect(vm.staleFix, isFalse);
     });
 

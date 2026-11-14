@@ -1,7 +1,7 @@
 // BusApi base: typed HTTP over the shared client with the bearer token.
 // Registration happens on demand only when sharing starts: at most one
 // registration per install. No request fires at startup or first paint.
-// See PLAN.md 8.4 and 6.5.
+// See ARCHITECTURE.md 8.4 and 6.5.
 // SECURITY: the token is sent as a Bearer header only, never in URLs,
 // and error mapping never echoes tokens or coordinates.
 import 'dart:async';
@@ -176,6 +176,19 @@ class BusApi {
   /// Deletes the device and all its data. Ends the trip first server-side.
   Future<Result<bool>> deleteMe(String token) async {
     final Result<void> res = await _authedVoid(token, 'DELETE', '/v1/me');
+    return res is Ok<void>
+        ? const Ok<bool>(true)
+        : Err<bool>((res as Err<void>).failure);
+  }
+
+  /// Stops future learning contributions from this device. One-way and
+  /// idempotent; past aggregates cannot be attributed and are not rewritten.
+  Future<Result<bool>> stopLearning(String token) async {
+    final Result<void> res = await _authedVoid(
+      token,
+      'DELETE',
+      '/v1/me/learning',
+    );
     return res is Ok<void>
         ? const Ok<bool>(true)
         : Err<bool>((res as Err<void>).failure);

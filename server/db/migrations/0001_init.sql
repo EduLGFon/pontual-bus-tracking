@@ -1,5 +1,5 @@
 -- 0001_init.sql: durable pseudonymous data only. No location at rest.
--- See PLAN.md 6.4. Forward-only; never edit after merge.
+-- See ARCHITECTURE.md 6.4. Forward-only; never edit after merge.
 -- Roles: pontual_migrator owns schema (used by dbmate); pontual_app is the
 -- only credential in DATABASE_URL with least privilege on these four tables.
 

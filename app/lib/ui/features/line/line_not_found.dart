@@ -32,12 +32,14 @@ class LineNotFound extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: EmptyState(
-                  title: UiStrings.lineNotFound,
-                  message: UiStrings.notFoundTitle,
-                  art: EmptyArt.pin,
-                  actionLabel: UiStrings.navLines,
-                  onAction: () => GoRouter.of(context).go('/lines'),
+                child: SingleChildScrollView(
+                  child: EmptyState(
+                    title: UiStrings.lineNotFound,
+                    message: UiStrings.notFoundTitle,
+                    art: EmptyArt.pin,
+                    actionLabel: UiStrings.navLines,
+                    onAction: () => GoRouter.of(context).go('/lines'),
+                  ),
                 ),
               ),
             ],

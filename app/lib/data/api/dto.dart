@@ -1,5 +1,5 @@
 // Typed DTOs for the Pontual API. Field names match the server contract
-// in PLAN.md 6.5. No trip or session ids exist anywhere.
+// in ARCHITECTURE.md 6.5. No trip or session ids exist anywhere.
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/domain/reporting/report_kind.dart';
 

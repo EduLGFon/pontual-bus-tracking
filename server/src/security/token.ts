@@ -1,5 +1,5 @@
 // Opaque device tokens. 256-bit CSPRNG, prefix bm1_, only SHA-256 stored.
-// See PLAN.md 6.9. Never log tokens.
+// See ARCHITECTURE.md 6.9. Never log tokens.
 // SECURITY: token format is fixed; lookups are by hash only.
 
 const PREFIX = "bm1_";

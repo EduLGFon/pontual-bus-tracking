@@ -1,5 +1,5 @@
 // Pure domain types. No I/O, no clock, no imports outside domain/.
-// See PLAN.md 6.6. Time is always a parameter (nowMs).
+// See ARCHITECTURE.md 6.6. Time is always a parameter (nowMs).
 
 export type Role = "L" | "F" | "W";
 export type EndReason = "idle" | "timeout" | "max_duration" | "abuse" | "user";
@@ -82,7 +82,7 @@ export interface Vehicle {
   updatedAtMs: number;
 }
 
-/** Tunables used by the engine. Defaults mirror PLAN.md 6.3. */
+/** Tunables used by the engine. Defaults mirror ARCHITECTURE.md 6.3. */
 export interface EngineConfig {
   bbox: { latMin: number; latMax: number; lngMin: number; lngMax: number };
   accuracyMaxM: number;
@@ -157,6 +157,8 @@ export type EngineEvent =
     startedAtMs: number;
     lat: number;
     lng: number;
+    /** Client-supplied; never used for auth or ownership. See D110. */
+    synthetic?: boolean;
   }
   | {
     kind: "fixAccepted";

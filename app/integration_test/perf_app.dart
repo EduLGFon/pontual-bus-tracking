@@ -4,7 +4,7 @@
 // the markers to capture PSS, screenshots and swipes. Never referenced by
 // release builds, which boot from lib/main.dart.
 // Run: flutter run --profile -t integration_test/perf_app.dart
-// See docs/ui/PERF.md and docs/ui/UI_SPEC.md 17.4.
+// See docs/ui/UI_SPEC.md and docs/ui/UI_SPEC.md 17.4.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

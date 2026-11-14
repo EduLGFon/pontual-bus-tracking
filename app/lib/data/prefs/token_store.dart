@@ -1,5 +1,5 @@
 // Opaque device token storage. The token carries no PII, is revocable,
-// and is useless outside the app sandbox. See PLAN.md 12.3 and
+// and is useless outside the app sandbox. See ARCHITECTURE.md 12.3 and
 // DECISIONS.md token rationale.
 // SECURITY: the token lives only in app-private storage and is cleared
 // on delete-my-data; it is never logged or put in URLs.

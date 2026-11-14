@@ -1,6 +1,6 @@
 // T10 trip endpoint tests: AC02, AC07, AC09, AC10, AC14.
 // HTTP-level tests run the real app in-process against test PostgreSQL.
-// Engine behavior itself is covered in engine_test.ts. See PLAN.md 12.6.
+// Engine behavior itself is covered in engine_test.ts. See ARCHITECTURE.md 12.6.
 import { assert, assertEquals } from "@std/assert";
 import { registryResolver } from "../src/data/lines.ts";
 import { openDb } from "../src/db/client.ts";

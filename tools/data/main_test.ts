@@ -69,6 +69,25 @@ Deno.test("semantics rejects duplicates and unsorted times", () => {
   assert(true);
 });
 
+Deno.test("every active line is live-capable", async () => {
+  const files = await readLineFiles();
+  for (const file of files) {
+    if (file.data.is_active === true) {
+      assertEquals(
+        file.data.pilot,
+        true,
+        `${file.path}: active line must have pilot true`,
+      );
+    } else {
+      assertEquals(
+        file.data.pilot,
+        false,
+        `${file.path}: inactive line must stay timetable-only`,
+      );
+    }
+  }
+});
+
 Deno.test("stops semantics: unique sorted ids inside the area", () => {
   const stop = (id: string, lat = -18.72, lng = -39.85) => ({
     id,

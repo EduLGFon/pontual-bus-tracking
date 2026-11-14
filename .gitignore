@@ -11,6 +11,8 @@ build/
 
 # Env and secrets - never commit real values
 server/.env
+server/.env.db
+server/secrets/
 .env
 env/dev.json
 env/staging.json

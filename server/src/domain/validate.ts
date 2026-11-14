@@ -1,5 +1,5 @@
 // Fix validation and plausibility. Pure; time is a parameter.
-// Server re-checks everything the client filters. See PLAN.md RF12 and 6.6.
+// Server re-checks everything the client filters. See ARCHITECTURE.md RF12 and 6.6.
 
 import type { EngineConfig, Fix } from "./types.ts";
 

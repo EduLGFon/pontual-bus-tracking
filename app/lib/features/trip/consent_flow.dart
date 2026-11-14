@@ -1,6 +1,6 @@
 // Consent flow: sheet plus local versioning plus server record. Offline
 // acceptance is stored locally and retried before starting. A trip never
-// starts without covering consent. See PLAN.md S06 and RF14.
+// starts without covering consent. See ARCHITECTURE.md S06 and RF14.
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/prefs/consent_store.dart';
 

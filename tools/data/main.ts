@@ -1,6 +1,6 @@
 // Static data validator and builder. The repo is the source of truth:
 // humans edit data/lines/*.json, this tool validates and builds the
-// deployed bundle. See PLAN.md section 7.
+// deployed bundle. See ARCHITECTURE.md section 7.
 // Run: deno task data-validate | data-build (from tools/).
 
 const ROOT = new URL("../../", import.meta.url);
@@ -341,7 +341,7 @@ export async function buildBundle(
   );
 
   // Pages headers. API origin comes from the environment; production values
-  // land with INFRA-05. See PLAN.md 12.5.
+  // land with INFRA-05. See ARCHITECTURE.md 12.5.
   const api = Deno.env.get("API_ORIGIN") ?? "https://api.localhost";
   const ws = api.replace(/^http/, "ws");
   const headers = `/*

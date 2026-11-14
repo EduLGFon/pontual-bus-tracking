@@ -1,7 +1,7 @@
 // Structured log wrapper. Privacy by construction: there is no API that
 // accepts coordinates, tokens, session ids, user ids, or device ids.
 // Request logs carry method, route template, status, duration, request id.
-// See PLAN.md 6.9 and 14.4.
+// See ARCHITECTURE.md 6.9 and 14.4.
 // PRIVACY: never log coordinates.
 
 export type LogLevel = "debug" | "info" | "warn" | "error";

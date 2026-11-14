@@ -3,7 +3,7 @@
 // upcoming, imminent (primary accent), live, no more today or no data.
 // The empty variant is a ghost card with a dashed border that opens the
 // add flow.
-// See docs/ui/UI_SPEC.md 5 and 7.2 and docs/ui/home-redesign.md.
+// See docs/ui/UI_SPEC.md 5 and 7.2 and docs/ui/UI_SPEC.md.
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/components/dashed_outline.dart';
 import 'package:pontual/ui/design/components/eta_text.dart';

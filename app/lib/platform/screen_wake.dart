@@ -1,10 +1,12 @@
-// Web wake lock wrapper. Holds the Screen Wake Lock during a web trip
-// so the screen stays on while sharing in the foreground. Failures are
-// silent: the banner tells the user to keep the screen on. See PLAN 8.12.
+// Platform screen wake lock. Keeps the display on during a trip when the
+// rider opts in on Android, and while the web trip screen stays open.
+// Backed by wakelock_plus, which uses FLAG_KEEP_SCREEN_ON on Android and
+// adds no manifest permission. Failures are reported through `enabled`,
+// never thrown, so sharing continues when the platform refuses.
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-/// Controls the web Screen Wake Lock. Injectable for tests.
-abstract class WebWakeLock {
+/// Controls the screen wake lock. Injectable for tests.
+abstract class ScreenWake {
   /// Requests the wake lock.
   Future<void> enable();
 
@@ -15,17 +17,17 @@ abstract class WebWakeLock {
   Future<bool> get enabled;
 }
 
-/// Production wake lock backed by wakelock_plus.
-class ProdWebWakeLock implements WebWakeLock {
+/// Production screen wake lock backed by wakelock_plus.
+class ProdScreenWake implements ScreenWake {
   /// Creates the production wake lock.
-  const ProdWebWakeLock();
+  const ProdScreenWake();
 
   @override
   Future<void> enable() async {
     try {
       await WakelockPlus.enable();
     } catch (_) {
-      // Unsupported browsers stay usable; the banner carries the message.
+      // Unsupported platforms stay usable; the UI carries the message.
     }
   }
 
@@ -48,8 +50,15 @@ class ProdWebWakeLock implements WebWakeLock {
   }
 }
 
-/// Fake wake lock for tests.
-class FakeWebWakeLock implements WebWakeLock {
+/// Fake screen wake lock for tests.
+class FakeScreenWake implements ScreenWake {
+  /// Creates a fake. Set [failEnable] to simulate a platform that refuses
+  /// the wake lock.
+  FakeScreenWake({this.failEnable = false});
+
+  /// When true, [enable] leaves the lock unheld.
+  final bool failEnable;
+
   /// Whether enable was called without a matching disable.
   bool held = false;
 
@@ -62,6 +71,9 @@ class FakeWebWakeLock implements WebWakeLock {
   @override
   Future<void> enable() async {
     enables += 1;
+    if (failEnable) {
+      return;
+    }
     held = true;
   }
 

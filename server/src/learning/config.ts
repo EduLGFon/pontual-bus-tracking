@@ -22,29 +22,14 @@ export async function loadLearningConfig(sql: Sql): Promise<LearningConfig> {
             num(row.value, cfg.minConsentVersion),
           );
           break;
-        case "learning_min_route_trips":
-          cfg.minRouteTrips = Math.trunc(num(row.value, cfg.minRouteTrips));
-          break;
-        case "learning_min_stop_passes":
-          cfg.minStopPasses = Math.trunc(num(row.value, cfg.minStopPasses));
-          break;
-        case "learning_k_min":
-          cfg.kMin = Math.trunc(num(row.value, cfg.kMin));
-          break;
         case "learning_trim_ends_s":
           cfg.trimEndsS = Math.trunc(num(row.value, cfg.trimEndsS));
           break;
         case "learning_flush_interval_s":
           cfg.flushIntervalS = Math.trunc(num(row.value, cfg.flushIntervalS));
           break;
-        case "learning_cache_ttl_s":
-          cfg.cacheTtlS = Math.trunc(num(row.value, cfg.cacheTtlS));
-          break;
         case "learning_corridor_cell_m":
           cfg.corridorCellM = num(row.value, cfg.corridorCellM);
-          break;
-        case "learning_min_trip_route_m":
-          cfg.minTripRouteM = num(row.value, cfg.minTripRouteM);
           break;
         case "learning_stop_cluster_radius_m":
           cfg.stopClusterRadiusM = num(row.value, cfg.stopClusterRadiusM);
@@ -54,9 +39,6 @@ export async function loadLearningConfig(sql: Sql): Promise<LearningConfig> {
           break;
         case "learning_min_dwell_s":
           cfg.minDwellS = Math.trunc(num(row.value, cfg.minDwellS));
-          break;
-        case "learning_headway_horizon_s":
-          cfg.headwayHorizonS = Math.trunc(num(row.value, cfg.headwayHorizonS));
           break;
         case "learning_default_speed_mps":
           cfg.defaultSpeedMps = num(row.value, cfg.defaultSpeedMps);

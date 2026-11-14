@@ -1,4 +1,4 @@
-// Aggregate counters only. No PII, no coordinates. See PLAN.md RNF18.
+// Aggregate counters only. No PII, no coordinates. See ARCHITECTURE.md RNF18.
 
 export interface MetricsSnapshot {
   startedAt: string;
@@ -13,6 +13,8 @@ export interface MetricsSnapshot {
   http429Total: number;
   /** Total 403 answers across read and trip routes. */
   http403Total: number;
+  /** Pings dropped by the 4 s min-interval defense. Aggregate only. */
+  pingsRateLimitedTotal: number;
   /** Passenger reports created and retracted. Aggregate only, no ids. */
   reportsCreatedTotal: number;
   reportsRetractedTotal: number;
@@ -21,6 +23,16 @@ export interface MetricsSnapshot {
   learningRoutesPublishedTotal: number;
   learningRoutesRetiredTotal: number;
   learningTripsContributedTotal: number;
+  /** Drop-reason counters for the learning subsystem (aggregate only). */
+  learningTripsIneligibleTotal: number;
+  learningTripsTooFewSamplesTotal: number;
+  learningTripsGapDroppedTotal: number;
+  learningTripsNoCellTransitionTotal: number;
+  learningTripsDirectionAssignedTotal: number;
+  learningRoutesChainTooSmallTotal: number;
+  learningRoutesOversizedTotal: number;
+  learningRoutesNoFlapSuppressedTotal: number;
+  learningFlushesFailedTotal: number;
 }
 
 const startedAtMs = Date.now();
@@ -30,12 +42,22 @@ let wsConnectsTotal = 0;
 let wsCapacityRefusedTotal = 0;
 let http429Total = 0;
 let http403Total = 0;
+let pingsRateLimitedTotal = 0;
 let reportsCreatedTotal = 0;
 let reportsRetractedTotal = 0;
 let learningFlushesTotal = 0;
 let learningRoutesPublishedTotal = 0;
 let learningRoutesRetiredTotal = 0;
 let learningTripsContributedTotal = 0;
+let learningTripsIneligibleTotal = 0;
+let learningTripsTooFewSamplesTotal = 0;
+let learningTripsGapDroppedTotal = 0;
+let learningTripsNoCellTransitionTotal = 0;
+let learningTripsDirectionAssignedTotal = 0;
+let learningRoutesChainTooSmallTotal = 0;
+let learningRoutesOversizedTotal = 0;
+let learningRoutesNoFlapSuppressedTotal = 0;
+let learningFlushesFailedTotal = 0;
 
 export function recordRequest(): void {
   requestsTotal += 1;
@@ -62,6 +84,10 @@ export function recordHttp403(): void {
   http403Total += 1;
 }
 
+export function recordPingRateLimited(): void {
+  pingsRateLimitedTotal += 1;
+}
+
 export function recordReportCreated(): void {
   reportsCreatedTotal += 1;
 }
@@ -86,6 +112,42 @@ export function recordLearningTripsContributed(n: number): void {
   learningTripsContributedTotal += n;
 }
 
+export function recordLearningTripIneligible(): void {
+  learningTripsIneligibleTotal += 1;
+}
+
+export function recordLearningTripTooFewSamples(): void {
+  learningTripsTooFewSamplesTotal += 1;
+}
+
+export function recordLearningTripGapDropped(): void {
+  learningTripsGapDroppedTotal += 1;
+}
+
+export function recordLearningTripNoCellTransition(): void {
+  learningTripsNoCellTransitionTotal += 1;
+}
+
+export function recordLearningDirectionAssigned(): void {
+  learningTripsDirectionAssignedTotal += 1;
+}
+
+export function recordLearningRouteChainTooSmall(): void {
+  learningRoutesChainTooSmallTotal += 1;
+}
+
+export function recordLearningRouteOversized(): void {
+  learningRoutesOversizedTotal += 1;
+}
+
+export function recordLearningRouteNoFlapSuppressed(): void {
+  learningRoutesNoFlapSuppressedTotal += 1;
+}
+
+export function recordLearningFlushFailed(): void {
+  learningFlushesFailedTotal += 1;
+}
+
 export function snapshot(): MetricsSnapshot {
   return {
     startedAt: new Date(startedAtMs).toISOString(),
@@ -96,11 +158,21 @@ export function snapshot(): MetricsSnapshot {
     wsCapacityRefusedTotal,
     http429Total,
     http403Total,
+    pingsRateLimitedTotal,
     reportsCreatedTotal,
     reportsRetractedTotal,
     learningFlushesTotal,
     learningRoutesPublishedTotal,
     learningRoutesRetiredTotal,
     learningTripsContributedTotal,
+    learningTripsIneligibleTotal,
+    learningTripsTooFewSamplesTotal,
+    learningTripsGapDroppedTotal,
+    learningTripsNoCellTransitionTotal,
+    learningTripsDirectionAssignedTotal,
+    learningRoutesChainTooSmallTotal,
+    learningRoutesOversizedTotal,
+    learningRoutesNoFlapSuppressedTotal,
+    learningFlushesFailedTotal,
   };
 }

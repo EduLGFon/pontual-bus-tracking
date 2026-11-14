@@ -2,7 +2,7 @@
 // retract. No report ids, no votes, no coordinates. Reads ride on the line
 // snapshot; this route only changes in-memory state.
 // PRIVACY: no area id, kind, or device id is logged.
-// See DECISIONS.md#D82/D83 and PLAN.md 6.5.
+// See DECISIONS.md#D82/D83 and ARCHITECTURE.md 6.5.
 import { Hono } from "@hono/hono";
 import type { Sql } from "../db/client.ts";
 import { guardState } from "../db/guard.ts";

@@ -3,7 +3,7 @@
 // foreground service. The system exemption dialog keeps sharing alive with
 // the screen off. Android only, user-tapped only, never blocks sharing,
 // never throws. Needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS in app.json
-// (owner order D61, RN parity D95). See PLAN.md 8.6.
+// (owner order D61, RN parity D95). See ARCHITECTURE.md 8.6.
 import { Platform } from "react-native";
 import { Log } from "../../core/logging/log";
 

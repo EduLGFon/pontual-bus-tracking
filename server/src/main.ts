@@ -1,5 +1,5 @@
 // Bootstrap: config, HTTP server, internal metrics listener, shutdown.
-// See PLAN.md 6.2, 6.9, 6.10.
+// See ARCHITECTURE.md 6.2, 6.9, 6.10.
 import { loadConfig } from "./config/config.ts";
 import { defaultRuntimeConfig, loadRuntimeConfig } from "./config/runtime.ts";
 import { loadLinesFromDir, registryResolver } from "./data/lines.ts";
@@ -31,7 +31,6 @@ function readEnv(): Record<string, string | undefined> {
     "METRICS_PORT",
     "LINES_JSON",
     "TEST_EASY_PUBLISH",
-    "LEARNING_PRIVACY_MODE",
   ];
   const out: Record<string, string | undefined> = {};
   for (const n of names) out[n] = Deno.env.get(n);
@@ -90,7 +89,6 @@ const learningConsumer = new LearningConsumer({
   sql,
   config: () => learningConfig,
   now: () => Date.now(),
-  privacyMode: () => config.learningPrivacyMode,
 });
 // Seed persisted direction slots and stop clusters (F2/F3). Best-effort.
 learningConsumer.loadLearnedRoutes().catch(() => {});
@@ -221,7 +219,6 @@ const jobs = startJobs({
     for (const ev of evs) {
       learningConsumer.handle(ev, {
         consentVersion: learningConfig.minConsentVersion,
-        eligible: true,
       });
     }
   },

@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/reports_adapter.dart';
 import 'package:pontual/ui/adapters/local_stores.dart';
@@ -70,7 +71,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
   Future<void> _streamStopped = Future<void>.value();
 
   /// False while a full page covers this screen. The viewer socket is
-  /// closed then (PLAN.md 8.8.4 and 10.4.6) and reopened on return.
+  /// closed then (ARCHITECTURE.md 8.8.4 and 10.4.6) and reopened on return.
   bool _routeVisible = true;
 
   /// True once the route observer subscription is in place.
@@ -91,6 +92,16 @@ class _LineScreenState extends ConsumerState<LineScreen>
   /// them, unless the rider already took the camera.
   bool _initialFitHadVehicles = false;
 
+  /// True once the one automatic viewer-fix attempt was scheduled.
+  bool _autoFixScheduled = false;
+
+  /// False while the app is not resumed. Refreshes wait for resume.
+  bool _resumed = true;
+
+  /// Last refresh attempt, including the map focus tap. Null means the
+  /// loaded fix's own timestamp is the baseline.
+  DateTime? _viewerRefreshAt;
+
   @override
   void initState() {
     super.initState();
@@ -101,16 +112,18 @@ class _LineScreenState extends ConsumerState<LineScreen>
 
   /// Backgrounding the app hides this screen without a route change, so
   /// close the socket and stop the 5 s ticker. Resuming reopens only when
-  /// no full page covers the screen. PLAN.md 8.8.4 and 10.4.6.
+  /// no full page covers the screen. ARCHITECTURE.md 8.8.4 and 10.4.6.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _resumed = true;
       final StaticLine? line = _staticLine;
       if (_routeVisible && line != null && line.pilot) {
         _startStream(line.id);
       }
       return;
     }
+    _resumed = false;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       _stopStream();
@@ -169,6 +182,12 @@ class _LineScreenState extends ConsumerState<LineScreen>
     }
     _staticLine = staticLine;
     if (staticLine.pilot) {
+      // Reuses the existing 5 s vehicle tick; no new timer or position
+      // stream. The handler throttles itself to one refresh per minute.
+      ref.listen<AsyncValue<int>>(vehicleTickProvider, (_, _) {
+        _onVehicleTick();
+      });
+      _scheduleAutoViewerFix();
       _startStream(staticLine.id);
     }
     final bool dataSaver = ref.watch(settingsProvider).dataSaver;
@@ -273,7 +292,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
               vehicles: vehicles,
               reports: reports,
               scrollController: controller,
-              viewer: ref.watch(viewerLocationProvider).value,
+              viewer: ref.watch(viewerFixProvider).position,
               initialTab: widget.tab,
               onTabChanged: _onTabChanged,
               onShowMap: _openMap,
@@ -284,7 +303,6 @@ class _LineScreenState extends ConsumerState<LineScreen>
               onEnableLocation: () => showMyStopLocationSheet(context, ref),
               onRefresh: () => _refreshPersonal(staticLine.id, personal),
               onTapLead: (VehicleVM v) => _focus(v, map),
-              onPersonalTap: () => _snapSheetToHalf(),
             );
           },
         ),
@@ -332,7 +350,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
         vehicles: vehicles,
         reports: reports,
         scrollController: ScrollController(),
-        viewer: ref.watch(viewerLocationProvider).value,
+        viewer: ref.watch(viewerFixProvider).position,
         initialTab: widget.tab,
         showMapAction: false,
         onVehicleTap: (VehicleVM v) => _focus(v, map),
@@ -341,7 +359,6 @@ class _LineScreenState extends ConsumerState<LineScreen>
         onEnableLocation: () => showMyStopLocationSheet(context, ref),
         onRefresh: () => _refreshPersonal(staticLine.id, personal),
         onTapLead: (VehicleVM v) => _focus(v, map),
-        onPersonalTap: () => _snapSheetToHalf(),
       ),
     );
   }
@@ -373,7 +390,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
       dashedRoute: !(_staticLine?.pilot ?? false),
       panned: _panned,
       selectedKey: _selectedKey,
-      viewerPosition: ref.watch(viewerLocationProvider).value,
+      viewerPosition: ref.watch(viewerFixProvider).position,
       personalStop: personal?.stopLat != null && personal?.stopLng != null
           ? latlong2.LatLng(personal!.stopLat!, personal.stopLng!)
           : null,
@@ -382,10 +399,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
           : UiStrings.myStopMapLabel(personal!.stopDistanceM!),
       controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
-      onLocateViewer: () {
-        setState(() => _panned = false);
-        _mapKey.currentState?.centerOnViewer();
-      },
+      onLocateViewer: _locateViewer,
       onLocateBus: () {
         setState(() => _panned = false);
         _mapKey.currentState?.centerOnClosestBus();
@@ -460,7 +474,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
   }
 
   /// Closes the viewer socket while another page covers this screen.
-  /// PLAN.md 8.8.4 and 10.4.6: no stream when the screen is not visible.
+  /// ARCHITECTURE.md 8.8.4 and 10.4.6: no stream when the screen is not visible.
   void _stopStream() {
     final VehicleRepository? repo = _repo;
     _repo = null;
@@ -483,12 +497,93 @@ class _LineScreenState extends ConsumerState<LineScreen>
     });
   }
 
+  /// Schedules the one automatic viewer-fix attempt after the first frame.
+  /// The controller owns the per-install flag and never opens the in-app
+  /// privacy sheet; the OS/browser prompt is the only first-use UI.
+  void _scheduleAutoViewerFix() {
+    if (_autoFixScheduled) {
+      return;
+    }
+    _autoFixScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (!_tryAdoptLiveTripFix()) {
+        unawaited(ref.read(viewerFixProvider.notifier).requestAutomatic());
+      }
+    });
+  }
+
+  /// Refreshes the viewer fix on the existing 5 s tick, at most once per
+  /// minute while the screen is visible, the app resumed and data saver
+  /// off. A tick with no held fix does nothing: only an explicit tap may
+  /// ask for permission again.
+  void _onVehicleTick() {
+    if (!mounted || !_routeVisible || !_resumed) {
+      return;
+    }
+    if (ref.read(settingsProvider).dataSaver) {
+      return;
+    }
+    if (_tryAdoptLiveTripFix()) {
+      return;
+    }
+    final ViewerFixState fix = ref.read(viewerFixProvider);
+    final DateTime now = ref.read(viewerNowProvider)();
+    if (!viewerFixRefreshDue(
+      fix: fix,
+      now: now,
+      lastAttempt: _viewerRefreshAt,
+    )) {
+      return;
+    }
+    unawaited(_refreshViewerOnTick(now));
+  }
+
+  /// Tries to reuse the active trip's latest in-memory fix for the viewer
+  /// dot. Returns true when a fresh fix was adopted. Coordinates stay in
+  /// memory only and are not sent by this path.
+  bool _tryAdoptLiveTripFix() {
+    final TripFix? Function() reader = ref.read(liveTripFixReaderProvider);
+    final TripFix? fix = reader();
+    if (fix == null) {
+      return false;
+    }
+    final DateTime now = ref.read(viewerNowProvider)();
+    final DateTime fixAt = DateTime.fromMillisecondsSinceEpoch(
+      fix.acceptedAtMs,
+    );
+    if (now.difference(fixAt) > viewerTripFixMaxAge) {
+      return false;
+    }
+    final ViewerFixState current = ref.read(viewerFixProvider);
+    if (current.at != null &&
+        fix.acceptedAtMs <= current.at!.millisecondsSinceEpoch) {
+      return false;
+    }
+    ref.read(viewerFixProvider.notifier).adoptTripFix(fix);
+    return true;
+  }
+
+  Future<void> _refreshViewerOnTick(DateTime now) async {
+    final bool started = await ref
+        .read(viewerFixProvider.notifier)
+        .request(force: true, silent: true, auto: true);
+    if (started) {
+      _viewerRefreshAt = now;
+    }
+  }
+
   /// Invalidates the personal arrival data after a refresh request.
   void _refreshPersonal(int lineId, PersonalArrivalVM? personal) {
-    if (ref.read(viewerFixProvider).status == ViewerFixStatus.ready) {
-      unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
-    } else {
-      unawaited(showMyStopLocationSheet(context, ref));
+    final bool adopted = _tryAdoptLiveTripFix();
+    if (!adopted) {
+      if (ref.read(viewerFixProvider).position != null) {
+        unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
+      } else {
+        unawaited(showMyStopLocationSheet(context, ref));
+      }
     }
     ref.invalidate(learnedStopsProvider(lineId));
     if (personal?.stopId != null) {
@@ -496,23 +591,41 @@ class _LineScreenState extends ConsumerState<LineScreen>
     }
   }
 
-  /// Snaps the sheet to half, honoring reduce motion.
-  void _snapSheetToHalf() {
-    if (!_sheet.isAttached) {
+  /// Map "focus on viewer": recentre now, force a fresh fix, then recentre
+  /// again when it lands. The tap also restarts the 60 s refresh window so
+  /// the tick does not immediately duplicate this request.
+  void _locateViewer() {
+    setState(() => _panned = false);
+    _mapKey.currentState?.centerOnViewer();
+    final DateTime now = ref.read(viewerNowProvider)();
+    if (_tryAdoptLiveTripFix()) {
+      _viewerRefreshAt = now;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mapKey.currentState?.centerOnViewer();
+        }
+      });
       return;
     }
-    final ReduceMotionMode motion = ref.read(settingsProvider).reduceMotionMode;
-    if (AppMotion.reduced(context, motion)) {
-      _sheet.jumpTo(sheetHalf);
+    _viewerRefreshAt = now;
+    unawaited(_refreshViewerFromLocate());
+  }
+
+  Future<void> _refreshViewerFromLocate() async {
+    await ref
+        .read(viewerFixProvider.notifier)
+        .request(force: true, silent: true);
+    if (!mounted) {
       return;
     }
-    unawaited(
-      _sheet.animateTo(
-        sheetHalf,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    // The refresh updates the fix state, but the map widget still holds
+    // the old viewerPosition until the next build. Defer the second
+    // recenter to a post-frame callback so it reads the rebuilt value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapKey.currentState?.centerOnViewer();
+      }
+    });
   }
 
   /// Selects a vehicle and drags the sheet back to peek.

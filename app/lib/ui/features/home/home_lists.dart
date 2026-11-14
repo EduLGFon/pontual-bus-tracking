@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pontual/ui/design/components/buttons.dart';
+import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';
 import 'package:pontual/ui/design/components/line_row.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
@@ -11,6 +13,7 @@ import 'package:pontual/ui/design/components/section_header.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
+import 'package:pontual/ui/features/trip/trip_flow.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/shell/toast_host.dart';
@@ -159,27 +162,46 @@ class _RecentLineChip extends StatelessWidget {
   }
 }
 
-/// Compact card shown when no line is sharing a live position. No
-/// timetable link: the `Todas as linhas` row below already covers that.
-class NoLiveCard extends StatelessWidget {
-  /// Creates the no-live empty card.
-  const NoLiveCard({super.key});
+/// Actionable sharing card shown when no line is sharing a live position.
+/// The compact live summary chip keeps the honest zero state; this card
+/// invites the rider to become the live data.
+class ShareCard extends StatelessWidget {
+  /// Creates the sharing card.
+  const ShareCard({super.key});
 
   @override
   Widget build(BuildContext context) {
     return SurfaceCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Text(UiStrings.homeNoLive, style: context.text.headline),
+          Text(UiStrings.homeShareCardTitle, style: context.text.headline),
           const SizedBox(height: Space.x1),
           Text(
-            UiStrings.homeNoLiveHint,
+            UiStrings.homeShareCardBody,
             style: context.text.body.copyWith(color: context.colors.inkMuted),
+          ),
+          const SizedBox(height: Space.x3),
+          PrimaryButton(
+            label: UiStrings.homeShareCardAction,
+            icon: Icons.share_location_rounded,
+            onPressed: () => startShare(context, null),
+          ),
+          const SizedBox(height: Space.x1),
+          Align(
+            alignment: Alignment.center,
+            child: GhostLink(
+              label: UiStrings.homeShareCardTimetable,
+              icon: Icons.schedule_outlined,
+              // Sibling tab: go switches the bottom bar instead of stacking
+              // Linhas over Início.
+              onTap: () => context.go('/lines'),
+            ),
           ),
           const SizedBox(height: Space.x2),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Icon(
                 Icons.privacy_tip_outlined,

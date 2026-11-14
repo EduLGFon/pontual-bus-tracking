@@ -13,6 +13,7 @@ import 'package:http/testing.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';
 import 'package:pontual/platform/android/gnss_quality.dart';
+import 'package:pontual/platform/screen_wake.dart';
 import 'package:pontual/ui/design/adapters/theme_bridge.dart';
 import 'package:pontual/ui/design/theme/theme.dart';
 import 'package:pontual/ui/features/settings/about_screen.dart';
@@ -75,6 +76,8 @@ void main() {
       await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
       await tester.pump();
       expect(find.text(UiStrings.tripHero), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('tripStatusLine')));
+      await tester.pump();
       expect(find.text(UiStrings.metricLabelSend), findsOneWidget);
       expect(find.text(UiStrings.metricLabelGps), findsOneWidget);
       expect(find.text(UiStrings.metricLabelSats), findsOneWidget);
@@ -83,6 +86,93 @@ void main() {
       expect(tester.takeException(), isNull);
       // Inline teardown: the invariant check runs before addTearDown, so
       // the controller and its timers must stop inside the test body.
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('screen-on toggle starts off on Android and enables on tap', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final FakeScreenWake wake = FakeScreenWake();
+      await tester.pumpWidget(
+        wrapApp(TripScreen(controller: r.controller, screenWake: wake)),
+      );
+      await tester.pump();
+      // Android starts off: the foreground service keeps sharing with the
+      // screen locked, and the neutral tip says so.
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      final Iterable<Semantics> labels = tester.widgetList<Semantics>(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('tripScreenOn')),
+          matching: find.byType(Semantics),
+        ),
+      );
+      expect(
+        labels.any(
+          (Semantics node) =>
+              node.properties.label == UiStrings.screenOnOffSemantic,
+        ),
+        isTrue,
+      );
+      expect(find.text(UiStrings.keepAwakeTip), findsOneWidget);
+      expect(wake.enables, 0);
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.enables, 1);
+      expect(wake.held, isTrue);
+      expect(find.text(UiStrings.screenOnOn), findsOneWidget);
+      expect(find.text(UiStrings.screenOnUnsupported), findsNothing);
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.disables, 1);
+      expect(wake.held, isFalse);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('failed Android enable stays off and shows the caption', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      final FakeScreenWake wake = FakeScreenWake(failEnable: true);
+      await tester.pumpWidget(
+        wrapApp(TripScreen(controller: r.controller, screenWake: wake)),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey<String>('tripScreenOn')));
+      await tester.pump();
+      expect(wake.enables, 1);
+      expect(wake.held, isFalse);
+      expect(find.text(UiStrings.screenOnOff), findsOneWidget);
+      expect(find.text(UiStrings.screenOnUnsupported), findsOneWidget);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
+      r.controller.dispose();
+      await r.positions.close();
+    });
+
+    testWidgets('report button opens the report sheet with the four kinds', (
+      WidgetTester tester,
+    ) async {
+      final rig.Rig r = rig.rig(rig.happy());
+      await rig.start(r);
+      await tester.pumpWidget(wrapApp(TripScreen(controller: r.controller)));
+      await tester.pump();
+      expect(find.byKey(const ValueKey<String>('tripReport')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('tripReport')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(UiStrings.reportSheetTitle), findsOneWidget);
+      expect(find.text(UiStrings.reportWaiting), findsOneWidget);
+      expect(find.text(UiStrings.reportFull), findsOneWidget);
+      expect(find.text(UiStrings.reportBroken), findsOneWidget);
+      expect(find.text(UiStrings.reportBlocked), findsOneWidget);
+      await tester.pumpWidget(wrapApp(const SizedBox()));
       r.controller.dispose();
       await r.positions.close();
     });
@@ -619,8 +709,18 @@ void main() {
       expect(find.text(UiStrings.privacyPolicy), findsOneWidget);
       expect(find.text(UiStrings.privacyTerms), findsOneWidget);
       expect(find.text(UiStrings.privacyCollectsTitle), findsOneWidget);
-      // The summary gained a passenger-report line (D82), so the
-      // revoke action sits below the fold of the lazy list now.
+      // The summary gained aggregate and passenger-report lines, so the
+      // actions sit below the fold of the lazy list now.
+      await tester.scrollUntilVisible(
+        find.text(UiStrings.privacyStopLearning),
+        200,
+      );
+      expect(find.text(UiStrings.privacyStopLearning), findsOneWidget);
+      await tester.tap(find.text(UiStrings.privacyStopLearning));
+      await settleOnce(tester);
+      expect(find.text(UiStrings.privacyStopLearningTitle), findsOneWidget);
+      await tester.tap(find.text(UiStrings.cancel));
+      await settleOnce(tester);
       await tester.scrollUntilVisible(find.text(UiStrings.privacyRevoke), 200);
       expect(find.text(UiStrings.privacyRevoke), findsOneWidget);
       // The danger row sits below the fold of the lazy list.

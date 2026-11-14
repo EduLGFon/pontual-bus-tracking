@@ -1,5 +1,5 @@
 // T34 tests: TripSupervisor evaluation without HTTP, plus the pure
-// walking-prompt and sampling helpers. See PLAN.md 8.6, 11.3, RF16.
+// walking-prompt and sampling helpers. See ARCHITECTURE.md 8.6, 11.3, RF16.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/domain/trip/auto_end.dart';
 import 'package:pontual/domain/trip/sampling_policy.dart';

@@ -1,7 +1,7 @@
 // Vehicle repository: snapshot first, then the read-only WebSocket
 // stream, with a watchdog resync and a polling fallback. Stops cleanly
 // when the UI goes to background. Unknown server keys are ignored so the
-// app-level heartbeat never breaks parsing. See PLAN.md 6.8 and 15.3.
+// app-level heartbeat never breaks parsing. See ARCHITECTURE.md 6.8 and 15.3.
 import 'dart:async';
 import 'dart:convert';
 
@@ -247,7 +247,7 @@ typedef SnapshotFetcher = Future<ClientSnapshot> Function(int lineId);
 
 /// Reconnect delays in seconds: 5, 10, 20, then 30 s until the screen
 /// goes away. The socket is re-established while polling covers the data,
-/// per the failure matrix (PLAN.md 11.3).
+/// per the failure matrix (ARCHITECTURE.md 11.3).
 const List<int> reconnectDelaysS = <int>[5, 10, 20, 30];
 
 /// Vehicle stream for one line with snapshot, socket, watchdog, polling.
@@ -311,6 +311,14 @@ class VehicleRepository {
   /// Monotonic time of the last accepted snapshot in ms, if any.
   int? get lastSnapshotAtMs => _lastSnapshotAtMs;
   int? _lastSnapshotAtMs;
+
+  final StreamController<void> _changeController =
+      StreamController<void>.broadcast();
+
+  /// Change signal fired when vehicles or reports are updated from a
+  /// snapshot or a WebSocket frame. Listeners (the UI adapter) throttle
+  /// rebuilds; the repository stays the owner of the socket.
+  Stream<void> get changes => _changeController.stream;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
@@ -399,6 +407,7 @@ class VehicleRepository {
       _reports = _stampedReports(fetched.reports, now);
       _lastSnapshotAtMs = now;
       evaluateAge();
+      if (!_stopped) _changeController.add(null);
     } catch (_) {
       // Keep the last known positions: a failed refresh must not blank
       // the map while the connection is down.
@@ -506,6 +515,7 @@ class VehicleRepository {
       }
       _lastSnapshotAtMs = now;
       evaluateAge();
+      if (!_stopped) _changeController.add(null);
     } catch (_) {
       // Ignore malformed frames; the watchdog resyncs.
     }
@@ -613,4 +623,10 @@ class VehicleRepository {
   /// Exposed for tests: true while the polling fallback is armed.
   @visibleForTesting
   bool get debugPolling => _poller != null;
+
+  /// Releases the change signal. Called when the provider is disposed; not
+  /// in [stop], because [start] calls [stop] on restart.
+  void dispose() {
+    _changeController.close();
+  }
 }

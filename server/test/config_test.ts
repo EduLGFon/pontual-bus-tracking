@@ -45,29 +45,13 @@ Deno.test("lines seed defaults empty and parses", () => {
   assertEquals(cfg.linesJson, [{ id: 7, isActive: true }]);
 });
 
-Deno.test("learning privacy mode defaults to all", () => {
-  assertEquals(loadConfig(baseEnv()).learningPrivacyMode, "all");
-});
-
-Deno.test("learning privacy mode accepts explicit values", () => {
-  assertEquals(
-    loadConfig({ ...baseEnv(), LEARNING_PRIVACY_MODE: "all" })
-      .learningPrivacyMode,
-    "all",
-  );
-  assertEquals(
-    loadConfig({ ...baseEnv(), LEARNING_PRIVACY_MODE: "route_stops" })
-      .learningPrivacyMode,
-    "route_stops",
-  );
-});
-
-Deno.test("invalid learning privacy mode refuses to start", () => {
-  assertThrows(
-    () => loadConfig({ ...baseEnv(), LEARNING_PRIVACY_MODE: "off" }),
-    Error,
-    "invalid env LEARNING_PRIVACY_MODE",
-  );
+Deno.test("learning privacy mode env is no longer read", () => {
+  // The route_stops mode was removed: one sample is always served.
+  const cfg = loadConfig({
+    ...baseEnv(),
+    LEARNING_PRIVACY_MODE: "off",
+  });
+  assertEquals("learningPrivacyMode" in cfg, false);
 });
 
 Deno.test("easy publish defaults off and stays local", () => {

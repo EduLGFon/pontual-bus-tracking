@@ -1,7 +1,7 @@
 // Android app download hint. Shown on Android web browsers so sharers
 // get the native app (screen-off trips) instead of the foreground-only
 // web trip. Tap downloads the latest release APK from GitHub releases.
-// See PLAN.md 8.12 and T48.
+// See ARCHITECTURE.md 8.12 and T48.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pontual/ui/design/theme/context.dart';

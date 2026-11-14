@@ -1,6 +1,6 @@
 // Periodic tick. Ends timed-out trips, reaps empty vehicles, re-elects
 // leaders, and marks changed lines for snapshot emit. Pure; time is a
-// parameter. Overlap guard lives in jobs/ (T11). See PLAN.md 6.6.
+// parameter. Overlap guard lives in jobs/ (T11). See ARCHITECTURE.md 6.6.
 import { bestMember } from "./election.ts";
 import { prunePassages } from "./arrivals.ts";
 import { endTrip } from "./ping.ts";

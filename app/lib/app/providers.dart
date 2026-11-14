@@ -1,6 +1,6 @@
 // Riverpod providers wiring features to data. Side effects live in
 // controllers, not widgets. Providers are overridable in tests.
-// See PLAN.md 14.3.
+// See ARCHITECTURE.md 14.3.
 import 'dart:async';
 import 'dart:convert';
 
@@ -26,7 +26,9 @@ import 'package:pontual/domain/learning/learned_stop.dart';
 import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/ui/models/features.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -371,7 +373,7 @@ class LastLive extends Notifier<LiveLines> {
 final NotifierProvider<LastLive, LiveLines> lastLiveProvider =
     NotifierProvider<LastLive, LiveLines>(LastLive.new);
 
-/// Minimum gap between /v1/live calls (PLAN.md 9.5 S03).
+/// Minimum gap between /v1/live calls (ARCHITECTURE.md 9.5 S03).
 const Duration liveRefreshMinGap = Duration(seconds: 10);
 
 /// Coordinates live-lines refreshes for the open, resumed and
@@ -523,8 +525,17 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
       },
     );
     ref.onDispose(() {
-      unawaited(repo.stop());
+      unawaited(repo.stop().then((_) => repo.dispose()));
     });
     return repo;
   },
 );
+
+/// Read-only access to the active trip's latest accepted in-memory fix, for
+/// display reuse only (never persisted, logged, or sent). Returns null when
+/// no trip runs or before the first accepted fix. Overridable in tests with
+/// a fake fix reader.
+final Provider<TripFix? Function()> liveTripFixReaderProvider =
+    Provider<TripFix? Function()>((Ref ref) {
+      return () => ref.read(tripHostProvider)?.lastFix;
+    });

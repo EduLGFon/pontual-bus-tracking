@@ -1,6 +1,6 @@
 // Remote flags from config.json. Bundled copy first, cached copy next,
 // remote refresh at most daily. Maintenance and forced-update screens never
-// block timetables: cached data stays usable. See PLAN.md S13 and T23.
+// block timetables: cached data stays usable. See ARCHITECTURE.md S13 and T23.
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

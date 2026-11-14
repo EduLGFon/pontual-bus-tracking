@@ -1,56 +1,45 @@
-# Welcome to your Expo app 👋
+# Pontual (React Native / Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Second client for Pontual, talking to the unchanged Deno backend. Working dir `rn/`. Source of truth: root `ARCHITECTURE.md`, `DECISIONS.md`, root `AGENTS.md`. Companion plan: `docs/ui/UI_SPEC.md`. Parity inventory: `RN_RECREATION_ARCHITECTURE.md`.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   bun install
-   ```
-
-2. Start the app
-
-   ```bash
-   bunx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Get started (Bun)
 
 ```bash
-bun run reset-project
+bun install
+bunx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Open in a development build (not Expo Go): `bunx expo run:android` or `bunx expo run:ios`.
 
-### Other setup steps
+## Commands
 
-- To set up ESLint for linting, run `bunx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+bunx expo install <package>   # resolves SDK-compatible versions
+bunx expo lint                # lint
+bunx tsc --noEmit             # typecheck
+bunx expo-doctor              # diagnose deps/config
+bunx expo install --fix       # fix incompatible versions
+```
 
-## Learn more
+Run lint + typecheck before declaring any task done.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Structure
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Routes: `src/app/` (Expo Router file-based). Every file is a screen; `_layout.tsx` defines navigators. Keep non-route code outside `src/app/`.
+- Non-route code: `src/{core,data,domain,features,platform,ui,app}/`.
+- Config: `app.json`, `app.config.ts`. Env via `EXPO_PUBLIC_*` baked at build time.
 
-## Join the community
+## Rules (rn/)
 
-Join our community of developers creating universal apps.
+- Expo ships breaking changes each SDK. Read `expo` major in `package.json`, fetch matching docs at `https://docs.expo.dev/versions/v<major>.0.0/`, and `https://docs.expo.dev/llms.txt`. Never answer Expo/RN API questions from memory.
+- Native dirs (`ios/`, `android/`) are generated (CNG). Never create/edit by hand; configure in `app.json` + config plugins.
+- After adding a lib with native code, use a dev build (`bunx expo run:ios|android` or `eas build --profile development`); Expo Go lacks it.
+- Prefer recommended Expo modules over third-party; check available skills before adding deps.
+- EAS: `bunx eas-cli <command>` (or `npx eas-cli@latest`). Docs: `https://docs.expo.dev/eas/index.md`.
+- Env: `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_STATIC_BASE_URL`, `EXPO_PUBLIC_MAPTILER_KEY`, `EXPO_PUBLIC_APP_VERSION`.
+- No analytics/crash reporting/ads/Firebase/local DB/codegen (ARCHITECTURE.md 15). No `react-native-maps`, Mapbox, Google Maps.
+- Keep user-visible strings pt-BR; code/comments/docs English. No em dashes.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Nav
+
+Import `Link`, `router`, `useLocalSearchParams` from `expo-router`. Docs: `https://docs.expo.dev/router/introduction.md`.

@@ -1,16 +1,15 @@
 // LineRow: compact list row for the lines list. Badge, title, one status
 // line that always exists, and a star toggle. Light divider rows, no heavy
 // cards, so more rows fit per screen. Times use tabular figures and never
-// touch the star. See docs/ui/UI_SPEC.md 5 and docs/ui/lines-redesign.md.
+// touch the star. See docs/ui/UI_SPEC.md 5 and docs/ui/UI_SPEC.md.
 import 'package:flutter/material.dart';
 import 'package:pontual/domain/line_category.dart';
-import 'package:pontual/ui/design/components/line_badge.dart';
-import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
+import 'package:pontual/ui/design/components/line_badge.dart';
+import 'package:pontual/ui/design/components/line_status_line.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
-import 'package:pontual/ui/models/certainty.dart';
 import 'package:pontual/ui/models/line_status.dart';
 import 'package:pontual/ui/models/line_vm.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -97,7 +96,10 @@ class LineRow extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 2),
-                        _statusLine(context),
+                        LineStatusLine(
+                          status: status,
+                          liveCount: line.liveVehicleCount,
+                        ),
                       ],
                     ),
                   ),
@@ -124,84 +126,6 @@ class LineRow extends StatelessWidget {
     );
   }
 
-  /// The single status line, styled by kind with tabular figures for times.
-  Widget _statusLine(BuildContext context) {
-    final LineStatus current = status;
-    switch (current.kind) {
-      case LineStatusKind.live:
-        final int count = line.liveVehicleCount;
-        final String text = count > 1
-            ? '${UiStrings.certaintyLive} · $count'
-            : UiStrings.certaintyLive;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const LiveDot(certainty: Certainty.live),
-            const SizedBox(width: Space.x1),
-            Flexible(
-              child: Text(
-                text,
-                style: context.text.label.copyWith(
-                  color: context.colors.liveText,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        );
-      case LineStatusKind.now:
-        return Text(
-          '${UiStrings.nextDeparture} ${current.time} · agora',
-          style: _tabular(context.text.label)
-              .copyWith(color: context.colors.primary),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LineStatusKind.imminent:
-        return Text(
-          '${UiStrings.nextDeparture} ${current.time} · '
-          'em ${current.minutes} min',
-          style: _tabular(context.text.label)
-              .copyWith(color: context.colors.primary),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LineStatusKind.upcoming:
-        final int minutes = current.minutes ?? 0;
-        final String countdown = minutes < 60
-            ? 'em $minutes min'
-            : 'em ${formatHours(minutes)}';
-        return Text(
-          '${UiStrings.nextDeparture} ${current.time} · $countdown',
-          style: _tabular(context.text.caption),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LineStatusKind.tomorrow:
-        return Text(
-          UiStrings.homeTomorrowAt(current.time ?? ''),
-          style: _tabular(context.text.caption),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LineStatusKind.noneToday:
-        return Text(
-          UiStrings.homeNoMoreToday,
-          style: context.text.caption,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LineStatusKind.noTimetable:
-        return Text(
-          UiStrings.linesNoTimetable,
-          style: context.text.caption,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-    }
-  }
-
   /// Full pt-BR sentence for screen readers.
   String _rowSemantics(String short) {
     final String linePart = short.isNotEmpty
@@ -225,13 +149,6 @@ class LineRow extends StatelessWidget {
     };
     final String fav = isFavorite ? ', favorita' : '';
     return '$head, $tail$fav.';
-  }
-
-  /// Tabular figures so countdown digits never jitter.
-  TextStyle _tabular(TextStyle base) {
-    return base.copyWith(
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
   }
 
   /// Spoken minutes for semantics.
