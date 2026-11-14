@@ -26,7 +26,9 @@ import 'package:pontual/domain/learning/learned_stop.dart';
 import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/ui/models/features.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -528,3 +530,12 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
     return repo;
   },
 );
+
+/// Read-only access to the active trip's latest accepted in-memory fix, for
+/// display reuse only (never persisted, logged, or sent). Returns null when
+/// no trip runs or before the first accepted fix. Overridable in tests with
+/// a fake fix reader.
+final Provider<TripFix? Function()> liveTripFixReaderProvider =
+    Provider<TripFix? Function()>((Ref ref) {
+      return () => ref.read(tripHostProvider)?.lastFix;
+    });

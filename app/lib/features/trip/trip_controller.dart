@@ -360,6 +360,11 @@ class TripController extends ChangeNotifier {
   /// vanishes mid-trip. Memory only, like the accuracy above.
   TripFix? _lastFix;
 
+  /// Read-only view of the latest accepted in-memory fix. For display reuse
+  /// only (e.g. the line screen viewer dot); never persisted, logged, or
+  /// sent by this path. Null off-trip or before the first accepted fix.
+  TripFix? get lastFix => _lastFix;
+
   /// Whether this trip already survived one spurious `gone`. At most one
   /// revive per trip, so a genuinely dead record still ends the trip.
   bool _revivedOnce = false;

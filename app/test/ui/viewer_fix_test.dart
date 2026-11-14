@@ -14,6 +14,7 @@ import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/features/line/my_stop_location.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -700,6 +701,99 @@ void main() {
     expect(fix.position, isNull);
     expect(fix.accuracyM, isNull);
     expect(fix.at, isNull);
+  });
+
+  test('adoptTripFix sets ready position, accuracy, and at', () {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.instant(),
+    );
+    addTearDown(container.dispose);
+
+    const TripFix fix = TripFix(
+      seq: 1,
+      lat: -18.72,
+      lng: -39.85,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 7,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: 12345,
+    );
+    container.read(viewerFixProvider.notifier).adoptTripFix(fix);
+
+    final ViewerFixState state = container.read(viewerFixProvider);
+    expect(state.status, ViewerFixStatus.ready);
+    expect(state.position, const LatLng(-18.72, -39.85));
+    expect(state.accuracyM, 7);
+    expect(state.at, DateTime.fromMillisecondsSinceEpoch(12345));
+  });
+
+  test('an older trip fix does not replace a newer direct fix', () async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.instant(),
+    );
+    addTearDown(container.dispose);
+
+    await container.read(viewerFixProvider.notifier).request();
+    final ViewerFixState prior = container.read(viewerFixProvider);
+    expect(prior.status, ViewerFixStatus.ready);
+
+    final TripFix older = TripFix(
+      seq: 2,
+      lat: -18.73,
+      lng: -39.86,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 5,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: prior.at!.millisecondsSinceEpoch - 1000,
+    );
+    container.read(viewerFixProvider.notifier).adoptTripFix(older);
+
+    final ViewerFixState after = container.read(viewerFixProvider);
+    expect(after.position, prior.position);
+    expect(after.accuracyM, prior.accuracyM);
+    expect(after.at, prior.at);
+  });
+
+  test('a coarse trip fix is ignored', () async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.instant(),
+    );
+    addTearDown(container.dispose);
+
+    await container.read(viewerFixProvider.notifier).request();
+    final ViewerFixState prior = container.read(viewerFixProvider);
+    expect(prior.status, ViewerFixStatus.ready);
+
+    final TripFix coarse = TripFix(
+      seq: 2,
+      lat: -18.73,
+      lng: -39.86,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 200,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: prior.at!.millisecondsSinceEpoch + 1000,
+    );
+    container.read(viewerFixProvider.notifier).adoptTripFix(coarse);
+
+    final ViewerFixState after = container.read(viewerFixProvider);
+    expect(after.position, prior.position);
+    expect(after.accuracyM, prior.accuracyM);
+    expect(after.at, prior.at);
   });
 
   testWidgets('the sheet shows the privacy copy and asks only on tap', (
