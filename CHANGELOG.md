@@ -4,6 +4,8 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- App deps: flutter_riverpod 3.5.0, go_router 18.1.4, permission_handler 13.0.2 with `compileSdk = 37`; wakelock_plus stays 1.8.0 (dbus 0.8 conflict with geolocator_linux). No Dart behavior change. See D114.
+- Server deps: Hono 4.13.18, postgres.js 4.1.1; lockfile-only, no API/behavior change. Full server suite 136 passed. See D114.
 - Line data: all active lines now live-capable; `pilot` stays the per-line live switch; inactive lines timetable-only. Bundle regenerated. No Dart/server/API change. See DECISIONS.md D113.
 - Database: PostgreSQL 18.6; Compose uses 18 volume layout; CI/README use 18.6; deploy preflight refuses unmigrated 16 data dir. Migrations + server suite pass on 18.6. See D112, docs/runbooks/docker.md.
 - Learning v2: every consenting organic trip contributes. Route cells/edges/sample counts, stop centroids, cumulative dwell/travel histograms now in PostgreSQL on a fixed grid; survives restarts. Aggregates from one sample with count; day/hour buckets use dwell/destination event, not trip start. Removes 5-trip device gate, `learning_min_route_trips`, `kMin`, terminus suppression, `LEARNING_PRIVACY_MODE`; rolling stat delete replaced by stop-lifecycle retention. See D109, docs/data-learning.md.
