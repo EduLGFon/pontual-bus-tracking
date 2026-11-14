@@ -853,6 +853,7 @@ Rules:
 5. Marker ages are computed locally: `ageNow = ageFromServer + (monotonicNow - receivedAt)`. Never use the device wall clock.
 6. A vehicle absent from the newest snapshot is removed (fade out <= 300 ms).
 7. Viewers never register or send a token.
+8. While a trip is active, the line screen reuses `TripController`'s latest accepted in-memory fix for the viewer dot instead of a second foreground GPS read. Reuse requires a fix no older than 2 minutes, newer than the current viewer fix, and within the viewer accuracy gate (120 m native, 200 m web); otherwise the existing direct one-shot path and 60 s refresh run unchanged. No new timer, stream, permission or coordinate sending.
 
 ### 8.9 Map specification
 
@@ -1043,7 +1044,7 @@ Short, friendly, second person (você), no jargon ("ping", "cluster", "líder" n
 
 1. Foreground service **only** during an active trip; stop it on any end path.
 2. Every reporting role samples at 5 s (owner directive); only offline-saver and paused drop to the slow 45 s cadence to save battery.
-3. Prefer _fewer, well-spaced_ radio wake-ups; do not add extra timers/polls. Viewer screens never poll while the socket is healthy.
+3. Prefer _fewer, well-spaced_ radio wake-ups; do not add extra timers/polls. Viewer screens never poll while the socket is healthy. On the line screen, an active trip's latest accepted in-memory fix is reused for the viewer dot before any new foreground GPS read (reuse requires a fix no older than 2 minutes, newer than the current viewer fix, and within the viewer accuracy gate: 120 m native, 200 m web); otherwise the existing direct one-shot path runs.
 4. No power wake locks and no `WAKE_LOCK` permission on Android. The trip screen may keep the screen on via `FLAG_KEEP_SCREEN_ON` when the rider opts in, and the foreground service keeps sharing with the screen off and the phone locked when it is off. On web the screen wake lock is used on the trip screen when the rider leaves it on. See D117.
 5. Trip screen: no map, no animation; the elapsed-time ticker pauses when the screen is off.
 6. Drop to `offlineSaver` quickly when offline (stop high-accuracy GPS).
