@@ -20,6 +20,7 @@ import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
 import 'package:pontual/ui/features/line/next_bus_card.dart';
+import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
 import 'package:pontual/ui/router/route_observer.dart';
@@ -27,6 +28,7 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../vehicle_test.dart' show FakeChannel;
+import 'viewer_fix_test.dart' show RecordingGateway, RecordingReader;
 
 /// Shareable line used by the live cases.
 /// Sizes the test view to a compact phone: the layout reads the size from
@@ -211,7 +213,7 @@ class _RecordingFixController extends ViewerFixController {
   }
 
   @override
-  Future<void> request({
+  Future<bool> request({
     bool force = false,
     bool silent = false,
     bool auto = false,
@@ -220,7 +222,19 @@ class _RecordingFixController extends ViewerFixController {
     if (force) {
       forced++;
     }
+    return true;
   }
+}
+
+/// Fix controller seeded with a ready fix for revoked-permission tests.
+class _ReadyFixController extends ViewerFixController {
+  @override
+  ViewerFixState build() => ViewerFixState(
+    status: ViewerFixStatus.ready,
+    position: const LatLng(-18.72, -39.85),
+    accuracyM: 10,
+    at: fixedNow.subtract(const Duration(seconds: 61)),
+  );
 }
 
 /// App with the line screen and the page observer attached, for route tests.
@@ -644,6 +658,74 @@ void main() {
     ticks.add(2);
     await tester.pump();
     expect(fix.requests, 2);
+  });
+
+  testWidgets('a revoked permission does not prompt on a background tick', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<int> ticks = StreamController<int>.broadcast();
+    addTearDown(ticks.close);
+    final RecordingGateway gateway = RecordingGateway()
+      ..checkResult = LocationPermissionState.denied;
+    final RecordingReader reader = RecordingReader();
+    final _ReadyFixController fix = _ReadyFixController();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerFixProvider.overrideWith(() => fix),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(reader.instant()),
+          viewerNowProvider.overrideWithValue(() => fixedNow),
+          vehicleTickProvider.overrideWith((Ref ref) => ticks.stream),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    ticks.add(1);
+    await tester.pump();
+
+    // The revoked grant is reported, never re-requested, and the old fix
+    // stays on screen.
+    expect(gateway.servicesReads, 1);
+    expect(gateway.checks, 1);
+    expect(gateway.requests, 0);
+    expect(reader.calls, 0);
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    expect(map.viewerPosition, isNotNull);
+  });
+
+  testWidgets('timetable-only lines do not acquire viewer location', (
+    WidgetTester tester,
+  ) async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[timetableLine],
+            const <int, List<ClientVehicle>>{10: <ClientVehicle>[]},
+          ),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(reader.instant()),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'ten')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(gateway.servicesReads, 0);
+    expect(gateway.checks, 0);
+    expect(gateway.requests, 0);
+    expect(reader.calls, 0);
   });
 
   testWidgets('page cover pauses the viewer stream and return resumes it', (

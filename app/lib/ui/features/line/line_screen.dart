@@ -180,13 +180,13 @@ class _LineScreenState extends ConsumerState<LineScreen>
       return const LineNotFound();
     }
     _staticLine = staticLine;
-    _scheduleAutoViewerFix();
-    // Reuses the existing 5 s vehicle tick; no new timer or position
-    // stream. The handler throttles itself to one refresh per minute.
-    ref.listen<AsyncValue<int>>(vehicleTickProvider, (_, _) {
-      _onVehicleTick();
-    });
     if (staticLine.pilot) {
+      // Reuses the existing 5 s vehicle tick; no new timer or position
+      // stream. The handler throttles itself to one refresh per minute.
+      ref.listen<AsyncValue<int>>(vehicleTickProvider, (_, _) {
+        _onVehicleTick();
+      });
+      _scheduleAutoViewerFix();
       _startStream(staticLine.id);
     }
     final bool dataSaver = ref.watch(settingsProvider).dataSaver;
@@ -532,10 +532,16 @@ class _LineScreenState extends ConsumerState<LineScreen>
     )) {
       return;
     }
-    _viewerRefreshAt = now;
-    unawaited(
-      ref.read(viewerFixProvider.notifier).request(force: true, silent: true),
-    );
+    unawaited(_refreshViewerOnTick(now));
+  }
+
+  Future<void> _refreshViewerOnTick(DateTime now) async {
+    final bool started = await ref
+        .read(viewerFixProvider.notifier)
+        .request(force: true, silent: true, auto: true);
+    if (started) {
+      _viewerRefreshAt = now;
+    }
   }
 
   /// Invalidates the personal arrival data after a refresh request.
@@ -568,7 +574,14 @@ class _LineScreenState extends ConsumerState<LineScreen>
     if (!mounted) {
       return;
     }
-    _mapKey.currentState?.centerOnViewer();
+    // The refresh updates the fix state, but the map widget still holds
+    // the old viewerPosition until the next build. Defer the second
+    // recenter to a post-frame callback so it reads the rebuilt value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapKey.currentState?.centerOnViewer();
+      }
+    });
   }
 
   /// Selects a vehicle and drags the sheet back to peek.

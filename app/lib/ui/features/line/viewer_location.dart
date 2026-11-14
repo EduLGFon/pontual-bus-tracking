@@ -174,14 +174,14 @@ class ViewerFixController extends Notifier<ViewerFixState> {
       return;
     }
     if (already) {
-      // A later automatic attempt may still reuse an existing grant, but
-      // it must never show permission UI again. Native can check without
-      // prompting; the browser cannot, so it waits for an explicit tap.
-      if (ref.read(viewerIsWebProvider) ||
-          state.status != ViewerFixStatus.idle) {
+      // A later automatic attempt may still reuse an existing grant. Native
+      // checks silently, so a denied grant never prompts again; the web
+      // cannot query permission first, so it attempts a reuse and only
+      // prompts when the browser requires it.
+      if (state.status != ViewerFixStatus.idle) {
         return;
       }
-      await request(auto: true);
+      await request(auto: !ref.read(viewerIsWebProvider));
       return;
     }
     if (state.status != ViewerFixStatus.idle) {
@@ -208,14 +208,15 @@ class ViewerFixController extends Notifier<ViewerFixState> {
   /// previous state instead of exposing an error, so the dot and the card
   /// survive a transient GPS or permission failure. [auto] marks a later
   /// automatic attempt: a missing grant is reported instead of prompting.
-  Future<void> request({
+  /// Returns true when a fix attempt actually started.
+  Future<bool> request({
     bool force = false,
     bool silent = false,
     bool auto = false,
   }) async {
     final ViewerFixState current = state;
     if (current.status == ViewerFixStatus.requesting) {
-      return;
+      return false;
     }
     final DateTime now = ref.read(viewerNowProvider)();
     final DateTime? at = current.at;
@@ -224,7 +225,7 @@ class ViewerFixController extends Notifier<ViewerFixState> {
         current.position != null &&
         at != null &&
         now.difference(at) < viewerFixTtl) {
-      return;
+      return false;
     }
     final ViewerFixState? previous = silent && current.position != null
         ? current
@@ -245,6 +246,7 @@ class ViewerFixController extends Notifier<ViewerFixState> {
     } on Object {
       state = previous ?? const ViewerFixState(status: ViewerFixStatus.error);
     }
+    return true;
   }
 
   /// Drops the fix and returns the flow to idle.
