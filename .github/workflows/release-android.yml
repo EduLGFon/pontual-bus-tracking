@@ -101,13 +101,26 @@ jobs:
           grep -q 'allowBackup="false"' "$MANIFEST"
           grep -q "android:debuggable" "$MANIFEST" && exit 1 || true
           echo "merged manifest audit: PASS"
-      - name: Size gate (AAB <= 15 MB)
+      - name: Download bundletool 1.18.3
+        working-directory: app
+        run: |
+          curl -fsSL -o /tmp/bundletool.jar https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  /tmp/bundletool.jar" | sha256sum -c
+      - name: Size gate (AAB download <= 15 MB)
         working-directory: app
         run: |
           AAB=$(find build/app/outputs/bundle/release -name "*.aab" | head -1)
-          SIZE=$(stat -c%s "$AAB")
-          echo "AAB $AAB size $SIZE bytes"
+          test -n "$AAB"
+          RAW=$(stat -c%s "$AAB")
+          echo "AAB $AAB raw size $RAW bytes"
+          rm -f /tmp/size-debug.keystore /tmp/size.apks
+          keytool -genkeypair -keystore /tmp/size-debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          java -jar /tmp/bundletool.jar build-apks --bundle="$AAB" --output=/tmp/size.apks --ks=/tmp/size-debug.keystore --ks-pass=pass:android --ks-key-alias=androiddebugkey --key-pass=pass:android
+          SIZE=$(java -jar /tmp/bundletool.jar get-size total --apks=/tmp/size.apks --dimensions=ABI | awk -F, '$1=="arm64-v8a" && $3+0 > max { max=$3+0 } END { print max+0 }')
+          echo "arm64 download size $SIZE bytes"
+          test "$SIZE" -gt 0
           test "$SIZE" -le 15728640
+          echo "size gate: PASS"
       - name: Size gate (universal APK <= 25 MB)
         working-directory: app
         run: |

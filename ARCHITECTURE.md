@@ -1467,7 +1467,7 @@ Engine (pure unit tests, fake clock):
 - **Battery:** `adb shell dumpsys batterystats --reset`, ride, then `dumpsys batterystats` / Battery Historian; compare to an idle baseline and to a reference navigation app with screen off.
 - **CPU/RAM/frames:** profile-mode build, Flutter DevTools (CPU, memory, performance overlay), `adb shell dumpsys meminfo <package>`, `adb shell dumpsys gfxinfo`.
 - **Startup:** `flutter run --profile --trace-startup` and `adb shell am start -W`.
-- **Size:** `flutter build appbundle --analyze-size`, `--target-platform android-arm64`; CI fails if the arm64 APK grows > 5 % between releases without an ADR.
+- **Size:** `flutter build appbundle --analyze-size`, `--target-platform android-arm64`; CI measures the arm64 download size from the AAB with pinned bundletool (1.18.3, SHA-256 verified) and fails above the §10.1 15 MB budget; review growth above 5 % between releases with an ADR.
 - **Latency:** simulator publishes a timestamped fix; viewer client logs receive time (both on one machine/NTP) -> p50/p95.
 
 ---
