@@ -678,8 +678,8 @@ class UiStrings {
   /// Web trip note when the rider turned the screen-on toggle off. It
   /// must not claim the display stays on.
   static const String webWakeOffNote =
-      'Tela sempre ligada desativada. Mantenha a tela ligada e esta página '
-      'visível para continuar compartilhando.';
+      'Tela ligada desativada. Mantenha a tela ligada e esta página visível '
+      'para continuar compartilhando.';
 
   /// Shown when the browser cannot hold a wake lock.
   static const String webWakeUnsupported =
