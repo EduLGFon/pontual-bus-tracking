@@ -1,6 +1,6 @@
 # Inventário de dados do Pontual
 
-Fonte: ARCHITECTURE.md 13.2. Atualizar a cada mudança no tratamento. Última revisão: 2026-11-12.
+Fonte: ARCHITECTURE.md 13.2. Atualizar a cada mudança no tratamento. Última revisão: 2026-11-13.
 
 | Dado | Finalidade | Onde | Retenção | Pessoal? |
 | ---- | ---------- | ---- | -------- | -------- |
@@ -19,6 +19,6 @@ Fonte: ARCHITECTURE.md 13.2. Atualizar a cada mudança no tratamento. Última re
 | Backups cifrados das tabelas | recuperação | fora do servidor | 30 dias | Sim (pseudônimo), cifrado |
 | Preferências locais (tema, consentimento, token) | uso do app | aparelho | até desinstalar ou apagar dados | Token é credencial, sem PII |
 | Recentes, atalhos casa/trabalho/escola, paradas, alertas, contador | atalhos e avisos | aparelho (`shared_preferences`) | até limpar ou apagar dados | Só no aparelho; nada vai ao servidor |
-| Localização do aparelho para achar o ponto mais próximo (leitura única, no aparelho) | estimar a chegada até o ponto da linha | memória do app | até 5 min na sessão; descartada ao sair | Sim (localização), não sai do aparelho |
+| Localização do aparelho para achar o ponto mais próximo (leituras automáticas em primeiro plano enquanto a tela da linha está aberta) | estimar a chegada até o ponto da linha | memória do app | fica na memória do app durante a sessão; a última leitura vale por 5 min; descartada ao sair | Sim (localização), não sai do aparelho |
 
 Nunca coletado: nome, e-mail, telefone, contatos, IMEI, identificadores de publicidade, apps instalados, fotos, microfone, histórico de viagens (não há histórico nem contador por aparelho). Quem só olha, sem compartilhar viagem e sem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo de aparelho usado contra abuso; a sinalização não é guardada junto desse código.

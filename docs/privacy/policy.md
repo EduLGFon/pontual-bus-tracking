@@ -26,7 +26,7 @@ Opt-out de agregados: em "Privacidade e dados". Vale para próximas viagens; nã
 
 Nunca coletamos: nome, e-mail, telefone, contatos, fotos, microfone, histórico de viagens, IMEI ou identificadores de publicidade. Quem só olha o mapa/horários, sem compartilhar viagem nem sinalizar, não cria registro. A primeira sinalização cria o mesmo código anônimo usado para limitar abuso; a sinalização não é guardada junto desse código.
 
-Leitura local opcional: na tela da linha, ao tocar "Ver quando chega no meu ponto", o app lê a posição do aparelho uma única vez, só no aparelho, para achar o ponto mais próximo da linha e estimar a chegada. Posição exata não é enviada nem guardada; a previsão pede só a linha e o ponto. Fica na memória do app por até 5 min, pode ser recusada; o app funciona sem ela.
+Leitura local opcional: na tela da linha, ao abrir em uma linha piloto, o app faz uma leitura automática em primeiro plano da posição do aparelho, só no aparelho, para achar o ponto mais próximo da linha e estimar a chegada; depois, enquanto a tela estiver aberta e o app em uso, com economia de dados desligada, atualiza no máximo uma vez por minuto. A posição exata não é enviada nem guardada; a previsão pede só a linha e o ponto. Fica na memória do app por até 5 min, pode ser recusada; o app funciona sem ela. O pedido do navegador/sistema é o único aviso de permissão na primeira vez.
 
 ## 3. Finalidades
 
@@ -40,8 +40,8 @@ Leitura local opcional: na tela da linha, ao tocar "Ver quando chega no meu pont
 
 - Compartilhar posição: consentimento (art. 7, I), dado a cada viagem no botão "Estou no ônibus". Revogável quando quiser nesta tela ou apagando dados.
 - Só olhar o mapa: nenhum dado seu coletado pelo app; registros de rede dos provedores seguem legítimo interesse (art. 7, IX).
-- Sinalizações: você escolhe enviar. Para espera ou acesso bloqueado, o app lê sua localização uma vez e envia só área ~150 m; posição exata não sai do aparelho. Base legal e texto final confirmados pelo responsável e advogado. A sinalização é pública e pode ser vista por outras pessoas.
-- Leitura local opcional: consentimento dado pelo toque em "Ver quando chega no meu ponto". Leitura única, fica no aparelho; nada enviado nem guardado. Base legal e texto final confirmados pelo responsável e advogado.
+- Sinalizações: você escolhe enviar. Para espera ou acesso bloqueado, o app lê sua localização uma vez e envia só área ~150 m; posição exata não sai do aparelho. Base legal e texto final pendentes de revisão do responsável e do advogado. A sinalização é pública e pode ser vista por outras pessoas.
+- Leitura local opcional: consentimento dado pela permissão de localização do navegador/sistema, pedida na primeira abertura da tela da linha piloto. Leitura em primeiro plano, fica no aparelho; nada enviado nem guardado. Base legal e texto final pendentes de revisão do responsável e do advogado.
 
 ## 5. Retenção
 

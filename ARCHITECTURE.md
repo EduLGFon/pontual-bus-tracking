@@ -738,7 +738,7 @@ JSON Schema validation, unique ids/codes/shorts, sorted times, UTF-8, size budge
 | Location | `geolocator` | foreground-service config on Android; `isMocked` |
 | Battery | `battery_plus` | level + charging only |
 | Prefs | `shared_preferences` | tiny key/values (consent version, device token, theme, data version) |
-| Wake lock (web/iOS) | `wakelock_plus` | only on the trip screen, web build |
+| Wake lock (web/iOS/Android trip toggle) | `wakelock_plus` | generalized to `app/lib/platform/screen_wake.dart`; web defaults on and stays toggleable; Android uses `FLAG_KEEP_SCREEN_ON` with no `WAKE_LOCK` permission or new dependency (D117) |
 | Links | `url_launcher` | open policy URL / mail |
 | Notifications permission | `permission_handler` (notification permission only, best-effort request at share time; injects no manifest permissions) | approved by ADR 2026-10-10 |
 | Polyline decode | tiny pure-Dart function (about 25 lines) | no package |
@@ -875,7 +875,7 @@ Rules:
 ### 8.12 Web/PWA specifics
 
 - Same code; `kIsWeb` branches isolated in `platform/web/`.
-- Sharing allowed only in **foreground**: request geolocation on tap; hold a **Screen Wake Lock** during a trip (battery cost: screen stays on - tell the user to lower brightness); if unsupported show text.
+- Sharing allowed only in **foreground**: request geolocation on tap; hold a **Screen Wake Lock** during a trip when the rider leaves it on (web defaults on and is toggleable; Android uses `FLAG_KEEP_SCREEN_ON` and defaults off so sharing continues with the screen off and the phone locked), battery cost: screen stays on - tell the user to lower brightness; if unsupported show text. The toggle can release the web wake lock while the banner stays honest (tab must stay open and visible).
 - Banner (always visible during a web trip): "Mantenha esta tela aberta e o celular desbloqueado." Pause/stop on `visibilitychange` hidden for > 60 s.
 - On visible after a hidden period, re-request the wake lock, request one high-accuracy one-shot, restart a dead/silent position stream, and let the accepted fix use normal ping pacing. Drop a queued fix already stale by delivery. Best-effort recovery, never background coverage.
 - If the hide lasted at least the server timeout (10 min default), show the first `gone` as an explicit timeout end instead of reviving with a stale fix. A shorter gap keeps the one-time revive path for a server restart or lost record. The client never ends the trip on its own.
@@ -1044,7 +1044,7 @@ Short, friendly, second person (você), no jargon ("ping", "cluster", "líder" n
 1. Foreground service **only** during an active trip; stop it on any end path.
 2. Every reporting role samples at 5 s (owner directive); only offline-saver and paused drop to the slow 45 s cadence to save battery.
 3. Prefer _fewer, well-spaced_ radio wake-ups; do not add extra timers/polls. Viewer screens never poll while the socket is healthy.
-4. No wake locks on Android. On web the screen wake lock is used **only** on the trip screen.
+4. No power wake locks and no `WAKE_LOCK` permission on Android. The trip screen may keep the screen on via `FLAG_KEEP_SCREEN_ON` when the rider opts in, and the foreground service keeps sharing with the screen off and the phone locked when it is off. On web the screen wake lock is used on the trip screen when the rider leaves it on. See D117.
 5. Trip screen: no map, no animation; the elapsed-time ticker pauses when the screen is off.
 6. Drop to `offlineSaver` quickly when offline (stop high-accuracy GPS).
 7. Don't hold the CPU awake for retries: backoff + jitter; no tight loops.
