@@ -9,11 +9,13 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:pontual/data/prefs/viewer_location_auto_request.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/features/line/my_stop_location.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// A gateway whose servicesOn throws, to verify request never gets stuck
 /// in requesting.
@@ -182,6 +184,10 @@ class _Launcher extends ConsumerWidget {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   ProviderContainer containerWithArgs(
     PermissionGateway gateway,
     Future<Position> Function() reader, {
@@ -212,6 +218,192 @@ void main() {
     expect(gateway.servicesReads, 0);
     expect(gateway.preciseReads, 0);
     expect(reader.calls, 0);
+  });
+
+  test(
+    'automatic request on first use asks once and persists the flag',
+    () async {
+      final RecordingGateway gateway = RecordingGateway()
+        ..checkResult = LocationPermissionState.denied
+        ..requestResult = LocationPermissionState.granted;
+      final RecordingReader reader = RecordingReader();
+      final ProviderContainer container = containerWithArgs(
+        gateway,
+        reader.instant(),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(viewerFixProvider.notifier).requestAutomatic();
+
+      expect(gateway.checks, 1);
+      expect(gateway.requests, 1);
+      expect(reader.calls, 1);
+      expect(container.read(viewerFixProvider).status, ViewerFixStatus.ready);
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(viewerLocationAutoRequestedKey), isTrue);
+    },
+  );
+
+  test('silent automatic request reuses an existing grant', () async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.instant(),
+    );
+    addTearDown(container.dispose);
+
+    await container.read(viewerFixProvider.notifier).requestAutomatic();
+
+    // Already granted: no OS prompt, but the fix is acquired silently.
+    expect(gateway.checks, 1);
+    expect(gateway.requests, 0);
+    expect(reader.calls, 1);
+    expect(container.read(viewerFixProvider).status, ViewerFixStatus.ready);
+  });
+
+  test('a denied automatic attempt is not repeated next session', () async {
+    final RecordingGateway firstGateway = RecordingGateway()
+      ..checkResult = LocationPermissionState.denied
+      ..requestResult = LocationPermissionState.denied;
+    final RecordingReader firstReader = RecordingReader();
+    final ProviderContainer first = containerWithArgs(
+      firstGateway,
+      firstReader.instant(),
+    );
+    addTearDown(first.dispose);
+
+    await first.read(viewerFixProvider.notifier).requestAutomatic();
+
+    expect(firstGateway.requests, 1);
+    expect(first.read(viewerFixProvider).status, ViewerFixStatus.denied);
+
+    // A new app session reads the persisted flag before asking again.
+    final RecordingGateway secondGateway = RecordingGateway()
+      ..checkResult = LocationPermissionState.denied;
+    final RecordingReader secondReader = RecordingReader();
+    final ProviderContainer second = containerWithArgs(
+      secondGateway,
+      secondReader.instant(),
+    );
+    addTearDown(second.dispose);
+
+    await second.read(viewerFixProvider.notifier).requestAutomatic();
+
+    // The later attempt may check silently, but never prompts again.
+    expect(secondGateway.servicesReads, 1);
+    expect(secondGateway.checks, 1);
+    expect(secondGateway.requests, 0);
+    expect(secondReader.calls, 0);
+    expect(second.read(viewerFixProvider).status, ViewerFixStatus.denied);
+  });
+
+  test('a later automatic attempt reuses a grant made in settings', () async {
+    final RecordingGateway firstGateway = RecordingGateway()
+      ..checkResult = LocationPermissionState.denied
+      ..requestResult = LocationPermissionState.denied;
+    final RecordingReader firstReader = RecordingReader();
+    final ProviderContainer first = containerWithArgs(
+      firstGateway,
+      firstReader.instant(),
+    );
+    addTearDown(first.dispose);
+    await first.read(viewerFixProvider.notifier).requestAutomatic();
+    expect(first.read(viewerFixProvider).status, ViewerFixStatus.denied);
+
+    // The rider later grants precise location in system settings.
+    final RecordingGateway secondGateway = RecordingGateway();
+    final RecordingReader secondReader = RecordingReader();
+    final ProviderContainer second = containerWithArgs(
+      secondGateway,
+      secondReader.instant(),
+    );
+    addTearDown(second.dispose);
+
+    await second.read(viewerFixProvider.notifier).requestAutomatic();
+
+    expect(secondGateway.checks, 1);
+    expect(secondGateway.requests, 0);
+    expect(secondReader.calls, 1);
+    expect(second.read(viewerFixProvider).status, ViewerFixStatus.ready);
+  });
+
+  test(
+    'a silent refresh keeps the previous position while in flight',
+    () async {
+      final RecordingGateway gateway = RecordingGateway();
+      final RecordingReader reader = RecordingReader();
+      final ProviderContainer container = containerWithArgs(
+        gateway,
+        reader.hanging(),
+      );
+      addTearDown(container.dispose);
+      final ViewerFixController controller = container.read(
+        viewerFixProvider.notifier,
+      );
+
+      final Future<void> first = controller.request();
+      for (int i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      reader.pending(0).complete(posOf(const LatLng(-18.72, -39.85), 10));
+      await first;
+      final ViewerFixState prior = container.read(viewerFixProvider);
+
+      final Future<void> refresh = controller.request(
+        force: true,
+        silent: true,
+      );
+      for (int i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      final ViewerFixState inFlight = container.read(viewerFixProvider);
+      expect(inFlight.status, ViewerFixStatus.requesting);
+      expect(inFlight.position, prior.position);
+      expect(inFlight.accuracyM, prior.accuracyM);
+      expect(inFlight.at, prior.at);
+
+      reader.pending(1).complete(posOf(const LatLng(-18.73, -39.86), 12));
+      await refresh;
+
+      final ViewerFixState done = container.read(viewerFixProvider);
+      expect(done.status, ViewerFixStatus.ready);
+      expect(done.accuracyM, 12);
+      expect(done.position, const LatLng(-18.73, -39.86));
+    },
+  );
+
+  test('a failed silent refresh restores the previous fix', () async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.hanging(),
+    );
+    addTearDown(container.dispose);
+    final ViewerFixController controller = container.read(
+      viewerFixProvider.notifier,
+    );
+
+    final Future<void> first = controller.request();
+    for (int i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    reader.pending(0).complete(posOf(const LatLng(-18.72, -39.85), 10));
+    await first;
+    final ViewerFixState prior = container.read(viewerFixProvider);
+
+    final Future<void> refresh = controller.request(force: true, silent: true);
+    for (int i = 0; i < 10; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    reader.pending(1).completeError(TimeoutException('slow fix'));
+    await refresh;
+
+    final ViewerFixState after = container.read(viewerFixProvider);
+    expect(after.status, ViewerFixStatus.ready);
+    expect(after.position, prior.position);
+    expect(after.at, prior.at);
   });
 
   test(

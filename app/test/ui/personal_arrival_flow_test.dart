@@ -15,6 +15,7 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'line_screen_test.dart' show pilotLine, liveBus, overridesFor;
+import 'viewer_fix_test.dart' show RecordingGateway, RecordingReader, posOf;
 
 class _FakeFixController extends ViewerFixController {
   @override
@@ -29,6 +30,48 @@ class _FakeFixController extends ViewerFixController {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  testWidgets('mount auto requests without opening the privacy sheet', (
+    tester,
+  ) async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final hanging = reader.hanging();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(hanging),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    for (int i = 0; i < 12; i++) {
+      await tester.pump();
+    }
+    await tester.pump(const Duration(milliseconds: 350));
+
+    // The OS grant is reused silently: no in-app sheet, no extra prompt,
+    // and the card shows the loading copy while the fix lands.
+    expect(gateway.checks, 1);
+    expect(gateway.requests, 0);
+    expect(reader.calls, 1);
+    expect(find.text(UiStrings.myStopPrivacyTitle), findsNothing);
+    expect(find.text(UiStrings.linePersonalPromptTitle), findsNothing);
+    expect(find.text(UiStrings.myStopLoading), findsOneWidget);
+
+    reader.pending(0).complete(posOf(const LatLng(-18.72, -39.85), 10));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester.widget<LineMap>(find.byType(LineMap)).viewerPosition,
+      isNotNull,
+    );
   });
 
   testWidgets('ready personal arrival shows card header and row', (
@@ -100,12 +143,21 @@ void main() {
   });
 
   testWidgets('no fix shows prompt and opens privacy sheet', (tester) async {
+    // The automatic attempt fails honestly (services off), so the prompt
+    // and its recovery sheet remain available.
+    final RecordingGateway gateway = RecordingGateway()
+      ..servicesOnResult = false;
+    final RecordingReader reader = RecordingReader();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overridesFor(
-          const <StaticLine>[pilotLine],
-          const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
-        ),
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(reader.instant()),
+        ],
         child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
       ),
     );

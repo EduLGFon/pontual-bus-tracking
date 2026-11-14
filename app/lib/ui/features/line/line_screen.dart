@@ -91,6 +91,16 @@ class _LineScreenState extends ConsumerState<LineScreen>
   /// them, unless the rider already took the camera.
   bool _initialFitHadVehicles = false;
 
+  /// True once the one automatic viewer-fix attempt was scheduled.
+  bool _autoFixScheduled = false;
+
+  /// False while the app is not resumed. Refreshes wait for resume.
+  bool _resumed = true;
+
+  /// Last refresh attempt, including the map focus tap. Null means the
+  /// loaded fix's own timestamp is the baseline.
+  DateTime? _viewerRefreshAt;
+
   @override
   void initState() {
     super.initState();
@@ -105,12 +115,14 @@ class _LineScreenState extends ConsumerState<LineScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _resumed = true;
       final StaticLine? line = _staticLine;
       if (_routeVisible && line != null && line.pilot) {
         _startStream(line.id);
       }
       return;
     }
+    _resumed = false;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       _stopStream();
@@ -168,6 +180,12 @@ class _LineScreenState extends ConsumerState<LineScreen>
       return const LineNotFound();
     }
     _staticLine = staticLine;
+    _scheduleAutoViewerFix();
+    // Reuses the existing 5 s vehicle tick; no new timer or position
+    // stream. The handler throttles itself to one refresh per minute.
+    ref.listen<AsyncValue<int>>(vehicleTickProvider, (_, _) {
+      _onVehicleTick();
+    });
     if (staticLine.pilot) {
       _startStream(staticLine.id);
     }
@@ -273,7 +291,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
               vehicles: vehicles,
               reports: reports,
               scrollController: controller,
-              viewer: ref.watch(viewerLocationProvider).value,
+              viewer: ref.watch(viewerFixProvider).position,
               initialTab: widget.tab,
               onTabChanged: _onTabChanged,
               onShowMap: _openMap,
@@ -331,7 +349,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
         vehicles: vehicles,
         reports: reports,
         scrollController: ScrollController(),
-        viewer: ref.watch(viewerLocationProvider).value,
+        viewer: ref.watch(viewerFixProvider).position,
         initialTab: widget.tab,
         showMapAction: false,
         onVehicleTap: (VehicleVM v) => _focus(v, map),
@@ -371,7 +389,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
       dashedRoute: !(_staticLine?.pilot ?? false),
       panned: _panned,
       selectedKey: _selectedKey,
-      viewerPosition: ref.watch(viewerLocationProvider).value,
+      viewerPosition: ref.watch(viewerFixProvider).position,
       personalStop: personal?.stopLat != null && personal?.stopLng != null
           ? latlong2.LatLng(personal!.stopLat!, personal.stopLng!)
           : null,
@@ -380,10 +398,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
           : UiStrings.myStopMapLabel(personal!.stopDistanceM!),
       controlsBottomPadding: controlsBottomPadding,
       onPan: () => setState(() => _panned = true),
-      onLocateViewer: () {
-        setState(() => _panned = false);
-        _mapKey.currentState?.centerOnViewer();
-      },
+      onLocateViewer: _locateViewer,
       onLocateBus: () {
         setState(() => _panned = false);
         _mapKey.currentState?.centerOnClosestBus();
@@ -481,9 +496,51 @@ class _LineScreenState extends ConsumerState<LineScreen>
     });
   }
 
+  /// Schedules the one automatic viewer-fix attempt after the first frame.
+  /// The controller owns the per-install flag and never opens the in-app
+  /// privacy sheet; the OS/browser prompt is the only first-use UI.
+  void _scheduleAutoViewerFix() {
+    if (_autoFixScheduled) {
+      return;
+    }
+    _autoFixScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(ref.read(viewerFixProvider.notifier).requestAutomatic());
+    });
+  }
+
+  /// Refreshes the viewer fix on the existing 5 s tick, at most once per
+  /// minute while the screen is visible, the app resumed and data saver
+  /// off. A tick with no held fix does nothing: only an explicit tap may
+  /// ask for permission again.
+  void _onVehicleTick() {
+    if (!mounted || !_routeVisible || !_resumed) {
+      return;
+    }
+    if (ref.read(settingsProvider).dataSaver) {
+      return;
+    }
+    final ViewerFixState fix = ref.read(viewerFixProvider);
+    final DateTime now = ref.read(viewerNowProvider)();
+    if (!viewerFixRefreshDue(
+      fix: fix,
+      now: now,
+      lastAttempt: _viewerRefreshAt,
+    )) {
+      return;
+    }
+    _viewerRefreshAt = now;
+    unawaited(
+      ref.read(viewerFixProvider.notifier).request(force: true, silent: true),
+    );
+  }
+
   /// Invalidates the personal arrival data after a refresh request.
   void _refreshPersonal(int lineId, PersonalArrivalVM? personal) {
-    if (ref.read(viewerFixProvider).status == ViewerFixStatus.ready) {
+    if (ref.read(viewerFixProvider).position != null) {
       unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
     } else {
       unawaited(showMyStopLocationSheet(context, ref));
@@ -492,6 +549,26 @@ class _LineScreenState extends ConsumerState<LineScreen>
     if (personal?.stopId != null) {
       ref.invalidate(etaProvider((lineId: lineId, stopId: personal!.stopId!)));
     }
+  }
+
+  /// Map "focus on viewer": recentre now, force a fresh fix, then recentre
+  /// again when it lands. The tap also restarts the 60 s refresh window so
+  /// the tick does not immediately duplicate this request.
+  void _locateViewer() {
+    setState(() => _panned = false);
+    _mapKey.currentState?.centerOnViewer();
+    _viewerRefreshAt = ref.read(viewerNowProvider)();
+    unawaited(_refreshViewerFromLocate());
+  }
+
+  Future<void> _refreshViewerFromLocate() async {
+    await ref
+        .read(viewerFixProvider.notifier)
+        .request(force: true, silent: true);
+    if (!mounted) {
+      return;
+    }
+    _mapKey.currentState?.centerOnViewer();
   }
 
   /// Selects a vehicle and drags the sheet back to peek.

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/api/dto.dart';
@@ -16,8 +17,10 @@ import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
+import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
 import 'package:pontual/ui/features/line/next_bus_card.dart';
+import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/ui/features/timetable/timetable_tab.dart';
 import 'package:pontual/ui/router/route_observer.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
@@ -181,6 +184,42 @@ class SlowStopRepo extends RecordingRepo {
   Future<void> stop() async {
     stops += 1;
     await stopGate.future;
+  }
+}
+
+/// Fix controller that records refresh calls without touching a gateway.
+class _RecordingFixController extends ViewerFixController {
+  _RecordingFixController(this.initial);
+
+  final ViewerFixState initial;
+
+  /// Calls to [request].
+  int requests = 0;
+
+  /// Calls to [request] with force.
+  int forced = 0;
+
+  /// Calls to [requestAutomatic].
+  int automatic = 0;
+
+  @override
+  ViewerFixState build() => initial;
+
+  @override
+  Future<void> requestAutomatic() async {
+    automatic++;
+  }
+
+  @override
+  Future<void> request({
+    bool force = false,
+    bool silent = false,
+    bool auto = false,
+  }) async {
+    requests++;
+    if (force) {
+      forced++;
+    }
   }
 }
 
@@ -475,7 +514,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(tester.takeException(), isNull);
     expect(find.byType(NextBusCard), findsOneWidget);
-    expect(find.text('Agora'), findsOneWidget);
+    // "Agora" is both the live ETA hero and the tab segment.
+    expect(find.text('Agora'), findsWidgets);
     expect(find.text(UiStrings.lineLiveCount(2)), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -503,6 +543,107 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(NextBusCard), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('viewer fix refreshes at most once per minute on the tick', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<int> ticks = StreamController<int>.broadcast();
+    addTearDown(ticks.close);
+    DateTime now = fixedNow;
+    final _RecordingFixController fix = _RecordingFixController(
+      ViewerFixState(
+        status: ViewerFixStatus.ready,
+        position: const LatLng(-18.72, -39.85),
+        accuracyM: 10,
+        at: fixedNow.subtract(const Duration(seconds: 61)),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerFixProvider.overrideWith(() => fix),
+          viewerNowProvider.overrideWithValue(() => now),
+          vehicleTickProvider.overrideWith((Ref ref) => ticks.stream),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(fix.requests, 0);
+
+    // The held fix is old enough: the first tick refreshes it.
+    ticks.add(1);
+    await tester.pump();
+    expect(fix.requests, 1);
+    expect(fix.forced, 1);
+
+    // Five seconds later the minute window still holds.
+    now = now.add(const Duration(seconds: 5));
+    ticks.add(2);
+    await tester.pump();
+    expect(fix.requests, 1);
+
+    // A minute after the attempt it refreshes again.
+    now = now.add(const Duration(seconds: 55));
+    ticks.add(3);
+    await tester.pump();
+    expect(fix.requests, 2);
+  });
+
+  testWidgets('map locate refreshes now and restarts the minute window', (
+    WidgetTester tester,
+  ) async {
+    final StreamController<int> ticks = StreamController<int>.broadcast();
+    addTearDown(ticks.close);
+    DateTime now = fixedNow;
+    final _RecordingFixController fix = _RecordingFixController(
+      ViewerFixState(
+        status: ViewerFixStatus.ready,
+        position: const LatLng(-18.72, -39.85),
+        accuracyM: 10,
+        at: fixedNow.subtract(const Duration(seconds: 61)),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerFixProvider.overrideWith(() => fix),
+          viewerNowProvider.overrideWithValue(() => now),
+          vehicleTickProvider.overrideWith((Ref ref) => ticks.stream),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    map.onLocateViewer();
+    await tester.pump();
+    expect(fix.requests, 1);
+    expect(fix.forced, 1);
+
+    // The tick right after the tap must not duplicate the refresh.
+    now = now.add(const Duration(seconds: 5));
+    ticks.add(1);
+    await tester.pump();
+    expect(fix.requests, 1);
+
+    // The window restarts from the tap, not from the old fix.
+    now = now.add(const Duration(seconds: 55));
+    ticks.add(2);
+    await tester.pump();
+    expect(fix.requests, 2);
   });
 
   testWidgets('page cover pauses the viewer stream and return resumes it', (

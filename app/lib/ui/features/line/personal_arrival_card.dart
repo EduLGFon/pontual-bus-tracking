@@ -54,7 +54,8 @@ class PersonalArrivalCard extends StatelessWidget {
       return _promptCard(context);
     }
 
-    if (status == PersonalArrivalStatus.loadingStops) {
+    if (status == PersonalArrivalStatus.locating ||
+        status == PersonalArrivalStatus.loadingStops) {
       return Semantics(
         label: UiStrings.myStopLoading,
         excludeSemantics: true,
