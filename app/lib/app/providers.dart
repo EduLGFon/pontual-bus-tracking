@@ -27,8 +27,8 @@ import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/trip/location_service.dart';
-import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:pontual/ui/models/features.dart';
+import 'package:pontual/ui/shell/trip_host.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
