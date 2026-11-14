@@ -19,6 +19,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:pontual/data/prefs/viewer_location_auto_request.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
 import 'package:pontual/ui/util/platform.dart';
 
@@ -27,6 +28,10 @@ const Duration viewerFixTtl = Duration(minutes: 5);
 
 /// Background viewer-fix refresh interval on the existing vehicle tick.
 const Duration viewerFixRefreshInterval = Duration(seconds: 60);
+
+/// Maximum age of an active trip's in-memory fix reused for the viewer
+/// dot. Older fixes fall back to the direct viewer path.
+const Duration viewerTripFixMaxAge = Duration(minutes: 2);
 
 /// Web accuracy gate in meters. The browser cannot promise a precise fix,
 /// so the bar is coarser than on native.
@@ -252,6 +257,25 @@ class ViewerFixController extends Notifier<ViewerFixState> {
   /// Drops the fix and returns the flow to idle.
   void clear() {
     state = const ViewerFixState();
+  }
+
+  /// Adopts an already-accepted trip fix for in-memory display reuse. Sets
+  /// the state to ready with the position, accuracy and `at` (from
+  /// [TripFix.acceptedAtMs]). A fix no newer than the current fix is
+  /// ignored. Coordinates stay in memory only and are not sent by this path.
+  /// PRIVACY: never logged, persisted, or sent.
+  void adoptTripFix(TripFix fix) {
+    final ViewerFixState current = state;
+    if (current.at != null &&
+        fix.acceptedAtMs <= current.at!.millisecondsSinceEpoch) {
+      return;
+    }
+    state = ViewerFixState(
+      status: ViewerFixStatus.ready,
+      position: LatLng(fix.lat, fix.lng),
+      accuracyM: fix.accuracyM,
+      at: DateTime.fromMillisecondsSinceEpoch(fix.acceptedAtMs),
+    );
   }
 
   Future<void> _fix({required bool auto}) async {

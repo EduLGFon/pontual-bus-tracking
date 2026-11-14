@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/app/providers.dart';
+import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
@@ -508,7 +509,9 @@ class _LineScreenState extends ConsumerState<LineScreen>
       if (!mounted) {
         return;
       }
-      unawaited(ref.read(viewerFixProvider.notifier).requestAutomatic());
+      if (!_tryAdoptLiveTripFix()) {
+        unawaited(ref.read(viewerFixProvider.notifier).requestAutomatic());
+      }
     });
   }
 
@@ -523,6 +526,9 @@ class _LineScreenState extends ConsumerState<LineScreen>
     if (ref.read(settingsProvider).dataSaver) {
       return;
     }
+    if (_tryAdoptLiveTripFix()) {
+      return;
+    }
     final ViewerFixState fix = ref.read(viewerFixProvider);
     final DateTime now = ref.read(viewerNowProvider)();
     if (!viewerFixRefreshDue(
@@ -533,6 +539,31 @@ class _LineScreenState extends ConsumerState<LineScreen>
       return;
     }
     unawaited(_refreshViewerOnTick(now));
+  }
+
+  /// Tries to reuse the active trip's latest in-memory fix for the viewer
+  /// dot. Returns true when a fresh fix was adopted. Coordinates stay in
+  /// memory only and are not sent by this path.
+  bool _tryAdoptLiveTripFix() {
+    final TripFix? Function() reader = ref.read(liveTripFixReaderProvider);
+    final TripFix? fix = reader();
+    if (fix == null) {
+      return false;
+    }
+    final DateTime now = ref.read(viewerNowProvider)();
+    final DateTime fixAt = DateTime.fromMillisecondsSinceEpoch(
+      fix.acceptedAtMs,
+    );
+    if (now.difference(fixAt) > viewerTripFixMaxAge) {
+      return false;
+    }
+    final ViewerFixState current = ref.read(viewerFixProvider);
+    if (current.at != null &&
+        fix.acceptedAtMs <= current.at!.millisecondsSinceEpoch) {
+      return false;
+    }
+    ref.read(viewerFixProvider.notifier).adoptTripFix(fix);
+    return true;
   }
 
   Future<void> _refreshViewerOnTick(DateTime now) async {
@@ -546,10 +577,13 @@ class _LineScreenState extends ConsumerState<LineScreen>
 
   /// Invalidates the personal arrival data after a refresh request.
   void _refreshPersonal(int lineId, PersonalArrivalVM? personal) {
-    if (ref.read(viewerFixProvider).position != null) {
-      unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
-    } else {
-      unawaited(showMyStopLocationSheet(context, ref));
+    final bool adopted = _tryAdoptLiveTripFix();
+    if (!adopted) {
+      if (ref.read(viewerFixProvider).position != null) {
+        unawaited(ref.read(viewerFixProvider.notifier).request(force: true));
+      } else {
+        unawaited(showMyStopLocationSheet(context, ref));
+      }
     }
     ref.invalidate(learnedStopsProvider(lineId));
     if (personal?.stopId != null) {
@@ -563,7 +597,17 @@ class _LineScreenState extends ConsumerState<LineScreen>
   void _locateViewer() {
     setState(() => _panned = false);
     _mapKey.currentState?.centerOnViewer();
-    _viewerRefreshAt = ref.read(viewerNowProvider)();
+    final DateTime now = ref.read(viewerNowProvider)();
+    if (_tryAdoptLiveTripFix()) {
+      _viewerRefreshAt = now;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mapKey.currentState?.centerOnViewer();
+        }
+      });
+      return;
+    }
+    _viewerRefreshAt = now;
     unawaited(_refreshViewerFromLocate());
   }
 
