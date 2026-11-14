@@ -17,8 +17,10 @@ final personalArrivalProvider = Provider.autoDispose
     .family<PersonalArrivalVM, int>((Ref ref, int lineId) {
       final ViewerFixState fix = ref.watch(viewerFixProvider);
       if (fix.position == null) {
-        return const PersonalArrivalVM(
-          status: PersonalArrivalStatus.needsLocation,
+        return PersonalArrivalVM(
+          status: fix.status == ViewerFixStatus.requesting
+              ? PersonalArrivalStatus.locating
+              : PersonalArrivalStatus.needsLocation,
         );
       }
       final core.LatLng viewer = core.LatLng(

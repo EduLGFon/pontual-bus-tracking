@@ -166,6 +166,21 @@ void main() {
     expect(taps, 0);
   });
 
+  testWidgets('locating shows the loading copy, not the opt-in prompt', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        const PersonalArrivalCard(
+          vm: PersonalArrivalVM(status: PersonalArrivalStatus.locating),
+        ),
+      ),
+    );
+    expect(find.text(UiStrings.myStopLoading), findsOneWidget);
+    expect(find.text(UiStrings.linePersonalPromptTitle), findsNothing);
+    expect(find.text(UiStrings.myStopEnable), findsNothing);
+  });
+
   testWidgets('compact prompt title, body and action', (tester) async {
     int taps = 0;
     await tester.pumpWidget(
