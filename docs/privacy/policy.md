@@ -41,7 +41,7 @@ Leitura local opcional: na tela da linha, ao abrir em uma linha piloto, o app fa
 - Compartilhar posição: consentimento (art. 7, I), dado a cada viagem no botão "Estou no ônibus". Revogável quando quiser nesta tela ou apagando dados.
 - Só olhar o mapa: nenhum dado seu coletado pelo app; registros de rede dos provedores seguem legítimo interesse (art. 7, IX).
 - Sinalizações: você escolhe enviar. Para espera ou acesso bloqueado, o app lê sua localização uma vez e envia só área ~150 m; posição exata não sai do aparelho. Base legal e texto final pendentes de revisão do responsável e do advogado. A sinalização é pública e pode ser vista por outras pessoas.
-- Leitura local opcional: consentimento dado pela leitura automática ao abrir a tela da linha, com pedido do navegador/sistema na primeira vez. Leitura em primeiro plano, fica no aparelho; nada enviado nem guardado. Base legal e texto final pendentes de revisão do responsável e do advogado.
+- Leitura local opcional: consentimento dado pela permissão de localização do navegador/sistema, pedida na primeira abertura da tela da linha piloto. Leitura em primeiro plano, fica no aparelho; nada enviado nem guardado. Base legal e texto final pendentes de revisão do responsável e do advogado.
 
 ## 5. Retenção
 

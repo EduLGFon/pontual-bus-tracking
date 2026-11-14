@@ -65,7 +65,7 @@ Current web policy pauses sends after 60 s hidden (product policy, not platform 
 | Native iOS app | No | Yes, with Always auth | Core Location background updates |
 
 ## 4. Current implementation (foreground-only + gap recovery)
-- `TripScreen` requests wake lock while alive through `app/lib/platform/screen_wake.dart`, returns on `resumed`, re-requests on every visible transition. The rider can release the web wake lock with the keep-screen-on toggle while the banner stays honest about foreground-only sharing.
+- `TripScreen` requests wake lock while alive through `app/lib/platform/screen_wake.dart`, releases on dispose, and reacquires on resume only when the rider left it on. The rider can release the web wake lock with the keep-screen-on toggle while the banner stays honest about foreground-only sharing.
 - `WebVisibilityTracker` pauses after 60 s hidden; keeps hidden-since timestamp even if 5 s check timer frozen; reports real gap to controller on resume (`app/lib/platform/web/visibility.dart`).
 - `TripController.setWebHidden(true)` drops fixes while hidden. On visible, `recoverWebSharing` clears pause and asks `LocationService` for one high-accuracy one-shot; service restarts stream if dead/silent; one-shot emitted through normal filter (`trip_controller.dart`, `location_service.dart`).
 - Accepted fix uses `_nextPingAtMs` pacing; recovery does not bypass server interval. `TripFix.acceptedAtMs` lets controller drop a fix queued across hide that would otherwise be published stale.

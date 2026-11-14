@@ -271,8 +271,8 @@ For vehicle + target downstream stop S:
    p50 for following stop, or `defaultDwellS`.
 5. Add partial time from vehicle position to next stop using cumulative
    along-route distance from the snapped vehicle position to the next stop, not
-   only the remainder of one polyline segment, at current speed, capped at twice
-   historic segment rate.
+   only the remainder of one polyline segment, at current speed. The 0.5-2.0
+   factor applies to historical segments only.
 6. `passed` requires route geometry and the vehicle clearly past the target,
    with a 30 m tolerance.
 7. Return `{ etaS, confidence, sampleCount, method }`. Confidence reflects data

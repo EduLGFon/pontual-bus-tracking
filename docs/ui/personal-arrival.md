@@ -22,8 +22,8 @@ Non-goals: routing, geocoding, stop picker, push notifications, background locat
 3. `learnedStopsProvider(lineId)`: existing, returns line direction-0 learned stops.
 4. `etaProvider((lineId, stopId))`: existing, calls server ETA endpoint. Refreshed by invalidation at most every 10 s while line screen visible and not in data saver. No timer/poll loop; reuses existing `vehicleTickProvider` (5 s, pauses off-foreground).
 5. Viewer fix refresh: while the line screen is open and the app is resumed and data saver is off, the fix refreshes at most every 60 s on the existing 5 s vehicle tick (no new timer, no position stream, no background location). The map focus-on-viewer control forces a fresh fix immediately, recenters immediately and again after the new fix lands, and resets the 60 s window. An in-flight refresh keeps the previous position visible; a silent failure keeps the old fix until the existing 5 minute staleness rule; a refresh never prompts.
-5. `personalArrivalProvider(lineId)`: composes fix, stops, vehicles and ETA into one `PersonalArrivalVM`.
-6. Pure logic in `ui/adapters/personal_arrival.dart`: nearest stop, ETA mapping, approach filter, formatting. Unit tested with no widgets.
+6. `personalArrivalProvider(lineId)`: composes fix, stops, vehicles and ETA into one `PersonalArrivalVM`.
+7. Pure logic in `ui/adapters/personal_arrival.dart`: nearest stop, ETA mapping, approach filter, formatting. Unit tested with no widgets.
 
 Server ETA uses line active learned route and stops (direction 0). Client uses same stop list. Direction 1 buses may appear: keep only `Certainty.live` vehicles and filter vehicles whose heading points away from stop (bearing diff > 90 degrees). Stopped vehicles (speed < 1.5 km/h or unknown heading) are kept.
 
@@ -56,7 +56,7 @@ Only line id and stop id are sent. Coordinates never leave the device.
 | State | Visible copy key | Behavior |
 |---|---|---|
 | locating | `myStopLoading` | Automatic foreground fix in flight; shows the existing loading copy instead of the opt-in prompt. |
-| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt above tabs with title, opt-in body and "Ver quando chega no meu ponto"; tapping opens privacy sheet; used after a denied or failed automatic attempt when the rider retries. |
+| needsLocation | `myStopEnable` / `myStopPrivacy` | Compact prompt above tabs with title, opt-in body and "Ver quando chega no meu ponto"; tapping opens the recovery sheet after a denied or failed automatic attempt. |
 | loadingStops | `myStopLoading` | Fix ready, learned stops still loading. |
 | noStops | `myStopNoStops` | Fix ready, line has no learned stops. Honest muted card. |
 | noStopNear | `myStopNoStopNear` | Fix ready, no learned stop within 300 m. Honest muted card. |
@@ -101,7 +101,7 @@ Unit, card, map, location, row and flow test files:
 - `app/test/ui/personal_arrival_flow_test.dart`
 - `app/test/ui/line_screen_test.dart`
 
-Full suite result: `flutter test` in `app/` passed, 514 tests, 1 skipped. No device or field measurements taken.
+Full suite result: `flutter test` in `app/` passed, 610 tests, 1 skipped. No device or field verification.
 
 ## Limitations
 
@@ -121,7 +121,7 @@ Full suite result: `flutter test` in `app/` passed, 514 tests, 1 skipped. No dev
 - No server, schema or API contract change.
 - No coordinate logged, persisted or sent.
 - On first open of a pilot line, one automatic foreground fix request occurs; the reusable OS/browser permission prompt is the only first-use permission UI. After a denial automatic attempts never prompt again; explicit rider taps can retry.
-- Tapping prompt opens privacy sheet; OS/browser prompt only follows "Usar minha localização" tap.
+- The first pilot-line open makes the automatic foreground request; after a denial automatic attempts do not prompt again; explicit rider taps retry and the error recovery sheet remains available.
 - With granted precise fix and learned stops, card shows "Seu ponto"/"Ponto mais próximo" with ETA, confidence and stop distance.
 - With no stops, no live bus, no approach or ETA failure, card shows matching honest state and never fake number.
 - Map shows chosen stop with distinct marker; vehicle rows carry personal ETA labels.
