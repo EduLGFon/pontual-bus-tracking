@@ -18,8 +18,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:pontual/data/prefs/viewer_location_auto_request.dart';
 import 'package:pontual/features/map/tile_source.dart';
-import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/features/trip/location_service.dart';
+import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/platform/android/permission_gateway.dart';
 import 'package:pontual/ui/util/platform.dart';
 
@@ -265,6 +265,13 @@ class ViewerFixController extends Notifier<ViewerFixState> {
   /// ignored. Coordinates stay in memory only and are not sent by this path.
   /// PRIVACY: never logged, persisted, or sent.
   void adoptTripFix(TripFix fix) {
+    final bool web = ref.read(viewerIsWebProvider);
+    final double maxAccuracyM = web
+        ? viewerWebAccuracyMaxM
+        : viewerNativeAccuracyMaxM;
+    if (fix.accuracyM > maxAccuracyM) {
+      return;
+    }
     final ViewerFixState current = state;
     if (current.at != null &&
         fix.acceptedAtMs <= current.at!.millisecondsSinceEpoch) {

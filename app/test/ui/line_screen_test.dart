@@ -892,6 +892,105 @@ void main() {
     expect(reader.calls, 0);
   });
 
+  testWidgets('a stale trip fix falls back to the direct request', (
+    WidgetTester tester,
+  ) async {
+    final TripFix stale = TripFix(
+      seq: 1,
+      lat: -18.73,
+      lng: -39.86,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 5,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: fixedNow
+          .subtract(const Duration(minutes: 3))
+          .millisecondsSinceEpoch,
+    );
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(reader.instant()),
+          viewerNowProvider.overrideWithValue(() => fixedNow),
+          liveTripFixReaderProvider.overrideWithValue(() => stale),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(gateway.checks, greaterThan(0));
+    expect(reader.calls, greaterThan(0));
+  });
+
+  testWidgets('locate adopts a fresh trip fix without a direct request', (
+    WidgetTester tester,
+  ) async {
+    TripFix liveFix = TripFix(
+      seq: 1,
+      lat: -18.73,
+      lng: -39.86,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 5,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: fixedNow.millisecondsSinceEpoch,
+    );
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+          ),
+          viewerPermissionGatewayProvider.overrideWithValue(gateway),
+          viewerPositionReaderProvider.overrideWithValue(reader.instant()),
+          viewerNowProvider.overrideWithValue(() => fixedNow),
+          liveTripFixReaderProvider.overrideWithValue(() => liveFix),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    liveFix = TripFix(
+      seq: 2,
+      lat: -18.74,
+      lng: -39.87,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 4,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: fixedNow
+          .add(const Duration(seconds: 5))
+          .millisecondsSinceEpoch,
+    );
+
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    map.onLocateViewer();
+    await tester.pump();
+
+    final LineMap after = tester.widget<LineMap>(find.byType(LineMap));
+    expect(after.viewerPosition, const LatLng(-18.74, -39.87));
+    expect(gateway.checks, 0);
+    expect(gateway.requests, 0);
+    expect(reader.calls, 0);
+  });
+
   group('timetable tab', () {
     testWidgets('renders the three day types and the next departure hero', (
       WidgetTester tester,

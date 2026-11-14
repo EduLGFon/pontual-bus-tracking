@@ -764,6 +764,38 @@ void main() {
     expect(after.at, prior.at);
   });
 
+  test('a coarse trip fix is ignored', () async {
+    final RecordingGateway gateway = RecordingGateway();
+    final RecordingReader reader = RecordingReader();
+    final ProviderContainer container = containerWithArgs(
+      gateway,
+      reader.instant(),
+    );
+    addTearDown(container.dispose);
+
+    await container.read(viewerFixProvider.notifier).request();
+    final ViewerFixState prior = container.read(viewerFixProvider);
+    expect(prior.status, ViewerFixStatus.ready);
+
+    final TripFix coarse = TripFix(
+      seq: 2,
+      lat: -18.73,
+      lng: -39.86,
+      speedMps: 0,
+      heading: null,
+      accuracyM: 200,
+      batteryPct: 80,
+      charging: false,
+      acceptedAtMs: prior.at!.millisecondsSinceEpoch + 1000,
+    );
+    container.read(viewerFixProvider.notifier).adoptTripFix(coarse);
+
+    final ViewerFixState after = container.read(viewerFixProvider);
+    expect(after.position, prior.position);
+    expect(after.accuracyM, prior.accuracyM);
+    expect(after.at, prior.at);
+  });
+
   testWidgets('the sheet shows the privacy copy and asks only on tap', (
     WidgetTester tester,
   ) async {

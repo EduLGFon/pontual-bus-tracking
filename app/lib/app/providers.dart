@@ -531,12 +531,11 @@ final vehicleRepoProvider = Provider.autoDispose.family<VehicleRepository, int>(
   },
 );
 
-
 /// Read-only access to the active trip's latest accepted in-memory fix, for
 /// display reuse only (never persisted, logged, or sent). Returns null when
 /// no trip runs or before the first accepted fix. Overridable in tests with
 /// a fake fix reader.
 final Provider<TripFix? Function()> liveTripFixReaderProvider =
     Provider<TripFix? Function()>((Ref ref) {
-  return () => ref.read(tripHostProvider)?.lastFix;
-});
+      return () => ref.read(tripHostProvider)?.lastFix;
+    });
