@@ -395,6 +395,7 @@ void main() {
       );
       expect(find.text(UiStrings.webWakeOffNote), findsOneWidget);
       expect(find.text(UiStrings.webWakeNote), findsNothing);
+      expect(find.textContaining('Tela ligada desativada'), findsOneWidget);
       expect(find.textContaining('página visível'), findsOneWidget);
     });
   });
