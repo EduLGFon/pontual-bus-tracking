@@ -4,6 +4,8 @@ Format: Keep a Changelog. Current app version: `0.3.1`.
 
 ## [Unreleased] - 0.3.1
 
+- Learning: fixed corridor persistence by sending route cells/edges as a `sql.json` array parameter instead of a stringified array, and fixed 5 s stationary stop detection by running dwell tracking before the corridor downsample return, so learned route polylines, corridor rows and learned stops now populate. Regression tests cover real-PostgreSQL corridor persistence and 5 s stop detection; past trips cannot be replayed, only future trips contribute.
+
 - App deps: flutter_riverpod 3.5.0, go_router 18.1.4, permission_handler 13.0.2 with `compileSdk = 37`; wakelock_plus stays 1.8.0 (dbus 0.8 conflict with geolocator_linux). No Dart behavior change. See D114.
 - Server deps: Hono 4.13.18, postgres.js 4.1.1; lockfile-only, no API/behavior change. Full server suite 136 passed. See D114.
 - CI: release size gate measures arm64 download size with pinned bundletool instead of raw AAB bytes; the 15 MB budget passes at about 9 MB. See D115.

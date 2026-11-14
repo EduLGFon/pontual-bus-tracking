@@ -108,6 +108,9 @@ export function fakeSql(): FakeDb {
 
   const keyOf = (...parts: Array<string | number>) => parts.join(":");
   const jsonRows = <T>(values: unknown[]): T[] => {
+    // sql.json sends an array parameter; older callers stringified it.
+    const array = values.find((v) => Array.isArray(v));
+    if (array !== undefined) return array as T[];
     const raw = values.find((v) =>
       typeof v === "string" && v.trimStart().startsWith("[")
     );
@@ -578,5 +581,9 @@ export function fakeSql(): FakeDb {
   (fn as unknown as {
     begin: (cb: (tx: Sql) => Promise<unknown>) => Promise<unknown>;
   }).begin = (cb) => cb(fn);
+  // postgres.js serializes this to a jsonb parameter; the fake keeps the
+  // value so jsonRows can read the row array back.
+  (fn as unknown as { json: (value: unknown) => unknown }).json = (value) =>
+    value;
   return { sql: fn, queries };
 }

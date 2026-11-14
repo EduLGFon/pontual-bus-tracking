@@ -515,6 +515,44 @@ Deno.test("a short trip keeps its middle dwell despite the trim", async () => {
   );
 });
 
+Deno.test("stationary fixes at 5 s cadence still create a stop and dwell bin", async () => {
+  // Production defaults: 20 m / 10 s corridor spacing. A stopped bus at the
+  // app's 5 s cadence is downsampled on every fix, but dwells must still be
+  // recorded. This failed when downsampling returned before dwell tracking.
+  const cfg = { ...defaultLearningConfig(), trimEndsS: 0 };
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  const t0 = 4_000_000;
+  const points: TripPoint[] = [];
+  for (let i = 0; i <= 4; i++) {
+    points.push({ tMs: t0 + i * 10_000, ...at(i * 50), speedMps: 10 });
+  }
+  // 5 s stationary fixes at the last moving position: dd = 0 and dt = 5 s,
+  // so each one is a downsample candidate.
+  for (let i = 1; i <= 4; i++) {
+    points.push({ tMs: t0 + 40_000 + i * 5000, ...at(200), speedMps: 0 });
+  }
+  runTrip(
+    consumer,
+    14,
+    "stationary-trip",
+    points,
+    { consentVersion: 2 },
+    clock,
+  );
+  await consumer.flush();
+
+  assert(
+    queries.some((q) => q.text.includes("insert into learned_stops")),
+    "expected a learned stop from stationary fixes",
+  );
+  assert(
+    queries.some((q) => q.text.includes("insert into learning_dwell_bins")),
+    "expected a dwell bin from stationary fixes",
+  );
+});
+
 const TEST_DB = Deno.env.get("TEST_DATABASE_URL");
 
 Deno.test({
@@ -540,6 +578,64 @@ Deno.test({
       assertEquals(route?.trips, 7);
     } finally {
       await sql`delete from learned_routes where line_id = ${lineId}`;
+      await sql.end();
+    }
+  },
+});
+
+Deno.test({
+  name: "one moving trip persists corridor rows and publishes a route",
+  ignore: !TEST_DB,
+  fn: async () => {
+    const sql = openDb(TEST_DB!);
+    const lineId = 990_002;
+    const cleanUp = async () => {
+      await sql`delete from learned_routes where line_id = ${lineId}`;
+      await sql`delete from learning_route_cells where line_id = ${lineId}`;
+      await sql`delete from learning_route_edges where line_id = ${lineId}`;
+      await sql`delete from learning_route_state where line_id = ${lineId}`;
+    };
+    try {
+      await cleanUp();
+      const clock = { now: 0 };
+      const consumer = consumerFor(testConfig({ trimEndsS: 0 }), sql, clock);
+      runTrip(
+        consumer,
+        lineId,
+        "db-corridor-trip",
+        path(0, 400, 5_000_000),
+        { consentVersion: 2 },
+        clock,
+      );
+      await consumer.flush();
+
+      const cells = await sql`
+        select count(*)::int as n from learning_route_cells
+        where line_id = ${lineId}
+      ` as unknown as Array<{ n: number }>;
+      assert(cells[0].n > 0, `route cells were ${cells[0].n}`);
+
+      const edges = await sql`
+        select count(*)::int as n from learning_route_edges
+        where line_id = ${lineId}
+      ` as unknown as Array<{ n: number }>;
+      assert(edges[0].n > 0, `route edges were ${edges[0].n}`);
+
+      const state = await sql`
+        select sample_trips from learning_route_state
+        where line_id = ${lineId}
+      ` as unknown as Array<{ sample_trips: number }>;
+      assertEquals(state.length, 1);
+      assertEquals(state[0].sample_trips, 1);
+
+      const routes = await sql`
+        select status, sample_trips from learned_routes
+        where line_id = ${lineId} and status = 'active'
+      ` as unknown as Array<{ status: string; sample_trips: number }>;
+      assertEquals(routes.length, 1);
+      assertEquals(routes[0].sample_trips, 1);
+    } finally {
+      await cleanUp();
       await sql.end();
     }
   },

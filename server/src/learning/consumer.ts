@@ -276,6 +276,29 @@ export class LearningConsumer {
     const last = work.samples[work.samples.length - 1];
     const dt = e.atMs - last.t;
     const dd = distM(last.lat, last.lng, e.lat, e.lng);
+
+    // Dwell detection runs for every accepted fix, before the corridor
+    // downsample decision. At the app's 5 s stationary cadence a stopped bus
+    // produces dd < minSampleSpacingM and dt < minSampleSpacingS on every
+    // fix, so a downsample early return here would discard every dwell.
+    if (e.speedMps < this.config.stopSpeedMps) {
+      const lastDwell = work.dwells[work.dwells.length - 1];
+      if (
+        lastDwell &&
+        e.atMs - lastDwell.endMs < this.config.minDwellS * 1000 + 5000
+      ) {
+        lastDwell.endMs = e.atMs;
+        // update centroid running (simple: keep first; recompute at flush)
+      } else {
+        work.dwells.push({
+          lat: e.lat,
+          lng: e.lng,
+          startMs: e.atMs,
+          endMs: e.atMs,
+        });
+      }
+    }
+
     if (
       dd < this.config.minSampleSpacingM &&
       dt < this.config.minSampleSpacingS * 1000
@@ -295,25 +318,6 @@ export class LearningConsumer {
     }
     work.samples.push({ t: e.atMs, lat: e.lat, lng: e.lng, speed: e.speedMps });
     work.totalDistanceM += dd;
-
-    // dwell detection: if speed below threshold, extend or start dwell
-    if (e.speedMps < this.config.stopSpeedMps) {
-      const lastDwell = work.dwells[work.dwells.length - 1];
-      if (
-        lastDwell &&
-        e.atMs - lastDwell.endMs < this.config.minDwellS * 1000 + 5000
-      ) {
-        lastDwell.endMs = e.atMs;
-        // update centroid running (simple: keep first; recompute at flush)
-      } else {
-        work.dwells.push({
-          lat: e.lat,
-          lng: e.lng,
-          startMs: e.atMs,
-          endMs: e.atMs,
-        });
-      }
-    }
   }
 
   private onTripEnded(e: Extract<EngineEvent, { kind: "tripEnded" }>): void {
@@ -676,7 +680,7 @@ export class LearningConsumer {
          first_seen_at, last_seen_at)
       select ${trip.lineId}, ${trip.direction}, x.cell_key, x.lat, x.lng,
         1, now(), now()
-      from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+      from jsonb_to_recordset(${this.deps.sql.json(rows)}::jsonb)
         as x(cell_key text, lat double precision, lng double precision)
       on conflict (line_id, direction, cell_key) do update set
         lat = (learning_route_cells.lat * learning_route_cells.trips
@@ -706,7 +710,7 @@ export class LearningConsumer {
          first_seen_at, last_seen_at)
       select ${trip.lineId}, ${trip.direction}, x.from_cell, x.to_cell,
         1, now(), now()
-      from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+      from jsonb_to_recordset(${this.deps.sql.json(rows)}::jsonb)
         as x(from_cell text, to_cell text)
       on conflict (line_id, direction, from_cell, to_cell) do update set
         trips = learning_route_edges.trips + 1,
