@@ -1,6 +1,6 @@
 # DECISIONS.md
 
-Compacted decision index, current as of 2026-11-13. Full history in git. New decisions append to the relevant section. IDs stable and resolvable via "See DECISIONS.md#Dxx". ARCHITECTURE.md is the build contract. Statuses: Accepted, Proposed, Pending owner, Superseded.
+Compacted decision index, current as of 2026-11-16. Full history in git. New decisions append to the relevant section. IDs stable and resolvable via "See DECISIONS.md#Dxx". ARCHITECTURE.md is the build contract. Statuses: Accepted, Proposed, Pending owner, Superseded.
 
 ## 1. Conventions
 
@@ -79,7 +79,7 @@ Compacted decision index, current as of 2026-11-13. Full history in git. New dec
 - S3 (Done): flutter_map 8.3.2; 50 MB cache cap; OSM policy compliance.
 - S4 (Done): --wasm dual; skwasm beats CanvasKit; no service worker; wake lock needs HTTPS.
 
-## 6. Current status (2026-11-13)
+## 6. Current status (2026-11-16)
 
 - Alpha on owner VPS behind container-only Cloudflare Tunnel; API in container, no host port; static on GitHub Pages.
 - Server/client/web tests green; security suite passes no_location_at_rest.
@@ -133,7 +133,7 @@ Compacted decision index, current as of 2026-11-13. Full history in git. New dec
 - D-U30 (2026-10-12, Accepted): test suite slimmed 46 files to 28.
 - D-U31 (2026-10-12, Accepted): two map locate buttons (viewer dot, closest bus).
 
-## 9. Later decisions D29-D113
+## 9. Later decisions D29-D123
 
 - D29 (2026-10-10, Accepted): rate-limit strikes no longer end trips; fast streams sampled ~4 s.
 - <a id="D30"></a>D30 (2026-10-11, Accepted): anonymous momentum for ETA/prediction; amends D02 narrowly.
@@ -225,6 +225,10 @@ Compacted decision index, current as of 2026-11-13. Full history in git. New dec
 - D120 (2026-11-16, Accepted, owner directive): remove the 120 s per-end trim from the learning consumer. The client starts a trip on the rider tapping "Estou no ônibus" (first accepted fix) and ends it on "Desci" (last accepted fix), so those fixes are the boarding and alighting positions; the previous default of trimming 120 s from each end discarded exactly them and published learned route polylines visibly cut at both ends. The `learning_trim_ends_s` config key is kept for compatibility but its default becomes 0 (no trim): learned route geometry, stops and segment stats now cover the whole shared trip. An operator who already set an explicit positive override in `app_config` keeps that behavior, including the short-trip proportional rule (at most 10% per end, never the whole trip). The privacy contract is unchanged: aggregate-only grid cells/stops, no raw track, no new field, no device/trip id, no retention change; the trim only filtered which fixes fed the aggregates. Old corridors contain only cells from trimmed trips, so existing routes extend toward the real ends as new trips contribute. Lawyer/DPO review of the consent text and RIPD remains pending and is still a release gate. This supersedes the trim mitigation in D97 and the 120 s default in D109. Evidence: fake-SQL learning tests assert the published polyline reaches the boarding and alighting fixes within the 50 m grid cell and that an explicit positive override still trims; `deno fmt --check`, `deno lint`, `deno check src/main.ts` pass; DB-backed suites require TEST_DATABASE_URL and were not run in the change worktree.
 - D121 (2026-11-16, Accepted, owner directive): all active reporting roles (waiting, leaderMoving, leaderStill, follower) request LocationAccuracy.high at the 5 s cadence; offlineSaver and paused stay low at 45 s. Reason: Android balanced accuracy resolves on Wi-Fi/cell and often yields fixes above the 60 m publish gate, especially with the screen off; background stream recreation is forbidden (Android 14+ denies foreground-service starts from the background), so an adaptive accuracy recovery cannot be applied while the app is backgrounded. Active roles therefore keep GPS high for the whole shared trip. maxUpdateAge set to 10 s on active modes and 60 s on power modes (API 33+ fused path) to guard against historical fixes after sleep. Power modes stay low because they do not upload. No wake lock, no background-location permission, no new dependency, no manifest change. Supersedes D63's follower balanced-accuracy choice and the accuracy half of D64 (the coarse/degraded hysteresis for role switches remains), plus the D94 sentence that the degraded hold delays a high-to-balanced accuracy change. The ARCHITECTURE.md 10.1 battery budget is expected to regress while sharing and must be re-measured on device before release. On-device battery and screen-lock validation still pending; APK/manifest unaffected.
 
+- D122 (2026-11-16, Accepted): line map first-paint reliability and tile retry. Root cause: with no live vehicles the map fitted the whole service-area bounds, a wide low-detail view that fired a large OSM tile burst; throttled or failed tiles stayed blank until the next gesture, and the theme toggle did not reload them. Fix: with no vehicle and no route the camera opens at the city centre at zoom 13; a route fits its bounds with max zoom 15 and refits once when async route data arrives, using the stored sheet or panel padding, unless the user has panned; the theme toggle emits one bounded visible-tile reset; retry is 5 attempts at 2/4/8/16/30 s with a 60 s quiet window. No new dependency, manifest or permission change, prefetch, or third-party host; OSM attribution and caching stay unchanged. Evidence: full app suite, format and analyze clean; not field-tested against OSM throttling. See docs/ui/UI_SPEC.md 7.5.
+
+- D123 (2026-11-16, Accepted): direction arrows on live bus markers and route polylines. The old heading triangle was clipped (tip at radius+9 inside a 44 dp box) and low contrast; the marker box is now 60 dp and the arrowhead is line-colour fill with a surface outline, tip at radius+8, fitting the selected radius too. Route chevrons are placed every max(80 m, total/40), capped at 40, oriented along the ordered polyline, drawn above the line and below stops and vehicles, and are pointer-inert. No data, API or privacy change; heading publishing is unchanged. Evidence: pure placement and widget tests plus the full app suite; no device visual check.
+
 ## 10. ADRs
 
 - ADR (2026-10-26, Accepted): first-party diagnostics (opt-out, 14-day retention).
@@ -254,4 +258,4 @@ See section 5. All four spikes done 2026-10-02; device VERIFY items remain open.
 
 - Append-only. Newest entries go at the end of each section. See AGENTS.md 14.
 - Full history removed; see git log and CHANGELOG.md.
-- Compacted decision index; current as of 2026-11-14.
+- Compacted decision index; current as of 2026-11-16.
