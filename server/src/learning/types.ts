@@ -22,7 +22,11 @@ export interface LearningConfig {
 export const defaultLearningConfig = (): LearningConfig => ({
   enabled: true,
   minConsentVersion: 2,
-  trimEndsS: 120,
+  // 0 by default: the first and last accepted fixes are the boarding
+  // ("Estou no onibus") and alighting ("Desci") fixes, so learned routes must
+  // cover the whole shared trip. Operators can still set an explicit
+  // learning_trim_ends_s override in app_config.
+  trimEndsS: 0,
   flushIntervalS: 300,
   stopClusterRadiusM: 30,
   stopSpeedMps: 1.0,

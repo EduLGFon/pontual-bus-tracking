@@ -353,6 +353,10 @@ export class LearningConsumer {
       return;
     }
     const cfg = this.config;
+    // End trim is off by default: the first and last samples are the
+    // boarding and alighting fixes and must reach the published route,
+    // stops and segment stats. An explicit learning_trim_ends_s override
+    // still applies here.
     const kept = trimSamples(work.samples, cfg.trimEndsS);
     if (kept.length < 2) {
       recordLearningTripTooFewSamples();
@@ -1490,16 +1494,20 @@ function workingLng(stop: WorkingStop): number {
 }
 
 /**
- * Privacy trim. Normal trips drop trimEndsS from each end. A trip shorter
- * than 2*trimEndsS drops at most 10% per end, never the whole trip: a short
- * trip still contributes its stops and dwells. Falls back to all samples if
- * the proportional trim would leave fewer than 2.
+ * Optional end trim, off by default. The first and last accepted fixes are
+ * the boarding and alighting fixes, so with trimEndsS = 0 every sample is
+ * kept and the published route covers the whole shared trip. An explicit
+ * positive override drops trimEndsS from each end; a trip shorter than
+ * 2*trimEndsS drops at most 10% per end, never the whole trip: a short trip
+ * still contributes its stops and dwells. Falls back to all samples if the
+ * proportional trim would leave fewer than 2.
  */
 function trimSamples(
   samples: TripSample[],
   trimEndsS: number,
 ): TripSample[] {
   if (samples.length < 2) return samples;
+  if (trimEndsS <= 0) return samples;
   const first = samples[0].t;
   const last = samples[samples.length - 1].t;
   const durationMs = Math.max(0, last - first);
