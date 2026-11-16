@@ -29,19 +29,28 @@ const BBox fixArea = BBox(
 const int fixMaxAgeMs = 20000;
 
 /// Fix accuracy at or above which the signal counts as degraded for the
-/// downgrade guard. Well under the 60 m publish gate: this never drops
-/// a fix, it only keeps the faster GPS stream a little longer so the
-/// next good fix arrives sooner. See DECISIONS.md D64.
+/// role-switch hysteresis guard. All active roles request high accuracy
+/// for the whole trip (D121), so this threshold no longer changes accuracy;
+/// it only activates the longer 60 s role-switch guard so a stream is not
+/// rebuilt on brief coarse patches. See DECISIONS.md D64/D121.
 const double degradedAccuracyM = 40;
 
-/// Downgrade guard in milliseconds while the last accepted fix is
-/// degraded. Dropping from high accuracy to the balanced stream right
-/// when fixes turn coarse powers down GPS exactly when it is needed
-/// most; holding the high-accuracy stream up to 60 s costs a bounded
-/// amount of battery for more chances at a sub-60 m fix. Offline saver
-/// and paused keep the normal guard: with no uploads, faster GPS buys
-/// nothing.
+/// Guard in milliseconds while the last accepted fix is degraded: role
+/// switches wait this long instead of the normal 30 s window so a brief
+/// coarse patch does not churn the stream. Accuracy itself is no longer
+/// downgraded (all active roles are high, D121); this only delays the
+/// role change. Offline saver and paused keep the normal guard.
 const int degradedHoldMs = 60 * 1000;
+
+/// Maximum age of the first historical fix the fused provider may return
+/// when the position stream is created, on the Android 13+ (API 33+) fused
+/// path only: older Android ignores it. It bounds the initial historical
+/// location only, not every cycle.
+const Duration activeMaxUpdateAge = Duration(seconds: 10);
+
+/// [activeMaxUpdateAge] for the 45 s power modes: 60 s bounds the initial
+/// historical fix at stream creation. API 33+ fused path only.
+const Duration powerMaxUpdateAge = Duration(seconds: 60);
 
 /// One accepted fix ready to send.
 class TripFix {
@@ -186,7 +195,12 @@ LocationSettings oneShotSettingsFor() => const LocationSettings(
   timeLimit: oneShotFixTimeout,
 );
 
-/// Location settings per sampling mode.
+/// Location settings per sampling mode. Active roles (waiting, leaderMoving,
+/// leaderStill, follower) request high accuracy at 5 s: balanced accuracy on
+/// Android resolves on Wi-Fi/cell and produced fixes above the 60 m gate,
+/// and background stream recreation is forbidden, so they stay high for the
+/// whole trip. Power modes (offlineSaver, paused) stay low at 45 s because
+/// they do not upload. See D121.
 LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
   // The notification is ongoing and persistent: the foreground service
   // must survive screen-off and background on OEM skins that aggressively
@@ -203,46 +217,49 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
       // High accuracy: the waiting phase must engage the GPS receiver so
       // the first fix is a real GPS fix (sub-30 m) instead of a coarse
       // network fix. Medium/balanced accuracy (PRIORITY_BALANCED_POWER)
-      // can resolve on WiFi/cell towers, never turns on GPS (no GPS
-      // indicator), and yields fixes above the 60 m gate, which made the
-      // start stall the full 60 s window and then fail. The waiting window
-      // is bounded (<= 60 s) and short-lived, so the battery cost of high
-      // accuracy here is acceptable. See ARCHITECTURE.md 8.6.
+      // can resolve on WiFi/cell towers and often yields fixes above the
+      // 60 m gate; engaging GPS gives a real fix. See
+      // ARCHITECTURE.md 8.6.
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
+        maxUpdateAge: activeMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderMoving:
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
+        maxUpdateAge: activeMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.leaderStill:
-      // Owner directive: every role samples every 5 s. Balanced accuracy
-      // keeps battery below the high-accuracy moving stream; only the
-      // power modes (offline saver, paused) keep a slow cadence.
+      // Owner directive: every role samples every 5 s, and active roles
+      // keep GPS high for the whole trip so the screen-off stream still
+      // produces sub-60 m fixes. Balanced accuracy was producing fixes
+      // above the gate (see the function doc above).
       return AndroidSettings(
-        accuracy: LocationAccuracy.medium,
+        accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
+        maxUpdateAge: activeMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.follower:
-      // Balanced, not low power: follower fixes must pass the same 60 m
-      // gate as leader fixes, and low power (cell/WiFi, often 50 m to
-      // 1 km) starves followers exactly in weak-GPS areas where the
-      // next handover needs them. Cadence matches every other role at
-      // 5 s (owner directive). See D63.
+      // Owner directive: followers need the same sub-60 m fixes as leaders
+      // so handovers work in weak-GPS areas; low power (cell/WiFi, often
+      // 50 m to 1 km) starved followers. See D63 and D121. Active roles keep GPS
+      // high for the whole trip.
       return AndroidSettings(
-        accuracy: LocationAccuracy.medium,
+        accuracy: LocationAccuracy.high,
         intervalDuration: const Duration(seconds: 5),
+        maxUpdateAge: activeMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.offlineSaver:
       return AndroidSettings(
         accuracy: LocationAccuracy.low,
         intervalDuration: const Duration(seconds: 45),
+        maxUpdateAge: powerMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
     case SamplingMode.paused:
@@ -253,6 +270,7 @@ LocationSettings settingsFor(SamplingMode mode, String lineLabel) {
       return AndroidSettings(
         accuracy: LocationAccuracy.low,
         intervalDuration: const Duration(seconds: 45),
+        maxUpdateAge: powerMaxUpdateAge,
         foregroundNotificationConfig: notification,
       );
   }
@@ -784,13 +802,14 @@ class LocationService {
   /// Requests a mode switch honoring hysteresis for downgrades only.
   /// Recreates the underlying position stream when the mode actually
   /// changes so offline saver drops to low-power GPS. Upgrades to a faster
-  /// cadence or to high accuracy bypass hysteresis: a fresh leader must
-  /// reach high accuracy on the next fix, not after 30 s at the old
-  /// waiting rate. While the last accepted fix is degraded (at or above
+  /// cadence apply immediately: a fresh leader reaches its 5 s rate on the
+  /// next fix instead of stalling a full hysteresis window. While the last
+  /// accepted fix is degraded (at or above
   /// [degradedAccuracyM]) role-driven downgrades wait [degradedHoldMs]
-  /// instead of the normal window, so GPS stays powered through brief
-  /// coarse patches; offline saver and paused keep the normal guard
-  /// because faster GPS buys nothing with no uploads. A dead position
+  /// instead of the normal window, so a brief coarse patch does not churn
+  /// the stream; offline saver and paused keep the normal guard. The guard
+  /// only delays the role switch; it no longer changes accuracy, since all
+  /// active roles are high (D121). A dead position
   /// stream is recreated at most once per stall window, even for the same
   /// mode and inside hysteresis: the trip has no fixes until it does, but
   /// each recreation restarts the Android foreground service. A silent
