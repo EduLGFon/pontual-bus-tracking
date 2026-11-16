@@ -5,6 +5,12 @@ import { Hono } from "@hono/hono";
 import type { LineResolver } from "../data/lines.ts";
 import { arrivalsPayload } from "../domain/arrivals.ts";
 import { decodePolyline } from "../domain/geo.ts";
+import {
+  findStopGroup,
+  groupStops,
+  stopMergeRadiusM,
+} from "../domain/stops.ts";
+import type { StopGroup, StopMember } from "../domain/stops.ts";
 import { predictEta } from "../learning/predictor.ts";
 import { defaultEngineConfig } from "../domain/types.ts";
 import {
@@ -186,6 +192,8 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
   // or the subsystem is disabled.
   const learningPerIp = new RateLimiter(60, 60 * 1000);
   const learningEtaPerIp = new RateLimiter(120, 60 * 1000);
+  const stopsPerIp = new RateLimiter(60, 60 * 1000);
+  const stopsArrivalsPerIp = new RateLimiter(120, 60 * 1000);
 
   // Serve the active learned route's real direction. Without a route, use
   // the direction that has the most active learned stops.
@@ -207,6 +215,127 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     ]);
     const dir = one.length > zero.length ? 1 : 0;
     return { route, dir, stops: dir === 1 ? one : zero };
+  }
+
+  let stopGroupsCache: { atMs: number; groups: StopGroup[] } | null = null;
+  const stopGroupsTtlMs = 60 * 1000;
+
+  // Learned stops change slowly and HTTP clients cache for 300 s, so a 60 s
+  // in-process TTL bounds staleness while removing duplicate DB reads and
+  // repeated clustering across both stop endpoints.
+  async function loadStopGroups(): Promise<StopGroup[]> {
+    const learning = deps.learning;
+    if (!learning) return [];
+    const atMs = Date.now();
+    if (stopGroupsCache && atMs - stopGroupsCache.atMs < stopGroupsTtlMs) {
+      return stopGroupsCache.groups;
+    }
+    const all = await learning.allLearnedStops();
+    const members: StopMember[] = [];
+    for (const g of all) {
+      const line = deps.lines(g.lineId);
+      if (!line || !line.isActive) continue;
+      for (const s of g.stops) {
+        members.push({
+          id: s.id,
+          lineId: g.lineId,
+          direction: g.direction,
+          lat: s.lat,
+          lng: s.lng,
+          radiusM: s.radiusM,
+          passes: s.passes,
+        });
+      }
+    }
+    const groups = groupStops(members, stopMergeRadiusM);
+    stopGroupsCache = { atMs, groups };
+    return groups;
+  }
+
+  function stopRows(groups: readonly StopGroup[]) {
+    return groups.map((g) => ({
+      id: g.id,
+      lat: g.lat,
+      lng: g.lng,
+      r: g.radiusM,
+      n: g.passes,
+      lines: g.members.map((m) => ({
+        l: m.lineId,
+        d: m.direction,
+        s: m.id,
+      })),
+    }));
+  }
+
+  async function arrivalItems(group: StopGroup, nowMs: number) {
+    const learning = deps.learning;
+    if (!learning) return [];
+    const lcfg = learning.configSnapshot();
+    const items: Array<{
+      line: number;
+      code: string;
+      vehicle: number;
+      eta_s: number;
+      conf: string;
+      n: number;
+      m: string;
+    }> = [];
+    const distinctLines = [...new Set(group.members.map((m) => m.lineId))];
+    for (const lineId of distinctLines) {
+      const line = deps.lines(lineId);
+      if (!line || !line.isActive) continue;
+      const { route, dir: servedDir, stops } = await servingStops(
+        learning,
+        lineId,
+      );
+      // Direction safety: a member for the opposite direction is a different
+      // physical approach, so skip the line rather than pricing the wrong way.
+      const chosen = group.members.find(
+        (m) => m.lineId === lineId && m.direction === servedDir,
+      );
+      if (!chosen) continue;
+
+      const stopList = stops.map((s) => ({
+        id: s.id,
+        lat: s.lat,
+        lng: s.lng,
+      }));
+      if (!stopList.some((s) => s.id === chosen.id)) {
+        stopList.push({ id: chosen.id, lat: chosen.lat, lng: chosen.lng });
+      }
+
+      const routePts = route?.polyline
+        ? decodePolyline(route.polyline, 5)
+        : (line.route ? [...line.route.pts] : []);
+      const vehicles = [...deps.store.vehicles.values()].filter((v) =>
+        v.lineId === lineId
+      );
+      for (const v of vehicles) {
+        const res = await predictEta(
+          learning,
+          lcfg,
+          lineId,
+          servedDir,
+          v.lat,
+          v.lng,
+          v.paceMps,
+          chosen.id,
+          stopList,
+          routePts,
+          nowMs,
+        );
+        items.push({
+          line: lineId,
+          code: line.code ?? String(lineId),
+          vehicle: v.id,
+          eta_s: res.etaS,
+          conf: res.confidence,
+          n: res.sampleCount,
+          m: res.method,
+        });
+      }
+    }
+    return items;
   }
 
   app.get("/v1/lines/:id/learned-route", async (c) => {
@@ -412,6 +541,40 @@ export function buildReadRoutes(deps: ReadDeps): Hono<Vars> {
     }
     c.header("Cache-Control", "public, max-age=300");
     return c.json({ v: 1, routes: entries }, 200);
+  });
+
+  // Global learned stops: one merged list across all lines/directions.
+  app.get("/v1/stops", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!stopsPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      recordHttp429();
+      return c.json({ e: "rate" }, 429);
+    }
+    const groups = await loadStopGroups();
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({ v: 1, stops: stopRows(groups) }, 200);
+  });
+
+  // Predicted arrivals at one global (merged) stop.
+  app.get("/v1/stops/:id/arrivals", async (c) => {
+    if (!deps.learning || !deps.learning.isEnabled()) {
+      return c.json({ e: "not_found" }, 404);
+    }
+    if (!stopsArrivalsPerIp.hit(ipOf(c), Date.now())) {
+      c.header("Retry-After", "60");
+      recordHttp429();
+      return c.json({ e: "rate" }, 429);
+    }
+    const id = c.req.param("id");
+    const group = findStopGroup(await loadStopGroups(), id);
+    if (!group) return c.json({ e: "not_found" }, 404);
+    const nowMs = Date.now();
+    const items = await arrivalItems(group, nowMs);
+    c.header("Cache-Control", "public, max-age=10");
+    return c.json({ id: group.id, now: Math.floor(nowMs / 1000), items }, 200);
   });
 
   return app;
