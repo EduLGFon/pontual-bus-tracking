@@ -373,19 +373,79 @@ Computed on demand, 10 s cache header. Rate limit 120/min/IP.
 Bulk index for place search. Active learned routes with stops for lines whose
 polyline or stops intersect optional bbox. Cache 300 s.
 
-### 7.5 Client data flow
+### 7.5 `GET /v1/stops`
+
+Global learned stops merged across every line and direction. Public, IP
+60/min, `Cache-Control: public, max-age=300`.
+
+```json
+{ "v": 1, "stops": [ { "id": "uuid", "lat": -18.72, "lng": -39.85, "r": 30, "n": 41, "lines": [ { "l": 60, "d": 0, "s": "uuid" } ] } ] }
+```
+
+- Active stops within 50 m of a stronger anchor merge into one group. The
+  group coordinate is a passes-weighted centroid (members with zero passes are
+  weighted as one for the centroid); `r` and `n` are the group maxima. `lines`
+  lists each member line (`l`), learned direction (`d`) and member stop id
+  (`s`).
+- The group id is the lexicographically smallest member stop id. It is
+  deterministic while membership is unchanged, not guaranteed across
+  membership changes.
+- The server caches the merged list in process for 60 s to avoid repeating
+  the database read and clustering per request.
+- Learning disabled returns 404 `{"e":"not_found"}`. An empty learned set
+  returns 200 with `stops: []`.
+
+### 7.6 `GET /v1/stops/:id/arrivals`
+
+Predicted arrivals at one merged global stop. Public, IP 120/min,
+`Cache-Control: public, max-age=10`.
+
+```json
+{ "id": "uuid", "now": 1730000000, "items": [ { "line": 60, "code": "60", "vehicle": 12, "eta_s": 240, "conf": "high", "n": 38, "m": "learned" } ] }
+```
+
+- `id` resolves through the same 50 m grouping as 7.5. Unknown stop or
+  disabled learning returns 404 `{"e":"not_found"}`.
+- One item per live vehicle. A line is skipped when its served learned
+  direction has no member at the stop; the opposite direction is a different
+  physical approach, not a valid target.
+- `m` is the predictor method: `learned` (route and historic aggregates),
+  `fallback_distance` (straight-line estimate, low confidence),
+  `fallback` (no usable route snap, 0 s sentinel) or `passed` (vehicle past
+  the stop with route geometry and the 30 m tolerance). Clients hide
+  `passed` and the 0-second `fallback` sentinel; a real estimate at <= 60 s
+  may read "Agora".
+- `conf` is `high`, `medium` or `low`; `n` is the sample count.
+
+### 7.7 Client data flow
 
 `LearningRepository` (`app/lib/data/learning/`) fetches learned route, stops,
-ETA, bulk index over HTTP with 8 s timeout. Map draws learned polyline when
-present, else static route, else nothing. Place search uses bulk index and
-degrades to no results on 404/failure. Personal-arrival card requests ETA for
-snapped stop; only line + stop ids sent; viewer position stays on device.
+ETA, global stops, stop arrivals and the bulk index over HTTP with 8 s
+timeout. Map draws learned polyline when present, else static route, else
+nothing. Place search uses bulk index and degrades to no results on
+404/failure. Personal-arrival card requests ETA for snapped stop; only line +
+stop ids sent; viewer position stays on device.
+
+`allStopsProvider` loads `GET /v1/stops` for every line map, keeping a
+non-empty stop list for the app lifetime while a failed or empty fetch that
+yields no stops is retried on a later line-screen mount. Tapping a stop at map
+max zoom 17 (`mapMaxZoom`) opens the stop sheet
+(`app/lib/ui/features/line/stop_sheet.dart`); below that zoom the dots stay
+visible but non-tappable because 48 dp hit boxes overlap. The sheet reads
+`stopArrivalsProvider` for that opaque id on open and at most every 15 s
+while open on the existing vehicle tick. Fixed rows come from the static
+timetable and are terminal departures; live rows are labeled predictions.
+The client sends no coordinates and no trip or device identity on either
+read.
 
 ## 8. Client changes summary
 
 - Repository: `app/lib/data/learning/learning_repository.dart`.
 - Domain models: `LearnedRoute`, `LearnedStop`, `LearnedRoutesIndex`,
   `EtaEstimate` in `app/lib/domain/learning/`.
+- Global stops: `GlobalStop`, `StopLineRef`, `StopArrivalItem`,
+  `StopArrivals` in `app/lib/domain/learning/global_stop.dart`; every line
+  map and the stop sheet consume them.
 - Map, place search, personal arrival consume those models.
 - Privacy center calls `DELETE /v1/me/learning` from confirmed "stop
   contributing" action; one-way, reports offline honestly.
