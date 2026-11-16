@@ -132,7 +132,9 @@ void main() {
     expect(tileReloadDelay(1), const Duration(seconds: 4));
     expect(tileReloadDelay(2), const Duration(seconds: 8));
     expect(tileReloadDelay(3), const Duration(seconds: 16));
-    expect(tileReloadDelay(99), const Duration(seconds: 32));
-    expect(maxTileReloadAttempts, 3);
+    expect(tileReloadDelay(4), const Duration(seconds: 30));
+    expect(tileReloadDelay(99), const Duration(seconds: 30));
+    expect(maxTileReloadAttempts, 5);
+    expect(tileErrorBurstWindow, const Duration(seconds: 60));
   });
 }
