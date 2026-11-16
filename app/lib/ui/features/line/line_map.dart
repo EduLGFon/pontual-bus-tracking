@@ -135,12 +135,22 @@ class LineMap extends StatefulWidget {
 class LineMapState extends State<LineMap> {
   final MapController _map = MapController();
 
+  /// Exposed for tests: the camera controller backing this map.
+  @visibleForTesting
+  MapController get mapController => _map;
+
+  /// Exposed for tests: stream of tile reset requests.
+  @visibleForTesting
+  Stream<void> get tileResets => _tileReset.stream;
+
   /// Reloads the visible tiles when the throttled-burst retry fires.
   final StreamController<void> _tileReset = StreamController<void>.broadcast();
   Timer? _tileRetryTimer;
   int _tileReloadAttempts = 0;
   DateTime? _lastTileErrorAt;
   bool _viewerFitted = false;
+  bool _routeFitted = false;
+  EdgeInsets _lastFitPadding = EdgeInsets.zero;
   bool _mapDarkInitialized = false;
   bool _mapDark = false;
 
@@ -178,6 +188,18 @@ class LineMapState extends State<LineMap> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !widget.panned) {
           _map.move(viewer, neighbourhoodZoom);
+        }
+      });
+    }
+    if (!_routeFitted &&
+        oldWidget.routePoints.isEmpty &&
+        widget.routePoints.isNotEmpty &&
+        widget.vehicles.isEmpty &&
+        !widget.panned) {
+      _routeFitted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.panned) {
+          fitToContent(padding: _lastFitPadding);
         }
       });
     }
@@ -271,6 +293,7 @@ class LineMapState extends State<LineMap> {
   /// the camera. [padding] reserves the space covered by the sheet or the
   /// side panel.
   void fitToContent({EdgeInsets padding = EdgeInsets.zero}) {
+    _lastFitPadding = padding;
     final List<LatLng> points = widget.vehicles
         .map((VehicleVM v) => LatLng(v.lat, v.lng))
         .toList();
@@ -288,9 +311,18 @@ class LineMapState extends State<LineMap> {
       _map.move(points.first, vehicleFocusZoom);
       return;
     }
-    _map.fitCamera(
-      CameraFit.bounds(bounds: mapBounds, padding: padding, maxZoom: 14),
-    );
+    final List<LatLng> route = widget.routePoints;
+    if (route.length >= 2) {
+      _map.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(route),
+          padding: padding,
+          maxZoom: 15,
+        ),
+      );
+      return;
+    }
+    _map.move(mapBounds.center, cityZoom);
   }
 
   @override
@@ -419,7 +451,14 @@ class LineMapState extends State<LineMap> {
             child: IconButton(
               tooltip: _mapDark ? 'Mapa claro' : 'Mapa escuro',
               icon: Icon(_mapDark ? Icons.light_mode : Icons.dark_mode),
-              onPressed: () => setState(() => _mapDark = !_mapDark),
+              onPressed: () {
+                setState(() => _mapDark = !_mapDark);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_tileReset.isClosed) {
+                    _tileReset.add(null);
+                  }
+                });
+              },
             ),
           ),
         ),

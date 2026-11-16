@@ -20,21 +20,22 @@ const int tileCacheMaxBytes = 50 * 1000 * 1000;
 /// Maximum automatic tile reload attempts per error burst. Throttled
 /// bursts from the public raster host fail together; a small bounded
 /// retry recovers the visible map without a user gesture.
-const int maxTileReloadAttempts = 3;
+const int maxTileReloadAttempts = 5;
 
 /// Base delay before the first automatic tile reload.
 const Duration tileReloadBaseDelay = Duration(seconds: 2);
 
 /// Quiet period after which a tile error starts a new retry burst,
 /// resetting the attempt budget.
-const Duration tileErrorBurstWindow = Duration(seconds: 30);
+const Duration tileErrorBurstWindow = Duration(seconds: 60);
 
 /// Backoff delay before reload attempt [attempt] (zero-based): 2 s, 4 s,
-/// 8 s, capped to keep recovery prompt on slow links.
+/// 8 s, 16 s, 30 s, capped to keep recovery prompt on slow links.
 Duration tileReloadDelay(int attempt) {
   final int shift = attempt < 0 ? 0 : attempt;
-  final int factor = 1 << (shift > 4 ? 4 : shift);
-  return tileReloadBaseDelay * factor;
+  const List<int> factors = <int>[1, 2, 4, 8, 15];
+  final int index = shift >= factors.length ? factors.length - 1 : shift;
+  return tileReloadBaseDelay * factors[index];
 }
 
 /// São Mateus area bounds constraining pan and zoom.
