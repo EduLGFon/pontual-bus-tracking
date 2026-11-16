@@ -804,16 +804,16 @@ State is a **sealed class**; transitions are a pure function `(state, event) -> 
 
 | Mode | When | Location request | Send cadence |
 | --- | --- | --- | --- |
-| `waiting` | role `W` | balanced accuracy, ~5 s | every fix (~5 s) |
+| `waiting` | role `W` | high accuracy, ~5 s | every fix (~5 s) |
 | `leaderMoving` | role `L`, moving | high accuracy, ~5 s interval | server `n` (~5 s) |
-| `leaderStill` | role `L`, still >= 60 s | balanced, ~5 s | server `n` (~5 s) |
-| `follower` | role `F` | balanced, ~5 s interval | server `n` (~5 s) |
+| `leaderStill` | role `L`, still >= 60 s | high accuracy, ~5 s | server `n` (~5 s) |
+| `follower` | role `F` | high accuracy, ~5 s interval | server `n` (~5 s) |
 | `offlineSaver` | 3 failed sends or no success for 120 s | low-power ~45 s, no uploads except **probes** (30 -> 60 -> 120 s, jitter) | probe only |
 | `paused` | permission revoked / location services off / mock detected | low-power foreground service kept, ~45 s | none; show banner (see below) |
 
 Rules:
 
-- Change mode only on a role/state change, with **hysteresis on downgrades** (no stream recreation < 30 s when slowing down; 60 s while the last accepted fix is degraded >= 40 m so GPS stays powered through brief coarse patches; offline saver and paused keep the 30 s guard). Upgrades to a faster cadence or to high accuracy apply immediately (D59, D60).
+- Change mode only on a role/state change, with **hysteresis on downgrades** (no stream recreation < 30 s when slowing down; 60 s while the last accepted fix is degraded >= 40 m so the stream does not churn during brief coarse patches; offline saver and paused keep the 30 s guard). Upgrades to a faster cadence apply immediately (D59, D60). All active reporting roles now request high accuracy for the whole trip (D121); there is no medium-to-high role accuracy upgrade anymore, but `waiting -> leaderMoving` still bypasses hysteresis as a role/cadence rule (both are high accuracy).
 - **Drop** a fix if: `isMocked` (VERIFY), accuracy > 60 m, outside the bbox, or timestamp older than 20 s. (Server re-checks everything.)
 - Round before sending: lat/lng to 5 decimals, speed to 0.1 m/s, battery to 5 % steps. Heading null under 0.5 m/s (bearings need motion, D66).
 - `seq` increments per **accepted fix** (not per attempt).

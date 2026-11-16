@@ -218,21 +218,31 @@ void main() {
     final AndroidSettings still =
         settingsFor(SamplingMode.leaderStill, '60') as AndroidSettings;
     expect(still.intervalDuration, const Duration(seconds: 5));
+    expect(still.accuracy, LocationAccuracy.high);
     final AndroidSettings follower =
         settingsFor(SamplingMode.follower, '60') as AndroidSettings;
     expect(follower.intervalDuration, const Duration(seconds: 5));
-    // D63: followers need balanced accuracy so their fixes pass the 60 m
-    // gate in weak-GPS areas; low power would starve handovers.
-    expect(follower.accuracy, LocationAccuracy.medium);
+    expect(follower.accuracy, LocationAccuracy.high);
+    expect(waiting.accuracy, LocationAccuracy.high);
+    expect(active.accuracy, LocationAccuracy.high);
+    // Bounded historical fix age: short for the 5 s modes, proportional
+    // for the 45 s power modes, so a screen-off sleep cannot deliver an
+    // old fused fix first.
+    expect(waiting.maxUpdateAge, const Duration(seconds: 10));
+    expect(active.maxUpdateAge, const Duration(seconds: 10));
+    expect(still.maxUpdateAge, const Duration(seconds: 10));
+    expect(follower.maxUpdateAge, const Duration(seconds: 10));
     // Probes and paused waits stay low power: they carry no handover
     // duty and must cost the least battery.
     final AndroidSettings saver =
         settingsFor(SamplingMode.offlineSaver, '60') as AndroidSettings;
     expect(saver.accuracy, LocationAccuracy.low);
     expect(saver.intervalDuration, const Duration(seconds: 45));
+    expect(saver.maxUpdateAge, const Duration(seconds: 60));
     final AndroidSettings paused =
         settingsFor(SamplingMode.paused, '60') as AndroidSettings;
     expect(paused.accuracy, LocationAccuracy.low);
+    expect(paused.maxUpdateAge, const Duration(seconds: 60));
   });
 
   test('foreground notification is ongoing and paused keeps the service', () {
@@ -259,6 +269,62 @@ void main() {
     expect(paused.intervalDuration, const Duration(seconds: 45));
   });
 
+  test('a coarse fix does not recreate the stream', () async {
+    // A genuinely rejected (too coarse) fix is dropped, but it is still
+    // stream activity and must not rebuild the position stream.
+    // ignore: close_sinks - closed at the end of the test.
+    final StreamController<Position> positions =
+        StreamController<Position>.broadcast();
+    int now = 100000;
+    int opens = 0;
+    final LocationService service = LocationService(
+      positionStream: (_) {
+        opens += 1;
+        return positions.stream;
+      },
+      batteryLevel: () async => 80,
+      charging: () async => false,
+      nowMs: () => now,
+    );
+    service.fixes(mode: SamplingMode.follower, lineLabel: 't');
+    expect(opens, 1);
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+        accuracy: 500,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    now += 35000;
+    positions.add(
+      Position(
+        latitude: -18.72,
+        longitude: -39.85,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(now),
+        accuracy: 500,
+        altitude: 0,
+        heading: 90,
+        speed: 8,
+        speedAccuracy: 1,
+        altitudeAccuracy: 1,
+        headingAccuracy: 1,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await service.requestMode(SamplingMode.follower, now);
+    expect(opens, 1, reason: 'a rejected fix still counts as stream activity');
+    await service.stop();
+    await positions.close();
+  });
+
   test('leaderMoving upgrade bypasses hysteresis', () async {
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
@@ -275,8 +341,8 @@ void main() {
     );
     service.fixes(mode: SamplingMode.waiting, lineLabel: 't');
     expect(opens, 1);
-    // Waiting to leaderMoving is an accuracy upgrade: it recreates
-    // immediately even inside the 30 s window, despite the equal cadence.
+    // Waiting to leaderMoving bypasses hysteresis as a role/cadence rule
+    // (both are high accuracy, D121), despite the equal 5 s interval.
     await service.requestMode(SamplingMode.leaderMoving, 100000 + 1000);
     expect(opens, 2);
     // A role change back inside the hysteresis window waits.
@@ -454,8 +520,9 @@ void main() {
   });
 
   test('degraded accuracy extends the role-change guard', () async {
-    // Every role samples at 5 s, so this guard now protects the accuracy
-    // downgrade (high to balanced) in coarse patches, not a cadence drop.
+    // Every role samples at 5 s and is high accuracy (D121), so this
+    // guard only delays the role switch when the last fix was coarse; it
+    // no longer changes accuracy.
     // ignore: close_sinks - closed at the end of the test.
     final StreamController<Position> positions =
         StreamController<Position>.broadcast();
@@ -495,7 +562,8 @@ void main() {
 
     await emitDegraded();
     // Past the normal 30 s window but inside the 60 s degraded hold:
-    // the faster stream stays up so the next good fix arrives sooner.
+    // the longer guard only delays the role switch/stream recreation when
+    // the last fix was coarse; accuracy is unchanged.
     now = 100000 + 31000;
     await emitDegraded();
     expect(
