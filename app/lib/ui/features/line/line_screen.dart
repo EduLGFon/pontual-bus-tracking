@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/learning/global_stop.dart';
 import 'package:pontual/features/trip/location_service.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/adapters/reports_adapter.dart';
@@ -23,6 +24,7 @@ import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/features/line/line_dock.dart';
 import 'package:pontual/ui/features/line/line_expanded.dart';
 import 'package:pontual/ui/features/line/line_map.dart';
+import 'package:pontual/ui/features/line/stop_sheet.dart';
 import 'package:pontual/ui/features/line/line_not_found.dart';
 import 'package:pontual/ui/features/line/line_sheet.dart';
 import 'package:pontual/ui/features/line/line_sheet_geometry.dart';
@@ -266,8 +268,8 @@ class _LineScreenState extends ConsumerState<LineScreen>
             child: map
                 ? Semantics(
                     container: true,
+                    explicitChildNodes: true,
                     label: _mapLabel(staticLine, vehicles),
-                    excludeSemantics: true,
                     child: _mapLayer(
                       vehicles,
                       controlsBottomPadding:
@@ -371,8 +373,8 @@ class _LineScreenState extends ConsumerState<LineScreen>
     PersonalArrivalVM? personal,
   }) {
     final String tileUrl = ref.watch(tileUrlProvider).value ?? _tileUrlFallback;
-    final List<StopPoint> stops =
-        ref.watch(stopsProvider).value ?? const <StopPoint>[];
+    final List<GlobalStop> stops =
+        ref.watch(allStopsProvider).value ?? const <GlobalStop>[];
     final String code = _staticLine?.code ?? '';
     final int? lineId = _staticLine?.id;
     final List<latlong2.LatLng> routePoints = (code.isEmpty || lineId == null)
@@ -405,6 +407,7 @@ class _LineScreenState extends ConsumerState<LineScreen>
         _mapKey.currentState?.centerOnClosestBus();
       },
       onVehicleTap: (VehicleVM v) => _focus(v, true),
+      onStopTap: (GlobalStop s) => showStopSheet(context, s),
     );
   }
 

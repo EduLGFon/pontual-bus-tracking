@@ -23,6 +23,7 @@ import 'package:pontual/data/learning/learning_repository.dart';
 import 'package:pontual/domain/learning/learned_route.dart';
 import 'package:pontual/domain/learning/learned_route_index.dart';
 import 'package:pontual/domain/learning/learned_stop.dart';
+import 'package:pontual/domain/learning/global_stop.dart';
 import 'package:pontual/domain/learning/place.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
 import 'package:pontual/data/static_data/static_data.dart';
@@ -177,20 +178,87 @@ final FutureProvider<StaticDataRepository> staticDataRepoProvider =
       );
     });
 
-/// City bus stops for the map layer. Empty until stops are mapped and on
-/// any failure: the map stands without dots, never broken.
-final FutureProvider<List<StopPoint>> stopsProvider =
-    FutureProvider<List<StopPoint>>((Ref ref) async {
-      try {
-        final StaticDataRepository repo = await ref.watch(
-          staticDataRepoProvider.future,
-        );
-        final List<StopPoint> stops = await repo.stops();
-        return stops;
-      } catch (_) {
-        return const <StopPoint>[];
+/// Global learned stops shared by every line. Successful non-empty stops
+/// stay cached; an empty result stays auto-disposed so the next line screen
+/// retries instead of showing a blank map for the app lifetime.
+final allStopsProvider = FutureProvider.autoDispose<List<GlobalStop>>((
+  Ref ref,
+) async {
+  List<GlobalStop> stops = const <GlobalStop>[];
+  bool networkStops = false;
+  try {
+    final LearningRepository repo = ref.watch(learningRepositoryProvider);
+    final Result<List<GlobalStop>?> res = await repo.fetchAllStops();
+    if (res is Ok<List<GlobalStop>?>) {
+      final List<GlobalStop>? fetched = res.value;
+      if (fetched != null) {
+        stops = fetched
+            .where((GlobalStop s) => s.isValid)
+            .toList(growable: false);
+        networkStops = stops.isNotEmpty;
       }
-    });
+    }
+  } catch (_) {
+    // Fall through to the static fallback.
+  }
+  if (stops.isEmpty) {
+    try {
+      final StaticDataRepository repo = await ref.watch(
+        staticDataRepoProvider.future,
+      );
+      final List<StopPoint> staticStops = await repo.stops();
+      stops = staticStops
+          .map(
+            (StopPoint s) => GlobalStop(
+              id: s.id,
+              lat: s.lat,
+              lng: s.lng,
+              radiusM: 30,
+              passes: 0,
+              name: s.name,
+              lines: const <StopLineRef>[],
+            ),
+          )
+          .where((GlobalStop s) => s.isValid)
+          .toList(growable: false);
+    } catch (_) {
+      stops = const <GlobalStop>[];
+    }
+  }
+  // Only a non-empty network result is a success worth caching. A static
+  // fallback after 404 or failure must retry on the next mount. The guard
+  // covers the provider being disposed during the async gap.
+  if (networkStops && stops.isNotEmpty) {
+    try {
+      ref.keepAlive();
+    } catch (_) {
+      // Disposed during the async gap: nothing to keep alive.
+    }
+  }
+  return stops;
+});
+
+/// Opaque failure for a stop arrivals request. Carries no coordinates or
+/// server details; the sheet only needs to show its generic retry copy.
+class StopArrivalsFailure implements Exception {
+  /// Creates the failure.
+  const StopArrivalsFailure();
+
+  @override
+  String toString() => 'StopArrivalsFailure';
+}
+
+/// Predicted arrivals for one stop. Null only for a 404. A failed request
+/// throws so the sheet can show an honest failure state. No polling.
+final stopArrivalsProvider = FutureProvider.autoDispose
+    .family<StopArrivals?, String>((Ref ref, String stopId) async {
+      final LearningRepository repo = ref.watch(learningRepositoryProvider);
+      final Result<StopArrivals?> res = await repo.fetchStopArrivals(stopId);
+      if (res is Ok<StopArrivals?>) {
+        return res.value;
+      }
+      throw const StopArrivalsFailure();
+    }, retry: (int retryCount, Object error) => null);
 
 /// Learned route polyline for a line id. Returns null when unavailable or
 /// not yet promoted; never throws.

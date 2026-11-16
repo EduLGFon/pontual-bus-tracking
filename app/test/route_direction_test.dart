@@ -40,7 +40,25 @@ void main() {
     );
     // approximate: at least one arrow and not at endpoint
     expect(arrows.last.lng, lessThan(pts.last.longitude));
-    expect(total, greaterThan(80));
+    expect(total, greaterThan(160));
+  });
+
+  test('arrow spacing is at least 160 m on a kilometre route', () {
+    final List<LatLng> pts = <LatLng>[
+      for (int i = 0; i <= 10; i++) LatLng(0, i * 0.001),
+    ];
+    final List<RouteArrow> arrows = routeArrowPlacements(pts);
+    expect(arrows.length, greaterThanOrEqualTo(3));
+    expect(arrows.length, lessThanOrEqualTo(maxRouteArrows));
+    for (int i = 1; i < arrows.length; i++) {
+      final double gap = geo.distM(
+        arrows[i - 1].lat,
+        arrows[i - 1].lng,
+        arrows[i].lat,
+        arrows[i].lng,
+      );
+      expect(gap, greaterThanOrEqualTo(159.5));
+    }
   });
 
   test('northbound bearing ~0', () {

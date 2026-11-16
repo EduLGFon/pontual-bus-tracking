@@ -15,11 +15,14 @@ import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/api/dto.dart';
 import 'package:pontual/data/realtime/vehicle_repository.dart';
 import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/learning/global_stop.dart';
+import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/adapters/now_clock.dart';
 import 'package:pontual/ui/adapters/vehicles_adapter.dart';
 import 'package:pontual/ui/features/line/line_map.dart';
 import 'package:pontual/ui/features/line/line_screen.dart';
 import 'package:pontual/ui/features/line/next_bus_card.dart';
+import 'package:pontual/ui/features/line/stop_sheet.dart';
 import 'package:pontual/features/trip/permission_sheet.dart';
 import 'package:pontual/ui/features/line/viewer_location.dart';
 import 'package:pontual/features/trip/location_service.dart';
@@ -252,6 +255,7 @@ Widget routeApp(VehicleRepository repo) {
         (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
       ),
       currentNowProvider.overrideWithValue(fixedNow),
+      allStopsProvider.overrideWith((Ref ref) async => const <GlobalStop>[]),
       vehicleRepoProvider(7).overrideWithValue(repo),
     ],
     child: MaterialApp(
@@ -278,6 +282,7 @@ List<Override> overridesFor(
   List<StaticLine> lines,
   Map<int, List<ClientVehicle>> vehicles, {
   DateTime? now,
+  List<GlobalStop> stops = const <GlobalStop>[],
 }) {
   return <Override>[
     linesProvider.overrideWith((Ref ref) async => lines),
@@ -288,6 +293,7 @@ List<Override> overridesFor(
       (Ref ref) async => 'http://127.0.0.1:9/{z}/{x}/{y}.png',
     ),
     currentNowProvider.overrideWithValue(now ?? fixedNow),
+    allStopsProvider.overrideWith((Ref ref) async => stops),
     for (final MapEntry<int, List<ClientVehicle>> e in vehicles.entries)
       vehicleRepoProvider(e.key).overrideWithValue(repoOf(e.value)),
     // Seeded synchronously from the same fake rows. The repository only
@@ -388,6 +394,76 @@ void main() {
     // The header no longer repeats the departure, so the banner is the
     // only place the next service day appears.
     expect(find.text(UiStrings.homeTomorrowAt('05:30')), findsOneWidget);
+  });
+
+  testWidgets('compact map exposes stop buttons and opens the stop sheet', (
+    WidgetTester tester,
+  ) async {
+    await _useCompactView(tester);
+    const GlobalStop stop = GlobalStop(
+      id: 'stop-1',
+      lat: -18.725,
+      lng: -39.9,
+      name: 'Ponto A',
+      lines: <StopLineRef>[
+        StopLineRef(lineId: 7, direction: 0, stopId: 'member-7'),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          ...overridesFor(
+            const <StaticLine>[pilotLine],
+            const <int, List<ClientVehicle>>{7: <ClientVehicle>[]},
+            stops: const <GlobalStop>[stop],
+          ),
+          stopArrivalsProvider('stop-1').overrideWith((Ref ref) async => null),
+        ],
+        child: const MaterialApp(home: LineScreen(lineKey: 'seven')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    expect(map.stops.single.id, 'stop-1');
+    final LineMapState state = tester.state(find.byType(LineMap));
+    state.mapController.move(const LatLng(-18.725, -39.9), mapMaxZoom);
+    await tester.pump();
+    await tester.pump();
+
+    final Finder dot = find.bySemanticsLabel('Ponto: Ponto A');
+    expect(dot, findsOneWidget);
+    expect(tester.getSemantics(dot).flagsCollection.isButton, isTrue);
+    await tester.tap(dot);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(StopSheet), findsOneWidget);
+  });
+
+  testWidgets('timetable-only line receives the global stops', (
+    WidgetTester tester,
+  ) async {
+    const GlobalStop stop = GlobalStop(
+      id: 'stop-1',
+      lat: -18.725,
+      lng: -39.9,
+      name: 'Ponto A',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(
+          const <StaticLine>[timetableLine],
+          const <int, List<ClientVehicle>>{10: <ClientVehicle>[]},
+          stops: const <GlobalStop>[stop],
+        ),
+        child: const MaterialApp(home: LineScreen(lineKey: 'ten')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    final LineMap map = tester.widget<LineMap>(find.byType(LineMap));
+    expect(map.stops.single.id, 'stop-1');
   });
 
   testWidgets('late night does not show an already past departure as next', (
