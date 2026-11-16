@@ -11,6 +11,7 @@ Spec: `UI_SPEC.md`; deviations: root `DECISIONS.md` (append-only).
 | `a11y-script.md` | Manual a11y run-through before each release. |
 | `*-redesign.md` | Redesign audits/reports; implemented; open items remain. |
 | `personal-arrival.md` | Personal arrival on line screen: opt-in one-shot foreground fix, nearest learned stop snap, ETA via existing endpoint, privacy/honesty rules (D96). |
+| `stops.md` | Global stop layer and stop sheet: merged stops, tap gate, fixed terminal departures versus live predictions, sheet states, privacy, tests, limits (D124). |
 | `ux-2.md` | UX 2.0 answer-first: first-run picker, next-departure hero, share card, line hero/leave-now, lines/search status, shell active trip bar (D104). |
 | root `DECISIONS.md` | ADRs/deviations, append-only. |
 
