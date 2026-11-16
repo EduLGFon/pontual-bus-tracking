@@ -489,6 +489,36 @@ void main() {
       expect(gateway.requested, isFalse);
     });
 
+    testWidgets('stored consent with granted permission skips both sheets', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        consentVersionKey: 2,
+        consentPostedKey: 2,
+      });
+      final RecordingGateway gateway = RecordingGateway()
+        ..permission = LocationPermissionState.granted
+        ..precise = false;
+      const LineVM line = LineVM(
+        key: '60-litoraneo-aviacao',
+        name: 'Litorâneo / Aviação',
+        short: '60',
+        supportsSharing: true,
+      );
+      await tester.pumpWidget(flowButton(line, gateway));
+      await tester.tap(find.text('share'));
+      await tester.pumpAndSettle();
+      // Disclosure is already covered, so it must not reappear.
+      expect(find.text(UiStrings.consentTitle), findsNothing);
+      // Permission already granted, so the in-app pre-prompt is skipped.
+      expect(find.text(UiStrings.permissionPrompt), findsNothing);
+      // The flow still runs and reaches the precise-accuracy recovery card.
+      expect(find.byType(PermissionCard), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('permission denial renders the permission card', (
       WidgetTester tester,
     ) async {
@@ -540,11 +570,9 @@ void main() {
       await tester.scrollUntilVisible(find.text(UiStrings.consentAccept), 200);
       await tester.tap(find.text(UiStrings.consentAccept));
       await tester.pumpAndSettle();
-      expect(find.text(UiStrings.permissionPrompt), findsOneWidget);
-      await tester.tap(find.text(UiStrings.permissionContinue));
-      await tester.pumpAndSettle();
-      // Granted but approximate-only: the start fails fast with
-      // imprecise (no 60 s GPS wait), and the card asks for Precise.
+      // Granted but approximate-only: permission is already granted, so the
+      // in-app pre-prompt is skipped; the start fails fast with imprecise
+      // (no 60 s GPS wait), and the card asks for Precise.
       expect(find.byType(PermissionCard), findsOneWidget);
       expect(find.text(UiStrings.impreciseLocation), findsOneWidget);
       expect(find.text(UiStrings.openSettings), findsOneWidget);

@@ -230,8 +230,29 @@ Future<void> _permissionStep(
   int consentVersion,
   Future<bool> Function() showConsent,
 ) async {
-  if (!await _prePromptStep(context)) {
+  // Skip the in-app pre-prompt when the OS already granted the
+  // permission (precise or approximate) or when it is permanently
+  // denied: the permission card below explains the blocked state, so a
+  // second sheet would be redundant. Denied keeps the pre-prompt. Any
+  // unexpected check failure fails safe to the current behavior, i.e.
+  // the pre-prompt is still shown.
+  bool showPrePrompt = true;
+  try {
+    final LocationPermissionState state = await gateway.check();
+    if (state == LocationPermissionState.granted ||
+        state == LocationPermissionState.permanentlyDenied) {
+      showPrePrompt = false;
+    }
+  } catch (_) {
+    showPrePrompt = true;
+  }
+  if (!context.mounted) {
     return;
+  }
+  if (showPrePrompt) {
+    if (!await _prePromptStep(context)) {
+      return;
+    }
   }
   if (!context.mounted) {
     return;
