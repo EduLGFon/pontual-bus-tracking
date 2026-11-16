@@ -1495,4 +1495,34 @@ void main() {
       reason: 'direct getPositionStream outside LocationService',
     );
   });
+
+  test('plausibility gate mirrors server speed and teleport limits', () {
+    // One degree of latitude is about 111194.9 m with the shared earth
+    // radius; offsets below are chosen to sit just inside or outside the
+    // server thresholds so the strict `>` comparisons are exercised.
+    TripFix at(double lat, int atMs, {double speed = 8}) {
+      return TripFix(
+        seq: atMs,
+        lat: lat,
+        lng: -39.85,
+        speedMps: speed,
+        heading: null,
+        accuracyM: 10,
+        batteryPct: 80,
+        charging: false,
+        acceptedAtMs: atMs,
+      );
+    }
+
+    final TripFix base = at(-18.72, 100000);
+    expect(implausibleReason(base, null), isNull);
+    expect(implausibleReason(base, base), isNull);
+    expect(implausibleReason(at(-18.72, 105000, speed: 26), base), 'speed');
+    expect(implausibleReason(at(-18.71775, 105000), base), 'teleport');
+    expect(implausibleReason(at(-18.717302, 130000), base), isNull);
+    // At or below 200 m is not a teleport even at high implied speed.
+    expect(implausibleReason(at(-18.7182015, 101000), base), isNull);
+    // Implied speed at or below 30 m/s is not a teleport even over 200 m.
+    expect(implausibleReason(at(-18.7173021, 110000), base), isNull);
+  });
 }
