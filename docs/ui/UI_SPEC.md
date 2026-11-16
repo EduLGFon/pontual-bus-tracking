@@ -435,7 +435,7 @@ Map layer details (`lib/ui/features/line/map/`):
 - Deferred-load the map code on web (`import ... deferred as map;`). While it loads show the `bg` colour with the line badge centered and a one-line "Carregando mapa" (static). On Android load normally.
 - `TileSource` abstraction (the project already has or should have one): default OSM raster, `retinaMode` off, min zoom 12, max zoom 17 (data saver 16), camera constrained to the service-area bounds (existing config), identifying User-Agent/package name set, attribution chip visible at all times (top-right, 12 sp, `surface` 85 % alpha pill) and tappable to the OSM copyright page. Never prefetch or bulk-download tiles.
 - Premium muting without cost: one `ColoredBox(color: mapScrim)` above the tile layer (no `ColorFiltered`, no blend modes, no blur). Light theme uses light tiles + 18 % paper scrim. Dark theme: if a dark raster source is approved (ADR, VERIFY terms and keys), use it; otherwise keep light tiles with a 35 % dark scrim and white marker rings. Never invert tiles with a filter (GPU cost).
-- Route polyline (flag `routeLine`, only if route data exists): 8 dp casing in `bg` colour under a 5 dp line in the line colour, round joins/caps. Predicted path ahead of a bus (later): 4 dp dashed `predicted` colour (`StrokePattern.dashed` in current flutter_map; VERIFY the API for the pinned version).
+- Route polyline (flag `routeLine`, only if route data exists): 8 dp casing in `bg` colour under a 5 dp line in the line colour, round joins/caps. Chevrons (`RouteDirectionLayer`) sit on top of the line, below stops and vehicle markers, pointing along travel. Predicted path ahead of a bus (later): 4 dp dashed `predicted` colour (`StrokePattern.dashed` in current flutter_map; VERIFY the API for the pinned version).
 - Markers: `VehicleMarker` (below), max ~20 rendered; anything beyond is summarised in the sheet.
 - Controls: back button (top-left, 44 dp circle, `surface` fill + hairline), two locate buttons in one bottom-right column above the dock (viewer dot at zoom 14, city centre fallback; closest bus to the viewer at zoom 15, camera-centre reference and city fallback otherwise), zoom +/- only on pointer devices (web expanded). No rotation gesture. No compass.
 - Camera: on enter fit to live vehicles (if any) else route bounds else service-area center at zoom 13. The fit runs from the first build that has a map (lines load async, so never once from `initState`), plus at most one refit when vehicles arrive after an empty first fit and the user has not panned. Sheet movement never moves the camera. The recenter control centres the viewer dot at zoom 14 (city centre at zoom 13 when the viewer position is unknown). Throttled tile bursts reload automatically with a bounded backoff (max 3 attempts per burst); failed tiles are evicted when pruned. User pan cancels follow mode; "Seguir" on a `VehicleRow` (flag `followVehicle`) smoothly follows that bus (400 ms ease to marker; chip "Seguindo Ônibus 1 ✕" at top-center).
@@ -445,9 +445,9 @@ VehicleMarker spec (`CustomPainter`, one `RepaintBoundary` per map layer, not pe
 
 | Part | Spec |
 |---|---|
-| Body | 36 dp circle (44 dp hit area), fill = line colour, 3 dp ring in `surface` (light) / `surfaceRaised` (dark) |
+| Body | 36 dp circle (60 dp hit area), fill = line colour, 2 dp ring in `surface` (light) / `surfaceRaised` (dark) |
 | Glyph | `BusIcon` 18 dp, white or near-black per contrast |
-| Heading | small triangle (8 dp) outside the ring at `headingDeg`, only if speed >= 1.5 m/s and heading known |
+| Heading | arrowhead with tip at radius + 8 dp outside the ring at `headingDeg`, fill = line colour, 1.5 dp ring-colour stroke, only for `Certainty.live` vehicles with speed >= 1.5 km/h and known heading |
 | Live | pulse ring radius 18 -> 30 dp, alpha 30 % -> 0, 1600 ms, driven by the shared `LivePulse` controller; stops when reduced motion, app paused, or screen not visible |
 | Aging (20-45 s) | normal, label shows "há N s" when selected |
 | Stale (> 45 s) | grey ring, fill 55 % alpha, no pulse, label "Sem sinal" |

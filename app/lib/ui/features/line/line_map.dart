@@ -13,6 +13,7 @@ import 'package:pontual/core/geo/geo.dart' as geo;
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
+import 'package:pontual/ui/design/components/route_direction_layer.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
@@ -377,6 +378,12 @@ class LineMapState extends State<LineMap> {
                     color: _lineColor(context),
                     width: routeStrokeDp,
                     dashed: widget.dashedRoute,
+                  ),
+                  RouteDirectionLayer(
+                    points: widget.routePoints,
+                    fill: colors.surface,
+                    outline: _lineColor(context),
+                    maxArrows: maxRouteArrows,
                   ),
                 ],
                 if (widget.stops.isNotEmpty)
