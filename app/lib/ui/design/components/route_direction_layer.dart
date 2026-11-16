@@ -41,7 +41,7 @@ class RouteArrow {
 /// [maxArrows].
 List<RouteArrow> routeArrowPlacements(
   List<LatLng> points, {
-  double minSpacingM = 80,
+  double minSpacingM = 160,
   int maxArrows = maxRouteArrows,
 }) {
   if (maxArrows <= 0) {

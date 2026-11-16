@@ -8,6 +8,7 @@ import 'package:pontual/domain/learning/learned_route.dart';
 import 'package:pontual/domain/learning/learned_route_index.dart';
 import 'package:pontual/domain/learning/learned_stop.dart';
 import 'package:pontual/domain/learning/eta_estimate.dart';
+import 'package:pontual/domain/learning/global_stop.dart';
 
 /// Base URL provider, injectable for tests.
 typedef LearningBaseUrlProvider = String Function();
@@ -85,6 +86,74 @@ class LearningRepository {
       return Ok<LearnedRoutesIndex>(LearnedRoutesIndex.fromJson(body));
     } on Exception catch (e) {
       return Err<LearnedRoutesIndex>(NetworkFailure(e.toString()));
+    }
+  }
+
+  /// Fetches all global stops. Null on 404 so callers can fall back to
+  /// bundled static stops.
+  Future<Result<List<GlobalStop>?>> fetchAllStops() async {
+    try {
+      final http.Response res = await client
+          .get(Uri.parse('${baseUrl()}/v1/stops'))
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 404) {
+        return const Ok<List<GlobalStop>?>(null);
+      }
+      if (res.statusCode != 200) {
+        return const Err<List<GlobalStop>?>(
+          ServerFailure('global stops failed', 'global_stops'),
+        );
+      }
+      final Map<String, dynamic> body =
+          jsonDecode(res.body) as Map<String, dynamic>;
+      final Object? rawStops = body['stops'];
+      final List<dynamic> raw = rawStops is List<dynamic>
+          ? rawStops
+          : const <dynamic>[];
+      final List<GlobalStop> stops = <GlobalStop>[];
+      for (final dynamic e in raw) {
+        if (e is Map) {
+          try {
+            final GlobalStop stop = GlobalStop.fromJson(
+              e.cast<String, dynamic>(),
+            );
+            if (stop.isValid) {
+              stops.add(stop);
+            }
+          } on Object {
+            // Skip malformed entries.
+          }
+        }
+      }
+      return Ok<List<GlobalStop>?>(stops);
+    } on Object catch (e) {
+      return Err<List<GlobalStop>?>(NetworkFailure(e.toString()));
+    }
+  }
+
+  /// Fetches predicted arrivals for [stopId]. Null on 404 or failure.
+  Future<Result<StopArrivals?>> fetchStopArrivals(String stopId) async {
+    try {
+      final http.Response res = await client
+          .get(
+            Uri.parse(
+              '${baseUrl()}/v1/stops/${Uri.encodeComponent(stopId)}/arrivals',
+            ),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 404) {
+        return const Ok<StopArrivals?>(null);
+      }
+      if (res.statusCode != 200) {
+        return const Err<StopArrivals?>(
+          ServerFailure('stop arrivals failed', 'stop_arrivals'),
+        );
+      }
+      final Map<String, dynamic> body =
+          jsonDecode(res.body) as Map<String, dynamic>;
+      return Ok<StopArrivals?>(StopArrivals.fromJson(body));
+    } on Object catch (e) {
+      return Err<StopArrivals?>(NetworkFailure(e.toString()));
     }
   }
 

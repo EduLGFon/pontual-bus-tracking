@@ -1878,4 +1878,37 @@ class UiStrings {
   /// Title when a trip could not be started.
   static const String shareProgressFailedTitle =
       'Não foi possível iniciar a viagem';
+
+  /// Stop sheet header when the stop has no posted name.
+  static const String stopTitle = 'Ponto de ônibus';
+
+  /// Honest label above fixed terminal departure times.
+  static const String stopFixedLabel = 'Tabela (saída do terminal)';
+
+  /// Fixed section when the line has no departures left today.
+  static const String stopNoFixed = 'Sem mais saídas hoje';
+
+  /// Fixed section when the line has no schedules at all.
+  static const String stopNoSchedules = 'Sem horários cadastrados';
+
+  /// Label above live predicted arrivals.
+  static const String stopPredictionLabel = 'Previsão';
+
+  /// Live prediction fetch failure.
+  static const String stopFetchFailed = 'Não foi possível atualizar';
+
+  /// No live bus approaching this stop.
+  static const String stopNoPrediction = 'Sem previsão ao vivo';
+
+  /// Stop sheet when no line is known for the stop.
+  static const String stopNoLines = 'Nenhuma linha conhecida neste ponto';
+
+  /// Predicted arrival at or under 60 seconds.
+  static const String stopNow = 'Agora';
+
+  /// Fallback row name when the static line data has no entry yet.
+  static String stopLineFallback(int lineId) => 'Linha $lineId';
+
+  /// Map semantics label for a named stop.
+  static String stopLabel(String name) => 'Ponto: $name';
 }

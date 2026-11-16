@@ -13,6 +13,7 @@ import 'package:pontual/ui/models/vehicle_vm.dart';
 Widget _app({
   List<VehicleVM> vehicles = const <VehicleVM>[],
   List<LatLng> routePoints = const <LatLng>[],
+  LatLng? viewerPosition,
 }) {
   return MaterialApp(
     theme: pontualLightTheme(),
@@ -23,6 +24,7 @@ Widget _app({
         tileUrlTemplate: 'https://tile.example/{z}/{x}/{y}.png',
         httpClient: MockClient((_) async => http.Response.bytes(<int>[], 404)),
         routePoints: routePoints,
+        viewerPosition: viewerPosition,
         onPan: () {},
         onLocateViewer: () {},
         onLocateBus: () {},
@@ -69,6 +71,37 @@ void main() {
       state.mapController.camera.center.longitude,
       closeTo(routeCenter.longitude, 1e-3),
     );
+  });
+
+  testWidgets('a late viewer does not override a route fit', (tester) async {
+    const List<LatLng> route = <LatLng>[
+      LatLng(-18.70, -39.85),
+      LatLng(-18.75, -39.90),
+    ];
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    final LineMapState state = tester.state(find.byType(LineMap));
+    await tester.pumpWidget(_app(routePoints: route));
+    await tester.pump();
+    await tester.pump();
+    final LatLng routeCenter = state.mapController.camera.center;
+    final double routeZoom = state.mapController.camera.zoom;
+    expect(routeZoom, greaterThan(cityZoom));
+
+    const LatLng viewer = LatLng(-18.55, -39.70);
+    await tester.pumpWidget(_app(routePoints: route, viewerPosition: viewer));
+    await tester.pump();
+    await tester.pump();
+    expect(
+      state.mapController.camera.center.latitude,
+      closeTo(routeCenter.latitude, 1e-6),
+    );
+    expect(
+      state.mapController.camera.center.longitude,
+      closeTo(routeCenter.longitude, 1e-6),
+    );
+    expect(state.mapController.camera.zoom, routeZoom);
+    expect(state.mapController.camera.zoom, isNot(neighbourhoodZoom));
   });
 
   testWidgets('theme toggle requests exactly one tile reload', (tester) async {
