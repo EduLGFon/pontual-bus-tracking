@@ -426,10 +426,10 @@ nothing. Place search uses bulk index and degrades to no results on
 404/failure. Personal-arrival card requests ETA for snapped stop; only line +
 stop ids sent; viewer position stays on device.
 
-`allStopsProvider` loads `GET /v1/stops` for every line map, keeping a
-non-empty stop list for the app lifetime while a failed or empty fetch that
-yields no stops is retried on a later line-screen mount. Tapping a stop at map
-max zoom 17 (`mapMaxZoom`) opens the stop sheet
+`allStopsProvider` loads `GET /v1/stops` for every line map. A non-empty
+network stop list is kept for the app lifetime; a static fallback after a 404
+or failure is not kept and is retried on a later line-screen mount. Tapping a
+stop at map max zoom 17 (`mapMaxZoom`) opens the stop sheet
 (`app/lib/ui/features/line/stop_sheet.dart`); below that zoom the dots stay
 visible but non-tappable because 48 dp hit boxes overlap. The sheet reads
 `stopArrivalsProvider` for that opaque id on open and at most every 15 s

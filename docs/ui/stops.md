@@ -36,7 +36,8 @@ Fixed block:
 - Label `Tabela (saída do terminal)`, then up to two terminal departure times
   from the static timetable. These are terminal departures, not stop passage
   times.
-- `Sem mais saídas hoje` when no departure remains today.
+- `Sem horários cadastrados` when the line has no schedules at all for that
+  day. `Sem mais saídas hoje` when schedules exist but none remain today.
 
 Live block:
 
@@ -54,13 +55,15 @@ Other states:
 - Unknown stop or learning disabled (`404 not_found`): no predictions.
 - Loading, empty and failure states are explicit; the sheet never fabricates
   a time.
-- `passed` and the 0-second `fallback` sentinel are hidden because neither is
-  a real approaching bus.
+- `passed` and the 0-second non-`learned` sentinels are hidden because neither
+  is a real approaching bus. Those sentinels include `fallback` and
+  `fallback_distance`; only a zero-second `learned` estimate counts as a real
+  prediction.
 
 Refresh: on open and at most every 15 s while the sheet is open, driven by the
-existing vehicle tick. No new polling timer. Non-empty global stops are kept
-for the app lifetime; failure or empty results are retried on a later
-line-screen mount.
+existing vehicle tick. No new polling timer. A non-empty global stops network
+result is kept for the app lifetime; a static fallback after a 404 or failure
+is not kept and is retried on a later line-screen mount.
 
 ## Privacy
 
@@ -98,5 +101,6 @@ No test result is claimed by this document.
   lower zoom.
 - The merged stop id is the smallest member stop id. It is stable while
   membership is unchanged but can change when stops merge or split.
-- With learning disabled both endpoints return 404 and the sheet has no live
-  values; lines with known static data still show terminal departures.
+- With learning disabled both endpoints return 404. The bundle has no line
+  refs for those stops, so the sheet shows no known lines; timetable data
+  remains available elsewhere in the app.
