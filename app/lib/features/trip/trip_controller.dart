@@ -8,6 +8,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:pontual/core/errors/failures.dart';
+import 'package:pontual/core/logging/log.dart';
 import 'package:pontual/core/time/clock.dart';
 import 'package:pontual/data/api/bus_api.dart';
 import 'package:pontual/data/api/dto.dart';
@@ -360,6 +361,12 @@ class TripController extends ChangeNotifier {
   /// vanishes mid-trip. Memory only, like the accuracy above.
   TripFix? _lastFix;
 
+  /// Last fix the server acknowledged with a successful ping, or the trip
+  /// start fix (already sent by the create POST). The send-time teleport
+  /// gate compares against this so the client tracks the server baseline,
+  /// not every accepted stream fix.
+  TripFix? _lastSentFix;
+
   /// Read-only view of the latest accepted in-memory fix. For display reuse
   /// only (e.g. the line screen viewer dot); never persisted, logged, or
   /// sent by this path. Null off-trip or before the first accepted fix.
@@ -544,6 +551,7 @@ class TripController extends ChangeNotifier {
     _lastBatteryPct = null;
     _lastCharging = false;
     _lastFix = null;
+    _lastSentFix = null;
     _intervalS = null;
     _revivedOnce = false;
     _reviving = false;
@@ -872,6 +880,10 @@ class TripController extends ChangeNotifier {
       return false;
     }
     _active = this;
+    // The create POST already sent the start fix to the server, so it is
+    // the first send-time teleport baseline. Do not treat the next
+    // accepted fix as if it had no previous position.
+    _lastSentFix = first;
     _runLoop(token, stream, firstIntervalS);
     return true;
   }
@@ -936,7 +948,9 @@ class TripController extends ChangeNotifier {
       if (_deps.clock.nowMs() - fix.acceptedAtMs > fixMaxAgeMs) {
         return;
       }
-      _onFix(fix);
+      if (!_onFix(fix)) {
+        return;
+      }
       // Latest-wins pending fix; the scheduler decides when to send.
       _pendingFix = fix;
       _trySendDue();
@@ -1019,6 +1033,19 @@ class TripController extends ChangeNotifier {
       _armSendTimer();
       return;
     }
+    // Compare against the last fix the server actually stored. Accepted
+    // fixes that were never sent must not move this baseline: several
+    // short sub-200 m moves inside one send interval can otherwise add
+    // up to a server teleport and strike the trip.
+    final String? implausible = implausibleReason(fix, _lastSentFix);
+    if (implausible != null) {
+      Log.d('fix implausible: $implausible');
+      while (_lastSendStartMs + intervalMs <= now) {
+        _lastSendStartMs += intervalMs;
+      }
+      _armSendTimer();
+      return;
+    }
     _lastSentAcceptedAtMs = fix.acceptedAtMs;
     _sendFix(fix);
     _armSendTimer();
@@ -1031,16 +1058,28 @@ class TripController extends ChangeNotifier {
     _lastSendStartMs = _lastPingSentAtMs;
     _ping?.queue(_fixBody(fix), (PingOutcome o) {
       if (gen == _tripGen && token != null) {
+        if (o.end == null) {
+          _lastSentFix = fix;
+        }
         _onOutcome(token, o);
       }
     });
   }
 
-  void _onFix(TripFix fix) {
+  bool _onFix(TripFix fix) {
+    // Client-side plausibility gate mirroring the server: never store,
+    // queue, send, or reuse an implausible fix. The last good fix stays
+    // the baseline, so a bad fix cannot end the trip as abuse.
+    final TripFix? previous = _lastFix;
+    final String? reason = implausibleReason(fix, previous);
+    if (reason != null) {
+      Log.d('fix implausible: $reason');
+      return false;
+    }
     _lastFix = fix;
     final TripSupervisor? supervisor = _supervisor;
     if (supervisor == null) {
-      return;
+      return true;
     }
     _lastAccuracyM = fix.accuracyM;
     _lastBatteryPct = fix.batteryPct;
@@ -1050,6 +1089,7 @@ class TripController extends ChangeNotifier {
     if (supervisor.promptVisible != hadPrompt) {
       notifyListeners();
     }
+    return true;
   }
 
   String _serverRole() {
@@ -1097,6 +1137,11 @@ class TripController extends ChangeNotifier {
     if (!tripInProgress(_state)) {
       return false;
     }
+    final String? implausible = implausibleReason(fix, _lastSentFix);
+    if (implausible != null) {
+      Log.d('fix implausible: $implausible');
+      return false;
+    }
     _pendingFix = fix;
     _lastSentAcceptedAtMs = 0;
     _lastSendStartMs = 0;
@@ -1104,6 +1149,9 @@ class TripController extends ChangeNotifier {
       final int gen = _tripGen;
       ping.queue(_fixBody(fix), (PingOutcome o) {
         if (gen == _tripGen) {
+          if (o.end == null) {
+            _lastSentFix = fix;
+          }
           _onOutcome(token, o);
         }
       });

@@ -948,3 +948,43 @@ class LocationService {
     return Future<void>.value();
   }
 }
+
+/// Maximum accepted instantaneous speed in meters per second. Mirrors the
+/// server `speedMaxMps`; faster fixes would strike the trip.
+const double speedMaxMps = 25;
+
+/// Maximum implied speed in meters per second across two fixes. Mirrors the
+/// server `teleportSpeedMps`; used only with [teleportMinM].
+const double teleportSpeedMps = 30;
+
+/// Minimum jump distance in meters that can count as a teleport. Mirrors the
+/// server `teleportMinM`; a jump must also exceed [teleportSpeedMps].
+const double teleportMinM = 200;
+
+/// Returns null when [fix] is plausible given the [previous] accepted good
+/// fix, or a short reason string otherwise. When [previous] is null there
+/// is no teleport baseline, but the speed limit still applies. Reasons are
+/// logged only, never coordinates. Mirrors server validateFix + the
+/// teleport check in applyPing (strict `>` on both thresholds).
+String? implausibleReason(TripFix fix, TripFix? previous) {
+  if (fix.speedMps > speedMaxMps) {
+    return 'speed';
+  }
+  if (previous == null) {
+    return null;
+  }
+  final double distance = distM(previous.lat, previous.lng, fix.lat, fix.lng);
+  final int dtMs = fix.acceptedAtMs - previous.acceptedAtMs;
+  if (dtMs <= 0) {
+    return null;
+  }
+  final double implied = distance / (dtMs / 1000.0);
+  if (distance > teleportMinM && implied > teleportSpeedMps) {
+    return 'teleport';
+  }
+  return null;
+}
+
+/// True when [fix] is plausible given the [previous] accepted good fix.
+bool plausibleFix(TripFix fix, TripFix? previous) =>
+    implausibleReason(fix, previous) == null;
