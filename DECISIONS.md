@@ -237,6 +237,8 @@ Compacted decision index, current as of 2026-11-16. Full history in git. New dec
 
 - D127 (2026-11-16, Accepted, owner directive): line map camera fallback and route arrow spacing. With no live vehicles and no route polyline the camera centres on the viewer at zoom 14 when a viewer fix is known; without a viewer it falls back to the city centre at zoom 13. Vehicles and route bounds keep priority, and a late viewer fix must not override an existing route fit. Route direction chevrons are now spaced at least 160 m apart (previously 80 m) and remain capped at 40. No data, API, schema or privacy change. Docs updated: docs/ui/UI_SPEC.md 7.5, CHANGELOG.md.
 
+- D128 (2026-11-17, Accepted): Protomaps source pin refreshed from 20261110 to 20261117, the newest daily build listed on https://maps.protomaps.com/builds/ (build-metadata.protomaps.dev/builds.json, uploaded 2026-11-17T09:09:23Z). HTTP evidence: `curl -sI https://build.protomaps.com/20261117.pmtiles` returned HTTP/2 200, content-length 139547428331 bytes, last-modified Tue, 17 Nov 2026 09:09:23 GMT; the previous pin 20261110 returned 404. Supersedes D100's 20261110 pin (builds expire about one week). Verified with `deno task map-bbox` and `deno task map-test`, both exit 0. HEAD-only verification: no full extract was downloaded, so local extract size was not re-measured and no `.pmtiles` file was committed; extract size stays as recorded in docs/maps.md.
+
 ## 10. ADRs
 
 - ADR (2026-10-26, Accepted): first-party diagnostics (opt-out, 14-day retention).
