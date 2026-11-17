@@ -4,7 +4,7 @@
 // on every controller notification, so the elapsed time and the phase are
 // always fresh: a plain provider snapshot would freeze the dock at attach
 // time. See docs/ui/UI_SPEC.md 7.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/features/trip/trip_controller.dart';

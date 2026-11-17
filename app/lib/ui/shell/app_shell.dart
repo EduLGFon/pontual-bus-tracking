@@ -6,7 +6,7 @@
 // See docs/ui/UI_SPEC.md 6.5, 6.6 and 7.1.
 import 'dart:async';
 
-import 'package:flutter/material.dart' hide Banner;
+import 'package:material_ui/material_ui.dart' hide Banner;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

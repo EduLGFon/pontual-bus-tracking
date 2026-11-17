@@ -1,5 +1,5 @@
 // T23 tests: remote flags parsing, refresh rules, system screens.
-import 'package:flutter/material.dart' hide Banner;
+import 'package:material_ui/material_ui.dart' hide Banner;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

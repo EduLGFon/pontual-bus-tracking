@@ -2,7 +2,7 @@
 // the single shared controller, so no per-dot ticker exists. Stale and
 // scheduled values show a still dot in their own colour.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_style.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';

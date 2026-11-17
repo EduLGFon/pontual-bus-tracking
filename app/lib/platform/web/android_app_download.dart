@@ -3,7 +3,7 @@
 // web trip. Tap downloads the latest release APK from GitHub releases.
 // See ARCHITECTURE.md 8.12 and T48.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';

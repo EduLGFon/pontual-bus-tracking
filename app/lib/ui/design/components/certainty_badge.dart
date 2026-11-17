@@ -2,7 +2,7 @@
 // pill, plus a shape (solid dot, dashed outline, clock, amber ring) so the
 // information never travels by colour alone.
 // See docs/ui/UI_SPEC.md 3 and 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_style.dart';
 import 'package:pontual/ui/design/components/dashed_outline.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

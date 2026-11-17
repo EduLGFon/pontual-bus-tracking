@@ -1,6 +1,6 @@
 // Widget tests for VehicleRow: the personal ETA line, its colour and
 // semantics, and the certainty dot. No network and no preferences.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';

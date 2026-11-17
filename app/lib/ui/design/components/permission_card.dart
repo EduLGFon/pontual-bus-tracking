@@ -2,7 +2,7 @@
 // platform-correct action. Android can open settings; the web cannot, so
 // the card shows browser steps and a re-check button instead.
 // See docs/ui/UI_SPEC.md 5 and 7.7.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/platform/web/user_agent.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';

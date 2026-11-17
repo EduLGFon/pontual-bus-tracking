@@ -2,7 +2,7 @@
 // Android app download card. Both show once, only on their unseen
 // platform, and stay hidden on the test platform. Merged into one file
 // so the suite pays a single test-process startup instead of two.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 import 'package:pontual/platform/web/install_hint.dart';

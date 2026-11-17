@@ -3,7 +3,7 @@
 // favourites and shortcuts. Scheduled only: a live vehicle on the line is
 // stated as a chip, never as a fabricated arrival. See docs/ui/UI_SPEC.md
 // 3, 7.2 and 12.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';

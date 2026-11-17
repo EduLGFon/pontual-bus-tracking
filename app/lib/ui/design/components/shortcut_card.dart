@@ -4,7 +4,7 @@
 // The empty variant is a ghost card with a dashed border that opens the
 // add flow.
 // See docs/ui/UI_SPEC.md 5 and 7.2 and docs/ui/UI_SPEC.md.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/dashed_outline.dart';
 import 'package:pontual/ui/design/components/eta_text.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';

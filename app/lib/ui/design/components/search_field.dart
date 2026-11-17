@@ -1,7 +1,7 @@
 // SearchField: 52 dp sunken field with a leading search icon, a clear
 // button and no Material underline or filled defaults.
 // See docs/ui/UI_SPEC.md 5 and 7.3.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

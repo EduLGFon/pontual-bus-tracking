@@ -5,7 +5,7 @@
 // metric never carries connectivity. PRIVACY: no coordinates, no tokens.
 import 'dart:async';
 
-import 'package:flutter/material.dart' hide Banner;
+import 'package:material_ui/material_ui.dart' hide Banner;
 import 'package:geolocator/geolocator.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';

@@ -1,7 +1,7 @@
 // Sheets of the trip flow: the consent disclosure and the permission
 // pre-prompt. The disclosure never records anything itself: acceptance is
 // handed to the existing ConsentSheet call, which owns the stored choice.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';

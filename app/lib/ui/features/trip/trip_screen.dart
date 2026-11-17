@@ -4,7 +4,7 @@
 // owns every side effect; this file only reads it and calls its methods.
 import 'dart:async';
 
-import 'package:flutter/material.dart' hide Banner;
+import 'package:material_ui/material_ui.dart' hide Banner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';

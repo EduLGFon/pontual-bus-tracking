@@ -2,7 +2,7 @@
 // content (click-and-drag), while touch, stylus and trackpad keep working.
 // See docs/ui/UI_SPEC.md 8.
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Scroll behaviour with drag support for every pointer kind.
 class PontualScrollBehavior extends MaterialScrollBehavior {

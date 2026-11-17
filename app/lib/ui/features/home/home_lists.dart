@@ -1,7 +1,7 @@
 // Remaining Início sections: the live-now list, the recents chips, the
 // no-live empty card and the all-lines link row. Pure presentation.
 // See docs/ui/UI_SPEC.md 7.2.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/components/buttons.dart';

@@ -2,7 +2,7 @@
 // departure hero and the hour rail. Day types come from the static data;
 // holidays are not auto-detected and the user switches manually.
 // See docs/ui/UI_SPEC.md 7.6.
-import 'package:flutter/material.dart' hide Chip;
+import 'package:material_ui/material_ui.dart' hide Chip;
 import 'package:go_router/go_router.dart';
 import 'package:pontual/data/static_data/static_data.dart';
 import 'package:pontual/domain/schedule.dart';

@@ -2,7 +2,7 @@
 // sheet content (scrollable, no drag) plus the map filling the rest. From
 // 840 dp the panel is 400 dp; from 600 to 839 dp the navigation rail rules
 // apply and the panel is 360 dp. See docs/ui/UI_SPEC.md 6.5 and 7.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 
 /// Panel width of the expanded layout, in dp.

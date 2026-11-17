@@ -4,7 +4,7 @@
 // See docs/ui/UI_SPEC.md 7.5.
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/icons/bus_icon.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/models/certainty.dart';

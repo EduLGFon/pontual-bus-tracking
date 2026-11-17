@@ -2,7 +2,7 @@
 // blocked use a one-shot location read converted on-device to a ~150 m
 // cell; broken and full are line-level. One report and one retract only.
 // No votes in this alpha. See DECISIONS.md#D82 and D83.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/errors/failures.dart';

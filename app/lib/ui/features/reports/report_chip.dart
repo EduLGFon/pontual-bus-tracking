@@ -1,7 +1,7 @@
 // Report chip: icon, label and age. Incidents warn; waiting stays neutral
 // so it never reads as an alert. Colour is always paired with text.
 // See DECISIONS.md#D82/D83.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

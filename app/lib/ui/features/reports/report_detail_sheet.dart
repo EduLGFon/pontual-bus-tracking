@@ -1,7 +1,7 @@
 // Report detail sheet: what was reported, when, and how many devices
 // reported it. No votes in this alpha; only the reporter can retract.
 // See DECISIONS.md#D82/D83.D83.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/core/errors/failures.dart';

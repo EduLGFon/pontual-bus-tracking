@@ -1,6 +1,6 @@
 // Passenger report parsing, area distances, age/count copy, and the calm
 // chip strip. No network: pure models plus widget rendering.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/data/api/dto.dart';

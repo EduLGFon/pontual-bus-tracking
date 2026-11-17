@@ -2,7 +2,7 @@
 // come from an overridden linesProvider, the live endpoint answers from a
 // MockClient, prefs are mocked, and no network is hit.
 // See docs/ui/UI_SPEC.md 7.3 and 7.4.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -104,10 +104,12 @@ class _RouterApp extends StatelessWidget {
   }
 }
 
-/// One pump that flushes async providers and short animations. Fake time,
+/// Flushes async providers and short animations. The first pump processes
+/// the router notification and the second builds the pushed route. Fake time,
 /// so the duration costs no wall time. Used instead of pumpAndSettle.
-Future<void> settleOnce(WidgetTester tester) {
-  return tester.pump(const Duration(milliseconds: 300));
+Future<void> settleOnce(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 void main() {

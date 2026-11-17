@@ -6,7 +6,7 @@
 // the ShareProgressTracker owns state. See ARCHITECTURE.md S06.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:pontual/domain/trip/share_phases.dart';

@@ -1,7 +1,7 @@
 // Sparkline: 7-12 bars of delay history drawn with a CustomPainter.
 // Flagged off with the reliability UI; the gallery shows it with fake
 // data. See docs/ui/UI_SPEC.md 5 and 13.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 
 /// Bar sparkline for aggregated delay history.

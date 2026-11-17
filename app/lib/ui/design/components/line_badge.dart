@@ -2,7 +2,7 @@
 // business category palette and with a text colour computed for contrast.
 // Optional Hero tag for the line screen transition.
 // See docs/ui/UI_SPEC.md 5 and docs/ui/UI_SPEC.md.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/design/icons/bus_icon.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';

@@ -4,7 +4,7 @@
 // channels, deterministic clocks. See docs/ui/UI_SPEC.md 7.7 and 7.8.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -40,6 +40,13 @@ Widget wrapApp(Widget child) {
 /// which is slower and hangs on screens with a never-settling pulse.
 Future<void> settleOnce(WidgetTester tester) {
   return tester.pump(const Duration(milliseconds: 300));
+}
+
+/// Pushes the trip route and pumps the frame that builds it.
+Future<void> pushTrip(WidgetTester tester, GoRouter router) async {
+  unawaited(router.push('/trip'));
+  await tester.pump();
+  await tester.pump();
 }
 
 /// Router with a marker home and the trip screen, for navigation tests.
@@ -210,8 +217,7 @@ void main() {
         ),
       );
       await tester.pump();
-      unawaited(router.push('/trip'));
-      await tester.pump();
+      await pushTrip(tester, router);
       await tester.tap(find.byTooltip(UiStrings.tripMinimize));
       await tester.pump();
       // No settle: the hero pulse never settles by design.
@@ -240,8 +246,7 @@ void main() {
         ),
       );
       await tester.pump();
-      unawaited(router.push('/trip'));
-      await tester.pump();
+      await pushTrip(tester, router);
       await tester.binding.handlePopRoute();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -294,8 +299,7 @@ void main() {
         ),
       );
       await tester.pump();
-      unawaited(router.push('/trip'));
-      await tester.pump();
+      await pushTrip(tester, router);
       await tester.tap(find.text(UiStrings.tripStop));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text(UiStrings.endTitle), findsOneWidget);

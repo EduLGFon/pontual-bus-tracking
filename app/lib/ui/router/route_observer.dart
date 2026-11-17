@@ -10,7 +10,7 @@
 // The observer is attached to the root navigator. The line route is
 // top-level today; if it ever moves into a shell branch, the branch
 // navigator needs the same observer.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Notifies the screen below when a full page covers it or returns.
 final RouteObserver<PageRoute<dynamic>> appPageRouteObserver =

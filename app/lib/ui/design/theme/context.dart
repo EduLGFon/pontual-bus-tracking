@@ -1,7 +1,7 @@
 // Context extensions that expose the token sets. `context.colors` and
 // `context.text` are the only way widgets read tokens.
 // See docs/ui/UI_SPEC.md 4.7.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/tokens/colors.dart';
 import 'package:pontual/ui/design/tokens/text.dart';
 

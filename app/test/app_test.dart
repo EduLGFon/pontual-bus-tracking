@@ -1,7 +1,7 @@
 // App boot and scale tests for the new UI. The app opens on Início with
 // the first-run welcome card, every tab is reachable, and the tree
 // survives 200 percent text scale on a narrow screen.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

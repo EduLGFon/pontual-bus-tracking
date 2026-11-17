@@ -1,6 +1,6 @@
 // Widget tests for the shared line status line. Linhas and Busca render
 // this widget, so every state keeps one wording and one style.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/components/line_status_line.dart';
 import 'package:pontual/ui/design/theme/theme.dart';

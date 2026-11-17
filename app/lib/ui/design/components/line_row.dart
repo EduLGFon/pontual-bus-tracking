@@ -2,7 +2,7 @@
 // line that always exists, and a star toggle. Light divider rows, no heavy
 // cards, so more rows fit per screen. Times use tabular figures and never
 // touch the star. See docs/ui/UI_SPEC.md 5 and docs/ui/UI_SPEC.md.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';

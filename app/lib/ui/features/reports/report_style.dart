@@ -1,7 +1,7 @@
 // Copy, icons and colour roles for passenger reports. Colour is never the
 // only signal: every surface also carries an icon and a pt-BR label.
 // See DECISIONS.md#D82/D83 and docs/ui/UI_SPEC.md 4.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/domain/reporting/report_kind.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/models/report_vm.dart';

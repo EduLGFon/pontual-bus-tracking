@@ -2,7 +2,7 @@
 // data comes from, the OpenStreetMap attribution, the open-source licences
 // and the repository. Every external link opens in the system browser and
 // every failure leaves the text on screen, so nothing is ever lost.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pontual/data/config/remote_config.dart';
