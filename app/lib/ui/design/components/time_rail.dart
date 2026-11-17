@@ -2,7 +2,7 @@
 // chips. Past minutes are dimmed by colour alpha, never by the Opacity
 // widget. The next departure is highlighted with the primary fill.
 // See docs/ui/UI_SPEC.md 7.6.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

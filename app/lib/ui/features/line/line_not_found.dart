@@ -1,7 +1,7 @@
 // Unknown line key state of the line screen: the honest empty state with a
 // way back, shown for any key that is not in the static data.
 // See docs/ui/UI_SPEC.md 7.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/components/icon_btn.dart';

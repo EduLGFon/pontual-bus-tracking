@@ -2,7 +2,7 @@
 // background by 6 percent of the ink colour and scales to 0.98 with no ink
 // splash. Hover (web) tints 4 percent. Focus shows a 2 px primary outline.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

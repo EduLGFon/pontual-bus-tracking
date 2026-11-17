@@ -1,7 +1,7 @@
 // VehicleRow: "Ônibus 1" numbered by display order, never by internal id.
 // Shows the age, the speed, an optional personal ETA to the rider's stop, the
 // certainty badge and an optional follow action. See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';

@@ -1,7 +1,7 @@
 // PersonalArrivalCard: renders every honest state of "when does a bus
 // reach my stop?" on the line screen. Pure presentation: no providers,
 // no network, no routing. Copy comes from UiStrings and tokens only.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:pontual/ui/adapters/personal_arrival.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';

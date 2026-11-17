@@ -745,6 +745,7 @@ JSON Schema validation, unique ids/codes/shorts, sorted times, UTF-8, size budge
 | Prefs | `shared_preferences` | tiny key/values (consent version, device token, theme, data version) |
 | Wake lock (web/iOS/Android trip toggle) | `wakelock_plus` | generalized to `app/lib/platform/screen_wake.dart`; web defaults on and stays toggleable; Android uses `FLAG_KEEP_SCREEN_ON` with no `WAKE_LOCK` permission or new dependency (D117) |
 | Links | `url_launcher` | open policy URL / mail |
+| Material widgets | `material_ui` | official Flutter Material implementation, BSD-3-Clause; direct because Flutter 3.50 deprecates `package:flutter/material.dart`; already resolved at the same version and sha256 transitively, so no new supply-chain bytes (D129) |
 | Notifications permission | `permission_handler` (notification permission only, best-effort request at share time; injects no manifest permissions) | approved by ADR 2026-10-10 |
 | Polyline decode | tiny pure-Dart function (about 25 lines) | no package |
 | Tests | `flutter_test`, `mocktail` | |

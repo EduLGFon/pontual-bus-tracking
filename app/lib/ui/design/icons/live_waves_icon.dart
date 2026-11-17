@@ -1,7 +1,7 @@
 // Live waves icon: a solid dot with two emitting arcs. Used wherever the
 // UI says "this is measured right now".
 // See docs/ui/UI_SPEC.md 4.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Paints the live signal icon.
 class LiveWavesIconPainter extends CustomPainter {

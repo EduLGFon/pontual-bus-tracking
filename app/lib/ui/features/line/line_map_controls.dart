@@ -4,7 +4,7 @@
 // edges: the circle button never positions itself, so the recenter control
 // cannot end up stacked over the back button.
 // See docs/ui/UI_SPEC.md 7.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/design/tokens/text.dart';

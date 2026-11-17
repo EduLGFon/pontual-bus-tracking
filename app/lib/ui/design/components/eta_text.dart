@@ -2,7 +2,7 @@
 // reserved so the digits never jitter. Digits stay in the ink colour;
 // certainty is carried by the badge next to them.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/models/arrival_vm.dart';

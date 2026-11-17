@@ -4,7 +4,7 @@
 // the legacy shareTrip entry and the new startShare entry (which
 // delegates to shareTrip). Merged into one file so the suite pays a
 // single test-process startup instead of two. See ARCHITECTURE.md S06 and S08.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';

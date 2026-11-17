@@ -1,7 +1,7 @@
 // Lines screen: the Linhas tab. The filter lives in the URL so links and the
 // browser back button restore the same view, and every count comes from the
 // data. See docs/ui/UI_SPEC.md 7.4.
-import 'package:flutter/material.dart' hide Chip;
+import 'package:material_ui/material_ui.dart' hide Chip;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

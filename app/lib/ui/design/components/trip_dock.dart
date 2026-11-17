@@ -3,7 +3,7 @@
 // shell renders it only while a trip runs and in normal layout above the
 // navigation. No destructive action lives on the bar.
 // See docs/ui/UI_SPEC.md 7.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';

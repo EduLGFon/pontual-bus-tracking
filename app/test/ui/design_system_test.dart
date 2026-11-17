@@ -1,6 +1,6 @@
 // Widget tests for the design-system components: interaction base,
 // buttons, badges, the certainty system and the ETA text.
-import 'package:flutter/material.dart' hide Chip;
+import 'package:material_ui/material_ui.dart' hide Chip;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/buttons.dart';

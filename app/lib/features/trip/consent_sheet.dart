@@ -1,7 +1,7 @@
 // S06 share-trip sheet: prominent disclosure plus consent. Shown before
 // the first trip and whenever consent_version changes. No pre-ticked
 // boxes; dismissible without side effects. See ARCHITECTURE.md S06.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 

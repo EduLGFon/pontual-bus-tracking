@@ -1,7 +1,7 @@
 // Skeleton: static rounded rectangles in the sunken surface. One shared
 // opacity pulse, and only shown after 300 ms of loading.
 // See docs/ui/UI_SPEC.md 5 and 10.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 

@@ -1,6 +1,6 @@
 // Place search: lines whose learned route passes through a searched place.
 // Offline: gazetteer is bundled and the learned index is cached in memory.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/core/geo/route_proximity.dart';
 import 'package:pontual/domain/learning/learned_route_index.dart';
 import 'package:pontual/domain/learning/place.dart';

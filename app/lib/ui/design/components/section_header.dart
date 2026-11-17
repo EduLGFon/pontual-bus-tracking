@@ -1,6 +1,6 @@
 // Section header with an optional trailing ghost action.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

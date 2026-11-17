@@ -1,7 +1,7 @@
 // Banner: inline strip for offline, maintenance and permission info. Never
 // blocks input, appears and disappears with a height and fade transition.
 // See docs/ui/UI_SPEC.md 5 and 10.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

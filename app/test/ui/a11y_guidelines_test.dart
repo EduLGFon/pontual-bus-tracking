@@ -1,7 +1,7 @@
 // Automated accessibility guidelines over the design-system components,
 // in both themes. Manual TalkBack/VoiceOver/keyboard runs stay in
 // docs/ui/a11y-script.md. See docs/ui/UI_SPEC.md 12.12.
-import 'package:flutter/material.dart' hide Banner, Chip;
+import 'package:material_ui/material_ui.dart' hide Banner, Chip;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/components/banner.dart';
 import 'package:pontual/ui/design/components/buttons.dart';

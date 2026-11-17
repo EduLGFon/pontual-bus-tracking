@@ -2,7 +2,7 @@
 // Contrast for every foreground/background pair is computed by
 // test/ui/contrast_test.dart; the hex values here are the ones that pass
 // WCAG 2.2 AA (4.5:1 text, 3:1 graphics). See docs/ui/UI_SPEC.md 4.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Colour tokens consumed through Theme extensions. Widgets never hold a
 /// raw colour: they read [PontualContext.colors].

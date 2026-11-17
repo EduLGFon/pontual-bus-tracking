@@ -2,7 +2,7 @@
 // Not the Material SegmentedButton: the thumb is a single AnimatedAlign
 // so the whole control animates as one object.
 // See docs/ui/UI_SPEC.md 5 and 7.6.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';

@@ -2,7 +2,7 @@
 // center and the about screen. Icon plus label (plus optional subtitle),
 // a trailing chevron, a 48 dp hit area, and a pt-BR semantics label, so an
 // icon never stands alone. See docs/ui/UI_SPEC.md 7.8.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

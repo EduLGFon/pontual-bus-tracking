@@ -2,7 +2,7 @@
 // viewers get the PWA experience (standalone, geolocation on tap).
 // See ARCHITECTURE.md 8.12 and T39.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';

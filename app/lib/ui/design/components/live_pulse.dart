@@ -2,7 +2,7 @@
 // markers animate from it so no widget owns its own ticker. Paused when
 // reduced motion is on or when the subtree is hidden (TickerMode).
 // See docs/ui/UI_SPEC.md 5 (LiveDot) and 9.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 
 /// Hosts the shared live-pulse controller for its subtree.

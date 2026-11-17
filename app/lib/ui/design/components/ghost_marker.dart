@@ -5,7 +5,7 @@
 // fix (200 ms) when one arrives. After ~2 min without a fix the prediction
 // fades and the vehicle reads stale instead. Flagged off with predictions.
 // See docs/ui/UI_SPEC.md 13.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/models/certainty.dart';

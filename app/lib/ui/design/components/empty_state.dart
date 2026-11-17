@@ -1,7 +1,7 @@
 // EmptyState: a small vector illustration drawn from shapes, a title, one
 // sentence and one action. Never an image file.
 // See docs/ui/UI_SPEC.md 5 and 10.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

@@ -2,7 +2,7 @@
 // the next departure when the personal arrival card is not the hero. A
 // vertical layout avoids the fixed-width ETA block used by ArrivalRow,
 // which clips in the narrow side panel. See docs/ui/UI_SPEC.md 7.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/eta_text.dart';

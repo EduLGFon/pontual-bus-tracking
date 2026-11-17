@@ -1,7 +1,7 @@
 // ConfidenceMeter: three small bars for prediction confidence
 // (low, medium, high). Flagged off with the predictions UI.
 // See docs/ui/UI_SPEC.md 5 and 13.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 

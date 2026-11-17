@@ -1,5 +1,5 @@
 // Riverpod wiring for the personal arrival feature on the line screen.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/core/geo/geo.dart' as core;
 import 'package:pontual/domain/learning/eta_estimate.dart';

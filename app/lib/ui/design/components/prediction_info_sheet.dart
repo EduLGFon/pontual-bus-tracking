@@ -1,7 +1,7 @@
 // PredictionInfoSheet: "Como calculamos" with the one-paragraph
 // explanation from the copy deck. Flagged off with predictions.
 // See docs/ui/UI_SPEC.md 13.1 and 14.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';

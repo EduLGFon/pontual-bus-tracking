@@ -1,7 +1,7 @@
 // First-use disclosure before a report reads the device location. The OS
 // permission prompt follows only after acceptance. The notice is stored
 // locally, not as a server consent record (D83; legal review pending).
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';
 import 'package:pontual/ui/design/theme/context.dart';

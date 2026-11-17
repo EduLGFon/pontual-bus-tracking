@@ -3,7 +3,7 @@
 // navigation stay mounted. Detail routes are pushed on top of the shell.
 // See docs/ui/UI_SPEC.md 6.6.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/features/trip/trip_controller.dart';
 import 'package:pontual/ui/design/gallery/gallery_screen.dart';

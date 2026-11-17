@@ -1,7 +1,7 @@
 // Spark icon used by the predicted certainty. Four points, no fill, so it
 // reads as an estimate rather than a measurement.
 // See docs/ui/UI_SPEC.md 4.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Paints the prediction spark.
 class SparkIconPainter extends CustomPainter {

@@ -5,7 +5,7 @@
 // See docs/ui/UI_SPEC.md 5 and the design contract section 5.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/permission_card.dart';

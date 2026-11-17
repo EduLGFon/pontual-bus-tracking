@@ -1,7 +1,7 @@
 // Route and terminal glyphs. Both are simple path drawings so the line
 // screen can label origin chips and terminals without an icon font.
 // See docs/ui/UI_SPEC.md 4.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Paints a route: a start dot, a winding line, a flag at the end.
 class RouteIconPainter extends CustomPainter {

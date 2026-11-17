@@ -1,7 +1,7 @@
 // Widget tests for the personal stop marker and the global stop dots on the
 // line map: semantics labels, tap targets, the safe empty list, and the
 // camera command. Tiles come from a MockClient so no real request happens.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

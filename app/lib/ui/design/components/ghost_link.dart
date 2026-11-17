@@ -1,7 +1,7 @@
 // Ghost link: text-only action with a 48 dp hit area, used as the trailing
 // action of section headers and list rows.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/tokens/text.dart';
 

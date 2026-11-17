@@ -1,7 +1,7 @@
 // Chips and filter chips. Pill, 36 dp tall with a 48 dp hit area, sunken
 // fill; the selected state fills with the primary colour.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

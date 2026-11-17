@@ -1,7 +1,7 @@
 // Bus icon, front view. Custom-painted so it stays crisp at any size and
 // costs nothing at runtime. One rounded stroke weight, matching the other
 // domain icons. See docs/ui/UI_SPEC.md 4.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Paints a bus seen from the front: body, windscreen, two lights.
 class BusIconPainter extends CustomPainter {

@@ -1,7 +1,7 @@
 // Permanent Android download link for the web build. The one-time prompt
 // covers Android browsers; this row keeps the APK reachable from Settings
 // afterwards and on desktop. See D81.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/platform/web/android_app_download.dart';
 import 'package:pontual/ui/features/settings/settings_section.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';

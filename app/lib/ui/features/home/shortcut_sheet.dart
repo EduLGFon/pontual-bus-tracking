@@ -4,7 +4,7 @@
 // See docs/ui/UI_SPEC.md 6.3 and 7.2.
 import 'dart:async';
 
-import 'package:flutter/material.dart' hide Chip;
+import 'package:material_ui/material_ui.dart' hide Chip;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';

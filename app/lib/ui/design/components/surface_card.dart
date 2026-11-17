@@ -1,7 +1,7 @@
 // Surface card: the tonal layer used by rows and panels. Depth comes from
 // the surface colour plus a 1 px hairline, never from a shadow.
 // See docs/ui/UI_SPEC.md 4.3 and 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

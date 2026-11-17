@@ -5,7 +5,7 @@
 // that the report was recorded in. The stop action stays pinned and
 // must remain present and hit-testable at that size. Tapping it shows
 // the end card, which must also render without overflow.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/ui/design/theme/theme.dart';

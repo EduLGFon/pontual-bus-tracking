@@ -2,7 +2,7 @@
 // destination plus subtitle, right action slot. Height at least 72 dp,
 // full-row tap target, and a semantics sentence that reads like speech.
 // See docs/ui/UI_SPEC.md 5 and 12.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_badge.dart';
 import 'package:pontual/ui/design/components/eta_text.dart';
 import 'package:pontual/ui/design/components/line_badge.dart';

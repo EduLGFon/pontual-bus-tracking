@@ -4,7 +4,7 @@
 // See docs/ui/UI_SPEC.md 7.2, 7.10 and 10.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
