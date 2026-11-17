@@ -271,3 +271,4 @@ See section 5. All four spikes done 2026-10-02; device VERIFY items remain open.
 - Append-only. Newest entries go at the end of each section. See AGENTS.md 14.
 - Full history removed; see git log and CHANGELOG.md.
 - Compacted decision index; current as of 2026-11-16.
+- ADR (2026-11-17, Accepted): bump Android Gradle Plugin 9.1.0 -> 9.1.1 in app/android/settings.gradle.kts. Flutter 3.50 DependencyVersionChecker hard-fails AGP below 9.1.1; 9.1.1 still meets Gradle wrapper 9.3.1 requirement (AGP 9.1.x needs Gradle >= 9.3.1). Minimal one-line bump; KGP stays 2.4.0; no bypass flags.
