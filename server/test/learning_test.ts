@@ -3,7 +3,7 @@
 // dwell/travel stats. Non-DB cases use a stateful fake Sql tagged template
 // that records queries; DB cases use TEST_DATABASE_URL.
 import { assert, assertEquals } from "@std/assert";
-import { decodePolyline } from "../src/domain/geo.ts";
+import { decodePolyline, distM } from "../src/domain/geo.ts";
 import { openDb } from "../src/db/client.ts";
 import { LearningConsumer } from "../src/learning/consumer.ts";
 import { predictEta } from "../src/learning/predictor.ts";
@@ -550,6 +550,139 @@ Deno.test("stationary fixes at 5 s cadence still create a stop and dwell bin", a
   assert(
     queries.some((q) => q.text.includes("insert into learning_dwell_bins")),
     "expected a dwell bin from stationary fixes",
+  );
+});
+
+Deno.test("published route covers the boarding and alighting fixes by default", async () => {
+  // Default config with no trim override: trip start/end are the boarding
+  // ("Estou no onibus") and alighting ("Desci") fixes, so the published
+  // polyline must reach them within the 50 m corridor grid cell.
+  const cfg = {
+    ...defaultLearningConfig(),
+    minSampleSpacingM: 0,
+    minSampleSpacingS: 0,
+  };
+  assertEquals(cfg.trimEndsS, 0);
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+
+  runTrip(
+    consumer,
+    15,
+    "full-trip",
+    path(0, 400, 1_000_000),
+    { consentVersion: 2 },
+    clock,
+  );
+  await consumer.flush();
+
+  const inserts = queries.filter((q) =>
+    q.text.includes("insert into learned_routes")
+  );
+  const insert = inserts[inserts.length - 1];
+  assert(insert, "expected a learned_routes insert");
+  const decoded = decodePolyline(insert.values[3] as string, 5);
+  assert(decoded.length >= 2, "expected a published polyline");
+  const boarding = at(0);
+  const alighting = at(400);
+  const startDist = distM(
+    decoded[0].lat,
+    decoded[0].lng,
+    boarding.lat,
+    boarding.lng,
+  );
+  const endDist = distM(
+    decoded[decoded.length - 1].lat,
+    decoded[decoded.length - 1].lng,
+    alighting.lat,
+    alighting.lng,
+  );
+  assert(startDist < 50, `polyline starts ${startDist} m from boarding fix`);
+  assert(endDist < 50, `polyline ends ${endDist} m from alighting fix`);
+});
+
+Deno.test("an explicit positive trimEndsS still drops the trip ends", async () => {
+  // 300 s trip moving 2 m/s east. A 120 s trim keeps only fixes between
+  // 120 s and 180 s, i.e. east 240 m to 360 m: neither the boarding fix
+  // (east 0) nor the alighting fix (east 600) may reach the polyline.
+  const cfg = testConfig({ trimEndsS: 120 });
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  const points: TripPoint[] = [];
+  for (let i = 0; i <= 60; i++) {
+    points.push({
+      tMs: 1_000_000 + i * 5000,
+      ...at(i * 10),
+      speedMps: 2,
+    });
+  }
+  runTrip(consumer, 16, "trimmed-trip", points, { consentVersion: 2 }, clock);
+  await consumer.flush();
+
+  const inserts = queries.filter((q) =>
+    q.text.includes("insert into learned_routes")
+  );
+  const insert = inserts[inserts.length - 1];
+  assert(insert, "expected a learned_routes insert");
+  const decoded = decodePolyline(insert.values[3] as string, 5);
+  const east = decoded.map((p) => eastOf(p.lat, p.lng));
+  assert(Math.min(...east) > 200, `polyline starts at ${Math.min(...east)}`);
+  assert(Math.max(...east) < 420, `polyline ends at ${Math.max(...east)}`);
+  assert(
+    Math.max(...east) > 300,
+    `trimmed middle missing: ${Math.max(...east)}`,
+  );
+});
+
+Deno.test("endpoint dwells reach learned stops and dwell bins when trim is 0", async () => {
+  // With the default trimEndsS = 0, dwells at the boarding and alighting
+  // fixes (the first and last accepted fixes) must contribute stops and
+  // dwell bins, not be discarded by an end trim.
+  const cfg = testConfig();
+  const { sql, queries } = fakeSql();
+  const clock = { now: 0 };
+  const consumer = consumerFor(cfg, sql, clock);
+  const t0 = 5_000_000;
+  const points: TripPoint[] = [
+    { tMs: t0, ...at(0), speedMps: 0 },
+    { tMs: t0 + 5000, ...at(0), speedMps: 0 },
+    { tMs: t0 + 10_000, ...at(0), speedMps: 0 },
+  ];
+  for (let i = 1; i <= 8; i++) {
+    points.push({
+      tMs: t0 + 10_000 + i * 5000,
+      ...at(i * 50),
+      speedMps: 10,
+    });
+  }
+  points.push(
+    { tMs: t0 + 55_000, ...at(400), speedMps: 0 },
+    { tMs: t0 + 60_000, ...at(400), speedMps: 0 },
+  );
+  runTrip(consumer, 17, "end-dwell-trip", points, { consentVersion: 2 }, clock);
+  await consumer.flush();
+
+  const stopInserts = queries.filter((q) =>
+    q.text.includes("insert into learned_stops")
+  );
+  assertEquals(stopInserts.length, 2);
+  // One stop at the boarding fix and one at the alighting fix.
+  const easts = stopInserts.map((q) =>
+    eastOf(q.values[4] as number, q.values[5] as number)
+  ).sort((a, b) => a - b);
+  assert(easts[0] < 30, `boarding stop at east ${easts[0]}`);
+  assert(easts[1] > 370, `alighting stop at east ${easts[1]}`);
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into learning_dwell_bins"))
+      .length,
+    2,
+  );
+  assertEquals(
+    queries.filter((q) => q.text.includes("insert into stop_dwell_stats"))
+      .length,
+    2,
   );
 });
 

@@ -1,7 +1,7 @@
 // Bottom navigation. Destinations are data-driven from the enabled features
 // so a future tab is an addition, not a rewrite.
 // See docs/ui/UI_SPEC.md 6.6 and 7.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';

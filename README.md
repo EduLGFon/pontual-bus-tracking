@@ -134,6 +134,8 @@ flutter run -d chrome --web-port 5000 \
 
 `permission_handler` is on 13.x with `compileSdk = 37` in `app/android/app/build.gradle.kts`; AGP 9.1 only warns (not errors) about the unsupported compile SDK. Do not pass `--no-pub` after `flutter pub get`; pub get writes a debug plugin registrant including `integration_test` and breaks release Java compilation.
 
+`env/phone.json` is git-ignored local config, not part of the repository. Production builds must keep `FIX_ACCURACY_MAX_M=60`, matching the server publish gate. `500` is only valid when the API runs locally with `TEST_EASY_PUBLISH=true`, and it must not be used against the production server. The file must be present when a release artifact is rebuilt.
+
 ## Domains
 
 - App/PWA: `https://pontual.spotnik.space` (GitHub Pages custom domain). Cloudflare record is DNS-only CNAME `pontual` -> `edulgfon.github.io`. Keep DNS only: with orange-cloud proxy GitHub cannot issue its own certificate for the custom domain.

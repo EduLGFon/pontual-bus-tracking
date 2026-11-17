@@ -5,14 +5,16 @@
 // See docs/ui/UI_SPEC.md 7.5.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:pontual/core/geo/geo.dart' as geo;
-import 'package:pontual/data/static_data/static_data.dart';
+import 'package:pontual/domain/learning/global_stop.dart';
 import 'package:pontual/features/map/tile_source.dart';
 import 'package:pontual/ui/design/components/live_pulse.dart';
+import 'package:pontual/ui/design/components/route_direction_layer.dart';
 import 'package:pontual/ui/design/components/vehicle_marker.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
@@ -35,6 +37,12 @@ const double neighbourhoodZoom = 14;
 /// Zoom used when focusing one bus: street detail around the marker.
 const double vehicleFocusZoom = 15;
 
+/// Minimum zoom for tappable stop markers. Only at the maximum street zoom
+/// does a 48 dp box span about 54 m at São Mateus latitude, so tapping the
+/// center of one stop in a 50 m pair cannot land inside its neighbor. Below
+/// max zoom stops stay visible but inert.
+const double stopTapMinZoom = mapMaxZoom;
+
 /// Route polyline casing width in dp, drawn under the coloured stroke.
 const double routeCasingDp = 8;
 
@@ -56,7 +64,8 @@ class LineMap extends StatefulWidget {
     required this.onLocateBus,
     this.httpClient,
     this.routePoints = const <LatLng>[],
-    this.stops = const <StopPoint>[],
+    this.stops = const <GlobalStop>[],
+    this.onStopTap,
     this.dashedRoute = false,
     this.selectedKey,
     this.onVehicleTap,
@@ -83,10 +92,14 @@ class LineMap extends StatefulWidget {
   /// Route polyline points, empty until route data exists.
   final List<LatLng> routePoints;
 
-  /// City bus stops to draw as small dots, empty until mapped. Drawn
-  /// under the vehicles; survey-scale hundreds need a zoom gate or cap,
-  /// but the mapped handful needs none.
-  final List<StopPoint> stops;
+  /// Every known global stop, drawn as small dots under the vehicles.
+  /// Tappable only at [stopTapMinZoom]; below it they stay visible but
+  /// inert so hundreds of hit boxes never overlap.
+  final List<GlobalStop> stops;
+
+  /// Called when a street-zoom stop dot is tapped. When null the dots are
+  /// always decorative.
+  final ValueChanged<GlobalStop>? onStopTap;
 
   /// Draws the route dashed instead of solid.
   final bool dashedRoute;
@@ -135,14 +148,25 @@ class LineMap extends StatefulWidget {
 class LineMapState extends State<LineMap> {
   final MapController _map = MapController();
 
+  /// Exposed for tests: the camera controller backing this map.
+  @visibleForTesting
+  MapController get mapController => _map;
+
+  /// Exposed for tests: stream of tile reset requests.
+  @visibleForTesting
+  Stream<void> get tileResets => _tileReset.stream;
+
   /// Reloads the visible tiles when the throttled-burst retry fires.
   final StreamController<void> _tileReset = StreamController<void>.broadcast();
   Timer? _tileRetryTimer;
   int _tileReloadAttempts = 0;
   DateTime? _lastTileErrorAt;
   bool _viewerFitted = false;
+  bool _routeFitted = false;
+  EdgeInsets _lastFitPadding = EdgeInsets.zero;
   bool _mapDarkInitialized = false;
   bool _mapDark = false;
+  bool _stopTapsEnabled = false;
 
   @override
   void didChangeDependencies() {
@@ -173,7 +197,8 @@ class LineMapState extends State<LineMap> {
         viewer != null &&
         oldWidget.viewerPosition == null &&
         !widget.panned &&
-        widget.vehicles.isEmpty) {
+        widget.vehicles.isEmpty &&
+        widget.routePoints.isEmpty) {
       _viewerFitted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !widget.panned) {
@@ -181,6 +206,37 @@ class LineMapState extends State<LineMap> {
         }
       });
     }
+    if (!_routeFitted &&
+        oldWidget.routePoints.isEmpty &&
+        widget.routePoints.isNotEmpty &&
+        widget.vehicles.isEmpty &&
+        !widget.panned) {
+      _routeFitted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.panned) {
+          fitToContent(padding: _lastFitPadding);
+        }
+      });
+    }
+  }
+
+  /// Enables the 48 dp stop targets only at street zoom. During a build
+  /// the rebuild is deferred; a direct camera move updates it immediately
+  /// so the next frame already has the right hit boxes.
+  void _updateStopTaps(bool enabled) {
+    if (enabled == _stopTapsEnabled) {
+      return;
+    }
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && enabled != _stopTapsEnabled) {
+          setState(() => _stopTapsEnabled = enabled);
+        }
+      });
+      return;
+    }
+    setState(() => _stopTapsEnabled = enabled);
   }
 
   /// Counts a failed tile and schedules one bounded reload of the visible
@@ -271,6 +327,7 @@ class LineMapState extends State<LineMap> {
   /// the camera. [padding] reserves the space covered by the sheet or the
   /// side panel.
   void fitToContent({EdgeInsets padding = EdgeInsets.zero}) {
+    _lastFitPadding = padding;
     final List<LatLng> points = widget.vehicles
         .map((VehicleVM v) => LatLng(v.lat, v.lng))
         .toList();
@@ -288,9 +345,23 @@ class LineMapState extends State<LineMap> {
       _map.move(points.first, vehicleFocusZoom);
       return;
     }
-    _map.fitCamera(
-      CameraFit.bounds(bounds: mapBounds, padding: padding, maxZoom: 14),
-    );
+    final List<LatLng> route = widget.routePoints;
+    if (route.length >= 2) {
+      _map.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(route),
+          padding: padding,
+          maxZoom: 15,
+        ),
+      );
+      return;
+    }
+    final LatLng? viewer = widget.viewerPosition;
+    if (viewer != null) {
+      _map.move(viewer, neighbourhoodZoom);
+      return;
+    }
+    _map.move(mapBounds.center, cityZoom);
   }
 
   @override
@@ -318,6 +389,7 @@ class LineMapState extends State<LineMap> {
                 cameraConstraint: CameraConstraint.contain(bounds: mapBounds),
                 backgroundColor: colors.surface,
                 onPositionChanged: (MapCamera camera, bool hasGesture) {
+                  _updateStopTaps(camera.zoom >= stopTapMinZoom);
                   if (hasGesture) {
                     widget.onPan();
                   }
@@ -346,19 +418,34 @@ class LineMapState extends State<LineMap> {
                     width: routeStrokeDp,
                     dashed: widget.dashedRoute,
                   ),
+                  RouteDirectionLayer(
+                    points: widget.routePoints,
+                    fill: colors.surface,
+                    outline: _lineColor(context),
+                    maxArrows: maxRouteArrows,
+                  ),
                 ],
                 if (widget.stops.isNotEmpty)
                   MarkerLayer(
                     rotate: false,
                     alignment: Alignment.center,
                     markers: <Marker>[
-                      for (final StopPoint stop in widget.stops)
+                      for (final GlobalStop stop in widget.stops)
                         Marker(
                           key: ValueKey<String>('stop-${stop.id}'),
                           point: LatLng(stop.lat, stop.lng),
-                          width: 16,
-                          height: 16,
-                          child: _StopDot(name: stop.name),
+                          width: widget.onStopTap != null && _stopTapsEnabled
+                              ? 48
+                              : 16,
+                          height: widget.onStopTap != null && _stopTapsEnabled
+                              ? 48
+                              : 16,
+                          child: _StopDot(
+                            name: stop.name,
+                            onTap: widget.onStopTap != null && _stopTapsEnabled
+                                ? () => widget.onStopTap!(stop)
+                                : null,
+                          ),
                         ),
                     ],
                   ),
@@ -419,7 +506,14 @@ class LineMapState extends State<LineMap> {
             child: IconButton(
               tooltip: _mapDark ? 'Mapa claro' : 'Mapa escuro',
               icon: Icon(_mapDark ? Icons.light_mode : Icons.dark_mode),
-              onPressed: () => setState(() => _mapDark = !_mapDark),
+              onPressed: () {
+                setState(() => _mapDark = !_mapDark);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_tileReset.isClosed) {
+                    _tileReset.add(null);
+                  }
+                });
+              },
             ),
           ),
         ),
@@ -518,30 +612,48 @@ class _ViewerDot extends StatelessWidget {
 
 /// Bus stop dot: small muted circle with a surface ring. Never a bus
 /// glyph and never pulsing, so it cannot read as a vehicle. Names come
-/// from survey or OSM data, never invented. Decorative: reports use the
-/// user's coarse area, not a manually chosen stop (D83).
+/// from survey or OSM data, never invented. Tappable at the maximum street
+/// zoom to open the stop sheet; below it stays a decorative, non-semantic
+/// dot. Reports still use the user's coarse area, not a manually chosen
+/// stop (D83).
 class _StopDot extends StatelessWidget {
   /// Creates a stop dot with the posted [name], if mapped.
-  const _StopDot({this.name});
+  const _StopDot({this.name, this.onTap});
 
   /// Posted stop name, null when unmapped.
   final String? name;
 
+  /// Tap handler when the dot is tappable. Null keeps it decorative.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Semantics(
-      label: name == null || name!.isEmpty ? 'Ponto de ônibus' : 'Ponto: $name',
-      child: Center(
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: colors.inkMuted,
-            shape: BoxShape.circle,
-            border: Border.all(color: colors.surface, width: 2),
-          ),
+    final String label = name == null || name!.isEmpty
+        ? UiStrings.stopTitle
+        : UiStrings.stopLabel(name!);
+    final Widget dot = Center(
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: colors.inkMuted,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.surface, width: 2),
         ),
+      ),
+    );
+    if (onTap == null) {
+      return ExcludeSemantics(child: dot);
+    }
+    return Semantics(
+      container: true,
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox.expand(child: dot),
       ),
     );
   }

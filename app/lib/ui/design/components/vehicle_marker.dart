@@ -4,7 +4,7 @@
 // See docs/ui/UI_SPEC.md 7.5.
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/icons/bus_icon.dart';
 import 'package:pontual/ui/design/tokens/line_colors.dart';
 import 'package:pontual/ui/models/certainty.dart';
@@ -15,7 +15,16 @@ import 'package:pontual/ui/strings/ui_strings.dart';
 const double markerBodyDp = 36;
 
 /// Marker hit area in dp.
-const double markerHitDp = 44;
+const double markerHitDp = 60;
+
+/// Heading arrow tip offset beyond the body radius, in dp.
+const double headingArrowTipOffsetDp = 8;
+
+/// Heading arrow half width at its base, in dp.
+const double headingArrowHalfWidthDp = 4;
+
+/// Heading arrow stroke width in dp.
+const double headingArrowStrokeDp = 1.5;
 
 /// Pulse ring start radius in dp.
 const double markerPulseFromDp = 18;
@@ -176,14 +185,28 @@ class VehicleMarkerPainter extends CustomPainter {
 
     if (showHeading && heading != null) {
       final double rad = heading! * math.pi / 180;
-      final Offset tip =
-          center + Offset(math.sin(rad), -math.cos(rad)) * (radius + 9);
+      final Offset dir = Offset(math.sin(rad), -math.cos(rad));
+      final Offset perp = Offset(-dir.dy, dir.dx);
+      final Offset tip = center + dir * (radius + headingArrowTipOffsetDp);
+      final Offset base = center + dir * (radius + 1);
       final Path arrow = Path()
         ..moveTo(tip.dx, tip.dy)
-        ..lineTo(tip.dx - 5, tip.dy + 8)
-        ..lineTo(tip.dx + 5, tip.dy + 8)
+        ..lineTo(
+          base.dx - perp.dx * headingArrowHalfWidthDp,
+          base.dy - perp.dy * headingArrowHalfWidthDp,
+        )
+        ..lineTo(
+          base.dx + perp.dx * headingArrowHalfWidthDp,
+          base.dy + perp.dy * headingArrowHalfWidthDp,
+        )
         ..close();
-      canvas.drawPath(arrow, Paint()..color = ring);
+      final Paint fillPaint = Paint()..color = fill;
+      final Paint strokePaint = Paint()
+        ..color = ring
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = headingArrowStrokeDp;
+      canvas.drawPath(arrow, fillPaint);
+      canvas.drawPath(arrow, strokePaint);
     }
 
     canvas.drawCircle(center, radius, Paint()..color = ring);

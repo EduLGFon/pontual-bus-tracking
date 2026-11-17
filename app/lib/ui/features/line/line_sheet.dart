@@ -3,7 +3,7 @@
 // departures and the Agora / Horários segments. The dock CTA is never
 // duplicated here: the shell owns the dock.
 // See docs/ui/UI_SPEC.md 7.5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:pontual/app/providers.dart';

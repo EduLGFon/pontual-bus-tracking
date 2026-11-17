@@ -2,7 +2,7 @@
 // is the base only: nothing visible comes from Material defaults. No
 // splash factory, no ink ripples, transparent system overlays.
 // See docs/ui/UI_SPEC.md 4.7.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/tokens/colors.dart';
 import 'package:pontual/ui/design/tokens/text.dart';
 

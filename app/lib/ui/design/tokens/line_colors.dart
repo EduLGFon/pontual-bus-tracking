@@ -3,7 +3,7 @@
 // fills below, which carry region meaning. Both avoid pure green (live)
 // and red (errors). Badge text colour is computed per fill.
 // See docs/ui/UI_SPEC.md 4.1 and docs/ui/UI_SPEC.md.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/domain/line_category.dart';
 import 'package:pontual/ui/util/contrast.dart';
 

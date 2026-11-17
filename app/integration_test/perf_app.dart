@@ -7,7 +7,7 @@
 // See docs/ui/UI_SPEC.md and docs/ui/UI_SPEC.md 17.4.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

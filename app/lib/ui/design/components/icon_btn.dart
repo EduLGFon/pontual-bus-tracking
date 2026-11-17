@@ -1,7 +1,7 @@
 // Icon button with a 48 dp hit area and a circular pressed tint. Always
 // carries a semantic label, so an icon never stands alone.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

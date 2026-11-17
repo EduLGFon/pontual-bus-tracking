@@ -3,7 +3,7 @@
 // proof lines, and the trust line. The screen's single coarse clock
 // rebuilds the hero every 5 s; the controller notifies on top.
 // PRIVACY: no coordinates are ever shown or logged.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/app/providers.dart';
 import 'package:pontual/data/static_data/static_data.dart';

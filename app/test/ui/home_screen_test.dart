@@ -2,7 +2,7 @@
 // overridden linesProvider, prefs from SharedPreferences.setMockInitialValues,
 // and no network is hit (MockClient answers the live endpoint only).
 // See docs/ui/UI_SPEC.md 7.2 and 12.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';

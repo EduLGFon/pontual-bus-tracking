@@ -2,7 +2,7 @@
 // weekday-repeat toggle. Flagged off with arrivalAlerts; no push channel
 // exists in alpha, so onSave only persists through AlertsStore callers.
 // See docs/ui/UI_SPEC.md 13.2.
-import 'package:flutter/material.dart' hide Chip;
+import 'package:material_ui/material_ui.dart' hide Chip;
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/chip.dart';
 import 'package:pontual/ui/design/components/pontual_sheet.dart';

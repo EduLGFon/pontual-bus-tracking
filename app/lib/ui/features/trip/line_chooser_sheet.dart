@@ -1,7 +1,7 @@
 // Line chooser sheet of the trip flow: sharing-capable lines, live ones
 // first, filtered through the shared search index. The rider picks a line
 // only when the dock did not bind one; picking one returns it to the flow.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/adapters/lines_adapter.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';

@@ -26,7 +26,7 @@ detect stops from repeated low-speed dwells, cluster into stable points with
 stable id + ordinal; store cumulative dwell/segment travel histograms by
 15-min bucket + day of week plus derived p50/p90 and count; produce ETA
 predictions; keep the privacy contract (no raw fixes, device/trip ids, client
-timestamps, trimmed trip ends, aggregate-only centroids, consent + opt-out).
+timestamps, aggregate-only centroids, consent + opt-out).
 
 Non-goals: turn-by-turn/point-to-point routing (ARCHITECTURE.md 1.2); per-vehicle or
 per-driver profiling; third-party traffic; separate ML serving cluster in alpha
@@ -58,9 +58,14 @@ and final RIPD sign-off pending.
 Hard rules (ARCHITECTURE.md 8, 15):
 - No raw per-trip tracks, ever. Only grid cells, stop centroids, aggregate
   histograms.
-- Trim first/last `trimEndsS` (default 120) s of every trip. A trip shorter
-  than 2 * trimEndsS is trimmed by at most 10% per end; if that leaves < 2
-  fixes, all fixes used. Short trips are not dropped.
+- Trip start/end are the boarding ("Estou no onibus") and alighting ("Desci")
+  fixes, so learned geometry covers the whole shared trip by default: the
+  optional end trim `trimEndsS` (`learning_trim_ends_s`) defaults to 0 and no
+  fix is discarded. An operator may set an explicit positive override, which
+  then drops `trimEndsS` seconds from each trip end; a trip shorter than
+  2 * trimEndsS is trimmed by at most 10% per end; if that leaves < 2 fixes,
+  all fixes are used. Short trips are never dropped. The trim only filters
+  which fixes feed the aggregates; it adds no field and no retention.
 - No device/trip/session id or client timestamp in any aggregate row or event
   payload consumed here.
 - No eligibility gate: a trip with >= 2 kept fixes contributes after consent +
@@ -141,8 +146,10 @@ Rules: if consentVersion < minConsentVersion (default 2), consumer ignores trip
 (defensive; live-sharing guard already rejects outdated consent). Opt-out
 checked before events reach consumer; opted-out device creates no working state.
 No per-device trip-count gate. Samples capped at maxSamplesPerTrip (default 200);
-excess uniformly downsampled. Trip ends trimmed per section 1. Working state
-dropped on trip end, failure, process exit, or restart.
+excess uniformly downsampled. End trimming is optional (section 1) and off by
+default, so every accepted fix including the boarding and alighting fixes
+feeds the aggregates. Working state dropped on trip end, failure, process
+exit, or restart.
 
 ### 4.2 Persisted accumulators
 
@@ -187,7 +194,8 @@ consumer before any working state, so no cells/stops/bins/stats.
 
 Input: kept fixes for one completed trip.
 
-Step 1, per-trip filtering: trim ends, then require >= 2 kept fixes. No
+Step 1, per-trip filtering: apply the optional end trim (off by default; see
+section 1), then require >= 2 kept fixes. No
 minimum trip distance or progress normalisation; partial trips keep real
 position. A fix-to-fix gap > 500 m (`DEFAULT_MAX_GAP_M`) splits the segment;
 trip still contributes cells/edges actually covered.
@@ -221,8 +229,9 @@ client draws nothing.
 ### 5.2 Stop detection and clustering
 
 Per trip: dwell = maximal run with speed < `stopSpeedMps` (default 1.0 m/s) for
->= `minDwellS` (default 5 s). Record centroid + duration. Dwells not surviving
-end trim ignored.
+>= `minDwellS` (default 5 s). Record centroid + duration. Dwells are kept by
+default; only an explicit positive `learning_trim_ends_s` override drops
+dwells in the trimmed ends.
 
 Cross-trip: match dwell to existing stop for same line+direction within
 `stopClusterRadiusM` (default 30 m), first in trip's working set, then startup
@@ -364,19 +373,79 @@ Computed on demand, 10 s cache header. Rate limit 120/min/IP.
 Bulk index for place search. Active learned routes with stops for lines whose
 polyline or stops intersect optional bbox. Cache 300 s.
 
-### 7.5 Client data flow
+### 7.5 `GET /v1/stops`
+
+Global learned stops merged across every line and direction. Public, IP
+60/min, `Cache-Control: public, max-age=300`.
+
+```json
+{ "v": 1, "stops": [ { "id": "uuid", "lat": -18.72, "lng": -39.85, "r": 30, "n": 41, "lines": [ { "l": 60, "d": 0, "s": "uuid" } ] } ] }
+```
+
+- Active stops within 50 m of a stronger anchor merge into one group. The
+  group coordinate is a passes-weighted centroid (members with zero passes are
+  weighted as one for the centroid); `r` and `n` are the group maxima. `lines`
+  lists each member line (`l`), learned direction (`d`) and member stop id
+  (`s`).
+- The group id is the lexicographically smallest member stop id. It is
+  deterministic while membership is unchanged, not guaranteed across
+  membership changes.
+- The server caches the merged list in process for 60 s to avoid repeating
+  the database read and clustering per request.
+- Learning disabled returns 404 `{"e":"not_found"}`. An empty learned set
+  returns 200 with `stops: []`.
+
+### 7.6 `GET /v1/stops/:id/arrivals`
+
+Predicted arrivals at one merged global stop. Public, IP 120/min,
+`Cache-Control: public, max-age=10`.
+
+```json
+{ "id": "uuid", "now": 1730000000, "items": [ { "line": 60, "code": "60", "vehicle": 12, "eta_s": 240, "conf": "high", "n": 38, "m": "learned" } ] }
+```
+
+- `id` resolves through the same 50 m grouping as 7.5. Unknown stop or
+  disabled learning returns 404 `{"e":"not_found"}`.
+- One item per live vehicle. A line is skipped when its served learned
+  direction has no member at the stop; the opposite direction is a different
+  physical approach, not a valid target.
+- `m` is the predictor method: `learned` (route and historic aggregates),
+  `fallback_distance` (straight-line estimate, low confidence),
+  `fallback` (no usable route snap, 0 s sentinel) or `passed` (vehicle past
+  the stop with route geometry and the 30 m tolerance). Clients hide
+  `passed` and the 0-second `fallback` sentinel; a real estimate at <= 60 s
+  may read "Agora".
+- `conf` is `high`, `medium` or `low`; `n` is the sample count.
+
+### 7.7 Client data flow
 
 `LearningRepository` (`app/lib/data/learning/`) fetches learned route, stops,
-ETA, bulk index over HTTP with 8 s timeout. Map draws learned polyline when
-present, else static route, else nothing. Place search uses bulk index and
-degrades to no results on 404/failure. Personal-arrival card requests ETA for
-snapped stop; only line + stop ids sent; viewer position stays on device.
+ETA, global stops, stop arrivals and the bulk index over HTTP with 8 s
+timeout. Map draws learned polyline when present, else static route, else
+nothing. Place search uses bulk index and degrades to no results on
+404/failure. Personal-arrival card requests ETA for snapped stop; only line +
+stop ids sent; viewer position stays on device.
+
+`allStopsProvider` loads `GET /v1/stops` for every line map. A non-empty
+network stop list is kept for the app lifetime; a static fallback after a 404
+or failure is not kept and is retried on a later line-screen mount. Tapping a
+stop at map max zoom 17 (`mapMaxZoom`) opens the stop sheet
+(`app/lib/ui/features/line/stop_sheet.dart`); below that zoom the dots stay
+visible but non-tappable because 48 dp hit boxes overlap. The sheet reads
+`stopArrivalsProvider` for that opaque id on open and at most every 15 s
+while open on the existing vehicle tick. Fixed rows come from the static
+timetable and are terminal departures; live rows are labeled predictions.
+The client sends no coordinates and no trip or device identity on either
+read.
 
 ## 8. Client changes summary
 
 - Repository: `app/lib/data/learning/learning_repository.dart`.
 - Domain models: `LearnedRoute`, `LearnedStop`, `LearnedRoutesIndex`,
   `EtaEstimate` in `app/lib/domain/learning/`.
+- Global stops: `GlobalStop`, `StopLineRef`, `StopArrivalItem`,
+  `StopArrivals` in `app/lib/domain/learning/global_stop.dart`; every line
+  map and the stop sheet consume them.
 - Map, place search, personal arrival consume those models.
 - Privacy center calls `DELETE /v1/me/learning` from confirmed "stop
   contributing" action; one-way, reports offline honestly.
@@ -392,7 +461,7 @@ Runtime values in `app_config`; defaults compiled in. Keys read by
 | --- | --- | --- |
 | `learning_enabled` | `true` | master switch |
 | `learning_min_consent_version` | `2` | min consent version for contribution |
-| `learning_trim_ends_s` | `120` | seconds trimmed from each trip end |
+| `learning_trim_ends_s` | `0` | optional seconds trimmed from each trip end; 0 keeps the boarding/alighting fixes |
 | `learning_flush_interval_s` | `300` | safety-net flush period |
 | `learning_corridor_cell_m` | `50` | absolute corridor grid cell size (m) |
 | `learning_stop_cluster_radius_m` | `30` | stop matching radius (m) |
@@ -423,9 +492,9 @@ wins (ARCHITECTURE.md 7).
   served from first sample. Every served row carries sample count; client can
   present low-confidence estimates honestly.
 - Accepted tradeoff: one consenting rider's trip can shape a route, stop
-  centroid, or histogram bucket. Remaining controls: consent, opt-out, end
-  trimming, aggregate-only storage, no device/trip ids, no raw tracks. Lawyer +
-  DPO sign-off required before public release.
+  centroid, or histogram bucket. Remaining controls: consent, opt-out,
+  aggregate-only storage, no device/trip ids, no raw tracks, optional end
+  trim (off by default). Lawyer + DPO sign-off required before public release.
 - Previous 5-trip device gate, `kMin`, distinct-days suppression,
   `minStopPasses`, terminus dwell suppression removed. They were eligibility and
   serving gates, not ingestion filtering.
@@ -526,7 +595,7 @@ center exposes one-way stop-contributing action; no re-enable path.
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| One trip shapes route/stop/histogram | Re-identification of rider's trip | Consent, opt-out, trimming, no ids, legal review; label sample counts in UI |
+| One trip shapes route/stop/histogram | Re-identification of rider's trip | Consent, opt-out, no ids, aggregate-only storage, legal review; label sample counts in UI |
 | Simulator traffic reaches production | Fake aggregates | Simulator sends `synthetic: true`; server ignores those trips for learning without changing live sharing |
 | Long-lived cumulative bins | Growing storage/retained history | Stop lifecycle retention (90 days inactive, 180 days total); monitor table growth |
 | Route changes (construction, detours) | Stale polyline | Replaced once median deviation > 15 m; keep static route as fallback |

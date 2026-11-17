@@ -1,7 +1,7 @@
 // ReliabilityCard: typical delay plus sparkline for the future history
 // tab. De-identified aggregates only; empty data renders nothing.
 // See docs/ui/UI_SPEC.md 13.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/sparkline.dart';
 import 'package:pontual/ui/design/components/surface_card.dart';
 import 'package:pontual/ui/design/theme/context.dart';

@@ -7,16 +7,16 @@
 
 /// Location request modes.
 enum SamplingMode {
-  /// Role W: balanced accuracy about every 5 s.
+  /// Role W: high accuracy about every 5 s.
   waiting,
 
   /// Role L moving: high accuracy about every 5 s.
   leaderMoving,
 
-  /// Role L still: balanced about every 5 s.
+  /// Role L still: high accuracy about every 5 s.
   leaderStill,
 
-  /// Role F: balanced about every 5 s.
+  /// Role F: high accuracy about every 5 s.
   follower,
 
   /// Offline: follower-like sampling, probes only.
@@ -27,8 +27,7 @@ enum SamplingMode {
 }
 
 /// Minimum interval between stream recreations in milliseconds.
-/// Applies to downgrades only; upgrades to a faster cadence or to high
-/// accuracy bypass it.
+/// Applies to downgrades only; upgrades to a faster cadence bypass it.
 const int streamHysteresisMs = 30000;
 
 /// Nominal stream interval per mode in seconds. Mirrors
@@ -36,8 +35,8 @@ const int streamHysteresisMs = 30000;
 /// Every role samples at 5 s (owner directive); only the power modes
 /// (offline saver and paused) keep the slow 45 s cadence. Waiting and
 /// leaderMoving share the 5 s rate so the first vehicle publishes one
-/// interval after motion starts; the W to L switch is still an accuracy
-/// upgrade (medium to high) and bypasses hysteresis.
+/// interval after motion starts; the W to L switch bypasses hysteresis
+/// as a role/cadence rule (all active roles are high accuracy now, D121).
 int intervalSForMode(SamplingMode mode) {
   switch (mode) {
     case SamplingMode.leaderMoving:
@@ -53,11 +52,11 @@ int intervalSForMode(SamplingMode mode) {
 
 /// Decides the sampling mode. Returns [current] unchanged when only the
 /// hysteresis window blocks a downgrade. Upgrades to a faster cadence
-/// (shorter interval) or to high accuracy apply immediately: holding a
-/// fresh leader at the old waiting rate for 30 s was the dominant
-/// steady-state latency behind the 15-25 s map delays. Waiting and
-/// leaderMoving share the 5 s rate, so the W to L switch bypasses on
-/// accuracy (medium to high).
+/// (shorter interval) apply immediately: holding a fresh leader at the old
+/// waiting rate for 30 s was the dominant steady-state latency behind the
+/// 15-25 s map delays. Waiting and leaderMoving share the 5 s rate, so
+/// the W to L switch bypasses hysteresis on role/cadence, not accuracy
+/// (all active roles are high accuracy now, D121).
 SamplingMode decideMode({
   required SamplingMode current,
   required TripModeInput input,

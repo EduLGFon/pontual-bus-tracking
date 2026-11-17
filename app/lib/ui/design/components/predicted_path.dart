@@ -2,7 +2,7 @@
 // The map caller projects route points into the marker layer and passes
 // them here; the gallery passes fake offsets. Flagged off with predictions.
 // See docs/ui/UI_SPEC.md 13.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/certainty_style.dart';
 import 'package:pontual/ui/models/certainty.dart';
 

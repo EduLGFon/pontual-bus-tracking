@@ -4,7 +4,7 @@
 // glyphs: no runtime request to any third-party tile, font or sprite
 // host. The renderer integration lands behind this seam; until then the
 // app keeps the OSM raster fallback. See docs/maps.md and DECISIONS.md D29.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Bundled city tiles, copied to app storage on first run on Android
 /// (native renderers read file paths, never flutter assets) and served

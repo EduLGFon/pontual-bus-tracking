@@ -1,6 +1,6 @@
 // Toast host: one global toast queue, shown above the dock.
 // See docs/ui/UI_SPEC.md 7.1.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pontual/ui/design/components/toast.dart';
 

@@ -46,7 +46,7 @@ Sem dados pessoais em tíquetes, logs de incidente ou comandos colados: nunca co
 - API: `api-pontual.spotnik.space` pelo túnel `pontual`. Host de primeiro nível, Universal SSL cobre.
 - `api.pontual.spotnik.space` é segundo nível: Universal SSL não cobre e Total TLS não emite para hostnames do Tunnel. Só funciona com Advanced Certificate Manager (US$ 10/mês) e certificado avançado.
 - Depois de mudar `API_ORIGIN`, rode o workflow `deploy-static` de novo. Variável alterada não rebuilda sozinha. Valor atual: `API_ORIGIN=https://api-pontual.spotnik.space`. `STATIC_ORIGIN` é opcional: sem ela, o workflow lê o domínio customizado do Pages e usa `https://pontual.spotnik.space`.
-- Enquanto a API estiver em easy-test (`APP_ENV=local` com `TEST_EASY_PUBLISH=true`), o PWA pode ser rebuildado com `FIX_ACCURACY_MAX_M=500` e `FORCE_PING_BUTTON=true` nas variáveis do repositório. Padrões 60 e false. Remova as duas e rode `deploy-static` antes do piloto: o PWA é público e, com easy-publish, qualquer visitante pode publicar um ônibus parado.
+- Enquanto a API estiver em easy-test (`APP_ENV=local` com `TEST_EASY_PUBLISH=true`), o PWA pode ser rebuildado com `FIX_ACCURACY_MAX_M=500` e `FORCE_PING_BUTTON=true` nas variáveis do repositório. Padrões 60 e false. Remova as duas e rode `deploy-static` antes do piloto: o PWA é público e, com easy-publish, qualquer visitante pode publicar um ônibus parado. Antes do piloto ou de produção, confirme que `FIX_ACCURACY_MAX_M` voltou a 60 em toda configuração local, inclusive `env/phone.json`.
 
 ## Ônibus fantasma / falsificação
 

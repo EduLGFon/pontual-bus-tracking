@@ -1,5 +1,5 @@
 // T30 tests: consent flow gating, versioning, and permission sheets.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pontual/core/errors/failures.dart';
 import 'package:pontual/data/prefs/consent_store.dart';

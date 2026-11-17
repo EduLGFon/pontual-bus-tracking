@@ -2,7 +2,7 @@
 // home helpers, line status, live arrivals, pace prediction and line
 // categories. No widgets, no prefs, no network. Merged into one file so
 // the suite pays a single test-process startup instead of seven.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:pontual/core/geo/geo.dart' as geo;

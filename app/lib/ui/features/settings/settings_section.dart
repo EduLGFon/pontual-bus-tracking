@@ -3,7 +3,7 @@
 // `SettingsTile` renders either a navigation row (chevron) or an immediate
 // switch row. The two constructors keep the trailing control unambiguous:
 // a row never mixes a switch with a chevron.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/pressable.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

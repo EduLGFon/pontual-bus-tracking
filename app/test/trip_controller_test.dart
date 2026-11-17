@@ -1,7 +1,7 @@
 // T33 tests: controller solo ride on fakes plus end-card copy.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -89,6 +89,68 @@ Position pos(
     altitudeAccuracy: 1,
     headingAccuracy: 1,
   );
+}
+
+class _ManualTimer implements Timer {
+  _ManualTimer(this.dueMs, this._callback);
+
+  int dueMs;
+  final void Function() _callback;
+
+  bool _cancelled = false;
+  bool _fired = false;
+
+  @override
+  int get tick => 0;
+
+  @override
+  bool get isActive => !_cancelled && !_fired;
+
+  @override
+  void cancel() {
+    _cancelled = true;
+  }
+
+  void fire() {
+    if (_cancelled || _fired) {
+      return;
+    }
+    _fired = true;
+    _callback();
+  }
+}
+
+class _TimerHarness {
+  _TimerHarness(this.clock);
+
+  final FakeClock clock;
+  final List<_ManualTimer> _timers = <_ManualTimer>[];
+
+  Timer createTimer(Duration duration, void Function() callback) {
+    final _ManualTimer t = _ManualTimer(
+      clock.nowMs() + duration.inMilliseconds,
+      callback,
+    );
+    _timers.add(t);
+    return t;
+  }
+
+  void fireDue() {
+    bool progress = true;
+    while (progress) {
+      progress = false;
+      final List<_ManualTimer> due = _timers
+          .where(
+            (_ManualTimer t) =>
+                !t._cancelled && !t._fired && t.dueMs <= clock.nowMs(),
+          )
+          .toList();
+      for (final _ManualTimer t in due) {
+        t.fire();
+        progress = true;
+      }
+    }
+  }
 }
 
 TripController controller(
@@ -1740,6 +1802,226 @@ void main() {
     c.dispose();
     c.confirmStillRiding();
   });
+
+  test(
+    'implausible fix is never sent and keeps the last good baseline',
+    () async {
+      final FakeClock clock = FakeClock(100000);
+      final List<String> pingBodies = <String>[];
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          return http.Response('{"r":"W","n":20}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          pingBodies.add(req.body);
+          return http.Response('{"r":"L","n":15}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final rig.Rig r = rig.rig(client, clock: clock);
+      Future<void> settleUntil(bool Function() done) async {
+        for (int i = 0; i < 100 && !done(); i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      await rig.start(r);
+      // The start fix seeds the send-time baseline. Open the pacing slot
+      // and send one good fix so the test can tell a later bad fix from a
+      // sent one.
+      clock.advance(21000);
+      r.positions.add(rig.pos(8, timestampMs: clock.nowMs()));
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await settleUntil(() => pingBodies.isNotEmpty);
+      expect(pingBodies, hasLength(1));
+      expect(pingBodies.single, contains('"lat":-18.72'));
+
+      // 250 m north in 5 s is implausible (server teleport rule). It must
+      // not be queued, sent, or replace the last good fix.
+      clock.advance(5000);
+      r.positions.add(
+        Position(
+          latitude: -18.71775,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(clock.nowMs()),
+          accuracy: 55,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      for (int i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(pingBodies, hasLength(1));
+      expect(
+        pingBodies.any((String body) => body.contains('-18.71775')),
+        isFalse,
+      );
+      expect(r.controller.lastFix?.lat, -18.72);
+      expect(r.controller.lastAccuracyM, 10);
+      expect(r.controller.lastBatteryPct, 80);
+
+      // A rejected fix must not replace the supervisor-facing battery or
+      // charging values either.
+      r.controller.onFixForTest(
+        TripFix(
+          seq: 99,
+          lat: -18.60,
+          lng: -39.85,
+          speedMps: 8,
+          heading: null,
+          accuracyM: 55,
+          batteryPct: 20,
+          charging: true,
+          acceptedAtMs: clock.nowMs(),
+        ),
+      );
+      expect(r.controller.lastFix?.lat, -18.72);
+      expect(r.controller.lastBatteryPct, 80);
+      expect(r.controller.lastCharging, isFalse);
+
+      // The next plausible fix still sends and the trip stays active.
+      clock.advance(21000);
+      r.positions.add(rig.pos(8, timestampMs: clock.nowMs()));
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await settleUntil(() => pingBodies.length == 2);
+      expect(pingBodies, hasLength(2));
+      expect(r.controller.state, isA<TripActive>());
+      expect(r.controller.lastFix?.lat, -18.72);
+      r.controller.dispose();
+      await r.positions.close();
+    },
+  );
+
+  test(
+    'accepted fixes inside one slot cannot accumulate into a server teleport',
+    () async {
+      final FakeClock clock = FakeClock(100000);
+      final _TimerHarness harness = _TimerHarness(clock);
+      final List<String> pingBodies = <String>[];
+      final MockClient client = MockClient((http.Request req) async {
+        final String path = req.url.path;
+        if (path == '/v1/devices') {
+          return http.Response('{"token":"bm1_t","exp":1,"id":"d"}', 201);
+        }
+        if (path == '/v1/consents') {
+          return http.Response('{"ok":true}', 200);
+        }
+        if (path == '/v1/trip') {
+          if (req.method == 'DELETE') {
+            return http.Response('', 204);
+          }
+          return http.Response('{"r":"W","n":5}', 201);
+        }
+        if (path == '/v1/trip/ping') {
+          pingBodies.add(req.body);
+          return http.Response('{"r":"L","n":5}', 200);
+        }
+        return http.Response('{}', 404);
+      });
+      final rig.Rig r = rig.rig(
+        client,
+        clock: clock,
+        createTimer: harness.createTimer,
+      );
+      Future<void> flush() async {
+        for (int i = 0; i < 50; i++) {
+          await Future<void>.microtask(() {});
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      await rig.start(r);
+      // Send one good fix and let its outcome advance the server baseline.
+      clock.advance(5000);
+      r.positions.add(rig.pos(8, timestampMs: clock.nowMs()));
+      await flush();
+      expect(pingBodies, hasLength(1));
+
+      // Two accepted moves inside the same 5 s send slot. Each is about
+      // 175 m from the previous accepted fix, so neither is a wild fix,
+      // but together they are about 350 m from the last sent fix.
+      clock.advance(2000);
+      r.positions.add(
+        Position(
+          latitude: -18.718426,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(clock.nowMs()),
+          accuracy: 10,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await flush();
+      expect(pingBodies, hasLength(1));
+      clock.advance(2000);
+      r.positions.add(
+        Position(
+          latitude: -18.716853,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(clock.nowMs()),
+          accuracy: 10,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await flush();
+      expect(pingBodies, hasLength(1));
+
+      // The slot opens. The pending fix is >200 m from the last sent fix
+      // at >30 m/s, so it must be dropped rather than sent.
+      clock.advance(1000);
+      harness.fireDue();
+      await flush();
+      expect(pingBodies, hasLength(1));
+      expect(r.controller.state, isA<TripActive>());
+
+      // A later slot carries a plausible fix normally.
+      clock.advance(7000);
+      r.positions.add(
+        Position(
+          latitude: -18.71680,
+          longitude: -39.85,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(clock.nowMs()),
+          accuracy: 10,
+          altitude: 0,
+          heading: 90,
+          speed: 8,
+          speedAccuracy: 1,
+          altitudeAccuracy: 1,
+          headingAccuracy: 1,
+        ),
+      );
+      await flush();
+      expect(pingBodies, hasLength(2));
+      expect(r.controller.state, isA<TripActive>());
+      r.controller.dispose();
+      await r.positions.close();
+    },
+  );
 
   testWidgets('end cards carry each reason', (WidgetTester tester) async {
     Future<void> pumpCard(TripEndKind kind, String? detail) {

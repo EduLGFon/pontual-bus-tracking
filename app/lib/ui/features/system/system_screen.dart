@@ -2,7 +2,7 @@
 // unavailable, and not found. Blocking states never hide timetables that
 // are already on screen: each one keeps a way back to the app, shows no
 // stack trace, and logs nothing with personal data.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/components/empty_state.dart';
 import 'package:pontual/ui/design/theme/context.dart';

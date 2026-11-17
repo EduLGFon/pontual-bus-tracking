@@ -1,6 +1,6 @@
 // Persisted theme mode. System default; the settings screen writes
 // through this store and updates themeModeProvider. See ARCHITECTURE.md S10.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Prefs key for the theme mode.

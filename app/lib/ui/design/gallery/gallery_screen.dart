@@ -2,7 +2,7 @@
 // in light and dark and at text scale 1.0 and 2.0 for visual QA. The route
 // is registered only in debug builds, so the gallery is never shipped.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart' hide Banner, Chip;
+import 'package:material_ui/material_ui.dart' hide Banner, Chip;
 import 'package:pontual/ui/design/components/alert_sheet.dart';
 import 'package:pontual/ui/design/components/arrival_row.dart';
 import 'package:pontual/ui/design/components/banner.dart';

@@ -2,7 +2,7 @@
 // itself is owned by LocationService (T31); these sheets cover the
 // education, denied, permanently-denied, and services-off states.
 // See ARCHITECTURE.md S07.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 
 /// Location permission states relevant to sharing.

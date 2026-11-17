@@ -2,7 +2,7 @@
 // wording, colours and dot never diverge between screens. Live wins, then
 // the timetable states; the line always shows something.
 // See docs/ui/UI_SPEC.md 5 and docs/ui/UI_SPEC.md.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/components/live_dot.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';

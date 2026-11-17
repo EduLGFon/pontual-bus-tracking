@@ -2,7 +2,7 @@
 // page is open and unlocked, so the banner never dismisses. When the
 // screen-on toggle is off it must not claim the display stays on. See
 // PLAN 8.12.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/strings/ui_strings.dart';
 

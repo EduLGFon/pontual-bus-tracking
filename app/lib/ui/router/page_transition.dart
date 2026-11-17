@@ -1,7 +1,7 @@
 // Page transition: fade-through 200 ms with an 8 dp upward slide. Reduced
 // motion shortens the duration to instant. Never used with a Hero on a map.
 // See docs/ui/UI_SPEC.md 6.6 and 9.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/tokens/motion.dart';
 
 /// Transition duration for the current reduced-motion setting.

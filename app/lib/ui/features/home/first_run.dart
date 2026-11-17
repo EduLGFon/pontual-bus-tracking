@@ -1,7 +1,7 @@
 // First-run affordances of Início: the welcome card that opens the line
 // picker. It dismisses into local prefs through the onboarding provider.
 // See docs/ui/UI_SPEC.md 7.10.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/ui/design/components/buttons.dart';
 import 'package:pontual/ui/design/components/ghost_link.dart';

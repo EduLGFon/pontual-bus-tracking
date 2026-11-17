@@ -4,7 +4,7 @@
 // the native GNSS channel; nothing is inferred or invented.
 // PRIVACY: accuracy, satellites and cadence never carry a coordinate,
 // token or identifier to this widget.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/core/config/env.dart';
 import 'package:pontual/domain/trip/sharing_health.dart';
 import 'package:pontual/domain/trip/trip_state.dart';

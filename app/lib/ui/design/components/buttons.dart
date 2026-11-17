@@ -1,7 +1,7 @@
 // Buttons. Pill shapes, one primary action per screen, loading shown as a
 // static label change instead of a spinner, disabled at 38 percent alpha.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 import 'package:pontual/ui/design/tokens/text.dart';

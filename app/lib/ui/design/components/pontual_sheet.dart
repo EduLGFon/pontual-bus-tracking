@@ -1,7 +1,7 @@
 // PontualSheet: bottom sheet container with a drag handle, sunken border
 // and the single allowed soft shadow, wrapped in a RepaintBoundary.
 // See docs/ui/UI_SPEC.md 5.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/spacing.dart';
 

@@ -232,7 +232,7 @@ Status tags: **[A]** alpha-must, **[A\*]** alpha-should, **[L]** later.
 | RF17 | **Kill switch / maintenance / forced update**: static `config.json` (CDN) and server flag; app shows a blocking or banner state. | A | Ops safety. |
 | RF18 | Live-lines indicator on the home list (which lines have vehicles now). | A | One cheap, edge-cacheable endpoint `GET /v1/live`. |
 | RF19 | Route polyline drawn on the line map (learned from trips; hand-recorded polylines where available). | A\* | Encoded polyline, lazy loaded. |
-| RF20 | Stops layer / next-bus-at-stop ETA. | A | Layer ships with mapped stops; per-stop ETA follows coverage. |
+| RF20 | Global shared stops / next-bus-at-stop ETA. Every line map draws all learned stops merged across lines and directions; tapping a stop opens a sheet listing each serving line with fixed terminal departure times and live predicted arrivals when a vehicle is live. | A | D124. Fixed times are terminal departures, not exact stop passage; per-stop ETA follows learning coverage. |
 | RF21 | Community timetable corrections form. | L | Report §12.3. |
 | RF22 | Notifications, favourites, history, delay stats. | L | Out of scope (report §4). |
 | RF23 | Passenger reports ("Sinalizações"): waiting near the current location, bus full, bus broken, access blocked, with a server timestamp, short TTL and no free text. App sends a coarse ~150 m area cell, never a coordinate; no stop picker. Reads ride on the line snapshot; writes use one authenticated endpoint. | A | D82, D83. Available to any viewer; no votes in alpha. In-memory only. |
@@ -355,7 +355,7 @@ The owner wants to grow into caching, historical behaviour, predictions and mach
 
 - The engine emits **internal events** (`TripStarted`, `FixAccepted`, `VehicleUpdated`, `VehicleRemoved`, `TripEnded`) on an in-process event bus. Today the only subscriber is the WebSocket hub. Events carry **no device id**; they carry vehicle id, line id and coarse data.
 - **Caching:** public snapshot endpoints are already cache-friendly (ETag, short `max-age`). A `StateStore` interface (in-memory implementation now) can later get a Redis implementation if a second API instance is ever needed.
-- **History, ETA, ML:** build a separate consumer module that receives events and stores **de-identified aggregates** only (e.g. median speed per route segment per hour of week, headway statistics). Rules (D20): no raw per-trip tracks; no device or trip identifiers; trim trip starts and ends; minimum group sizes before publishing any aggregate; new consent-text version and RIPD update before the first byte is stored; lawyer review. Route segments require route geometry and stops (RF20, later).
+- **History, ETA, ML:** build a separate consumer module that receives events and stores **de-identified aggregates** only (e.g. median speed per route segment per hour of week, headway statistics). Rules (D20, D120): no raw per-trip tracks; no device or trip identifiers; end trimming is optional (`learning_trim_ends_s`, default 0, so learned geometry covers the whole shared trip including the boarding and alighting fixes); minimum group sizes before publishing any aggregate; new consent-text version and RIPD update before the first byte is stored; lawyer review. Route segments require route geometry and stops (RF20, later).
 - Prediction models run on the aggregates, never on raw location. Model serving can be a separate process behind the same API.
 
 ---
@@ -486,9 +486,13 @@ Rules for all endpoints: JSON only (`Content-Type: application/json`); body size
 | `DELETE /v1/trip` | yes | none | `204` (idempotent) | device 30/min |
 | `GET /v1/lines/{id}/vehicles` | no | none | `200 {"t":<epoch_s>,"v":[[id,lat,lng,hdg,kmh,n,age_s],...],"r":[...]}` with `ETag`; `304` on match; `Cache-Control: public, max-age=5` | IP 120/min |
 | `GET /v1/live` | no | none | `200 [[line_id,count],...]` (only lines with a published vehicle); `Cache-Control: public, max-age=10` | IP 60/min |
+| `GET /v1/stops` | no | none | `200 {"v":1,"stops":[{"id","lat","lng","r","n","lines":[{"l","d","s"}]}]}`; `Cache-Control: public, max-age=300` | IP 60/min |
+| `GET /v1/stops/{id}/arrivals` | no | none | `200 {"id","now","items":[{"line","code","vehicle","eta_s","conf","n","m"}]}`; `Cache-Control: public, max-age=10` | IP 120/min |
 | `GET /v1/stream` (WebSocket) | no | see §6.8 | stream of snapshots | IP `ws_max_per_ip`, global `ws_max_connections` |
 | `DELETE /v1/me` | yes | none | `204` | device 5/h |
 | `POST /v1/reports` | yes | `{"op":"report" or "retract","kind":"waiting" or "full" or "broken" or "blocked","line":7,"area":"g52902_98514"?}` | `200/201 {"t":<epoch_s>,"r":[...]}` (refreshed line reports) | device 12/min, IP 60/min; `429 quota` per line/global cap |
+
+Public stop reads serve learned aggregates. `GET /v1/stops` merges active learned stops across all lines and directions within 50 m; the group coordinates are a passes-weighted centroid (members with zero passes are weighted as one for the centroid) and `r`/`n` are group maxima. The canonical group id is the lexicographically smallest member stop id: deterministic while membership is unchanged, not guaranteed across membership changes. A 60 s in-process cache avoids repeating the database read and clustering on every request. `GET /v1/stops/{id}/arrivals` resolves that merged id and prices only lines whose served learned direction has a member at the stop; the opposite direction is a different physical approach and is skipped. Each item is one live vehicle, and `m` is the predictor method (`learned`, `fallback_distance`, `fallback`, or `passed`). Clients hide `passed` and the 0-second `fallback` sentinel.
 
 **Error codes** (body `{"e":"<code>"}`):
 
@@ -499,6 +503,7 @@ Rules for all endpoints: JSON only (`Content-Type: application/json`); body size
 | 403 | `blocked` / `consent` | device blocked / consent missing or outdated |
 | 404 | `gone` | the device has no active trip (also returned for anything not owned) |
 | 404 | `line` | unknown or inactive line |
+| 404 | `not_found` | unknown merged stop, or a public learning/stop resource while learning is disabled |
 | 413 / 415 | `too_large` / `media` | body size / content type |
 | 422 | `area` | start fix outside the accepted area |
 | 429 | `rate` / `quota` | rate limit / start quota (with `Retry-After`) |
@@ -740,6 +745,7 @@ JSON Schema validation, unique ids/codes/shorts, sorted times, UTF-8, size budge
 | Prefs | `shared_preferences` | tiny key/values (consent version, device token, theme, data version) |
 | Wake lock (web/iOS/Android trip toggle) | `wakelock_plus` | generalized to `app/lib/platform/screen_wake.dart`; web defaults on and stays toggleable; Android uses `FLAG_KEEP_SCREEN_ON` with no `WAKE_LOCK` permission or new dependency (D117) |
 | Links | `url_launcher` | open policy URL / mail |
+| Material widgets | `material_ui` | official Flutter Material implementation, BSD-3-Clause; direct because Flutter 3.50 deprecates `package:flutter/material.dart`; already resolved at the same version and sha256 transitively, so no new supply-chain bytes (D129) |
 | Notifications permission | `permission_handler` (notification permission only, best-effort request at share time; injects no manifest permissions) | approved by ADR 2026-10-10 |
 | Polyline decode | tiny pure-Dart function (about 25 lines) | no package |
 | Tests | `flutter_test`, `mocktail` | |
@@ -804,17 +810,17 @@ State is a **sealed class**; transitions are a pure function `(state, event) -> 
 
 | Mode | When | Location request | Send cadence |
 | --- | --- | --- | --- |
-| `waiting` | role `W` | balanced accuracy, ~5 s | every fix (~5 s) |
+| `waiting` | role `W` | high accuracy, ~5 s | every fix (~5 s) |
 | `leaderMoving` | role `L`, moving | high accuracy, ~5 s interval | server `n` (~5 s) |
-| `leaderStill` | role `L`, still >= 60 s | balanced, ~5 s | server `n` (~5 s) |
-| `follower` | role `F` | balanced, ~5 s interval | server `n` (~5 s) |
+| `leaderStill` | role `L`, still >= 60 s | high accuracy, ~5 s | server `n` (~5 s) |
+| `follower` | role `F` | high accuracy, ~5 s interval | server `n` (~5 s) |
 | `offlineSaver` | 3 failed sends or no success for 120 s | low-power ~45 s, no uploads except **probes** (30 -> 60 -> 120 s, jitter) | probe only |
 | `paused` | permission revoked / location services off / mock detected | low-power foreground service kept, ~45 s | none; show banner (see below) |
 
 Rules:
 
-- Change mode only on a role/state change, with **hysteresis on downgrades** (no stream recreation < 30 s when slowing down; 60 s while the last accepted fix is degraded >= 40 m so GPS stays powered through brief coarse patches; offline saver and paused keep the 30 s guard). Upgrades to a faster cadence or to high accuracy apply immediately (D59, D60).
-- **Drop** a fix if: `isMocked` (VERIFY), accuracy > 60 m, outside the bbox, or timestamp older than 20 s. (Server re-checks everything.)
+- Change mode only on a role/state change, with **hysteresis on downgrades** (no stream recreation < 30 s when slowing down; 60 s while the last accepted fix is degraded >= 40 m so the stream does not churn during brief coarse patches; offline saver and paused keep the 30 s guard). Upgrades to a faster cadence apply immediately (D59, D60). All active reporting roles now request high accuracy for the whole trip (D121); there is no medium-to-high role accuracy upgrade anymore, but `waiting -> leaderMoving` still bypasses hysteresis as a role/cadence rule (both are high accuracy).
+- **Drop** a fix if: `isMocked` (VERIFY), accuracy > 60 m, outside the bbox, timestamp older than 20 s, instantaneous speed > 25 m/s, or a jump > 200 m at implied speed > 30 m/s from the last good fix. (Server re-checks everything.) The last good fix stays the viewer/revive baseline; the send-time teleport check compares against the last server-acknowledged fix, seeded with the trip start fix, so accepted but unsent fixes cannot accumulate into a server strike (D126).
 - Round before sending: lat/lng to 5 decimals, speed to 0.1 m/s, battery to 5 % steps. Heading null under 0.5 m/s (bearings need motion, D66).
 - `seq` increments per **accepted fix** (not per attempt).
 - Start anchors on the first fix <= 30 m arriving inside the 60 s GPS window, else the best-seen accepted fix (D65).
@@ -988,7 +994,7 @@ Thin top banner "Sem conexão. Mostrando dados salvos." Appears after first fail
 
 #### S15 - Sinalizações (passenger reports)
 
-Purpose: let a passenger signal a short-lived, public condition without opening a chat, without a location prompt, and without pretending the report is verified. Entry points: line sheet "Sinalizar" ghost action plus a strip of at most two report chips and a `+N` overflow chip (on every active line); trip screen AppBar flag icon. Any viewer can use it; no trip or bus presence required. Stop dots on the map stay decorative; no stop sheet or stop picker (D83).
+Purpose: let a passenger signal a short-lived, public condition without opening a chat, without a location prompt, and without pretending the report is verified. Entry points: line sheet "Sinalizar" ghost action plus a strip of at most two report chips and a `+N` overflow chip (on every active line); trip screen AppBar flag icon. Any viewer can use it; no trip or bus presence required. Stop dots on every line map open the stop sheet at map max zoom 17 (`mapMaxZoom`) for that stop, listing each serving line with fixed terminal departure times and live predicted arrivals (D124); below that zoom the dots stay visible but non-tappable because 48 dp hit boxes overlap. Reports still use the coarse ~150 m area and no stop picker (D83).
 
 Report sheet: four closed options (`Ainda estou esperando`, `Ônibus lotado`, `Ônibus quebrado`, `Acesso bloqueado`). Waiting and blocked show a location card: app reads device location once, converts on-device to a coarse ~150 m cell, sends only the cell id. Exact coordinates never leave the device. First use shows a one-time notice before the OS permission prompt. Denied, blocked, services-off, imprecise (>150 m) and timeout states get a report-specific card with retry and, on Android, "Abrir ajustes". No free text, no photos, no confirm/deny votes.
 

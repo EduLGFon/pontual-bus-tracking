@@ -2,7 +2,7 @@
 // (shortcuts, live now, recents, all lines) plus the first-run affordances.
 // Paints from cached lines; live info fills in later without layout jump.
 // See docs/ui/UI_SPEC.md 7.2.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pontual/app/providers.dart';

@@ -1,7 +1,7 @@
 // The single style table for certainty. No screen invents its own colours,
 // shapes, icons or prefixes for live, predicted, scheduled or stale.
 // See docs/ui/UI_SPEC.md 3.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pontual/ui/design/theme/context.dart';
 import 'package:pontual/ui/design/tokens/colors.dart';
 import 'package:pontual/ui/models/certainty.dart';
